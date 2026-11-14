@@ -1,8 +1,8 @@
 //
 //  NewPost.swift
 //  Block Party — New post, from the Town bar's + (BP app references/post-screen, town-feed 29; Jesse
-//  2026-11-01: draft 1, Facebook's, "yes to all and start"). A neighbour's own words, maybe one photo,
-//  a Place and the friends they're with, Public or only their Friends. Post saves it pending and
+//  2026-11-01: draft 1, Facebook's, "yes to all and start"). A neighbour's own words, up to 10 photos in the
+//  order picked (town-feed 46), a Place and the friends they're with, Public or only their Friends. Post saves it pending and
 //  the sheet closes; the instant check (`moderate-post` `submit`) answers on Town, where it waits faded
 //  until it's up. The Event chip makes it town-plus's New event instead: a name, a day and time and a
 //  Place, shared as an Event, the sheet waiting for the check.
@@ -204,6 +204,8 @@ struct NewPostDraft: Equatable {
     static let bigUntil = 85
     /// claim_submit keeps 20.
     static let tagLimit = 20
+    /// Photos a post takes, Apple's picker stopping there by itself (town-feed 46; Jesse at Check-in 1: "yes" to 10).
+    static let photoLimit = 10
 
     var words = ""
     var friendsOnly = false
@@ -254,19 +256,21 @@ struct NewPostDraft: Equatable {
     /// The name line, Facebook's: "Jesse is with Sam Lee at Sal's."
     func line(name: String) -> String { TownPost.line(name: name, with: tagged.map(\.displayName), at: location) }
 
-    func input(id: String, imageURL: String?, aspect: Double?) -> NewPostInput {
-        NewPostInput(id: id, words: text, imageURL: imageURL, aspect: imageURL == nil ? nil : aspect, place: location,
+    /// The first photo's address goes as the post's photo, the rest after it in the order picked (town-feed 46).
+    func input(id: String, photos: [String], aspect: Double?) -> NewPostInput {
+        NewPostInput(id: id, words: text, imageURL: photos.first, aspect: photos.isEmpty ? nil : aspect,
+                     morePhotos: Array(photos.dropFirst()), place: location,
                      friendsOnly: friendsOnly, tagged: tagged.map(\.userId), atNames: keptNames)
     }
 
     /// A photo's shape inside Instagram's limits: 4:5 tall to 1.91:1 wide.
-    static func aspect(_ size: CGSize) -> Double {
+    nonisolated static func aspect(_ size: CGSize) -> Double {
         guard size.width > 0, size.height > 0 else { return 1 }
         return min(max(Double(size.width / size.height), 4.0 / 5.0), 1.91)
     }
 
     /// The part of a photo inside those limits, cut from its middle, as the card will show it.
-    static func cropRect(_ size: CGSize) -> CGRect {
+    nonisolated static func cropRect(_ size: CGSize) -> CGRect {
         let aspect = CGFloat(aspect(size))
         guard size.width > 0, size.height > 0 else { return CGRect(origin: .zero, size: size) }
         if size.width / size.height > aspect {
@@ -278,13 +282,51 @@ struct NewPostDraft: Equatable {
     }
 }
 
+/// A photo picked for a post (town-feed 46): cut into Instagram's limits and saved as the JPEG that goes up, so New
+/// post shows it from its file through the card's own photo view, exactly as neighbours will see it.
+nonisolated struct PickedPhoto: Equatable, Identifiable, Sendable {
+    /// The picker's item it came from, else a new one.
+    let id: String
+    let file: URL
+    /// Width over height, inside 4:5 to 1.91:1.
+    let aspect: Double
+
+    /// The photo cut to its card's shape and saved; nil when it can't be written.
+    static func make(_ image: UIImage, id: String = UUID().uuidString) -> PickedPhoto? {
+        let cut = Self.cut(image)
+        guard let jpeg = ProfileModel.coverJPEG(cut) else { return nil }
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("post-photos", isDirectory: true)
+        let file = folder.appendingPathComponent(UUID().uuidString + ".jpg")
+        do {
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            try jpeg.write(to: file)
+        } catch { return nil }
+        return PickedPhoto(id: id, file: file, aspect: NewPostDraft.aspect(cut.size))
+    }
+
+    /// The photo cut to its card's shape, so what goes up is what the card shows.
+    static func cut(_ image: UIImage) -> UIImage {
+        let rect = NewPostDraft.cropRect(image.size)
+        guard rect.size != image.size else { return image }
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = image.scale
+        return UIGraphicsImageRenderer(size: rect.size, format: format).image { _ in
+            image.draw(at: CGPoint(x: -rect.minX, y: -rect.minY))
+        }
+    }
+}
+
 // MARK: - New post's model
 
 @MainActor @Observable
 final class NewPostModel {
     var draft = NewPostDraft()
-    /// The photo, already cut to its card's shape.
-    private(set) var photo: UIImage?
+    /// The photos, in the order picked, each cut to its card's shape and saved (town-feed 46).
+    private(set) var photos: [PickedPhoto] = []
+    /// What Apple's picker holds, numbered in the order tapped: reopened, it shows them numbered still.
+    var picks: [PhotosPickerItem] = []
+    /// Picks still loading (from iCloud, a few seconds each): their place shows grey meanwhile, and Post waits.
+    private(set) var loading = 0
     /// The Event chip: Post shares an Event exactly as town-plus's Share did.
     var event = false
     /// The Event's name, day and time; its Place and photo are New post's own.
@@ -306,7 +348,7 @@ final class NewPostModel {
     /// Something to lose: the X asks first. Editing, a change to the words or the Place.
     var edited: Bool {
         if let editing { return draft.changed(from: editing) }
-        return photo != nil || !draft.text.isEmpty || !draft.tagged.isEmpty || draft.location != nil
+        return !photos.isEmpty || !draft.text.isEmpty || !draft.tagged.isEmpty || draft.location != nil
             || (event && !eventModel.draft.title.isEmpty)
     }
 
@@ -315,11 +357,14 @@ final class NewPostModel {
         if let editing {
             return draft.ready(photo: editing.photo != nil) && draft.changed(from: editing) && draft.edit(of: editing) != refused
         }
-        return event ? eventModel.draft.ready : draft.ready(photo: photo != nil)
+        guard loading == 0 else { return false }
+        return event ? eventModel.draft.ready : draft.ready(photo: !photos.isEmpty)
     }
 
-    /// A photo goes with it: the one picked, or the post's own when editing.
-    var hasPhoto: Bool { photo != nil || editing?.photo != nil }
+    /// A photo goes with it: one picked, or the post's own when editing.
+    var hasPhoto: Bool { !photos.isEmpty || loading > 0 || editing?.photo != nil }
+    /// The post's shape: the first photo's, which every photo takes (Instagram's, town-feed 46).
+    var aspect: Double { photos.first?.aspect ?? 4.0 / 5.0 }
 
     /// Edit on your own post: New post on its words, Place and `@` names (town-feed 44).
     func startEditing(_ post: TownPost) {
@@ -352,10 +397,57 @@ final class NewPostModel {
     var shownProblem: String? { event ? eventModel.problem : problem }
     var shownFailures: Int { failures + eventModel.failures }
 
-    func pick(_ image: UIImage?) {
-        photo = image.map(Self.cut)
-        eventModel.pick(photo)
+    /// The picker's picks as photos, in its order. A photo kept from before isn't loaded again; a new one is shrunk to
+    /// what goes up before it's cut, off the main thread, so a 48 MP photo never sits whole in memory. One that won't
+    /// load is left out. A newer pick while these load wins.
+    func load() async {
+        let items = picks
+        let kept = Dictionary(photos.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        // Only new picks show grey: taking one out reloads nothing.
+        loading = items.filter { kept[$0.itemIdentifier ?? ""] == nil }.count
+        let tasks = items.map { item in
+            let key = item.itemIdentifier ?? UUID().uuidString
+            if let photo = kept[key] { return Task<PickedPhoto?, Never> { photo } }
+            return Task { await Self.photo(item, id: key) }
+        }
+        var loaded: [PickedPhoto] = []
+        for task in tasks { if let photo = await task.value { loaded.append(photo) } }
+        guard items == picks else { return }
+        loading = 0
+        set(loaded)
+    }
+
+    /// Bundled photos as if picked (`-new-event-photo`): AXe can't reach Apple's picker.
+    func use(_ images: [UIImage]) {
+        set(images.prefix(NewPostDraft.photoLimit).compactMap { PickedPhoto.make($0) })
+    }
+
+    /// The trash on a photo: it leaves the post and the picker's picks.
+    func remove(at index: Int) {
+        guard photos.indices.contains(index) else { return }
+        let gone = photos[index].id
+        var next = photos
+        next.remove(at: index)
+        set(next)
+        picks.removeAll { $0.itemIdentifier == gone }
+    }
+
+    private func set(_ next: [PickedPhoto]) {
+        guard next != photos else { return }
+        photos = next
+        // New photos make a new post: a retry can't reuse files a failed save sent under the old id.
+        id = UUID().uuidString.lowercased()
+        // An Event keeps one photo, the first.
+        eventModel.pick(next.first.flatMap { UIImage(contentsOfFile: $0.file.path) })
         problem = nil
+    }
+
+    @concurrent
+    private nonisolated static func photo(_ item: PhotosPickerItem, id: String) async -> PickedPhoto? {
+        guard let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) else { return nil }
+        let k = min(1, NewPostMetric.upload / max(image.size.width * image.scale, 1))
+        let size = CGSize(width: image.size.width * image.scale * k, height: image.size.height * image.scale * k)
+        return PickedPhoto.make(await image.byPreparingThumbnail(ofSize: size) ?? image, id: id)
     }
 
     /// Event on: the Town's, never Friends-only, nobody tagged (Events are the Town's).
@@ -368,8 +460,8 @@ final class NewPostModel {
     /// stays declined).
     func restore(_ back: PostOutbox.Back) {
         draft = back.draft
-        photo = back.photo
-        eventModel.pick(back.photo)
+        set(back.photos)
+        picks = back.picks
         problem = back.reason
     }
 
@@ -380,13 +472,16 @@ final class NewPostModel {
         problem = nil
         defer { saving = false }
         do {
-            var url: String?
-            if let photo {
-                guard let data = ProfileModel.coverJPEG(photo) else { throw CocoaError(.fileReadCorruptFile) }
-                url = try await NewEventModel.once { try await api.uploadEventPhoto(data, id: id) }?.absoluteString
-                    ?? api.eventPhotoURL(id: id)?.absoluteString
+            // Three at a time (the debate round): ten one after another kept the sheet up on a slow line.
+            var urls: [String] = []
+            let id = id
+            for start in stride(from: 0, to: photos.count, by: 3) {
+                let batch = photos[start..<min(start + 3, photos.count)].enumerated().map { offset, photo in
+                    Task { try await Self.upload(photo, n: start + offset + 1, id: id, api: api) }
+                }
+                for task in batch { urls.append(try await task.value) }
             }
-            let input = draft.input(id: id, imageURL: url, aspect: photo.map { NewPostDraft.aspect($0.size) })
+            let input = draft.input(id: id, photos: urls, aspect: photos.first?.aspect)
             try await NewEventModel.once { try await api.addPost(input) }
             return input
         } catch {
@@ -406,15 +501,12 @@ final class NewPostModel {
         return await eventModel.share(api: api)
     }
 
-    /// The photo cut to its card's shape, so what goes up is what the card shows.
-    private static func cut(_ image: UIImage) -> UIImage {
-        let rect = NewPostDraft.cropRect(image.size)
-        guard rect.size != image.size else { return image }
-        let format = UIGraphicsImageRendererFormat()
-        format.scale = image.scale
-        return UIGraphicsImageRenderer(size: rect.size, format: format).image { _ in
-            image.draw(at: CGPoint(x: -rect.minX, y: -rect.minY))
-        }
+    /// Photo `n` up as `<id>-<n>.jpg` (the first `<id>.jpg`). Told it's already there, it was sent: its own address.
+    private static func upload(_ photo: PickedPhoto, n: Int, id: String, api: CommunityAPI) async throws -> String {
+        let data = try Data(contentsOf: photo.file)
+        guard let url = try await NewEventModel.once({ try await api.uploadEventPhoto(data, id: id, n: n) })?.absoluteString
+                ?? api.eventPhotoURL(id: id, n: n)?.absoluteString else { throw CocoaError(.fileReadCorruptFile) }
+        return url
     }
 }
 
@@ -433,7 +525,9 @@ final class PostOutbox {
     struct Sent: Identifiable, Equatable {
         let id: String
         let draft: NewPostDraft
-        let photo: UIImage?
+        let photos: [PickedPhoto]
+        /// The picker's picks, so a post that didn't go up reopens with them numbered.
+        var picks: [PhotosPickerItem] = []
         let name: String
         let picture: URL?
         var state = State.posting
@@ -442,7 +536,8 @@ final class PostOutbox {
     /// What a tapped "This post didn't go up" hands back to New post.
     struct Back {
         let draft: NewPostDraft
-        let photo: UIImage?
+        let photos: [PickedPhoto]
+        let picks: [PhotosPickerItem]
         let reason: String
     }
 
@@ -479,7 +574,7 @@ final class PostOutbox {
     /// "This post didn't go up" tapped: back into New post.
     func reopen() {
         guard let sent, case .notPosted(let reason) = sent.state else { return }
-        back = Back(draft: sent.draft, photo: sent.photo, reason: reason)
+        back = Back(draft: sent.draft, photos: sent.photos, picks: sent.picks, reason: reason)
         self.sent = nil
     }
 
@@ -488,7 +583,8 @@ final class PostOutbox {
     func sample(_ state: String) {
         var draft = NewPostDraft()
         draft.words = "Burger night at Sal's. Who's in?"
-        sent = Sent(id: "sample-post", draft: draft, photo: UIImage(named: "rocktoberfest.jpg"), name: "Jesse", picture: nil,
+        sent = Sent(id: "sample-post", draft: draft, photos: UIImage(named: "rocktoberfest.jpg").flatMap { PickedPhoto.make($0) }.map { [$0] } ?? [],
+                    name: "Jesse", picture: nil,
                     state: state == "notposted" ? .notPosted("Keep it kind.") : state == "waiting" ? .waiting : .posting)
     }
     #endif
@@ -529,10 +625,9 @@ struct PostingPostCard: View {
                         .padding(.horizontal, 16)
                         .padding(.top, 10)
                 }
-                if let photo = sent.photo {
-                    Image(uiImage: photo)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
+                // The first of several (town-feed 46).
+                if let photo = sent.photos.first {
+                    FeedCardURLPhoto(url: photo.file, loadingFill: Hue.fill)
                         .frame(maxWidth: .infinity)
                         .frame(height: 120)
                         .clipped()
@@ -564,7 +659,7 @@ struct PostingPostCard: View {
 
 /// Facebook's New post, draft 1 round 2 (BP app references/post-screen, Figma node 10:2; Jesse 2026-11-01:
 /// "yes to all and start"): your picture and name line, who can see it, the Tag friends / Place / Event
-/// chips, the words big while short, one photo in its own shape, and Post over the keyboard, lit once
+/// chips, the words big while short, its photos as the post will show them (town-feed 46), and Post over the keyboard, lit once
 /// there's something to post. Post saves it and the sheet closes; the check answers on Town (`PostOutbox`).
 /// Event on makes it a plain Event through town-plus's Share, which waits here for the check.
 struct NewPostSheet: View {
@@ -582,7 +677,8 @@ struct NewPostSheet: View {
     var onEdited: (PostEditInput) -> Void = { _ in }
 
     @State private var model = NewPostModel()
-    @State private var pick: PhotosPickerItem?
+    /// The photo on show of several, which the trash takes out (town-feed 46).
+    @State private var photoPage: Int?
 
     private var name: String { me.displayName }
     private var picture: URL? { me.avatarUrl.flatMap(URL.init(string:)) }
@@ -616,23 +712,21 @@ struct NewPostSheet: View {
                     words
                         .padding(.horizontal, NewPostMetric.side)
                         .padding(.top, NewPostMetric.wordsTop)
-                    if let photo = model.photo {
-                        photoView(photo)
+                    if model.loading > 0 || !model.photos.isEmpty {
+                        photosView
                             .padding(.top, NewPostMetric.photoTop)
                             .transition(.opacity)
-                    } else if let post = model.editing, let url = post.photo {
-                        // An edited post's own photo, which can't change: no Change photo, no trash.
-                        FeedCardURLPhoto(url: url, loadingFill: Hue.fill)
-                            .aspectRatio(CGFloat(post.photoAspect), contentMode: .fit)
-                            .frame(maxWidth: .infinity)
-                            .clipped()
+                    } else if let post = model.editing, !post.photos.isEmpty {
+                        // An edited post's own photos, which can't change: no Change photo, no trash.
+                        PostPhotos(urls: post.photos, aspect: post.photoAspect, page: $photoPage,
+                                   label: post.photos.count > 1 ? "Your photos" : "Your photo")
                             .padding(.top, NewPostMetric.photoTop)
-                            .accessibilityLabel("Your photo")
                     }
                 }
                 .padding(.bottom, NewPostMetric.side)
                 .animation(reduceMotion ? nil : Motion.smooth, value: model.event)
-                .animation(reduceMotion ? nil : Motion.smooth, value: model.photo)
+                .animation(reduceMotion ? nil : Motion.smooth, value: model.photos)
+                .animation(reduceMotion ? nil : Motion.smooth, value: model.loading)
                 .animation(reduceMotion ? nil : Motion.smooth, value: model.draft.morePlaces)
             }
             .scrollDismissesKeyboard(.interactively)
@@ -673,24 +767,12 @@ struct NewPostSheet: View {
                                              ages: Bindable(model.eventModel).draft.ages)
                 }
             }
-            .photosPicker(isPresented: $picking, selection: $pick, matching: .images, photoLibrary: .shared())
+            // Apple's own picker numbering each pick in the order tapped, up to 10 (town-feed 46; Jesse at Check-in 1).
+            .photosPicker(isPresented: $picking, selection: $model.picks, maxSelectionCount: NewPostDraft.photoLimit,
+                          selectionBehavior: .ordered, matching: .images, photoLibrary: .shared())
         }
         .tint(Hue.ink)
-        .onChange(of: pick) { _, item in
-            guard let item else { return }
-            Task {
-                let data = try? await item.loadTransferable(type: Data.self)
-                // Shrunk to what goes up (`coverJPEG`'s 1290 wide) before it's cut: a 48 MP photo
-                // never sits whole in memory or gets cut on the main thread.
-                if let image = data.flatMap(UIImage.init(data:)) {
-                    let k = min(1, NewPostMetric.upload / max(image.size.width * image.scale, 1))
-                    let size = CGSize(width: image.size.width * image.scale * k, height: image.size.height * image.scale * k)
-                    model.pick(await image.byPreparingThumbnail(ofSize: size) ?? image)
-                }
-                // The same photo picked again, after the trash, is a change.
-                pick = nil
-            }
-        }
+        .onChange(of: model.picks) { Task { await model.load() } }
         // A new first place that was one of the others takes that one's row away (the review).
         .onChange(of: model.draft.place) { _, place in
             model.draft.morePlaces = NewEventDraft.extra(after: place, model.draft.morePlaces)
@@ -718,7 +800,10 @@ struct NewPostSheet: View {
             } else {
                 #if DEBUG
                 // `-new-event-photo <file>`: a bundled photo as if picked; AXe can't reach Apple's picker.
-                if let file = LaunchFlags.value(.newEventPhoto) { model.pick(UIImage(named: file)) }
+                // Several, comma-separated, as if picked in that order (town-feed 46).
+                if let files = LaunchFlags.value(.newEventPhoto) {
+                    model.use(files.split(separator: ",").compactMap { UIImage(named: String($0)) })
+                }
                 // `-new-post-words <words>`: typed, as AXe can't type on BP Build, the cursor at their end, so
                 // words ending "@b" show the `@` row.
                 if let words = LaunchFlags.value(.newPostWords) {
@@ -1035,18 +1120,27 @@ struct NewPostSheet: View {
 
     // MARK: Photo
 
-    /// Edge to edge in its own shape, with Change photo and the trash on it.
-    private func photoView(_ photo: UIImage) -> some View {
-        Image(uiImage: photo)
-            .resizable()
-            .aspectRatio(contentMode: .fit)
-            .frame(maxWidth: .infinity)
-            .accessibilityLabel("Your photo")
+    /// Edge to edge as the post will show them, the first one's shape for all, with Change photo (Edit, once there are
+    /// several) and the trash on the one on show. An Event keeps the first. Grey while picks load: no spinner on content.
+    private var photosView: some View {
+        let shown = model.event ? Array(model.photos.prefix(1)) : model.photos
+        return Group {
+            if model.loading > 0 {
+                SkeletonBlock(cornerRadius: 0)
+                    .shimmering()
+                    .aspectRatio(CGFloat(model.aspect), contentMode: .fit)
+                    .frame(maxWidth: .infinity)
+                    .accessibilityLabel("Loading your photos")
+            } else {
+                PostPhotos(urls: shown.map(\.file), aspect: model.aspect, page: $photoPage, counter: false,
+                           label: shown.count > 1 ? "Your photos" : "Your photo")
+            }
+        }
             .overlay(alignment: .topLeading) {
                 Button { picking = true } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "photo.on.rectangle").font(.glyph(14, weight: .semibold))
-                        Text(NewPostCopy.change).font(.displaySemi(15))
+                        Text(shown.count > 1 ? NewPostCopy.editPhotos : NewPostCopy.change).font(.displaySemi(15))
                     }
                     .foregroundStyle(.white)
                     .padding(.leading, 9)
@@ -1060,7 +1154,10 @@ struct NewPostSheet: View {
                 .padding(NewPostMetric.onPhotoInset - (NewPostMetric.tap - NewPostMetric.onPhoto) / 2)
             }
             .overlay(alignment: .topTrailing) {
-                Button { withAnimation(reduceMotion ? nil : Motion.smooth) { model.pick(nil) } } label: {
+                Button {
+                    let on = model.event ? 0 : min(photoPage ?? 0, max(model.photos.count - 1, 0))
+                    withAnimation(reduceMotion ? nil : Motion.smooth) { model.remove(at: on) }
+                } label: {
                     Image(systemName: "trash")
                         .font(.glyph(17, weight: .semibold))
                         .foregroundStyle(.white)
@@ -1070,7 +1167,8 @@ struct NewPostSheet: View {
                         .contentShape(Circle())
                 }
                 .buttonStyle(.press(.squish))
-                .accessibilityLabel("Remove photo")
+                .accessibilityLabel(shown.count > 1 ? "Remove this photo" : "Remove photo")
+                .disabled(model.loading > 0)
                 .padding(NewPostMetric.onPhotoInset - (NewPostMetric.tap - NewPostMetric.onPhoto) / 2)
             }
     }
@@ -1100,7 +1198,7 @@ struct NewPostSheet: View {
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.press(.squish))
-                    .accessibilityLabel(model.photo == nil ? "Add a photo" : NewPostCopy.change)
+                    .accessibilityLabel(model.photos.isEmpty ? "Add photos" : NewPostCopy.change)
                 }
                 Spacer()
                 Button(action: post) {
@@ -1143,7 +1241,8 @@ struct NewPostSheet: View {
                     dismiss()
                 }
             } else if let input = await model.save(api: api) {
-                onPosted(PostOutbox.Sent(id: input.id, draft: model.draft, photo: model.photo, name: name, picture: picture))
+                onPosted(PostOutbox.Sent(id: input.id, draft: model.draft, photos: model.photos, picks: model.picks,
+                                         name: name, picture: picture))
                 dismiss()
             }
         }
@@ -1162,6 +1261,8 @@ enum NewPostCopy {
     static let event = "Event"
     static let change = "Change photo"
     static let post = "Post"
+    /// On the photos once there are several: the picker reopens to add, drop or reorder (town-feed 46).
+    static let editPhotos = "Edit"
     static let discard = "Discard post?"
     static let discardWhy = "If you leave now, you'll lose this post."
     static let discardButton = "Discard"

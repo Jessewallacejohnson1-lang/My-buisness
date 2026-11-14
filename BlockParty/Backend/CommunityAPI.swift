@@ -392,12 +392,16 @@ struct CommunityAPI {
             let aspect: Double?
             /// The `@` names in a post's words (town-feed 60), read on their own so a bad one never hides the post.
             let atNames: [AtName]
-            private enum Keys: String, CodingKey { case aspect, atNames }
+            /// A post's photos after the first (town-feed 46).
+            let morePhotos: [URL]
+            private enum Keys: String, CodingKey { case aspect, atNames, morePhotos }
             init(from decoder: Decoder) {
                 value = try? Poster(from: decoder)
                 let keys = try? decoder.container(keyedBy: Keys.self)
                 aspect = keys.flatMap { try? $0.decodeIfPresent(Double.self, forKey: .aspect) }
                 atNames = (keys.flatMap { try? $0.decodeIfPresent([AtName.Lenient].self, forKey: .atNames) } ?? []).compactMap(\.value)
+                morePhotos = (keys.flatMap { try? $0.decodeIfPresent([String].self, forKey: .morePhotos) } ?? [])
+                    .compactMap(URL.init(string:))
             }
         }
 
@@ -411,7 +415,7 @@ struct CommunityAPI {
                 return .post(TownPost(id: id, poster: .init(id: poster.id, name: poster.name),
                                       posterPhoto: poster.photo.flatMap(URL.init(string:)), words: words,
                                       photo: imageUrl.flatMap(URL.init(string:)), aspect: self.poster?.aspect,
-                                      place: location,
+                                      morePhotos: self.poster?.morePhotos ?? [], place: location,
                                       tagged: (poster.tagged ?? []).map { .init(id: $0.id, name: $0.name) },
                                       atNames: self.poster?.atNames ?? [],
                                       friendsOnly: poster.friendsOnly ?? false,
@@ -557,17 +561,20 @@ struct CommunityAPI {
     }
 
     /// A new Event's photo, in your own folder of `event-images` (BP app town-plus): where it can
-    /// be read.
-    func uploadEventPhoto(_ jpeg: Data, id: String) async throws -> URL {
+    /// be read. A post's photo `n` after the first is `<id>-<n>.jpg` (town-feed 46), the name claim_submit accepts.
+    func uploadEventPhoto(_ jpeg: Data, id: String, n: Int = 1) async throws -> URL {
         let uid = try db.userID.lowercased()
-        return try await db.upload(bucket: "event-images", path: "\(uid)/\(id).jpg", jpeg, type: "image/jpeg")
+        return try await db.upload(bucket: "event-images", path: "\(uid)/\(Self.photoName(id: id, n: n))", jpeg, type: "image/jpeg")
     }
 
     /// Where that photo is, once sent: for a retry told it's already there.
-    func eventPhotoURL(id: String) -> URL? {
+    func eventPhotoURL(id: String, n: Int = 1) -> URL? {
         guard let uid = try? db.userID.lowercased() else { return nil }
-        return SupabaseConfig.url.appendingPathComponent("storage/v1/object/public/event-images/\(uid)/\(id).jpg")
+        return SupabaseConfig.url.appendingPathComponent("storage/v1/object/public/event-images/\(uid)/\(Self.photoName(id: id, n: n))")
     }
+
+    /// Photo `n` of post `id`: the first `<id>.jpg`, as one photo always was; the rest `<id>-2.jpg` to `-10.jpg`.
+    nonisolated static func photoName(id: String, n: Int) -> String { n == 1 ? "\(id).jpg" : "\(id)-\(n).jpg" }
 
     /// A neighbour's post (BP app town-feed 29), pending until the instant check (`checkNewEvent`) says
     /// yes: its words, maybe a photo and its shape, a Place, who can see it and the friends tagged.
@@ -577,6 +584,7 @@ struct CommunityAPI {
             "id": post.id, "kind": PostKind.post.rawValue, "title": post.words, "submitted_by": uid,
             "status": ClubStatus.pending.rawValue, "location": post.place ?? NSNull(),
             "image_url": post.imageURL ?? NSNull(), "image_aspect": post.aspect ?? NSNull(),
+            "more_photos": post.morePhotos.isEmpty ? NSNull() : post.morePhotos,
             "friends_only": post.friendsOnly, "tagged": post.tagged.isEmpty ? NSNull() : post.tagged,
             "at_names": post.atNames.isEmpty ? NSNull() : post.atNames.map { ["kind": $0.kind.rawValue, "id": $0.id, "name": $0.name] },
             "event_date": NSNull(), "start_time": NSNull(),
@@ -584,15 +592,15 @@ struct CommunityAPI {
         try await db.rest("club_events", method: "POST", body: b, prefer: "return=minimal")
     }
 
-    /// Your own post goes, its photo with it (town-feed 29). The row first: a photo left behind is
-    /// only a file, a row left without its photo would be a broken card. Once the row is gone the post
-    /// is, whatever the photo's answer.
-    func deletePost(_ id: String, photo: Bool) async throws {
+    /// Your own post goes, its photos with it (town-feed 29, 46), in one Storage call. The row first: a photo left
+    /// behind is only a file, a row left without its photo would be a broken card, and a photo a post still shows
+    /// can't be deleted (the several_photos rule). Once the row is gone the post is, whatever the photos' answer.
+    func deletePost(_ id: String, photos: Int) async throws {
         try await db.rest("club_events", method: "DELETE", [("id", "eq.\(id)")], prefer: "return=minimal")
-        guard photo, let uid = try? db.userID.lowercased() else { return }
+        guard photos > 0, let uid = try? db.userID.lowercased() else { return }
         // ponytail: a photo whose delete fails stays in Storage; sweep orphans if they ever add up.
-        do { try await db.removeFile(bucket: "event-images", path: "\(uid)/\(id).jpg") } catch {
-            Log.network("CommunityAPI: post \(id)'s photo left in Storage: \(error)")
+        do { try await db.removeFiles(bucket: "event-images", paths: (1...photos).map { "\(uid)/\(Self.photoName(id: id, n: $0))" }) } catch {
+            Log.network("CommunityAPI: post \(id)'s photos left in Storage: \(error)")
         }
     }
 

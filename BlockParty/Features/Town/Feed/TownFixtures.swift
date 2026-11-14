@@ -117,11 +117,14 @@ enum TownFixtures {
     /// real place id) with `@` and tags #JoeTownNights (town-feed 60).
     static func postSamples(now: Date, posted: TimeInterval = 2 * 3600) -> [TownFeedEntry] {
         let photo = Bundle.main.url(forResource: "downtown", withExtension: "jpg")
+        // Marlene's night in four photos (town-feed 46): it swipes, with "1/4" and the dots.
+        let more = ["farmers-market", "rocktoberfest", "millstream-arts-festival"]
+            .compactMap { Bundle.main.url(forResource: $0, withExtension: "jpg") }
         let posts = [
             TownPost(id: "sample-post-1", poster: .init(id: "sample:Marlene Ostendorf", name: "Marlene Ostendorf"),
                      posterPhoto: avatarURL("p1"),
                      words: "Downtown was packed tonight with @Sam Rivera. Thanks @Bad Habit Brewing for the pints! #JoeTownNights",
-                     photo: photo, aspect: 4.0 / 3.0,
+                     photo: photo, aspect: 4.0 / 3.0, morePhotos: more,
                      atNames: [AtName(kind: .user, id: "sample:Sam Rivera", name: "Sam Rivera"),
                                AtName(kind: .place, id: "3f3c5259-67f9-491e-9af5-5c4b21a80b58", name: "Bad Habit Brewing")],
                      posted: now.addingTimeInterval(-posted),

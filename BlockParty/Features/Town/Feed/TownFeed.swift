@@ -191,7 +191,7 @@ final class TownFeed {
                   readLater: { try await api.getTownFeedLater().map(TownFeed.entry) },
                   readMore: { try await api.getTownMore(round: $0, opened: $1, shown: $2) },
                   opened: { OpenedPlaces.ids },
-                  deletePost: { try await api.deletePost($0.id, photo: $0.photo != nil) },
+                  deletePost: { try await api.deletePost($0.id, photos: $0.photos.count) },
                   postersShown: TownFeedCache.postersShown(),
                   keepPosters: { TownFeedCache.save(postersShown: $0) })
     }

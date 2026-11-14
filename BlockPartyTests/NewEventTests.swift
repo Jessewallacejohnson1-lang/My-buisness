@@ -257,13 +257,13 @@ final class NewEventTests: XCTestCase {
         draft.place = " Sal's "
         draft.tagged = [Neighbor(userId: "u2", displayName: "Sam Lee", avatarUrl: nil, since: nil, relation: .friends,
                                  mutualFriends: 0)]
-        XCTAssertEqual(draft.input(id: "p1", imageURL: "https://x/p1.jpg", aspect: 0.8),
+        XCTAssertEqual(draft.input(id: "p1", photos: ["https://x/p1.jpg"], aspect: 0.8),
                        NewPostInput(id: "p1", words: "Burger night", imageURL: "https://x/p1.jpg", aspect: 0.8,
                                     place: "Sal's", friendsOnly: false, tagged: ["u2"]))
-        XCTAssertNil(draft.input(id: "p1", imageURL: nil, aspect: 0.8).aspect, "no photo, no shape")
+        XCTAssertNil(draft.input(id: "p1", photos: [], aspect: 0.8).aspect, "no photo, no shape")
         draft.friendsOnly = true
         draft.place = "  "
-        let friends = draft.input(id: "p1", imageURL: nil, aspect: nil)
+        let friends = draft.input(id: "p1", photos: [], aspect: nil)
         XCTAssertTrue(friends.friendsOnly)
         XCTAssertNil(friends.place, "a blank Place is none")
         XCTAssertEqual(draft.line(name: "Jesse"), "Jesse is with Sam Lee.")

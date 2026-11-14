@@ -30,10 +30,13 @@ struct PhotoPager: View {
     var flyer: URL? = nil
     /// What a tall flyer on that page starts under.
     var flyerTop: CGFloat = 0
+    /// What shows while a photo loads, under the shimmer or, with none, alone: a post's paper grey (town-feed 46).
+    var loadingFill: Color = Hue.ink
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 0) {
+            // Lazy: a post's 10 photos load as they come near, not all as its card shows (town-feed 46).
+            LazyHStack(spacing: 0) {
                 ForEach(Array(urls.enumerated()), id: \.offset) { index, url in
                     photo(url)
                         .containerRelativeFrame(.horizontal)
@@ -61,6 +64,7 @@ struct PhotoPager: View {
     private func photo(_ url: URL) -> some View {
         let isShown = Self.isShown(url, in: shown)
         return FeedCardURLPhoto(url: url, onReady: { shown.insert(url) }, onFailure: { onFailure(url) },
+                                loadingFill: loadingFill,
                                 whole: url == flyer ? EventPage.Metric.heroUnderlap : nil, wholeTop: flyerTop)
             .frame(maxHeight: .infinity)
             .clipped()

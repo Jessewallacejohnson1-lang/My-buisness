@@ -625,29 +625,78 @@ final class SmallMapShot {
 }
 
 /// Instagram's dots under a photo set (town-feed 59), white on the hero: the one on show full, the rest at 40%,
-/// following the finger's `page` (0 the first, 1 the second).
+/// following the finger's `page` (0 the first, 1 the second). `onPaper`, under a post's photos (town-feed 46): ink for
+/// the one on show and the edge grey for the rest, with no pill. Past 5, Instagram's window: three full around the one
+/// on show, the next out smaller, the one after smaller still, the rest hidden.
 struct EventPageDots: View {
     let count: Int
     let page: CGFloat
-    /// Instagram's 6 pt dots, 4 pt apart (guessed from the Mobbin still, `references/one-flyer-many-events/`).
-    static let side: CGFloat = 6
-    static let gap: CGFloat = 4
+    var onPaper = false
+    /// Instagram's 6 pt dots, 4 pt apart (measured, BP app `references/several-photos/SPEC.md`).
+    nonisolated static let side: CGFloat = 6
+    nonisolated static let gap: CGFloat = 4
+    /// The window's next dot out and the one after (measured there too).
+    nonisolated static let near: CGFloat = 4.3
+    nonisolated static let far: CGFloat = 2
 
     var body: some View {
         HStack(spacing: Self.gap) {
-            ForEach(0..<count, id: \.self) { index in
-                Circle()
-                    .fill(.white)
+            ForEach(Self.slots(count: count, page: page), id: \.self) { index in
+                dot(index)
                     .frame(width: Self.side, height: Self.side)
-                    .opacity(0.4 + 0.6 * max(0, 1 - abs(page - CGFloat(index))))
             }
         }
         // A dark pill behind them, as Instagram's counter has, so they read on a white flyer too.
-        .padding(.horizontal, 6)
-        .padding(.vertical, 5)
-        .background(.black.opacity(0.3), in: Capsule())
+        .padding(.horizontal, onPaper ? 0 : 6)
+        .padding(.vertical, onPaper ? 0 : 5)
+        .background { if !onPaper { Capsule().fill(.black.opacity(0.3)) } }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
+    }
+
+    @ViewBuilder private func dot(_ index: Int) -> some View {
+        let shown = max(0, 1 - abs(page - CGFloat(index)))
+        if let size = Self.size(index, count: count, page: page) {
+            if onPaper {
+                Circle().fill(Hue.edge)
+                    .overlay(Circle().fill(Hue.ink).opacity(shown))
+                    .frame(width: size, height: size)
+            } else {
+                Circle()
+                    .fill(.white)
+                    .frame(width: size, height: size)
+                    .opacity(0.4 + 0.6 * shown)
+            }
+        } else {
+            Color.clear
+        }
+    }
+
+    /// The slots drawn, left to right. Up to 5, one per photo; past 5, seven slots with the window's middle one
+    /// centred, so the full three stay put while the ends shrink and come and go (an empty slot past either end).
+    nonisolated static func slots(count: Int, page: CGFloat) -> [Int] {
+        guard count > 5 else { return Array(0..<max(count, 0)) }
+        let start = windowStart(count: count, page: page)
+        return Array(start - 2 ... start + 4)
+    }
+
+    /// A slot's dot size, or nil for none: past either end, or past the window's smaller two.
+    nonisolated static func size(_ index: Int, count: Int, page: CGFloat) -> CGFloat? {
+        guard (0..<count).contains(index) else { return nil }
+        guard count > 5 else { return side }
+        let start = windowStart(count: count, page: page)
+        let away = index < start ? start - index : max(0, index - start - 2)
+        switch away {
+        case 0: return side
+        case 1: return near
+        case 2: return far
+        default: return nil
+        }
+    }
+
+    /// The first of the three full dots: the one on show in the middle, held at either end.
+    private nonisolated static func windowStart(count: Int, page: CGFloat) -> Int {
+        min(max(Int(page.rounded()) - 1, 0), count - 3)
     }
 }
 

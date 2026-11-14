@@ -372,7 +372,7 @@ final class SupabaseRequestTests: XCTestCase {
     /// Delete takes the row, then its photo through Storage's remove (a bare DELETE with a JSON type was
     /// refused live, 2026-11-02); a photo that won't go never brings the post back.
     func testDeletingYourPostTakesTheRowThenItsPhoto() async throws {
-        try await community.deletePost("p1", photo: true)
+        try await community.deletePost("p1", photos: 1)
         XCTAssertEqual(server.requests.count, 2)
         XCTAssertEqual(server.requests[0].httpMethod, "DELETE")
         XCTAssertEqual(server.requests[0].url!.absoluteString, "\(rest)/club_events?id=eq.p1")
@@ -380,7 +380,31 @@ final class SupabaseRequestTests: XCTestCase {
         XCTAssertEqual(last.url!.absoluteString, "\(SupabaseConfig.url.absoluteString)/storage/v1/object/event-images")
         XCTAssertEqual(server.lastBody as? [String: [String]], ["prefixes": ["test-user/p1.jpg"]])
         server.answers["object/event-images"] = .init(status: 400, body: "{}")
-        try await community.deletePost("p2", photo: true)
+        try await community.deletePost("p2", photos: 1)
+    }
+
+    /// Town-feed 46: a post's photos all go with it, in one Storage call, named as they went up.
+    func testDeletingAPostWithSeveralPhotosTakesEveryOne() async throws {
+        try await community.deletePost("p3", photos: 3)
+        XCTAssertEqual(server.requests.count, 2)
+        XCTAssertEqual(server.lastBody as? [String: [String]],
+                       ["prefixes": ["test-user/p3.jpg", "test-user/p3-2.jpg", "test-user/p3-3.jpg"]])
+    }
+
+    /// Town-feed 46: photos 2 to 10 go as more_photos, in the order picked; a post with one sends none.
+    func testANewPostSendsItsLaterPhotosInOrder() async throws {
+        try await community.addPost(NewPostInput(id: "p1", words: "", imageURL: "https://x/p1.jpg", aspect: 0.8,
+                                                 morePhotos: ["https://x/p1-3.jpg", "https://x/p1-2.jpg"]))
+        XCTAssertEqual((server.lastBody as? [String: Any])?["more_photos"] as? [String], ["https://x/p1-3.jpg", "https://x/p1-2.jpg"])
+        try await community.addPost(NewPostInput(id: "p2", words: "One", imageURL: "https://x/p2.jpg", aspect: 0.8))
+        XCTAssertTrue((server.lastBody as? [String: Any])?["more_photos"] is NSNull)
+    }
+
+    /// The first photo keeps the name one photo always had; the rest are numbered, as claim_submit accepts.
+    func testAPostsPhotosAreNamedForThePost() {
+        XCTAssertEqual(CommunityAPI.photoName(id: "p1", n: 1), "p1.jpg")
+        XCTAssertEqual(CommunityAPI.photoName(id: "p1", n: 2), "p1-2.jpg")
+        XCTAssertEqual(CommunityAPI.photoName(id: "p1", n: 10), "p1-10.jpg")
     }
 
     func testDecliningAPostSaysWhy() async throws {
