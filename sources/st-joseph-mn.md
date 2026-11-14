@@ -184,6 +184,7 @@ aka:
 category: school
 added_by: agent:claude
 address: "1300 Jade Rd"
+clubs_page: https://kennedy.isd742.org/activities/athletics
 sources:
   - url: https://www.gobound.com/mn/schools/kennedyisd742/calendar/ical
     kind: ical
@@ -335,7 +336,8 @@ address: 2850 Abbey Plaza
 venues: ["Sexton Arena", "Clemens Stadium", "Warner Palaestra", "Warner Palaestra Pool", "Great Hall",
   "Alcuin Library", "Learning Commons", "Alcuin Learning Commons", "Saint John's Abbey Arboretum",
   "Outdoor U", "Haws Field", "Stephen B. Humphrey Theater", "New Science Center", "Alice R. Rogers and Target Gallery",
-  "Alice R. Rogers and Target Galleries", "SBH Auditorium", "Stephen B. Humphrey Auditorium", "Radio Towers"]
+  "Alice R. Rogers and Target Galleries", "SBH Auditorium", "Stephen B. Humphrey Auditorium", "Radio Towers",
+  "Gertken Organ Studio"]
 sources:
   - url: https://www.csbsju.edu/
     kind: website
@@ -382,7 +384,7 @@ tier: listed
 category: church
 place_type: Church
 added_by: agent:claude
-venues: ["Saint John's Abbey Church", "Saint John's Pottery Studio", "Liturgical Press"]
+venues: ["Saint John's Abbey Church", "Abbey Church", "Saint John's Pottery Studio", "Liturgical Press"]
 address: 2850 Abbey Plaza
 sources:
   - url: https://saintjohnsabbey.org/
@@ -421,6 +423,66 @@ Library. Left out: 174 Academic Calendar, 169 Admission, 168 Alum, 195 Benedicti
 221 CSLE (student life) and 220 Study Abroad. The full list is at
 `/api/v2/events/unauthenticated/calendars/`. Home games only; the reader drops away games,
 rec-center classes and halftime shows, and shows a repeating event once, at its next date.
+
+## CSB SJU Music
+```yaml
+id: csbsju-music
+aka: ["CSB SJU Music Department"]
+status: active
+tier: watched
+category: college
+added_by: agent:claude
+sources:
+  - url: https://www.csbsju.edu/music/events-new/
+    kind: website
+    method: fetch
+    trust: official
+    reader: csbsju-music
+```
+Notes: Proposed 2026-11-13 (BP app dig-deeper 26). The music department's season page, plain
+HTML with no feed; www.csbsju.edu's robots.txt disallows nothing. Its
+concerts are not a calendar of their own on the campus portal (12 public calendars, none for
+music), so they can't be added to `csbsju-events`' url. Measured 2026-11-13: 8 performances in
+the next 90 days, 6 already arrive through `csbsju-events` (Campus Events); new: the Guitar
+Ensemble & Studio Concert, Dec 11. The page dates "Faculty Recital: Gyehyun Jung" Dec 8; the
+portal, Nov 19.
+2026-11-13 (BP app nothing-scheduled 01): read by its own reader (`csbsju-music`), not the models, so it is read
+every morning, a newly watched page included, with exact days, and each concert lands on its ensemble's row at the
+college whose campus it is at. Only performances on campus (a place ending SJU, CSB or BAC); the Minneapolis and
+St. Michael stops are left out, and the past events at the page's foot are never read. The concerts the campus
+calendar also lists merge into its Events. The Jung recital: the page was edited on Nov 9 and its block moved
+between Dec 6 and Dec 9, while its photo is still named "11_19" and the portal's entry hasn't changed since Oct 14,
+so the page's Dec 8 is the newer word; the portal's Nov 19 copy is taken out (`wrong_when`) so the two are one Event.
+
+## The Central Minnesota Catholic events
+```yaml
+id: central-minnesota-catholic-events
+aka: ["The Central Minnesota Catholic"]
+status: active
+tier: watched
+category: diocese
+added_by: agent:claude
+sources:
+  - url: https://thecentralminnesotacatholic.org/events/?ical=1
+    kind: ical
+    method: fetch
+    trust: squishy
+    reader: diocese
+```
+Notes: Proposed 2026-11-13 (BP app dig-deeper 26). The Diocese of St. Cloud's paper lists parish
+events across the diocese (The Events Calendar on WordPress). robots.txt disallows only
+`/events/map/` and `/wp-admin/`, Crawl-delay 10. The feed holds the next 30 events (about three
+weeks); the site's REST API (`/wp-json/tribe/events/v1/events`) held 51 in the next 90 days, 42
+within 20 miles of St. Joseph. Read by `read_events.py`'s `diocese` reader (BP app nothing-scheduled
+02): an Event whose `GEO` is within 20 miles of St. Joseph (as `mshsl` and `gobound` keep theirs),
+else one whose address names a nearby town (St. Cloud's Toys for Tots days have no GEO); "Virtual"
+and online ones out. Not by the title's "— Town": "Our Sacred Universe Story — Little Falls" is at
+the Franciscan Welcoming House in St. Cloud. The title loses that ending; the host is who the
+description names ("Knights of Columbus hosts breakfast ... St. Joseph Church"), else the paper's
+name for the venue, never the paper. A series shows once at its next date, and a drop-off open all
+day on weekdays (Toys for Tots) is one Event to its last day. The monastery's retreats it repeats
+merge into the monastery's own Events (trust squishy: the official copy stays the Event).
+Read 2026-11-13: 11 of the 30 kept, 4 of them the monastery's; 7 new.
 
 ## Minnesota 511
 ```yaml
@@ -552,6 +614,7 @@ tier: watched
 category: nearby-school
 place_type: School / college
 added_by: agent:claude
+clubs_page: https://apollo.isd742.org/activities/activities-offered-at-apollo
 sources:
   - url: https://www.gobound.com/mn/schools/stcloudapollo/calendar/ical
     kind: ical
@@ -579,6 +642,7 @@ category: nearby-school
 place_type: School / college
 added_by: agent:claude
 aka: ["Technical High School", "St. Cloud Tech High School"]
+clubs_page: https://docs.google.com/document/d/143nZw_Svj1sBSFWWrjmWuH61ZQfZzM6zO0SQD0ZYF64/export?format=txt
 sources:
   - url: https://www.gobound.com/mn/schools/stcloudtech/calendar/ical
     kind: ical
@@ -591,11 +655,22 @@ sources:
     reader: mshsl
     league_id: 537
     team: St. Cloud Tech
+  - url: https://tech.isd742.org/calendar
+    kind: website
+    method: fetch
+    trust: official
+    reader: finalsite-calendar
+    own_calendar: Tech Calendar
+    own_calendar_only: true
 at: [45.51045, -94.21169]
 venue_at:
   "st. cloud tech high school": [45.51045, -94.21169]
 ```
 Notes: St. Cloud, 6.4 miles from St. Joseph. "St. Cloud Tech" is how the league names the team. 2026-10-25: its Bound activities calendar is read for plays, concerts and clubs (reader `gobound`; BP app school-activities ticket 05; Jesse: "yes to both", "I agree with your plan").
+2026-11-13: its own school calendar, read like Kennedy's (BP app nothing-scheduled 01): its choir and band
+concerts, dances and spirit weeks are on no other feed. The page shows District 742's calendar beside Tech's;
+`own_calendar_only` reads Tech's alone, since Kennedy's calendar already gives the district's board meetings and
+No School days. robots.txt allows `/calendar`, disallows `/fs/` (its iCal and RSS), Crawl-delay 5.
 
 ## Cathedral High School
 ```yaml
@@ -605,6 +680,7 @@ tier: watched
 category: nearby-school
 place_type: School / college
 added_by: agent:claude
+clubs_page: https://ccsprek12.org/activities-high
 sources:
   - url: https://www.gobound.com/mn/schools/stcloudcathedral/calendar/ical
     kind: ical
@@ -631,6 +707,7 @@ tier: watched
 category: nearby-school
 place_type: School / college
 added_by: agent:claude
+clubs_page: https://www.isd748.org/activities
 sources:
   - url: https://www.gobound.com/mn/schools/sartellhs/calendar/ical
     kind: ical
@@ -665,6 +742,7 @@ tier: watched
 category: nearby-school
 place_type: School / college
 added_by: agent:claude
+clubs_page: https://www.rocori.k12.mn.us/activities
 sources:
   - url: https://www.gobound.com/mn/schools/rocori/calendar/ical
     kind: ical
@@ -695,6 +773,7 @@ tier: watched
 category: nearby-school
 place_type: School / college
 added_by: agent:claude
+clubs_page: https://storm.isd47.org/hs-activities-sports
 sources:
   - url: https://www.gobound.com/mn/schools/saukrapidsrice/calendar/ical
     kind: ical

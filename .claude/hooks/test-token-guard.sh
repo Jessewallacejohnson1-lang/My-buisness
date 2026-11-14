@@ -13,15 +13,29 @@ set -uo pipefail
 cd "$(dirname "$0")/../.." || exit 1
 export CLAUDE_PROJECT_DIR="$PWD"
 guard=".claude/hooks/token-guard.sh"
-fails=0
+passes=0 fails=0
+
+pass() { printf 'ok   %s\n' "$1"; passes=$((passes+1)); }
+fail() { printf 'FAIL %s\n' "$1"; fails=$((fails+1)); }
 
 run() { printf '%s' "$1" | "$guard" 2>/dev/null; }
 expect() {
     local name="$1" payload="$2" want="$3"
     local got; got=$(run "$payload" | jq -r '.hookSpecificOutput.permissionDecision // "allow"' 2>/dev/null)
     got="${got:-allow}"
-    if [ "$got" = "$want" ]; then printf 'ok   %s\n' "$name"
-    else printf 'FAIL %s: wanted %s, got %s\n' "$name" "$want" "$got"; fails=$((fails+1)); fi
+    if [ "$got" = "$want" ]; then pass "$name"; else fail "$name: wanted $want, got $got"; fi
+}
+
+# A bypass or fail-open allows the edit and prints one line, the same to the
+# user (systemMessage) and the chat (additionalContext), with no decision. An
+# empty $want means an ordinary allowed edit: no output at all.
+says() {
+    local name="$1" payload="$2" want="$3" out line
+    out=$(run "$payload")
+    line=$(printf '%s' "$out" | jq -r 'select(.hookSpecificOutput.permissionDecision == null
+        and .hookSpecificOutput.additionalContext == .systemMessage) | .systemMessage' 2>/dev/null)
+    if { [ -z "$want" ] && [ -z "$out" ]; } || { [ -n "$want" ] && printf '%s' "$line" | grep -qF "$want"; }
+    then pass "$name"; else fail "$name: wanted ${want:-no output}, got ${out:-no output}"; fi
 }
 
 expect "hex colour in a feature file" \
@@ -80,5 +94,14 @@ trap - EXIT INT TERM
 
 BP_GUARD_OFF=1 expect "BP_GUARD_OFF=1 lets it through" \
   '{"tool_input":{"file_path":"BlockParty/Features/Town/TownView.swift","content":".font(.system(size: 17))"}}' allow
+BP_GUARD_OFF=1 says "BP_GUARD_OFF=1 says it was bypassed, naming the file" \
+  '{"tool_input":{"file_path":"BlockParty/Features/Town/TownView.swift","content":".font(.system(size: 17))"}}' "token-guard bypassed by BP_GUARD_OFF=1: colours and font sizes in TownView.swift"
+CLAUDE_PROJECT_DIR=/nonexistent says "missing config allows and says the guard is off" \
+  '{"tool_input":{"file_path":"BlockParty/Features/Town/TownView.swift","content":".font(.system(size: 17))"}}' "token-guard is off"
+says "an ordinary allowed edit prints nothing" \
+  '{"tool_input":{"file_path":"BlockParty/Features/Town/TownView.swift","content":"let n = 3"}}' ""
+BP_GUARD_OFF=1 says "BP_GUARD_OFF=1 on a non-Swift file still prints nothing" \
+  '{"tool_input":{"file_path":"docs/rules/design.md","content":"let n = 3"}}' ""
 
+printf '%d passed, %d failed\n' "$passes" "$fails"
 exit $fails

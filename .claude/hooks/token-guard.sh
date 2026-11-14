@@ -8,7 +8,7 @@
 #   GuardTests already fails the build on a frozen font; this stops the edit
 #   landing at all, which is a cheaper correction.
 #
-# Fails OPEN: a missing or malformed guard-config.json warns and allows, because
+# Fails OPEN: a missing or malformed guard-config.json notes it and allows, because
 # a broken config must never block every edit in a session. Honours BP_GUARD_OFF=1.
 # Always exits 0 — a hook must never fail a session.
 #
@@ -54,19 +54,25 @@ case "$path" in
     *) exit 0 ;;
 esac
 
-if [ "${BP_GUARD_OFF:-0}" = "1" ]; then
-    printf 'token-guard: bypassed by BP_GUARD_OFF=1 on %s\n' "$path" >&2
+base=$(basename "$path")
+
+# A bypass or a fail-open says so in one line to the user (systemMessage) and
+# the chat (additionalContext): a PreToolUse hook's stderr reaches neither when
+# it exits 0. No permissionDecision, so the normal permission flow still runs.
+note() {
+    jq -nc --arg m "$1" '{systemMessage: $m, hookSpecificOutput: {hookEventName: "PreToolUse", additionalContext: $m}}'
     exit 0
+}
+
+if [ "${BP_GUARD_OFF:-0}" = "1" ]; then
+    note "token-guard bypassed by BP_GUARD_OFF=1: colours and font sizes in $base were not checked. Say why the bypass was needed."
 fi
 
 config="${CLAUDE_PROJECT_DIR:-$PWD}/.claude/guard-config.json"
 token_files=$(jq -r '.tokenFiles[]?' "$config" 2>/dev/null)
 if [ -z "$token_files" ]; then
-    printf 'token-guard: %s missing or unreadable — allowing the edit unchecked\n' "$config" >&2
-    exit 0
+    note "token-guard is off: $config is missing or unreadable, so colours and font sizes in $base were not checked. Restore that file from origin/main."
 fi
-
-base=$(basename "$path")
 
 while IFS= read -r suffix; do
     [ -z "$suffix" ] && continue

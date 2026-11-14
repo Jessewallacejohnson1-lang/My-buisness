@@ -53,7 +53,10 @@ docs/plans/watch-every-place, ticket 05). The routine's steps are sources/models
             morning report: save's summary, the tag, describe (with its CHECK lines) and standouts lines,
             every Event added since the last report (the social watch's and a chat's too) whose card shows no
             photo of what it is (BP app event-photos 08), the social watch's Apify spend (social.py spend; Jesse, 2026-10-22), asked here so no
-            step can skip it (Oct 29's run did), and Firecrawl's credits left (BP app backlog 12). The routine answers with it (BP app smooth-mornings 07).
+            step can skip it (Oct 29's run did), and Firecrawl's credits left (BP app backlog 12). On Sundays it reads each school's club
+            page for its clubs' meeting times, a line per change (meeting_times.sunday; BP app nothing-scheduled 05),
+            and ends with how many things with nothing scheduled are due for a walk (nothing_scheduled.due_line; BP app
+            nothing-scheduled 04). The routine answers with it (BP app smooth-mornings 07).
             A save that fails is one line in the report, and finish run again writes only what is left
 
 Everything lands in .runs/morning/, which morning_run.py owns: each step takes a Run (its folder, day,
@@ -76,7 +79,7 @@ from pathlib import Path
 from urllib.parse import quote, urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from registry import find_root, load
+from registry import find_root, load, town_entries
 from read_events import LOCAL, CAMPUS_HOSTS
 from batch import layout, page_id
 import write_judged
@@ -88,6 +91,8 @@ import apple_maps
 import team_logos
 import venue_spots
 import event_parts
+import nothing_scheduled
+import meeting_times
 from towns import TOWNS, DEFAULT, lookup
 from run import Supabase, fetch, fetch_watched, firecrawl_credits, to_text, deadline, late, part_state, resume_part, aside_lines
 from morning_run import Run, FakeDb
@@ -1145,7 +1150,8 @@ def finish(run, dry_run):
                        ("event photos", lambda: photo_lines(db, today)),
                        ("map spots", lambda: map_spots(run, dry_run)),
                        ("places", lambda: place_lines(db)),
-                       ("Apple Maps", lambda: apple_maps.check(db, not dry_run, today))):
+                       ("Apple Maps", lambda: apple_maps.check(db, not dry_run, today)),
+                       ("Sunday steps", lambda: sunday_lines(run, dry_run))):
         waited = run.part("apple-waited-dry-run.json" if dry_run else "apple-waited.json")
         if what == "Apple Maps" and late(run.stop) and not waited.saved:  # the maps took this part's time, once
             waited.save(True)
@@ -1182,6 +1188,30 @@ def map_spots(run, dry_run):
         lines = spots.fill(run.db, run.today, not dry_run, maps=None)
     except Exception as e:  # a refused write or a bad hand file: a line in the report, never a lost report
         lines = [f"[morning] map spots failed: {' '.join(str(e).split())[:300]}"]
+    done.save(lines)
+    return lines
+
+
+def sunday_lines(run, dry_run):
+    """On Sundays, the photo dig's weekly day, the weekly steps' lines: each school's club page read for its clubs'
+    meeting times (BP app nothing-scheduled 05), then how many things with nothing scheduled are due for a walk (04).
+    Any other day, none."""
+    from event_photos import WEEKLY_DAY  # here: event_photos imports morning
+    if run.today.weekday() != WEEKLY_DAY:
+        return []
+    return meeting_lines(run, dry_run) + nothing_scheduled.due_line(run.db, run.today)
+
+
+def meeting_lines(run, dry_run):
+    """Each school's club page read for its clubs' meeting times, a change written (meeting_times.sunday). Its lines
+    are kept, so a finish run again neither reads nor writes twice."""
+    done = run.part(f"meets{'-dry-run' if dry_run else ''}.json")
+    if done.saved is not None:
+        return done.saved
+    try:
+        lines = meeting_times.sunday(run.db, town_entries(find_root(), run.town), not dry_run)
+    except Exception as e:  # a refused read or a bad page: a line in the report, never a lost report
+        lines = [f"[meets] the Sunday read failed: {' '.join(str(e).split())[:300]}"]
     done.save(lines)
     return lines
 
@@ -1266,6 +1296,24 @@ def credits_told():
         (failed == "Firecrawl: credits unknown (HTTP Error 401: Unauthorized)", f"a failed call is a line: {failed}"),
         (odd == "Firecrawl: credits unknown ('remainingCredits')", f"an answer without the number is a line: {odd}"),
     ]
+
+
+def sundays_only():
+    """The weekly steps run on Sundays only, the meeting times first; any other day they read nothing."""
+    import tempfile
+    global meeting_lines
+    was = meeting_lines, nothing_scheduled.due_line
+    meeting_lines = lambda run, dry_run: ["[meets] read"]  # noqa: E731
+    nothing_scheduled.due_line = lambda db, today: ["[scheduled] due"]
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            db = FakeDb()
+            monday = sunday_lines(Run(Path(tmp), date(2026, 11, 16), db), False)
+            sunday = sunday_lines(Run(Path(tmp), date(2026, 11, 15), db), False)
+    finally:
+        meeting_lines, nothing_scheduled.due_line = was
+    return [(monday == [] and not db.calls and sunday == ["[meets] read", "[scheduled] due"],
+             f"the weekly steps on Sundays only: {monday} {sunday}")]
 
 
 def map_spots_without_maps():
@@ -1661,7 +1709,7 @@ def selftest():
                    "written: a write that fails stops with one line naming what refused it and leaves it, so "
                    "prepare finds the same pages again; once written, it is saved even if the summary then breaks"))
     checks += in_parts()
-    checks += map_spots_without_maps()
+    checks += map_spots_without_maps() + sundays_only()
     checks += steps_alone()
     checks += set_aside_across_days()
     checks += one_town()

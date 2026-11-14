@@ -93,6 +93,16 @@ def is_todo(url):
     return str(url).strip().upper() == "TODO"
 
 
+def town_entries(root, town):
+    """One town's entries."""
+    return [e for e in load(root)[0] if e["_town"] == town]
+
+
+def is_watched(entry):
+    """Whether the morning watch reads the entry's pages: active and watched."""
+    return entry.get("status") == "active" and entry.get("tier") == "watched"
+
+
 def validate(entries):
     errs, seen = [], {}
     for e in entries:

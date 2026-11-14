@@ -274,3 +274,21 @@ test('a show open for days keeps its first day, while a dated Event moves with i
   await apply(show('4758905', '2026-11-12'));
   assert.equal(await day('4758905'), '2026-11-12', 'a dated Event its source moves, moves');
 });
+
+test('a declined double read again with no place stays declined; another place sends it to Review (school-search 09)', async () => {
+  const db = await realDatabase();
+  const bowl = (location) => [{ status: 'approved', title: 'Prep Knowledge Bowl 6-8 Grades', event_date: '2026-11-19',
+    start_time: '4 PM', end_at: null, all_day: false, location, description: null,
+    source_name: 'Kennedy Community School', source_url: 'u', source_uid: '936972_2026-11-19T22:00:00Z_2026-11-19T23:00:00Z',
+    category: null, shows_from: '2026-11-05' }];
+  const apply = async (events) => db.query('select public.apply_judged($1, $2, $3, $4)',
+    [JSON.stringify(events), '[]', '[]', '[]']);
+  const row = async () => (await db.query(`select status, location from public.club_events`)).rows[0];
+  await apply(bowl("Saint John's Prep, Collegeville"));
+  await db.exec(`update public.club_events set status = 'rejected', review_reason = 'other'`);
+  await apply(bowl(null));
+  assert.deepEqual(await row(), { status: 'rejected', location: "Saint John's Prep, Collegeville" },
+    'Kennedy\'s calendar line names no place: the row keeps its place and stays out');
+  await apply(bowl('Kennedy Community School'));
+  assert.equal((await row()).status, 'pending', 'a place the source changed gets another look');
+});

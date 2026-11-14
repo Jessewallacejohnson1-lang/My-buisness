@@ -165,7 +165,10 @@ struct SearchLogo: Hashable {
     }
 
     /// The cast shadow's colour: a dark shade of the logo's hue, never grey.
-    var shadow: Color { Hue.hsl(hue, chroma ? 30 : 10, 18) }
+    var shadow: Color { Self.shadow(hue: hue, chroma: chroma) }
+
+    /// A dark shade of `hue` (degrees), nearly neutral for a black, white or grey logo: Search's and a game's team logos.
+    static func shadow(hue: Double, chroma: Bool) -> Color { Hue.hsl(hue, chroma ? 30 : 10, 18) }
 }
 
 /// The filter pills: places, businesses, the schools' sports and events (BP app five-tabs 04, school-search 04), and

@@ -238,6 +238,44 @@ test("team logos: a new team's logo and colors", async () => {
   await asJob('team logos: the ones taken down before', 'select id, name, logo_refused from public.teams where logo_url is null');
 });
 
+// The weekly step for what has nothing scheduled (BP app nothing-scheduled 04): the Sunday finish counts the things due
+// (nothing_scheduled.read_rows and last_walks), and a walk remembers each thing it walked.
+test('nothing scheduled: the Sunday count reads, and each thing walked is remembered', async () => {
+  await asJob('count: school activities', `select id, team_id, name, kind, note from public.team_activities
+    where team_id in ('apollo', 'tech') order by id limit 1000 offset 0`);
+  await asJob('count: activities_next', 'select public.activities_next($1) as n', [['apollo', 'tech']]);
+  await asJob('count: Groups', `select id, name, kind, own_entry_id, place_entry_id, page_url from public.clubs
+    where status = 'approved'`);
+  await asJob('count: busy Places and Groups', `select place_entry_id, club_id from public.club_events
+    where status = 'approved' and cancelled_at is null and event_date >= $1 order by id limit 1000 offset 0`, [day(0)]);
+  // As PostgREST writes POST date_walks?on_conflict=thing with resolution=merge-duplicates.
+  const walked = (things, at) => asJob('keep: things walked', `insert into public.date_walks (thing, walked_at)
+    select thing, walked_at from jsonb_populate_recordset(null::public.date_walks, $1)
+    on conflict (thing) do update set thing = excluded.thing, walked_at = excluded.walked_at`,
+    [JSON.stringify(things.map((thing) => ({ thing, walked_at: at })))]);
+  await walked(['group:g1', 'place:cafe'], '2026-11-15T12:00:00Z');
+  await walked(['place:cafe'], '2026-12-13T12:00:00Z');
+  assert.deepEqual((await asJob('count: last walks', 'select thing, walked_at from public.date_walks order by thing'))
+    .map((r) => [r.thing, r.walked_at.toISOString()]),
+    [['group:g1', '2026-11-15T12:00:00.000Z'], ['place:cafe', '2026-12-13T12:00:00.000Z']]);
+  // The paid rung (06): each page it read, with its verdict, so a turned-down page isn't paid for again.
+  await asJob('posts: pages read', `insert into public.date_walks (thing, walked_at, verdict)
+    select thing, walked_at, verdict from jsonb_populate_recordset(null::public.date_walks, $1)
+    on conflict (thing) do update set thing = excluded.thing, walked_at = excluded.walked_at, verdict = excluded.verdict`,
+    [JSON.stringify([{ thing: 'page:https://www.facebook.com/vtwintavern', walked_at: '2026-11-22T18:00:00Z', verdict: 'kept' },
+      { thing: 'page:https://www.facebook.com/st.joefoodshelf', walked_at: '2026-11-22T18:00:00Z', verdict: 'turned_down' }])]);
+  assert.deepEqual((await asJob('posts: pages turned down', `select thing, walked_at, verdict from public.date_walks
+    where thing like 'page:%' order by thing`)).map((r) => [r.thing, r.verdict]),
+    [['page:https://www.facebook.com/st.joefoodshelf', 'turned_down'], ['page:https://www.facebook.com/vtwintavern', 'kept']]);
+  await assert.rejects(db.query(`insert into public.date_walks (thing, verdict) values ('place:cafe2', 'kept')`),
+    /date_walks_verdict_check/, 'a verdict is only a page\'s');
+  for (const role of ['anon', 'authenticated']) {
+    await db.exec(`set role ${role}`);
+    await assert.rejects(db.query('select thing from public.date_walks'), /permission denied/, role);
+    await db.exec('reset role');
+  }
+});
+
 // BP app town-feed 65: the social watch keeps a News post's own words, once, and the app reads them on a published
 // News only.
 test("a News post's own words: written once by the job, read by the app", async () => {
@@ -262,6 +300,30 @@ test("a News post's own words: written once by the job, read by the app", async 
                      'a News taken out keeps its words from the app');
   } finally {
     await db.exec('reset role');
+  }
+});
+
+// The Sunday step keeps clubs' meeting times current (meeting_times.sunday, BP app nothing-scheduled 05): it reads each
+// school's clubs with their stored times, writes a time that moved, and empties one the page dropped.
+test("meeting times: a club's time read, moved and dropped by the Sunday step, and nothing else of its row", async () => {
+  const clubs = await asJob('meets: the clubs', `select id, team_id, name, meets from public.team_activities
+    where kind = 'club' and team_id in ('sartell', 'apollo') order by name`);
+  const bible = clubs.find((c) => c.team_id === 'sartell' && c.name === 'Bible Study');
+  assert.deepEqual(bible.meets, [{ days: ['fri'], time: '08:00' }], "03's migration stored Sartell's time");
+  // As PostgREST writes PATCH team_activities?id=eq.<id> with return=minimal.
+  const patch = (meets) => asJob('meets: a change', 'update public.team_activities set meets = $2 where id = $1',
+    [bible.id, meets === null ? null : JSON.stringify(meets)]);
+  await patch([{ days: ['thu'], time: '07:30' }]);
+  assert.deepEqual((await db.query('select meets from public.team_activities where id = $1', [bible.id])).rows[0].meets,
+    [{ days: ['thu'], time: '07:30' }]);
+  await patch(null);
+  assert.equal((await db.query('select meets from public.team_activities where id = $1', [bible.id])).rows[0].meets, null);
+  await db.exec(`discard plans; set role watch; set request.jwt.claims = '{"role": "watch"}'`);
+  try {
+    await assert.rejects(db.query(`update public.team_activities set name = 'x' where id = $1`, [bible.id]),
+      /permission denied/, "rename a club");
+  } finally {
+    await db.exec('reset role; reset request.jwt.claims');
   }
 });
 

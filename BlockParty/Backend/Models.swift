@@ -583,7 +583,8 @@ struct TeamProfile: Decodable, Hashable {
     }
 
     /// One of the school's activities: "Girls Soccer", its note ("St. Cloud Crush co-op"), whether
-    /// you follow it, and its next event, nil until one is read ("No events yet").
+    /// you follow it, its next event, nil until one is read ("No events yet"), and when it meets, as its school's
+    /// page says it (nothing-scheduled 03; nil when it doesn't, and from an older read).
     struct Activity: Decodable, Hashable, Identifiable {
         let id: String
         let name: String
@@ -591,6 +592,7 @@ struct TeamProfile: Decodable, Hashable {
         let kind: String
         let following: Bool
         let next: Next?
+        let meets: [MeetingRule]?
 
         struct Next: Decodable, Hashable {
             let title: String

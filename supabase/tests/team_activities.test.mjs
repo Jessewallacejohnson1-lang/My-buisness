@@ -106,6 +106,21 @@ test("Kennedy's own calendar lands on its activity, a joint concert on each it n
   assert.deepEqual(await kennedy('Band/Spelling Bee/Rugby'), ['kennedy: Band', 'kennedy: Spelling Bee']);
 });
 
+test("Tech's own calendar and the music department's page land on their ensemble's row (nothing-scheduled 01)", async () => {
+  assert.deepEqual(await activitiesFor({ activity_team: 'tech', activity_name: 'Choir' }), ['tech: Choir'],
+                   'Tech Choir Concert: its Choir, not its Chamber Choir');
+  assert.deepEqual(await activitiesFor({ activity_team: 'tech', activity_name: 'Band' }), ['tech: Band'],
+                   'Tech Band Concert: its Band, not its Jazz or Pep Band');
+  assert.deepEqual(await activitiesFor({ activity_team: 'saint-johns', activity_name: 'Guitar Ensemble' }),
+                   ["saint-johns: Guitar Ensemble"], 'Guitar Ensemble & Studio Concert, Gertken Organ Studio, SJU');
+  assert.deepEqual(await activitiesFor({ activity_team: 'saint-johns', activity_name: 'All-College Choir' }),
+                   ["saint-johns: All-College Choir"]);
+  assert.deepEqual(await activitiesFor({ activity_team: 'saint-benedict', activity_name: "Women's Choir" }),
+                   ["saint-benedict: Women's Choir"]);
+  assert.deepEqual(await activitiesFor({ activity_team: 'saint-johns', activity_name: "Men's Chorus" }),
+                   ["saint-johns: Men's Chorus"]);
+});
+
 test("Kennedy's Adapted Floor Hockey takes St. Cloud's games from Apollo's feed, as Apollo's own does (school-search 02, 07)", async () => {
   assert.deepEqual(await activitiesFor({ sport: 'Adapted Floor Hockey', team_ids: ['maple-grove', 'st-cloud'], activity_team: 'apollo' }),
                    ['apollo: Adapted Hockey (Adapted Floor Hockey)', 'kennedy: Boys/Girls Adapted Floor Hockey',

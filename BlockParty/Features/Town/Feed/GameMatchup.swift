@@ -7,7 +7,7 @@
 //  screen is those two colors blended together... really simple and smooth UI", then "I love that" to the
 //  Figma drafts beside Apple Sports' live game screen, `references/game-page-blend/`): each team's color
 //  deepened to Apple's depth, the left one's to 36% of the width and the right one's from 66%, fading to
-//  near-black from halfway down; the big score on the outside over each logo on its white disc, Live and
+//  near-black from halfway down; the big score on the outside over each bare logo (game-card 26), Live and
 //  the clock between them; for a live football game the down, distance and spot over a field bar; for
 //  volleyball its sets in chips over a faint net, for soccer the minute in a ring over a faint center circle and
 //  its scorers under the teams, for basketball its quarters as a bar and a faint court, for hockey its shots, a
@@ -31,15 +31,22 @@ struct GameMatchup: View {
         /// The number's line, and the logo 12 pt under it.
         static let numberLine: CGFloat = 76
         static let numberGap: CGFloat = 12
-        static let disc: CGFloat = 60
-        static let logo: CGFloat = 44
+        /// The logo bare, no disc (game-card 26): the most that keeps the day's chip clear of it on a 375 pt phone.
+        static let logo: CGFloat = 72
+        /// Its white edge: four tight white shadows on top of each other, as the mock's CSS draws it, about 1.5 pt wide.
+        /// Its 0.55 halved, as `castShadow`'s blurs are, drew the edge a third narrower than the mock's (measured at 3x).
+        static let edge: CGFloat = 0.5
+        /// Its cast, black and this much stronger than the card's hue, to show on the team colors (the mock's pick).
+        static let cast: Double = 1.7
         static let nameGap: CGFloat = 10
         static let middle: CGFloat = 112
         /// The line under Final, wider than the column: the room between the numbers on the smallest phone.
         static let penalties: CGFloat = 190
-        /// The day and time before it starts ("Thu, Nov 12 · 4:15 PM"), also wider than the column: the room between
-        /// the logos on the smallest phone.
-        static let when: CGFloat = 148
+        /// The day and time before it starts ("Thu, Nov 12 · 4:15 PM"), also wider than the column. With 72 pt logos the
+        /// room between them on a 375 pt phone is 151.5 pt: 148 left 1.75 pt a side, less than the white edge, and 140
+        /// leaves 5.75 (game-card 26). The longest day, "Wed, Nov 25 · 12:30 PM" (149 pt at 13 pt bold), still fits at
+        /// the chip's 0.8 scale, 119.2 of its 120 pt of words.
+        static let when: CGFloat = 140
         /// The chip and the clock line 4 pt into the number's line, 10 pt apart.
         static let middleTop: CGFloat = 4
         static let middleGap: CGFloat = 10
@@ -132,7 +139,7 @@ struct GameMatchup: View {
         return score[side] < score[1 - side]
     }
 
-    /// One team: its number (live and final), its logo on a white disc, its short name, and a yellow dot
+    /// One team: its number (live and final), its logo bare in its white edge, its short name, and a yellow dot
     /// after the name while it has the ball.
     private func side(_ side: Int, live: Game.Live?, fresh: Bool) -> some View {
         let team = game.teams[side]
@@ -152,9 +159,10 @@ struct GameMatchup: View {
                     .padding(.bottom, Metric.numberGap)
                     .transition(.opacity)
             }
-            LogoDisc(logo: team.logo, initial: team.initial, logoSide: Metric.logo, letter: .eventDisplay(28))
-                .frame(width: Metric.disc, height: Metric.disc)
-                .shadow(color: .black.opacity(0.28), radius: 9, y: 6)
+            // Bare in its white edge, lifted; a letter flat and white (game-card 26).
+            LogoDisc(logo: team.logo, initial: team.initial, logoSide: Metric.logo, letter: .eventDisplay(40), disc: false,
+                     lift: .page)
+                .frame(width: Metric.logo, height: Metric.logo)
                 .momentPop(side)
             HStack(spacing: 6) {
                 Text(team.short)
@@ -279,6 +287,13 @@ struct GameMatchup: View {
     /// when none is known.
     static func vivid(_ team: Game.Team) -> UInt32? {
         palette(team).first { isVivid($0) }
+    }
+
+    /// The shadow a team's logo casts on the white card (game-card 26): a dark shade of its color's hue, as Search's
+    /// logos cast theirs; none known, the near-neutral one.
+    static func cast(_ team: Game.Team) -> Color {
+        let hue = vivid(team).map { hls($0).0 * 360 }
+        return SearchLogo.shadow(hue: hue ?? 0, chroma: hue != nil)
     }
 
     /// The team's color, then the colors read from its logo.
@@ -904,17 +919,18 @@ struct WhiteGameCard: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    /// The mock's After phone, on its 370 x 196 pt card: 196 pt tall at every width (inside-cards 24).
+    /// The mock's After phone, on its 370 pt wide card: 208 pt tall at every width (inside-cards 24; 196 until
+    /// game-card 26's 80 pt logos).
     enum Metric {
-        static let height: CGFloat = 196
+        static let height: CGFloat = 208
         static let sportTop: CGFloat = 18
         static let rowTop: CGFloat = 58
-        static let logo: CGFloat = 64
+        static let logo: CGFloat = 80
         static let column: CGFloat = 112
         static let gap: CGFloat = 14
         static let middle: CGFloat = 92
-        /// The time's room under VS: the column, the two gaps and the logos' clear sides, 168 pt, so a long
-        /// day reaches past VS's column without meeting a logo (inside-cards 26).
+        /// The time's room under VS: the column, the two gaps and the logos' clear sides, 152 pt, so a long
+        /// day reaches past VS's column without meeting a logo (inside-cards 26); "Wed, Nov 25 · 12:30 PM" takes two lines.
         static let timeRoom: CGFloat = middle + 2 * gap + (column - logo)
         static let placeBottom: CGFloat = 16
         /// The place line keeps clear of the heart in the corner, on both sides so it stays centred.
@@ -1040,8 +1056,9 @@ struct WhiteGameCard: View {
                 // (Jesse, 2026-11-07, BP app inside-cards 26). A moment comes only with a fresh score, so this
                 // needs no MomentLine.
                 // As the page draws it, the time keeps one line and reaches past VS's column into the room beside
-                // the logos, never cut ("Sat, Nov 21 · 8 AM" on a 375 pt phone); too long for that room at a larger
-                // text size ("Wed, Nov 25 · 12:30 PM"), the day goes over the time.
+                // the logos, never cut ("Sat, Nov 21 · 8 AM" on a 375 pt phone); too long for that room, the day goes
+                // over the time: "Wed, Nov 25 · 12:30 PM" (156 pt) at the normal text size since the 80 pt logos left
+                // 152 (game-card 26), and more days at a larger one.
                 let now = item.isNow(at: date)
                 ViewThatFits(in: .horizontal) {
                     CardTime(text: when.text, spoken: when.spoken, now: now, color: Hue.inkSecondary)
@@ -1068,11 +1085,13 @@ struct WhiteGameCard: View {
         .frame(minWidth: Metric.middle, minHeight: Metric.logo)
     }
 
-    /// One school: its logo bare, its short name under it; faded once it has lost.
+    /// One school: its logo bare and lifted off the card, its short name under it; faded once it has lost.
     private func team(_ side: Int) -> some View {
         let team = game.teams[side]
         return VStack(spacing: 8) {
-            LogoDisc(logo: team.logo, initial: team.initial, logoSide: Metric.logo, letter: .eventDisplay(30), disc: false)
+            // Search's cast in the team's own hue; a letter flat, as before (game-card 26).
+            LogoDisc(logo: team.logo, initial: team.initial, logoSide: Metric.logo, letter: .eventDisplay(38), disc: false,
+                     lift: .card(GameMatchup.cast(team)))
                 .frame(width: Metric.logo, height: Metric.logo)
                 .momentPop(side)
             Text(team.short)
@@ -1186,8 +1205,23 @@ struct LogoDisc: View {
     /// Behind the letter alone, while the logo loads or when it can't: the Town's white card shows a
     /// place with no logo as a letter on the light fill (no-photo-cards), so one still loading matches.
     var blank: Color? = nil
+    /// A game's logo lifted off what's under it, the picture alone (game-card 26): a letter stays flat.
+    var lift: Lift? = nil
+
+    enum Lift {
+        /// Search's cast in the team's own hue, on the white card.
+        case card(Color)
+        /// On a game's page, with no disc: a thin white edge and a stronger black cast, to show on the team colors;
+        /// the letter white.
+        case page
+    }
 
     @ObservedObject private var logos = POILogoCache.shared
+
+    /// White on a game's page, which has no disc; ink everywhere else.
+    private var letterInk: Color {
+        if case .page? = lift { .white } else { Hue.ink.onLightCanvas }
+    }
 
     var body: some View {
         let loaded = logo.flatMap(logos.image(for:))
@@ -1206,24 +1240,38 @@ struct LogoDisc: View {
                     .frame(width: width, height: width * image.size.height / max(image.size.width, 1))
                     .transition(.opacity)
             } else if let image {
-                Image(uiImage: image)
+                let picture = Image(uiImage: image)
                     .resizable()
                     .interpolation(.high)
                     .scaledToFit()
                     .frame(width: logoSide, height: logoSide)
-                    .transition(.opacity)
+                switch lift {
+                case nil:
+                    picture.transition(.opacity)
+                case .card(let cast)?:
+                    picture.castShadow(cast, side: logoSide).transition(.opacity)
+                case .page?:
+                    // The edge hugs the logo's own shape, so a dark one never sinks into its own color.
+                    picture
+                        .shadow(color: .white, radius: GameMatchup.Metric.edge)
+                        .shadow(color: .white, radius: GameMatchup.Metric.edge)
+                        .shadow(color: .white, radius: GameMatchup.Metric.edge)
+                        .shadow(color: .white, radius: GameMatchup.Metric.edge)
+                        .castShadow(.black, side: logoSide, strength: GameMatchup.Metric.cast)
+                        .transition(.opacity)
+                }
             } else {
                 if let blank {
                     Circle().fill(blank).transition(.opacity)
                 }
                 Text(initial)
                     .font(letter)
-                    .foregroundStyle(Hue.ink.onLightCanvas)
+                    .foregroundStyle(letterInk)
                     .transition(.opacity)
             }
         }
-        // Nothing crosses the disc's edge, whatever the measure missed.
-        .clipShape(disc ? AnyShape(Circle()) : AnyShape(Rectangle()))
+        // Nothing crosses the disc's edge, whatever the measure missed; a lifted logo's cast reaches a side past its frame.
+        .clipShape(disc ? AnyShape(Circle()) : lift == nil ? AnyShape(Rectangle()) : AnyShape(Rectangle().inset(by: -logoSide)))
         .animation(Motion.smooth, value: image != nil)
         .task(id: logo) { if let logo { logos.prefetch([logo]) } }
     }
