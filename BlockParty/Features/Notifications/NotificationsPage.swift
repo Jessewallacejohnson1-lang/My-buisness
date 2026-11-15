@@ -77,8 +77,13 @@ struct NotificationsPage: View {
                             case .named(let named): NamedRow(named: named, now: now)
                             case .item(let item):
                                 HelloItemRow(item: item, now: now, card: {
-                                    guard case .added(let added) = item.what else { return nil }
-                                    return townFeed.cards.first { $0.id == added.eventId }
+                                    switch item.what {
+                                    case .added(let added): return townFeed.cards.first { $0.id == added.eventId }
+                                    // Your own Event (inside-cards 29): the feed's card, else the one read for it.
+                                    case .posted(let posted):
+                                        return inbox.card(posted.eventId, feed: townFeed.cards, or: posted.card)
+                                    default: return nil
+                                    }
                                 }())
                             }
                         }
@@ -120,6 +125,8 @@ struct NotificationsPage: View {
             await notices.refresh()
             notices.opened()
         }
+        // Your own Events' cards, read again on every visit, so their rows open with today's hearts.
+        .task { await inbox.freshen() }
         // One found while the page was up was shown on it too.
         .onDisappear { inbox.toldAll() }
     }
@@ -203,7 +210,7 @@ struct PostPage: View {
 private struct HelloItemRow: View {
     let item: HelloItem
     let now: Date
-    /// The Event an added row opens, while the Town feed has it.
+    /// The Event an added row opens, while the Town feed has it; for your own Event, the card read for it.
     var card: FeedCardItem?
 
     var body: some View {
@@ -257,7 +264,7 @@ private struct HelloItemRow: View {
         // Your own Event, live: its page, wherever it sits on Town.
         case .posted(let posted):
             if posted.live {
-                NavigationLink(value: NoticeEventRoute(item: posted.card)) { padded(words).contentShape(Rectangle()) }
+                NavigationLink(value: NoticeEventRoute(item: card ?? posted.card)) { padded(words).contentShape(Rectangle()) }
                     .buttonStyle(.press(.row))
             } else {
                 padded(words).accessibilityElement(children: .combine)

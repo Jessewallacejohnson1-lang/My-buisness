@@ -983,3 +983,12 @@ recoverable with:
 ```bash
 git show 49781ccthorization.sql
 ```
+
+## Decided 2026-11-15 — the Town feed's refresh swirl is hidden through UIKit
+
+The Town feed's pull-to-refresh is BP's own loop (`RefreshLoop.swift`, BP app town-feed 69). Apple's
+`.refreshable` keeps the pull, the trigger and the held gap; only its swirl goes. `.tint(.clear)` on the
+feed never reached the `UIRefreshControl` (iOS 26.5, the swirl recorded over the gap), so `SwirlHider`
+walks up to the feed's `UIScrollView` and sets its `refreshControl.tintColor` to clear, again whenever a
+pull starts. A rebuilt pull from scroll geometry was the other way, and it would have to hold the gap
+open by changing the content's padding off the scroll's own offset, the loop `swift-traps.md` bans.

@@ -420,6 +420,15 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
         return sets.count - 1
     }
 
+    /// Your side and theirs, by what you follow: a school or its activity starts with the team's short name
+    /// ("Saint John's", "Cathedral Volleyball (girls)"). nil when what you follow is the place or page it's
+    /// at, not a team in it (hello-drop 09).
+    func sides(followed: String?) -> (mine: Team, other: Team)? {
+        guard teams.count == 2, let mine = teams.firstIndex(where: { followed?.hasPrefix($0.short) == true })
+        else { return nil }
+        return (teams[mine], teams[1 - mine])
+    }
+
     nonisolated struct Team: Decodable, Hashable, Sendable {
         let name: String
         /// As neighbours say it ("Gustavus", not "Gustavus Adolphus").

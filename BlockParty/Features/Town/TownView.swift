@@ -100,6 +100,25 @@ struct TownView: View {
     /// How far the feed has carried the bar off the top (`TownBarRules.barTravel`).
     /// Written here, read only by the bar, so this view does not re-run per frame.
     @State private var barTravel = BarTravel()
+    /// How far the feed is pulled, and the read out now: only the refresh loop reads it (town-feed 69).
+    @State private var refreshPull = RefreshPull()
+    /// The gap a Town tab tap opens for the loop above the first card, as a pull's read holds one.
+    /// Set from the read, never from the scroll's geometry (swift-traps.md).
+    @State private var refreshGap: CGFloat = 0
+
+    /// A read the loop shows: at least one lap, however fast the read comes back. A pull's read holds
+    /// its own gap open (`.refreshable`) while this runs; a tab tap's opens one here.
+    private func read(from start: RefreshStart) async {
+        // One at a time: a tab tap during a pull's read (still at the top) would open a second gap.
+        guard refreshPull.reading == nil else { return }
+        refreshPull.reading = start
+        if start == .tab { withAnimation(reduceMotion ? nil : Motion.sheet) { refreshGap = LoopRide.heldGap } }
+        let began = Date.now
+        await townFeed.pulled()
+        try? await Task.sleep(for: .seconds(LoopRide.rest(afterReading: Date.now.timeIntervalSince(began))))
+        refreshPull.reading = nil
+        if start == .tab { withAnimation(reduceMotion ? nil : Motion.sheet) { refreshGap = 0 } }
+    }
 
     /// DEBUG-only: `-header-collapsed` pins the bar to its scrolled-away state.
     /// There is no scroll automation in this setup, so without it that state cannot
@@ -125,6 +144,8 @@ struct TownView: View {
         #endif
         return ScrollView(showsIndicators: false) {
             VStack(spacing: 0) {
+                // The pull-to-refresh: a line round a loop in the gap above the first card (town-feed 69).
+                RefreshLoop(pull: refreshPull, held: refreshGap)
                 // Your post on its way, faded on top until it's up, or until Review let it up while it waited;
                 // once up, the post itself there for the session (town-feed 29).
                 if let sent = PostOutbox.shared.sent, !townFeed.shown.contains(where: { $0.id == sent.id }) {
@@ -192,6 +213,7 @@ struct TownView: View {
 
                 Color.clear.frame(height: 96)
             }
+            .padding(.top, refreshGap)
             .tint(Hue.ink)
             // Your post comes in on top and goes once it's up; the cards make room (town-feed 29).
             .animation(Motion.smooth, value: PostOutbox.shared.sent?.id)
@@ -298,18 +320,31 @@ struct TownView: View {
             AppearanceStore.shared.holdsClock = false
             townFeed.left(viewGone: true)
         }
+        // How far the feed is pulled past its top, for the refresh loop alone. Read off where the content
+        // sits, not off `offset` above: `.refreshable` adds to the top inset as its read starts, which
+        // jumped that 40 pt mid-pull.
+        .onScrollGeometryChange(for: RefreshPull.Scroll.self) { geometry in
+            RefreshPull.Scroll(top: -geometry.contentOffset.y, inset: geometry.contentInsets.top)
+        } action: { _, scroll in
+            refreshPull.scrolled(scroll)
+        }
         .scrollPosition($feedPosition)
         .onScrollPhaseChange { _, phase in
             townFeed.fingerDown = phase == .tracking || phase == .interacting
             if phase == .idle { Task { await townFeed.fingerLifted() } }
         }
+        // Apple's pull, trigger and held gap, its swirl hidden (`SwirlHider`); the loop rides at least
+        // one lap, so a quick read holds the gap that long.
+        // Its own task, as TeamPage's: SwiftUI cancelled the refresh's task as the new cards landed,
+        // which cut the lap short and let the gap go (measured 0.75 s in, refresh-coaster).
         .refreshable {
-            await townFeed.pulled()
+            await Task { await read(from: .pull) }.value
         }
-        // The Town tab tapped again, as Instagram's Home: to the top, then a read.
+        // The Town tab tapped again, as Instagram's Home: to the top, then a read, the loop
+        // riding in a gap of its own.
         .onChange(of: tappedAgain) {
             if townFeed.atTop {
-                Task { await townFeed.pulled() }
+                Task { await read(from: .tab) }
             } else {
                 withAnimation(reduceMotion ? nil : Motion.smooth) { feedPosition.scrollTo(edge: .top) }
             }

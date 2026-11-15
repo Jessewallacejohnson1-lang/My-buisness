@@ -229,17 +229,22 @@ extension HelloItem.Added {
         return byName.keys.sorted().compactMap { name in
             let group = (byName[name] ?? []).sorted { ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast) }
             guard let newest = group.first else { return nil }
-            let hosted = newest.hostPicture.map { ($0.url, $0.kind == .photo) }
             let own = url(newest.image)
-            let place = url(newest.place)
-            let placeIsPhoto = if case .placeLogo = newest.place { false } else { true }
-            let picture = hosted ?? place.map { ($0, placeIsPhoto) } ?? own.map { ($0, true) }
+            let picture = Self.picture(newest)
             return HelloItem.Added(name: name, day: Town.day(now), eventId: newest.id, title: newest.title,
                                    eventDate: newest.eventDate, startTime: newest.startTime, count: group.count,
                                    picture: picture?.0, pictureIsPhoto: picture?.1 ?? true,
                                    // Not the same picture on both sides of the bell's row.
                                    photo: own == picture?.0 ? nil : own)
         }
+    }
+
+    /// Who it's of, as a pill's picture: its host's, else its place's, else its own photo.
+    static func picture(_ card: FeedCardItem) -> (url: URL, photo: Bool)? {
+        if let hosted = card.hostPicture { return (hosted.url, hosted.kind == .photo) }
+        let placeIsPhoto = if case .placeLogo = card.place { false } else { true }
+        if let place = url(card.place) { return (place, placeIsPhoto) }
+        return url(card.image).map { ($0, true) }
     }
 
     private static func url(_ image: FeedCardImageSource?) -> URL? {
@@ -279,6 +284,9 @@ final class HelloInbox {
 
     /// Oldest first.
     private(set) var items: [HelloItem]
+    /// Your own live Events' cards as the database has them (inside-cards 29), by id: their heart, count and
+    /// map spot. Read while the pill or the bell shows them, never kept on the phone.
+    private(set) var cards: [String: FeedCardItem] = [:]
     /// When the pill dropped, oldest first: the last day's.
     private var pills: [Date]
     private let keep: UserDefaults
@@ -304,6 +312,20 @@ final class HelloInbox {
         items.removeAll { Town.days(from: $0.at, to: now) >= Self.days }
         if !items.contains(where: { $0.id == item.id }), Town.days(from: at, to: now) < Self.days { items.append(item) }
         save()
+    }
+
+    /// Reads each of your live Events' cards again (inside-cards 29), so its door opens with them on the first
+    /// frame: as it's shared, and each time the bell's page opens. A read that fails keeps the last one.
+    func freshen(read: (String) async -> FeedCardItem? = { await CommunityAPI(auth: AuthStore.shared).eventCard(id: $0) }) async {
+        for item in items {
+            guard case .posted(let posted) = item.what, posted.live, let card = await read(posted.eventId) else { continue }
+            cards[posted.eventId] = card
+        }
+    }
+
+    /// The card an Event's door opens: the Town feed's, else the one read for it, else the one it came with.
+    func card(_ id: String, feed: [FeedCardItem], or made: FeedCardItem) -> FeedCardItem {
+        feed.first { $0.id == id } ?? cards[id] ?? made
     }
 
     /// Today's contacts check: anyone kept who isn't in it any more is a friend now, asked, or

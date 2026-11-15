@@ -1,6 +1,6 @@
 //
 //  SearchPage.swift
-//  Block Party — the Search tab: a search field and filter pills (All, Businesses, Events, Parks)
+//  Block Party — the Search tab: "BlockParty." and the pill's word, a search field and filter pills
 //  over, with nothing typed, the part of the day's row, New in St. Joseph and Around town
 //  (`SearchAtRest`, BP app five-tabs 04). Tapping the field shows the recent searches; typing shows
 //  results, Groups and neighbours too. A row's title ("Restaurants ›") opens the whole list, a logo
@@ -20,8 +20,7 @@ import SwiftUI
 nonisolated enum SearchMetric {
     static let side: CGFloat = 16
 
-    // The field, Cancel and the pills.
-    static let fieldTop: CGFloat = 3
+    // The field, Cancel and the pills (the field's own height and insets are `SearchHead`'s; these are Friends').
     static let fieldHeight: CGFloat = 36
     static let fieldIcon: CGFloat = 17
     static let fieldIconLead: CGFloat = 10
@@ -31,14 +30,11 @@ nonisolated enum SearchMetric {
     /// slides in from `cancelSlide` to the right.
     static let cancelReserve: CGFloat = 68
     static let cancelSlide: CGFloat = 14
-    static let chipsTop: CGFloat = 8
     static let chipsHeight: CGFloat = 40
     static let chipHeight: CGFloat = 34
     static let chipPad: CGFloat = 15
     static let chipGap: CGFloat = 8
     static let headBottom: CGFloat = 6
-    /// Everything above the content, from the safe area's top.
-    static let headHeight: CGFloat = fieldTop + fieldHeight + chipsTop + chipsHeight + headBottom
     /// The rows fade out under the pills over this much (Instagram's top edge).
     static let softEdge: CGFloat = 22
     static let softEdgeHaze: Double = 0.92
@@ -196,7 +192,7 @@ struct SearchPage: View {
         case .businesses: return .wall
         case .sports: return .sports
         case .calendar: return .calendar
-        default: return .groups(model.chip.kind ?? .park)
+        case .events: return .groups(.event)
         }
     }
 
@@ -204,7 +200,7 @@ struct SearchPage: View {
     /// (school-search 04): the mock Jesse picked.
     private var sports: Bool { model.chip == .sports }
 
-    private var head: SearchHead { sports ? .sports : model.chip == .calendar ? .calendar : .plain }
+    private var head: SearchHead { .of(model.chip) }
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -258,14 +254,15 @@ struct SearchPage: View {
     // MARK: Header
 
     private var header: some View {
+        // Every pill's header has the Sports one's sizes (search-titles 02); `SearchHead` holds what differs.
         // The field's and chips' glass blend only with each other, never across the 8 pt between chips.
         GlassEffectContainer(spacing: 0) {
             VStack(alignment: .leading, spacing: 0) {
-                if head.titled { SportsTitle(word: head.word) }
+                SportsTitle(word: head.word)
                 fieldRow
-                    .padding(.top, head.fieldTop)
+                    .padding(.top, SearchMetric.sportsFieldTop)
                 chips
-                    .padding(.top, head.chipsTop)
+                    .padding(.top, SearchMetric.sportsChipsTop)
             }
         }
         .padding(.bottom, SearchMetric.headBottom)
@@ -291,14 +288,13 @@ struct SearchPage: View {
         }
     }
 
-    /// The page's ground: paper, or on Sports the warm-grey fade from the top of the screen (the mock's).
+    /// The page's ground, from the top of the screen: on Sports its dark warm-grey fade (the mock's); on every other
+    /// pill the Event calendar's light one, the same one, so changing pills never flashes (BP app search-titles 02).
     @ViewBuilder private var ground: some View {
         if sports {
             SportsFade()
-        } else if model.chip == .calendar {
-            SportsFade.calendar
         } else {
-            Hue.paper
+            SportsFade.calendar
         }
     }
 
@@ -319,24 +315,24 @@ struct SearchPage: View {
                 .allowsHitTesting(model.searching)
                 .accessibilityHidden(!model.searching)
         }
-        .padding(.horizontal, head.side)
-        .frame(height: head.fieldHeight)
+        .padding(.horizontal, SearchMetric.sportsSide)
+        .frame(height: SearchMetric.sportsFieldHeight)
         .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 1), value: model.searching)
     }
 
     private var field: some View {
         let head = head
-        let shape = RoundedRectangle(cornerRadius: head.fieldRadius, style: .continuous)
+        let shape = Capsule(style: .continuous)
         return HStack(spacing: 0) {
             Image(systemName: "magnifyingglass")
-                .font(.glyph(head.fieldGlyph, weight: .medium))
+                .font(.glyph(SearchMetric.sportsFieldGlyph, weight: .medium))
                 .foregroundStyle(head.faint)
                 .frame(width: SearchMetric.fieldIcon, height: SearchMetric.fieldIcon)
-                .padding(.leading, head.fieldIconLead)
-                .padding(.trailing, head.fieldIconGap)
+                .padding(.leading, SearchMetric.sportsFieldIconLead)
+                .padding(.trailing, SearchMetric.sportsFieldIconGap)
                 .accessibilityHidden(true)
             TextField(head.prompt, text: $model.words, prompt: Text(head.prompt).foregroundStyle(head.faint))
-                .font(.sans(head.fieldWords))
+                .font(.sans(SearchMetric.sportsFieldGlyph))
                 .foregroundStyle(Hue.ink)
                 .focused($fieldFocused)
                 .submitLabel(.search)
@@ -359,9 +355,10 @@ struct SearchPage: View {
                 .accessibilityLabel("Clear")
             }
         }
-        .frame(height: head.fieldHeight)
-        .background(head.fieldFill, in: shape)
-        .glassEffect(head.fieldGlass, in: shape)
+        .frame(height: SearchMetric.sportsFieldHeight)
+        // Sports' glass on every pill, ink at 7% (Jesse: "all the search bars have the glass effect the sports page
+        // do", search-titles Check-in 2).
+        .glassEffect(.regular.tint(Hue.ink.opacity(SearchMetric.sportsFieldGlass)), in: shape)
     }
 
     private var chips: some View {
@@ -372,7 +369,7 @@ struct SearchPage: View {
                         chipButton(c).id(c)
                     }
                 }
-                .padding(.horizontal, head.side)
+                .padding(.horizontal, SearchMetric.sportsSide)
                 .frame(height: SearchMetric.chipsHeight)
             }
             .onChange(of: model.chip) { _, c in
@@ -416,7 +413,7 @@ struct SearchPage: View {
                     modeBody
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.top, head.height)
+                .padding(.top, SearchMetric.sportsHeadHeight)
                 .padding(.bottom, SearchMetric.tabBarClearance)
             }
             .scrollDismissesKeyboard(.immediately)
@@ -561,7 +558,7 @@ struct SearchPage: View {
     private static var debugSearching: Bool {
         LaunchFlags.has(.searchFocus) || debugWords != nil
     }
-    /// `-search-chip <all|calendar|businesses|sports|events|parks>`: opens on that filter.
+    /// `-search-chip <all|calendar|businesses|sports|events>`: opens on that filter.
     private static var debugChip: SearchChip? {
         LaunchFlags.value(.searchChip).flatMap { name in SearchChip.allCases.first { $0.title.lowercased() == name || "\($0)" == name } }
     }

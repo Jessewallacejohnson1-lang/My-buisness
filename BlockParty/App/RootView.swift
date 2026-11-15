@@ -278,7 +278,8 @@ struct MainTabsView: View {
     @MainActor
     private func openHello(_ target: HelloDrop.Target) {
         switch target {
-        case .event(let card): path.append(card)
+        // Your own Event's pill opens the card read for it (inside-cards 29); the feed's comes first.
+        case .event(let card): path.append(HelloInbox.shared.card(card.id, feed: townFeed.cards, or: card))
         case .group(let group): path.append(group)
         case .person(let person): path.append(person)
         case .town: if tab != .town { select(.town) }
@@ -729,11 +730,14 @@ struct MainTabsView: View {
                         case .blockParty:
                             Group {
                                 if DailySpotlight.today != nil || eventOfTheDay.events != nil {
+                                    // The Town feed's list, worked out once for the page (daily-tab 25).
+                                    let feed = townFeed.shown
                                     DailyPage(spotlight: DailySpotlight.today, events: eventOfTheDay.events ?? [],
                                               picked: $dailyDay, dayPicks: dayPicks, friends: dailyFriends,
-                                              cards: townFeed.cards, posts: townFeed.posts,
+                                              cards: feed.compactMap(\.card), posts: feed.compactMap(\.post),
                                               // A story you hid or whose place you muted goes here too.
-                                              news: followingNews.items.filter { !townFeed.hides.isHidden(id: $0.id, host: $0.place) })
+                                              news: followingNews.items.filter { !townFeed.hides.isHidden(id: $0.id, host: $0.place) },
+                                              feed: feed)
                                         // Following's post and News cards (daily-tab 23): the •••'s Delete and
                                         // the hold's Not interested and Mute.
                                         .environment(townFeed)

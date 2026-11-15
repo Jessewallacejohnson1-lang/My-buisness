@@ -10,6 +10,12 @@ flake moves to Fixed, dated, and stays there.
 
 ## Flaky
 
+- 2026-11-15 · `LaunchBallTests.testTownIsThereAndTappableAfterTheLaunch` · red once on the Mac in a full run on
+  feat/search-titles (Search's header and pills only; no launch or Town code) at load over 100: "Town's card didn't
+  open after the launch" · passed alone straight after, and in the next full run at load about 15 · no fix yet
+- 2026-11-15 · `AtNamesUITests.testTypingAtShowsTheRowAndAPickWritesTheName` · red once on the Mac in a full run on
+  feat/search-titles (no New post code) at load about 18: "typing @dal showed no row" · passed alone straight after,
+  and in the full run before it · no fix yet
 - 2026-11-08 · `YouCalendarTests.testRealLifeActionsDriveLiked` (red at 0b154f22, a three-number
   shadow change in `CastLogo` that can't reach it; the test is heart-replaces-save's, c573cbba, the
   same day) · `["card"]` still shown where `[]` was expected after two heart toggles behind a fixed
@@ -22,6 +28,10 @@ flake moves to Fixed, dated, and stays there.
 - 2026-10-30 · `FriendsBookTests.testAFailedUnfriendComesBackAndShakes` · red once locally at load 38,
   passed alone · `waitOutTurnBack` sleeps a fixed hold + flip + 150 ms · no fix yet: wait on the
   state instead (`waitWhile`, as the 2026-10-30 Fixed line below does)
+- 2026-11-15 · `LaunchBallTests.testTownIsThereAndTappableAfterTheLaunch` · red once on the Mac in a full run on
+  feat/inside-cards-29-live-door (the bell and pill's own-Event card; no launch or Town card code) at load 48 to 17:
+  "Town's card didn't open after the launch" · passed alone straight after (23 s) · no fix yet · the same run's
+  `EventCardPhotoTapTests.testDoubleTapOnPhotoLikesAndDoesNotPush` crashed (signal term) and passed alone too
 - 2026-11-14 · `FriendsBookSuggestionTests.testAnXThatFailsBringsThemBackWhereTheyWere` · red once on the Mac in a
   full run on feat/several-photos (post photos only; no Friends code) at load about 200: `["Hal"]` where
   `["Kim", "Hal"]` was expected, the class taking 3.4 s · passed alone straight after (8 of 8, 0.44 s) · no fix yet:
