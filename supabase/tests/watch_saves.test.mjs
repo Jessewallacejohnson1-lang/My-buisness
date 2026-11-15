@@ -81,6 +81,16 @@ test('prepare and write: the registry sync, the listed events, apply_judged and 
   // The counts it always gave, and which items it added (smooth-mornings 05): the game and the News.
   assert.deepEqual([first.events, first.mentions, first.news, first.added], [1, 1, 1, { events: [0], news: [0] }]);
   const [{ id }] = await asJob('read back', 'select id from public.club_events');
+  // A social mention keeps the host's own words, newest read wins (morning.py save_host_words), and the time-slot step
+  // reads them in place of the page it never fetches (event_parts.py, BP app event-schedule 01).
+  const words = (text) => asJob('save: the host\'s words on its mention',
+    'update public.event_mentions set host_words = $2 where source_url = $1 returning event_id',
+    ['https://sartell.k12.mn.us/athletics', text]);
+  assert.deepEqual(await words('Santa arrives 4:30 PM'), [{ event_id: id }]);
+  await words('Santa arrives 4:30 PM, tree lighting 7 PM');
+  assert.deepEqual(await asJob('parts: the mentions and their words',
+    'select source_url, host_words from public.event_mentions where event_id in ($1)', [id]),
+    [{ source_url: 'https://sartell.k12.mn.us/athletics', host_words: 'Santa arrives 4:30 PM, tree lighting 7 PM' }]);
   // The next morning it moved a day and its schedule dropped it, then another school listed it again. The
   // same News came back: written over the one there, not added (a reworded repeat the plan leaves out).
   const next = await apply([game(day(8), { description: 'Senior night: the Storm honors its seniors before the game.' })],
