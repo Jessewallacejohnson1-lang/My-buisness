@@ -13,7 +13,8 @@
   "kind": "facebook",
   "url": "https://www.facebook.com/CityofStJosephMN",
   "busy": true,
-  "day": "thu"
+  "day": "thu",
+  "events": true
  },
  {
   "entry_id": "csb",
@@ -45,7 +46,8 @@
   "kind": "facebook",
   "url": "https://www.facebook.com/flourandflowerbakery",
   "busy": true,
-  "day": "thu"
+  "day": "thu",
+  "events": true
  },
  {
   "entry_id": "flour-and-flower",
@@ -69,7 +71,8 @@
   "kind": "facebook",
   "url": "https://www.facebook.com/JoetownMNcvb",
   "busy": false,
-  "day": "mon"
+  "day": "mon",
+  "events": true
  },
  {
   "entry_id": "kays-kitchen",
@@ -198,7 +201,8 @@
   "kind": "facebook",
   "url": "https://www.facebook.com/sunnymarymeadow",
   "busy": true,
-  "day": "fri"
+  "day": "fri",
+  "events": true
  },
  {
   "entry_id": "mary-meadow-sunny",
@@ -711,7 +715,8 @@
   "kind": "facebook",
   "url": "https://www.facebook.com/CobornsGrocery",
   "busy": true,
-  "day": "wed"
+  "day": "wed",
+  "events": true
  },
  {
   "entry_id": "coborns",
@@ -1072,7 +1077,8 @@
   "kind": "facebook",
   "url": "https://www.facebook.com/greyfacerescue",
   "busy": true,
-  "day": "sun"
+  "day": "sun",
+  "events": true
  },
  {
   "entry_id": "grey-face-rescue-retirement",
@@ -1249,7 +1255,8 @@
   "kind": "facebook",
   "url": "https://www.facebook.com/isd742.org",
   "busy": true,
-  "day": "sun"
+  "day": "sun",
+  "events": true
  },
  {
   "entry_id": "kennedy-community-school",
@@ -1305,7 +1312,8 @@
   "kind": "facebook",
   "url": "https://www.facebook.com/kpoweryoga",
   "busy": true,
-  "day": "sat"
+  "day": "sat",
+  "events": true
  },
  {
   "entry_id": "kpower-yoga",
@@ -1419,7 +1427,8 @@
   "kind": "facebook",
   "url": "https://www.facebook.com/MinnesotaPublicRadio",
   "busy": false,
-  "day": "thu"
+  "day": "thu",
+  "events": true
  },
  {
   "entry_id": "minnesota-public-radio",
@@ -1918,7 +1927,8 @@
   "kind": "facebook",
   "url": "https://www.facebook.com/Thomsens-Greenhouse-and-Garden-Center-242293447495",
   "busy": false,
-  "day": "thu"
+  "day": "thu",
+  "events": true
  },
  {
   "entry_id": "mid-state-tire-tiremaxx-wholesale",
@@ -2103,7 +2113,8 @@
   "kind": "facebook",
   "url": "https://www.facebook.com/wrhomecompany",
   "busy": true,
-  "day": "fri"
+  "day": "fri",
+  "events": true
  },
  {
   "entry_id": "home-r-w",
@@ -2127,7 +2138,8 @@
   "kind": "facebook",
   "url": "https://www.facebook.com/SaintJohnsPrepMN",
   "busy": true,
-  "day": "wed"
+  "day": "wed",
+  "events": true
  },
  {
   "entry_id": "st-johns-prep",
@@ -2287,7 +2299,8 @@
   "kind": "facebook",
   "url": "https://www.facebook.com/stbensisters",
   "busy": true,
-  "day": "fri"
+  "day": "fri",
+  "events": true
  },
  {
   "entry_id": "benedict-of-of-order-sisters-st",
@@ -2319,7 +2332,8 @@
   "kind": "facebook",
   "url": "https://www.facebook.com/HemkerZoo",
   "busy": false,
-  "day": "fri"
+  "day": "fri",
+  "events": true
  },
  {
   "entry_id": "hemker-park-zoo",
@@ -2384,6 +2398,7 @@
   "kind": "facebook",
   "url": "https://www.facebook.com/sjtbparish",
   "busy": false,
-  "day": "thu"
+  "day": "thu",
+  "events": true
  }
 ]
