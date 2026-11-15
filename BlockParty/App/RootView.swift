@@ -733,7 +733,8 @@ struct MainTabsView: View {
                                               picked: $dailyDay, dayPicks: dayPicks, friends: dailyFriends,
                                               cards: townFeed.cards, posts: townFeed.posts,
                                               // A story you hid or whose place you muted goes here too.
-                                              news: followingNews.items.filter { !townFeed.hides.isHidden(id: $0.id, host: $0.place) })
+                                              news: followingNews.items.filter { !townFeed.hides.isHidden(id: $0.id, host: $0.place) },
+                                              feed: townFeed.shown)
                                         // Following's post and News cards (daily-tab 23): the •••'s Delete and
                                         // the hold's Not interested and Mute.
                                         .environment(townFeed)

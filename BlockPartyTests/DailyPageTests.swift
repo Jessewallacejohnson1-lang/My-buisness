@@ -573,6 +573,73 @@ final class DailyPageTests: XCTestCase {
                                isGoing: { _ in false }, isHearted: { hearted.contains($0.id) })
     }
 
+    // MARK: For you (daily-tab 25)
+
+    private func entry(_ card: FeedCardItem) -> TownFeedEntry { TownFeedEntry(card: card, leavesAt: .distantFuture) }
+
+    private func story(_ id: String, _ headline: String, interest: String? = nil) -> TownFeedEntry {
+        TownFeedEntry(item: .news(TownNews(id: id, place: "Hemker Zoo", words: headline, post: URL(string: "https://x/\(id)")!,
+                                           leavesAt: .distantFuture, title: headline, interest: interest)),
+                      leavesAt: .distantFuture)
+    }
+
+    /// Today's Events lead; the rest keep the Town feed's order, a card sharing an interest counting as if
+    /// twice as high: "Latte art" (4th) passes "Book club" (3rd) and ties "Zoo news" (2nd), 2/4 = 1/2, which
+    /// goes to the higher card; "Cider pour" (6th, its interest from the feed) ties "Book club", 2/6 = 1/3.
+    @MainActor
+    func testForYouLeadsWithTodayThenTheFeedLiftedForYourInterests() {
+        let week = DailyWeek.days(from: dayStart).map(\.id)
+        let feed = [entry(dayCard("Book fair", day: "2026-10-25", at: "1 PM")), story("zoo", "Zoo news"),
+                    entry(dayCard("Book club", day: "2026-10-23", at: "6 PM")),
+                    entry(dayCard("Latte art", day: "2026-10-24", at: "9 AM")),
+                    entry(dayCard("Trivia", day: "2026-10-22", at: "7 PM")),
+                    story("milk", "Cider pour", interest: "bars")]
+        func titles(_ interests: [String]) -> [String] {
+            DailyForYou.picks(from: feed, days: week, interests: interests, shown: [], left: { _ in true }).map(\.id)
+        }
+        XCTAssertEqual(titles([]), ["Trivia", "Book fair", "zoo", "Book club", "Latte art", "milk"])
+        XCTAssertEqual(titles(["coffee", "bars"]), ["Trivia", "Book fair", "zoo", "Latte art", "Book club", "milk"])
+    }
+
+    /// Nothing the page shows above, nothing past the week or called off, nothing you're Going to or hearted.
+    @MainActor
+    func testForYouLeavesOutWhatThePageShowsAndWhatsOutOfTheWeek() {
+        let week = DailyWeek.days(from: dayStart).map(\.id)
+        var off = dayCard("Called off", day: "2026-10-23", at: "6 PM")
+        off.cancelled = true
+        let feed = [entry(dayCard("Shown", day: "2026-10-22", at: "7 PM")), entry(dayCard("Next week", day: "2026-10-29", at: "7 PM")),
+                    entry(off), entry(dayCard("Going", day: "2026-10-23", at: "7 PM")),
+                    entry(dayCard("Kept", day: "2026-10-28", at: "7 PM")), story("n", "News")]
+        let picks = DailyForYou.picks(from: feed, days: week, interests: [], shown: ["Shown"], left: { $0.id != "Going" })
+        XCTAssertEqual(picks.map(\.id), ["Kept", "n"])
+    }
+
+    /// For you is today's page's under Best of alone, and takes in Suggestions' row there: a topic, or
+    /// another day, keeps the row and has no list. Following's cards stay out of it.
+    @MainActor
+    func testForYouShowsOnTodaysBestOfOnlyAndFoldsSuggestionsIn() {
+        let now = dayStart.addingTimeInterval(8 * 3600)
+        let week = DailyWeek.days(from: now)
+        let cards = thursday()
+        let kay = TownPost(id: "kay", poster: .init(id: "person-kay", name: "Kay"), words: "Hi", posted: now,
+                           leavesAt: .distantFuture, followed: true)
+        let feed = cards.map(entry) + [TownFeedEntry(item: .post(kay), leavesAt: .distantFuture)]
+        func lists(day: Int, topic: String?) -> DailyLists {
+            DailyLists.make(day: week[day], week: week, now: now,
+                            picks: cards.filter { $0.id == "Live jazz" }.compactMap { YouCalendar.event(from: $0) },
+                            cards: cards, posts: [kay], feed: feed, interests: ["live_music", "coffee"], topic: topic,
+                            isGoing: { _ in false }, isHearted: { _ in false })
+        }
+        let today = lists(day: 0, topic: nil)
+        // Live jazz is Event of the day, Latte art Following's row, Trivia night Friends are going, Kay Following's card.
+        XCTAssertEqual(today.forYou.map(\.id), ["Live band", "Book club"])
+        XCTAssertFalse(today.showsSuggestions, "the row folds in")
+        XCTAssertEqual(today.suggestions.map(\.id), ["Live band"], "still read, for the topics")
+        XCTAssertTrue(lists(day: 0, topic: "live_music").forYou.isEmpty, "a topic")
+        XCTAssertTrue(lists(day: 0, topic: "live_music").showsSuggestions)
+        XCTAssertTrue(lists(day: 1, topic: nil).forYou.isEmpty, "another day")
+    }
+
     /// Each section leaves out what one above it shows, and what you follow is Following's alone,
     /// so nothing is on the page twice (SPEC.md, school-activities 03).
     @MainActor

@@ -212,6 +212,12 @@ struct DailyLists {
     var following: [DailyFollowing]
     /// Under Following's rows (daily-tab 23): posts from who you follow and the followed places' News.
     var followingCards: [DailyFollowingCard]
+    /// Under Following (daily-tab 25): the Town feed's Events of the week, posts and News for you,
+    /// on today's page under Best of only. With any, Suggestions' row folds into it.
+    var forYou: [TownFeedEntry] = []
+
+    /// Suggestions' row shows only where For you doesn't take it in (Jesse at daily-tab 25's Check-in 1).
+    var showsSuggestions: Bool { forYou.isEmpty }
 
     /// Every event on the page, for its topics.
     var items: [FeedCardItem] {
@@ -220,10 +226,11 @@ struct DailyLists {
 
     /// `day`'s sections, `week` being today and the six days after it. Each leaves out what one
     /// above it shows (SPEC.md); a topic keeps only its own. `picks` are the day's Event of the day
-    /// picks, `cards` the Town feed's, `posts` its neighbours' posts, `news` the followed places' News.
+    /// picks, `cards` the Town feed's, `posts` its neighbours' posts, `news` the followed places' News,
+    /// `feed` the Town feed's whole list in its order, for For you.
     static func make(day: DailyWeekDay, week: [DailyWeekDay], now: Date, picks: [DailyEvent],
                      cards: [FeedCardItem], posts: [TownPost] = [], news: [TownNews] = [],
-                     interests: [String], topic: String?,
+                     feed: [TownFeedEntry] = [], interests: [String], topic: String?,
                      isGoing: (FeedCardItem) -> Bool, isHearted: (FeedCardItem) -> Bool) -> DailyLists {
         let isToday = day == week.first
         // Another day's sections read from its midnight, so all of that day is still to come.
@@ -254,8 +261,15 @@ struct DailyLists {
                                limit: DailyRowMetric.limit)
         } ?? DailyEvent.suggestions(from: cards, day: day.id, interests: interests, now: clock,
                                     without: events + friendsGoing, left: left)
+        // For you: today's page under Best of only, as Following's cards; nothing a section above shows.
+        let forYou = isToday && topic == nil
+            ? DailyForYou.picks(from: feed, days: week.map(\.id), interests: interests,
+                                shown: Set((events + friendsGoing).map(\.id)).union(followed)
+                                    .union(followingCards.map(\.entryID)),
+                                left: { !isGoing($0) && !isHearted($0) })
+            : []
         return DailyLists(events: events, friendsGoing: friendsGoing, suggestions: suggestions, following: following,
-                          followingCards: followingCards)
+                          followingCards: followingCards, forYou: forYou)
     }
 }
 
@@ -277,6 +291,8 @@ struct DailyPage: View {
     /// (daily-tab 23).
     var posts: [TownPost] = []
     var news: [TownNews] = []
+    /// The Town feed's whole list in its order, for For you (daily-tab 25).
+    var feed: [TownFeedEntry] = []
     @Environment(RealLifeActions.self) private var actions
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var tilt = PhoneTilt()
@@ -308,7 +324,7 @@ struct DailyPage: View {
         let interests = Interests.get()
         func lists(_ topic: String?) -> DailyLists {
             DailyLists.make(day: day, week: days, now: now, picks: isToday ? events : dayPicks.picks[day.id] ?? [],
-                            cards: cards, posts: posts, news: news, interests: interests, topic: topic,
+                            cards: cards, posts: posts, news: news, feed: feed, interests: interests, topic: topic,
                             isGoing: { actions.going($0).isGoing }, isHearted: { actions.heart($0).isHearted })
         }
         let all = lists(nil)
@@ -322,7 +338,7 @@ struct DailyPage: View {
         // A day whose pick is still being read shows paper, not the reserved slot.
         let loading = !isToday && dayPicks.picks[day.id] == nil
         let empty = !loading && spotlight == nil && onPage.items.isEmpty && onPage.following.isEmpty
-            && onPage.followingCards.isEmpty
+            && onPage.followingCards.isEmpty && onPage.forYou.isEmpty
         return ZStack {
             Hue.paper.ignoresSafeArea()
             ScrollView(showsIndicators: false) {
@@ -403,10 +419,13 @@ struct DailyPage: View {
                     }
                 }
                 if !lists.friendsGoing.isEmpty { FriendsGoingSection(events: lists.friendsGoing, now: now) }
-                if !lists.suggestions.isEmpty { SuggestionsSection(events: lists.suggestions, now: now) }
+                if lists.showsSuggestions, !lists.suggestions.isEmpty {
+                    SuggestionsSection(events: lists.suggestions, now: now)
+                }
                 if !lists.following.isEmpty || !lists.followingCards.isEmpty {
                     FollowingSection(items: lists.following, cards: lists.followingCards, now: now)
                 }
+                if !lists.forYou.isEmpty { ForYouSection(entries: lists.forYou) }
             }
             .padding(.top, DailyMetric.weekToSection)
         }
