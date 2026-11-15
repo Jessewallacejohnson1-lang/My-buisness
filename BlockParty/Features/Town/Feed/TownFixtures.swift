@@ -112,7 +112,7 @@ enum TownFixtures {
         return Array(events.prefix(2)) + news.prefix(1) + events.dropFirst(2) + news.dropFirst()
     }
 
-    /// `-hello-follows game|place` (BP app hello-drop 09): the first game, or the park concert with no friends
+    /// `-hello-follows game|place` (BP app hello-drop 09): the first game (its first team followed), or the park concert with no friends
     /// Going, two hours from now today and of something you follow, for the morning pill's lines 4 and 5.
     private static func followedToday(_ entries: [TownFeedEntry], now: Date) -> [TownFeedEntry] {
         guard let pick = LaunchFlags.value(.helloFollows) else { return entries }
@@ -122,7 +122,7 @@ enum TownFixtures {
                     : card.id == "e1" else { return entry }
             card.eventDate = townClock("yyyy-MM-dd", start)
             card.startTime = townClock("h:00 a", start)
-            card.followed = card.game.flatMap { $0.teams.first(where: \.local)?.short } ?? card.hostName
+            card.followed = card.game?.teams.first?.short ?? card.hostName
             card.friendsGoing = []
             return TownFeedEntry(card: card, leavesAt: start.addingTimeInterval(3 * 3600))
         }
