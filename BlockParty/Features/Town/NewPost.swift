@@ -1160,11 +1160,8 @@ struct NewPostSheet: View {
             .overlay(alignment: .topTrailing) {
                 Button {
                     let on = model.event ? 0 : min(photoPage ?? 0, max(model.photos.count - 1, 0))
-                    withAnimation(reduceMotion ? nil : Motion.smooth) {
-                        model.remove(at: on)
-                        // The pager rests on the photo that took its place, or the new last one.
-                        photoPage = min(on, max(model.photos.count - 1, 0))
-                    }
+                    // The pager stays where it is: the next photo slides into the one taken out's place.
+                    withAnimation(reduceMotion ? nil : Motion.smooth) { model.remove(at: on) }
                 } label: {
                     Image(systemName: "trash")
                         .font(.glyph(17, weight: .semibold))
