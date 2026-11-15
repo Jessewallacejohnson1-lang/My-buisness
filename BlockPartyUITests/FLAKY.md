@@ -55,6 +55,10 @@ flake moves to Fixed, dated, and stays there.
   against 1500, Friends 3760 ms against 3000; the whole database stories took 12 minutes; red again the same hour in a
   full `ci_checks.sh` at load 100 to 300 (Friends 3756 ms), every other story green · no fix yet: skip its timing
   on a busy Mac, as town_feed.test.mjs's 5,000-people read does (Fixed, 2026-11-01)
+- 2026-11-14 · `PhotoPinchUITests.testAPinchOpensNothingAndLeavesTheFeedWorking` · red once on the Mac on
+  feat/pinch-edge just after merging 070f0204, at load 134: "after a pinch the feed didn't scroll" (the poster stayed
+  at 137.7, the drag after the pinch never moved the feed) · passed alone twice straight after, at load 120 to 175 ·
+  no fix yet: the 0.05 s press-then-drag can land as a tap on a busy Mac; drag again until the poster moves
 
 ## Fixed
 
