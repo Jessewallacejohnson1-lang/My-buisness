@@ -121,9 +121,11 @@ struct SportsTitle: View {
                 .alignmentGuide(.firstTextBaseline) { $0.height * 171 / 216 }
             Text(word)
                 .font(.display(SearchMetric.sportsWord))
-                // "Businesses" is the longest word: on a 375 pt phone it shrinks a little rather than wrap.
+                // "Businesses" is the longest word: on a 375 pt phone it shrinks a little rather than wrap. Only for
+                // width: its own height stays, or the 37 pt room above the field shrinks every word.
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .foregroundStyle(Hue.ink)
         .padding(.horizontal, SearchMetric.side)
