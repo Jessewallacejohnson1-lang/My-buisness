@@ -4,7 +4,7 @@
 //  https://claude.ai/artifact/RtvFQ8D5fjStBue1cVmFYp, Jesse at Check-in 1, 2026-11-11: "i agree w all").
 //  Typing `@` in New post shows your friends and the town's places in a row over the keyboard, Instagram's
 //  (references/business-collab/ig-mention-picker.jpg); a pick puts "@Name" in the words. Posted, each name the
-//  check kept opens its page and each #tag opens Search with its word, in Instagram's link blue (`Hue.link`).
+//  check kept opens its page and each #tag opens its own page of posts (`TagPage`, town-feed 63), in Instagram's link blue (`Hue.link`).
 //
 
 import SwiftUI
@@ -150,11 +150,11 @@ nonisolated enum PostWords {
         return text
     }
 
-    /// What VoiceOver's actions on the words say: "Open Sam Rivera", "Search JoeTownNights".
+    /// What VoiceOver's actions on the words say: "Open Sam Rivera", "Open #JoeTownNights".
     static func label(_ target: Target) -> String {
         switch target {
         case .name(let name): "Open \(name.name)"
-        case .tag(let word): "Search \(word)"
+        case .tag(let word): "Open #\(word)"
         }
     }
 

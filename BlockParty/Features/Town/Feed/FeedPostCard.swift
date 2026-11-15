@@ -216,7 +216,7 @@ struct FeedPostCard: View {
             .fixedSize(horizontal: false, vertical: true)
     }
 
-    /// A friend's page, a place's page flying out of the words as from a card's logo, or Search with the tag's word.
+    /// A friend's page, a place's page flying out of the words as from a card's logo, or the tag's own page.
     /// No haptic: opening a page isn't a commit (taste.md, haptics).
     private func open(_ target: PostWords.Target) {
         guard let opener else { return }
@@ -229,7 +229,7 @@ struct FeedPostCard: View {
             let box = wordsFrame.rect
             opener.open(row, CGRect(x: box.midX - 22, y: box.midY - 22, width: 44, height: 44))
         case .tag(let word):
-            opener.search(word)
+            opener.push(TagRoute(tag: word))
         }
     }
 

@@ -887,6 +887,14 @@ struct CommunityAPI {
         try Self.namedRows(from: await db.rpc("get_my_mentions"))
     }
 
+    /// Every post whose words carry `#tag`, newest first, at any age (BP app town-feed 63): `get_tag_posts`, a post as the
+    /// Town feed sends it and with its rules on who sees what.
+    func tagPosts(_ tag: String) async throws -> [TownPost] {
+        try Self.townFeedLines(from: await db.rpc("get_tag_posts", ["p_tag": tag])).compactMap {
+            if case .post(let post) = $0 { post } else { nil }
+        }
+    }
+
     /// `get_my_mentions`' rows: each a post as the Town feed sends it, and how it names you. One that doesn't read
     /// as a post is left out, never the bell.
     nonisolated static func namedRows(from data: Data) throws -> [NamedNotice] {
