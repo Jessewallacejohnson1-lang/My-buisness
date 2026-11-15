@@ -4009,6 +4009,15 @@ test('an Event page reads its finished parts: by start, an hour when no end, its
   }
 });
 
+test('parts that start together list the shortest first: Santa\'s arrival above the 4-to-6 sampling (WinterWalk, Jesse 2026-11-15)', async () => {
+  const exhibit = await exhibitWithTalk();
+  await db.query(`insert into public.event_parts (event_id, title, starts_at, ends_at, source_url, source_line)
+                  values ($1, 'Chair massages', '2026-10-08 16:00-05', '2026-10-08 18:00-05', 'x', 'Chair massages 4-6 pm'),
+                         ($1, 'Santa arrives', '2026-10-08 16:00-05', null, 'x', 'Santa arrives at 4 pm')`, [exhibit]);
+  const { rows } = await db.query(`select title from public.get_event_parts($1) where starts_at = '2026-10-08 16:00-05'`, [exhibit]);
+  assert.deepEqual(rows.map((r) => r.title), ['Santa arrives', 'Chair massages'], 'a moment (an hour) before a two-hour slot, not A to Z');
+});
+
 test('an Event the caller may not read shows none of its parts, nor does the raw table (happening-now review)', async () => {
   const exhibit = await exhibitWithTalk();
   await db.query(`update public.club_events set status = 'pending' where id = $1`, [exhibit]);
