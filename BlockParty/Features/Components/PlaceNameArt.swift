@@ -23,6 +23,9 @@ extension PlaceNameArt {
     static let emblemSide: CGFloat = 84
     /// How tall the dark fade under the lettering is, from the photo's foot.
     static let fadeHeight: CGFloat = 190
+    /// How much of the lettering shows: the rest is the photo through it (Jesse, 2026-11-15, BP app
+    /// place-photos 10, measured on his restaurant poster).
+    static let seeThrough: Double = 0.8
 
     /// The soft dark fade the lettering stands on, the photo's full width.
     static var fade: some View {

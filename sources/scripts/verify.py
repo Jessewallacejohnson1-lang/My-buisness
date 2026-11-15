@@ -39,6 +39,10 @@ Outputs, in --out (default <census runs>/verify/<town>/):
   outreach.csv   places nobody could settle online, and Google-only places unconfirmed
   same-place.csv pairs discovery was unsure about (ADR-018)
   proposed.md    `proposed` drafts for open, confirmed places the registry lacks
+
+It also writes one thing into the registry itself: an entry's `url: TODO` gets its census
+row's website when two sources name that site (fill_websites). An entry no name reaches
+finds its row by phone or street (same_spot).
 """
 import argparse, csv, json, re, sys
 from datetime import date
@@ -47,8 +51,9 @@ from urllib.parse import urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from discover import (RUNS, GOOGLE, NOT_A_PLACE, build_alias_map, entry_md, looks_like_event,
-                      match_key, norm, phone_key, street_key, _names_overlap)
-from registry import find_root, load
+                      match_key, merge, near_duplicates, norm, phone_key, stale_hosts, street_key,
+                      town_words, _names_overlap)
+from registry import find_root, is_todo, load
 from towns import TOWNS
 
 TYPES = ["Business", "Community group", "Church", "School / college", "Government",
@@ -156,6 +161,58 @@ def confirm_off_google(p):
     if words and all(w in body for w in words):
         return f"its own website, {url.split('?')[0]}"
     return None
+
+
+def same_spot(e, roster, town, aliases):
+    """The census row at a registry entry's phone or street, for an entry no name found
+    (watch-every-place 31). A shared phone or street is a hint, not proof: the row is the
+    entry's place only when discovery's merge() would fold them together; the pairs its
+    near_duplicates() would ask about go to the same-place list. Returns (place or None, asks)."""
+    me = {"name": e["_name"], "source": "registry", "phone": str(e.get("phone") or ""),
+          "address": str(e.get("address") or "")}
+    ph, st = phone_key(me["phone"]), street_key(me["address"])
+    near = [p for p in roster if any((ph and phone_key(s.get("phone")) == ph) or
+                                     (st and street_key(s.get("address")) == st) for s in p["signals"])]
+    kw = dict(known_distinct=town.get("known_distinct", ()), stale=stale_hosts(town),
+              town_words=town_words(town))
+    for p in near:
+        if len(merge(p["signals"] + [me], aliases, **kw)) <= len(merge(p["signals"], aliases, **kw)):
+            return p, []
+    asks = near_duplicates(merge([me], aliases) + near, **kw)
+    return None, [list(a) for a in asks if e["_name"] in a[1:]]
+
+
+def site(url):
+    """A website's host, without www."""
+    return urlparse(url if "//" in url else "https://" + url).netloc.lower().removeprefix("www.")
+
+
+def census_website(p):
+    """The row's own (non-Google, ADR-016) website, when two of its sources name that site:
+    one source alone gave Centennial Park the website of Centennial, Maryland."""
+    url = (p.get("website") or "").split()
+    if not url or len({s["source"] for s in p["signals"]
+                       if site(s.get("website") or "") == site(url[0])}) < 2:
+        return None
+    return url[0] if url[0].startswith(("http://", "https://")) else "https://" + url[0]
+
+
+def fill_websites(path, fills):
+    """Put each (entry name, website) in place of that entry's first `url: TODO`, unless its
+    text already names the site: those were dropped by hand, as dead or someone else's.
+    Returns the names filled."""
+    text, done = path.read_text(), []
+    for name, url in fills:
+        start = text.find(f"\n## {name}\n")
+        end = text.find("\n## ", start + 1)
+        end = len(text) if end < 0 else end
+        part = text[start:end]
+        if start < 0 or site(url) in part.lower() or "url: TODO" not in part:
+            continue
+        text = text[:start] + part.replace("url: TODO", f"url: {url}", 1) + text[end:]
+        done.append(name)
+    path.write_text(text)
+    return done
 
 
 # --- main --------------------------------------------------------------------------------
@@ -292,6 +349,7 @@ def main():
         for a in p.get("aka", ()):
             by_key.setdefault(match_key(a), p)
     skip = {match_key(n) for n in town.get("not_places", ())}
+    spot_asks = []
     for e in entries:
         # The entry's own name first, then its old names: "BSN SPORTS" must find the BSN
         # place, not the Game Day Athletic place its aka also points at.
@@ -303,11 +361,16 @@ def main():
             continue    # the town itself, an event, a kiosk or a school nearby: a source, not a place
         hit = next((by_key[k] for k in keys if k in by_key), None)
         if hit is None:
+            hit, asks = same_spot(e, [p for p in roster if not p.get("entry")], town, aliases)
+            spot_asks += asks
+        if hit is None:
             hit = {"name": e["_name"], "key": match_key(e["_name"]), "display_key": norm(e["_name"]),
                    "sources": [], "signals": [], "google": {}, "category": e.get("category")}
             roster.append(hit)
             by_key[hit["key"]] = hit
-        hit["entry"] = {"id": e["id"], "status": e.get("status"), "name": e["_name"]}
+        hit["entry"] = {"id": e["id"], "status": e.get("status"), "name": e["_name"], "file": e["_file"],
+                        "todo_site": any(is_todo(s.get("url")) and s.get("kind", "website") == "website"
+                                         for s in e.get("sources") or [])}
         if "registry" not in hit["sources"]:
             hit["sources"].append("registry")
 
@@ -411,7 +474,7 @@ def main():
             why = (p["v"].get("evidence") if p["status"] == "Unknown"
                    else "open, but only Google knows it")
             w.writerow([p["name"], p["type"], why, g(p, "address"), g(p, "phone")])
-    pairs = json.loads((latest / "same-place.json").read_text())
+    pairs = json.loads((latest / "same-place.json").read_text()) + spot_asks
     with open(out / "same-place.csv", "w", newline="") as fh:
         w = csv.writer(fh)
         w.writerow(["Place A", "Place B", "Similarity", "Same place? (yes / no)"])
@@ -450,6 +513,14 @@ def main():
         drafts.append(entry_md(rec, added_by="agent:town-verify", note=note))
     (out / "proposed.md").write_text("\n\n".join(drafts) + "\n")
 
+    # A census website reaches its entry's `url: TODO` (watch-every-place 31).
+    fills = {}
+    for p in places:
+        en, url = p.get("entry") or {}, census_website(p)
+        if en.get("todo_site") and en["status"] != "retired" and p["status"] != "Closed" and url:
+            fills.setdefault(en["file"], []).append((en["name"], url))
+    filled = [n for f, todo in fills.items() for n in fill_websites(root / f, todo)]
+
     from collections import Counter
     print(f"[verify] {len(places)} places; {len(research_needed)} need research "
           f"({work / 'research-needed.json'})")
@@ -458,7 +529,9 @@ def main():
         if c:
             print(f"  {t:18} {sum(c.values()):4}  " + "  ".join(f"{s.lower()} {c[s]}" for s in rank if c[s]))
     print(f"  retire {len(retire)} | outreach {len(outreach)} | same place? {len(pairs)} | "
-          f"drafts {len(drafts)}")
+          f"drafts {len(drafts)} | websites filled {len(filled)}")
+    if filled:
+        print(f"  websites filled in the registry: {', '.join(filled)}")
     print(f"lists: {out}")
 
 
