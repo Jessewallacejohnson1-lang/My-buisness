@@ -210,28 +210,42 @@ final class LaunchMotionTests: XCTestCase {
         XCTAssertEqual(m.frame(at: 2).word, 0)
     }
 
-    /// Every other open: no ball and no Bp. BlockParty. holds 0.2 s, then the yellow, the wordmark
-    /// and the signature fade into the app together on the launch's 0.3 s fade, nothing falling
-    /// (Jesse, 2026-11-14: "instead of the sheet going down, it just all fades into the app").
-    /// Full speed, no buzzes, and a tap starts the fade at once.
-    func testOtherOpensShowTheWordmarkThenFade() {
+    /// Every other open: no ball and no Bp. BlockParty. holds 0.2 s, then shoots out at you as the
+    /// 2026-11-08 link open's Bp! did, the yellow and the signature fading in 0.18 s, nothing falling
+    /// and the app settling from 105% (Jesse, 2026-11-14: "it just all fades into the app", then "the
+    /// blockparty. splash shoots the text like the one we made when you open a event in message").
+    /// Full speed, no buzzes, and a tap starts the ending at once.
+    func testOtherOpensShowTheWordmarkThenShootIt() {
         let m = LaunchMotion(screen: phone, ending: .tab(tab), kind: .word)
         XCTAssertEqual(m.pace, 1)
         XCTAssertTrue(LaunchMotion.buzzKinds(.word).isEmpty)
         for t in [0.0, 0.1, 0.19] {
             let f = m.frame(at: t)
             XCTAssertEqual(f.word, 1, "at \(t)")
+            XCTAssertEqual(f.zoom, 1, "at \(t)")
             XCTAssertEqual(f.markOpacity, 0, "no Bp at \(t)")
             XCTAssertEqual(f.yellow, 1, "at \(t)")
             XCTAssertNil(f.ending, "nothing under it moves yet at \(t)")
             XCTAssertFalse(f.headerUp)
-            XCTAssertEqual(f.backScale, 1)
+            XCTAssertEqual(f.backScale, 1.05, "the app waits at 105% under the yellow")
         }
-        let half = m.frame(at: 0.2 + 0.15)
+        let half = m.frame(at: 0.2 + 0.09)
         XCTAssertEqual(half.yellow, 1 - LaunchMotion.easeOut.value(at: 0.5), accuracy: 1e-9)
         XCTAssertEqual(half.yellowOpacity, half.yellow, "a fade")
         XCTAssertNotNil(half.ending, "Town settles as the yellow clears")
         XCTAssertTrue(half.headerUp)
+        // The shot: growing all the way, gone by the time it is 4x.
+        var last = m.frame(at: 0.2)
+        for t in stride(from: 0.2 + 1.0 / 120, through: 0.45, by: 1.0 / 120) {
+            let f = m.frame(at: t)
+            XCTAssertGreaterThanOrEqual(f.zoom, last.zoom, "at \(t)")
+            XCTAssertLessThanOrEqual(f.word, last.word, "at \(t)")
+            last = f
+        }
+        XCTAssertGreaterThan(m.frame(at: 0.22).word, 0.5, "still there as it starts to grow")
+        XCTAssertGreaterThan(m.frame(at: 0.22).zoom, 1.2)
+        XCTAssertEqual(m.frame(at: 0.2 + 0.15).word, 0, "gone 0.15 s in")
+        XCTAssertGreaterThan(m.frame(at: 0.2 + 0.3).zoom, 5.5)
         for t in stride(from: 0.0, through: 1, by: 0.05) {
             XCTAssertEqual(m.frame(at: t).yellowDrop, 0, "nothing falls at \(t)")
             XCTAssertEqual(m.frame(at: t).buzzes, 0)
@@ -239,11 +253,26 @@ final class LaunchMotionTests: XCTestCase {
         var t = 0.0
         while !m.frame(at: t).done && t < 5 { t += 1.0 / 480 }
         XCTAssertGreaterThan(t, 0.3)
-        XCTAssertLessThanOrEqual(t, 0.5 + 1e-3, "gone half a second after the still")
+        XCTAssertLessThanOrEqual(t, 0.4 + 1e-3, "gone 0.4 s after the still")
         let tapped = LaunchMotion(screen: phone, skip: 0.05, kind: .word)
         XCTAssertEqual(tapped.frame(at: 0.04).yellow, 1)
         XCTAssertLessThan(tapped.frame(at: 0.2).yellow, 0.5)
-        XCTAssertTrue(tapped.frame(at: 0.05 + 0.31).done)
+        XCTAssertTrue(tapped.frame(at: 0.05 + 0.19).done)
+    }
+
+    /// Reduce Motion: the same BlockParty., then no zoom: the wordmark, the yellow and the signature
+    /// fade together on the launch's 0.3 s fade, and the app under it holds still.
+    func testReduceMotionOnlyFadesTheWordmark() {
+        let m = LaunchMotion(screen: phone, ending: .tab(tab), kind: .word, reduceMotion: true)
+        for t in stride(from: 0.0, through: 1, by: 0.01) {
+            let f = m.frame(at: t)
+            XCTAssertEqual(f.zoom, 1, "at \(t)")
+            XCTAssertEqual(f.backScale, 1, "at \(t)")
+            XCTAssertEqual(f.word, f.yellow, accuracy: 1e-9, "fades with the yellow at \(t)")
+        }
+        XCTAssertEqual(m.frame(at: 0.2 + 0.15).yellow, 1 - LaunchMotion.easeOut.value(at: 0.5), accuracy: 1e-9)
+        XCTAssertFalse(m.frame(at: 0.4).done)
+        XCTAssertTrue(m.frame(at: 0.5).done)
     }
 
     /// A link that arrives while the ball show is on its way turns it into the wordmark open: what

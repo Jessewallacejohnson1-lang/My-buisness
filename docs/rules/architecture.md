@@ -43,8 +43,9 @@ seeder, and mounts `RootView` inside `LaunchHost`.
   `references/launch-ball/`): on a fresh process start the Town's round logo bounces off Bp,
   lands as the !'s dot, the ! hops as the Daily tab's does, and Bp! lands on the tab bar's own
   (or zooms through over Welcome). Only the day's first two cold starts play it; every other
-  open, a link's and Reduce Motion's too, shows the BlockParty. wordmark and fades into the app
-  (Jesse, 2026-11-14, BP app backlog 28). `LaunchScreen.storyboard` is the first frame of both:
+  open, a link's and Reduce Motion's too, shows the BlockParty. wordmark, which shoots out at you
+  as the yellow fades into the app (Reduce Motion: only the fade; Jesse, 2026-11-14, BP app
+  backlog 28). `LaunchScreen.storyboard` is the first frame of both:
   BP yellow with the BlockParty. wordmark, which gives way to Bp as the ball drops in. The app
   loads underneath from the first frame and never waits on it; a tap skips it, UI tests skip it
   (`-ui-tests`) unless they ask

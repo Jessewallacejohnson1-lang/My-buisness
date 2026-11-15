@@ -957,10 +957,13 @@ routine gets its code from the repo and its libraries from PyPI, and Real-ESRGAN
 
 Only the day's first two cold starts play the ball show (`LaunchShows.fullShowsADay`); every
 other open, a link's and Reduce Motion's too, is `LaunchMotion.Kind.word`: the still's
-BlockParty. wordmark holds `wordHold` (0.20 s, guessed), then the yellow, the wordmark and the
-signature fade into the app on the launch's own `yellowFade` (0.30 s). Jesse: "for the other
+BlockParty. wordmark holds `wordHold` (0.20 s, guessed), then shoots out at you as the link
+open's Bp! did (the zoom to 6x on `glideFast`, gone 60% of the way) while the yellow and the
+signature fade in `yellowFadeFast` (0.18 s) and the app settles from 105%. Jesse: "for the other
 ones, I want it to say block party across, and then instead of the sheet going down, it just all
-fades into the app." The short cut and the link's pop (backlog 27) are gone. The launch screen's
+fades into the app", then at Check-in 2: "the blockparty. splash shoots the text like the one we
+made when you open a event in message". Reduce Motion keeps the plain fade (`yellowFade`, 0.30 s,
+no zoom, the app still). The short cut and the link's own pop (backlog 27) are gone. The launch screen's
 still is now the wordmark (`LaunchStill`, 320 pt wide, Bp!'s shade), drawn by the app as the same
 picture, so a ball show starts from it and hands over to Bp in `wordSwap` (0.15 s of the show's
 time, 0.2 s on screen) as the ball drops in. The signature reads "Made by Jesse" alone

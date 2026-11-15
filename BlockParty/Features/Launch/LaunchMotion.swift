@@ -12,8 +12,9 @@
 //
 //  Two kinds (Jesse, 2026-11-14; BP app references/splash-wordmark): the full show on the day's
 //  first two cold starts, starting from the still's BlockParty. wordmark, which gives way to Bp as
-//  the ball drops in; every other open (later ones, a link, Reduce Motion) shows the wordmark and
-//  fades into the app. The short cut and the link's pop (2026-11-08) went with it.
+//  the ball drops in; every other open (later ones, a link, Reduce Motion) shows the wordmark,
+//  which shoots out at you as the link's Bp! did while the yellow fades into the app (Reduce Motion:
+//  only the fade). The short cut and the link's own pop (2026-11-08) went with it.
 //
 
 import SwiftUI
@@ -59,8 +60,9 @@ nonisolated struct LaunchMotion {
     /// The still's BlockParty. gives way to Bp over the show's first 0.15 s, as the ball drops in
     /// (Jesse, 2026-11-14: "yes" to the agent's pick).
     static let wordSwap = 0.15
-    /// Every other open: BlockParty. holds 0.2 s (guessed), then all of it fades into the app on the
-    /// launch's own fade (Jesse, 2026-11-14: "instead of the sheet going down, it just all fades").
+    /// Every other open: BlockParty. holds 0.2 s (guessed), then shoots out at you as the yellow fades
+    /// (Jesse, 2026-11-14: "instead of the sheet going down, it just all fades", then "the blockparty.
+    /// splash shoots the text like the one we made when you open a event in message").
     static let wordHold = 0.20
     /// Into the tab bar, the yellow falls off the bottom of the screen like a curtain, gathering
     /// speed, gone as Bp! lands (Jesse, 2026-11-08: "curtain"); quicker after a tap. A zoom fades.
@@ -138,7 +140,7 @@ nonisolated struct LaunchMotion {
         case zoom
     }
 
-    /// Which launch plays (file header): the full show, or the wordmark and a fade.
+    /// Which launch plays (file header): the full show, or the wordmark shooting out.
     enum Kind: String {
         case full, word
     }
@@ -151,6 +153,8 @@ nonisolated struct LaunchMotion {
     /// A link that caught the full show on its way (`LaunchStage.openedLink`): the show's last
     /// frame, which fades out as BlockParty. comes back, rather than vanishing.
     var before: Frame?
+    /// Reduce Motion: the wordmark fades with the yellow instead of shooting out.
+    var reduceMotion = false
 
     // MARK: The path, worked out once per screen
 
@@ -161,12 +165,14 @@ nonisolated struct LaunchMotion {
     private let drop: Flight, toP: Flight, toDot: Flight
     let hitB: Double, hitP: Double, landAt: Double, ballEnd: Double
 
-    init(screen: CGSize, skip: Double? = nil, ending: Ending = .zoom, kind: Kind = .full, before: Frame? = nil) {
+    init(screen: CGSize, skip: Double? = nil, ending: Ending = .zoom, kind: Kind = .full, before: Frame? = nil,
+         reduceMotion: Bool = false) {
         self.screen = screen
         self.skip = skip
         self.ending = ending
         self.kind = kind
         self.before = before
+        self.reduceMotion = reduceMotion
         let s = Self.scale
         origin = CGPoint(x: (screen.width - Self.canvas.width * s) / 2 + Self.centring.width,
                          y: (screen.height - Self.canvas.height * s) / 2 + Self.centring.height)
@@ -559,9 +565,12 @@ nonisolated struct LaunchMotion {
     }
 
     /// Every open but the day's first two (Jesse, 2026-11-14; BP app references/splash-wordmark): no
-    /// ball and no Bp. The still's BlockParty. holds, then the yellow, the wordmark and the signature
-    /// fade into the app together on the launch's own fade. A link that caught the full show on its
-    /// way fades what the show had drawn back into the wordmark first. A tap starts the fade at once.
+    /// ball and no Bp. The still's BlockParty. holds, then shoots out at you as the 2026-11-08 link
+    /// open's Bp! did (the zoom to 6x on the fast spring, gone by 60% of the way), the yellow and the
+    /// signature fading in 0.18 s and the app settling from 105%. Reduce Motion: no zoom, everything
+    /// fades together on the launch's 0.3 s fade, the app holding still. A link that caught the full
+    /// show on its way fades what the show had drawn back into the wordmark first. A tap starts the
+    /// ending at once.
     private func worded(at real: Double) -> Frame {
         let swap = before == nil ? 0 : Self.wordSwap
         let fadeAt = swap + Self.wordHold
@@ -571,13 +580,22 @@ nonisolated struct LaunchMotion {
         var f = before ?? Frame(ball: ball(at: 0), markOrigin: origin)
         f.word = before.map { $0.word + (1 - $0.word) * v } ?? 1
         f.markOpacity = (before?.markOpacity ?? 0) * (1 - v)
-        f.backScale = 1
+        f.backScale = reduceMotion ? 1 : 1.05
         f.buzzes = 0
         guard t >= fadeAt else { return f }
-        f.ending = paced(Self.glideFast)
+        let spring = paced(Self.glideFast)
+        f.ending = spring
         f.headerUp = true
-        f.yellow = 1 - Self.ease((t - fadeAt) / Self.yellowFade)
+        f.yellow = 1 - Self.ease((t - fadeAt) / (reduceMotion ? Self.yellowFade : Self.yellowFadeFast))
         f.yellowOpacity = f.yellow
+        if reduceMotion {
+            f.word = f.yellow
+        } else {
+            let p = max(0, spring.value(target: 1.0, time: t - fadeAt))
+            f.zoom = 1 + (Self.zoomTo - 1) * CGFloat(p)
+            f.word = 1 - clamp01((p - 0.1) / 0.5)
+            f.backScale = 1 + 0.05 * (1 - CGFloat(clamp01(p)))
+        }
         f.done = f.yellow <= 0.001
         return f
     }

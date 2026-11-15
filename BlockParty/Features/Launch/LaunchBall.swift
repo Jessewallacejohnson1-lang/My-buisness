@@ -45,6 +45,8 @@ import SwiftUI
     /// a link opened while signed in turns the full show into the wordmark as the URL arrives
     /// (`openedLink`).
     private(set) var kind: LaunchMotion.Kind
+    /// Reduce Motion: the wordmark open only fades, and nothing under it moves.
+    let reduceMotion: Bool
     /// The tab bar's Daily Bp! in `space`, while it is on screen and the launch heads for it.
     var dailyMark: CGRect?
     /// Town's top bar and first cards may rise into place: the yellow is clearing (Jesse,
@@ -61,6 +63,7 @@ import SwiftUI
         plays = (!LaunchFlags.has(.uiTests) || LaunchFlags.has(.launchPlay) || frozenAt != nil) && LeftOff.current == nil
         // Reduce Motion: no ball show, only the wordmark and its fade, and nothing under it moves.
         let reduceMotion = UIAccessibility.isReduceMotionEnabled || LaunchFlags.has(.launchReduce)
+        self.reduceMotion = reduceMotion
         finished = !plays
         let named = LaunchFlags.value(.launchKind).flatMap(LaunchMotion.Kind.init(rawValue:))
         // Only a real cold start counts toward the day's full shows: not a held frame, a test or
@@ -224,7 +227,8 @@ struct LaunchHost<Content: View>: View {
             ending = .tab(mark.offsetBy(dx: appOrigin.x - screen.minX, dy: appOrigin.y - screen.minY))
         }
         let motion = LaunchMotion(screen: screen.size, skip: skip ?? stage.skipAt, ending: ending,
-                                  kind: stage.kind, before: stage.kind == .word ? clock.last : nil)
+                                  kind: stage.kind, before: stage.kind == .word ? clock.last : nil,
+                                  reduceMotion: stage.reduceMotion)
         let frame = motion.frame(at: t)
         if stage.kind == .full { clock.last = frame }
         return (frame, motion.origin)
@@ -361,15 +365,17 @@ private struct LaunchMark: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                     .padding(.bottom, Self.footerLift)
                     .accessibilityHidden(true)
-                // The still's BlockParty. wordmark with Bp!'s shade, in the screen's middle: the
-                // launch screen's own picture, so the still and this frame are one (Jesse, 2026-11-14).
-                Image("LaunchStill")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .opacity(frame.word)
-                    .accessibilityHidden(true)
             }
             .offset(y: frame.yellowDrop)
             .opacity(frame.yellowOpacity)
+            // The still's BlockParty. wordmark with Bp!'s shade, in the screen's middle: the launch
+            // screen's own picture, so the still and this frame are one (Jesse, 2026-11-14). Over the
+            // yellow rather than in it, so it shoots out at its own pace while the yellow fades.
+            Image("LaunchStill")
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .scaleEffect(frame.zoom)
+                .opacity(frame.word)
+                .accessibilityHidden(true)
             ZStack(alignment: .topLeading) {
                 // Both shrink toward the !, so Bp! never splits (Jesse, 2026-11-08).
                 piece("LaunchMarkB")
