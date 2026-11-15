@@ -2451,7 +2451,8 @@
   "kind": "facebook",
   "url": "https://www.facebook.com/ChurchSJStJoseph",
   "busy": false,
-  "day": "fri"
+  "day": "fri",
+  "events": true
  },
  {
   "entry_id": "st-john-baptist-parish",
