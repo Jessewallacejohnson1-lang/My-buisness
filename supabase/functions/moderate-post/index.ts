@@ -130,7 +130,7 @@ Deno.serve(async (req) => {
     await admin.from('club_events').update({ status: 'rejected', review_reason: 'declined' }).eq('id', id)
     // Every photo's file goes with it, the later ones too (town-feed 46).
     const files = [e.image_url, ...(e.more_photos ?? [])]
-      .map((u) => typeof u === 'string' ? u.split('/event-images/')[1] : undefined).filter(Boolean)
+      .map((u) => typeof u === 'string' ? u.split('/event-images/')[1] : undefined).filter((f): f is string => !!f)
     if (files.length) await admin.storage.from('event-images').remove(files)
     return json({ ok: false, reason: said.reason })
   }
