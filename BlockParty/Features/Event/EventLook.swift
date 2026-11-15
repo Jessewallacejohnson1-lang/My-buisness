@@ -40,15 +40,15 @@ enum EventLook {
     static let discTop: CGFloat = 96
     static let discLogo: CGFloat = 0.76
     static let logoHero: CGFloat = 290
-    /// Round glass buttons, measured: 34 pt, 4.5 under the safe area, back 19 in and calendar 20 in.
+    /// The round glass back button, measured: 34 pt, 4.5 under the safe area, 19 in.
     static let glass: CGFloat = 34
     static let glassTop: CGFloat = 4.5
     static let backInset: CGFloat = 19
-    static let calendarInset: CGFloat = 20
     static let glassGlyph: CGFloat = 17
-    /// The heart: 16 in and 96 above a photo's foot; 12 from a flyer's corner.
+    /// The heart: 16 in, its top 50 above a photo's foot so its bottom sits 12 above it, the 12 it keeps from a
+    /// flyer's corner (Jesse, 2026-11-15: "move the heart more down").
     static let heartInset: CGFloat = 16
-    static let heartAboveFoot: CGFloat = 96
+    static let heartAboveFoot: CGFloat = 50
     static let heartFlyerInset: CGFloat = 12
     /// The words: 16 pt from the sides, the title 34 on 41, the lines 17 on 24.5 starting 10 under it.
     static let side: CGFloat = 16
@@ -66,8 +66,8 @@ enum EventLook {
     static let lineNatural: CGFloat = 20.33
     /// The title's caps start this far under the picture's foot: the mock's half-leading (41 less 34, halved).
     static let titleTop: CGFloat = 3.5
-    /// A photo's credit chip, level with the heart: its bottom 68 pt above the foot, so its top sits about 86 up.
-    static let creditAboveFoot: CGFloat = 68
+    /// A photo's credit chip, level with the heart: its bottom 22 pt above the foot, so its top sits about 40 up.
+    static let creditAboveFoot: CGFloat = 22
     /// A flyer's credit sits under it at the right, 12 pt, in a 29 pt line.
     static let creditLine: CGFloat = 29
     static let credit: CGFloat = 12

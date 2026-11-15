@@ -69,11 +69,10 @@ struct EventPage: View {
     /// The page's width, for the picture's sizes, which scale with it. Width, never height: nothing the
     /// scroll reads back may set its own content size (swift-traps).
     @State private var width: CGFloat = EventLook.mockWidth
-    /// Apple's add-to-Calendar sheet, from the calendar button, with the entry as it was at the tap: one
-    /// called off or ending while the sheet is up keeps its sheet, and Cancel. Added, the button shows a check.
+    /// Apple's add-to-Calendar sheet, from a game's day row, with the entry as it was at the tap: one
+    /// called off or ending while the sheet is up keeps its sheet, and Cancel.
     @State private var calendarShown = false
     @State private var adding: CalendarEntry?
-    @State private var calendarAdded = false
     /// A game's page scrolled off its top: its score slides under the clock and the round buttons, so a
     /// fade of its dark comes in behind them (game-card 08).
     @State private var scrolled = false
@@ -360,7 +359,7 @@ struct EventPage: View {
         .animation(reduceMotion ? nil : Motion.smooth, value: game?.plays.count)
         .sheet(isPresented: $calendarShown) {
             // Apple's sheet in the phone's own appearance, not the page's dark.
-            if let adding { AddToCalendar(entry: adding) { calendarAdded = true }.environment(\.colorScheme, colorScheme) }
+            if let adding { AddToCalendar(entry: adding).environment(\.colorScheme, colorScheme) }
         }
         // A failed Join or Heart shakes and buzzes only while its page is open: the buzz
         // used to land on Town after a pop. Leaving never cancels the write itself.
@@ -798,25 +797,13 @@ struct EventPage: View {
         }
     }
 
-    /// Apple Invites' round glass buttons over the picture: back at the left, the calendar at the right while
-    /// the Event is still to come, a check once it's added.
+    /// Back, in Apple Invites' round glass over the picture. No calendar button (Jesse, 2026-11-15: "remove calender
+    /// in top right corner").
     private var lookButtons: some View {
-        HStack(spacing: 0) {
-            EventGlassButton(glyph: "arrow.left", label: "Back", sun: sun) { dismiss() }
-            Spacer(minLength: 0)
-            if let entry = Self.calendarEntry(current) {
-                EventGlassButton(glyph: calendarAdded ? "checkmark" : "calendar.badge.plus",
-                                 label: calendarAdded ? "Added to your calendar" : "Add to calendar", sun: sun,
-                                 tint: calendarAdded && !sun ? Hue.brandDisc : nil) {
-                    adding = entry
-                    calendarShown = true
-                }
-                .accessibilityHint(calendarAdded ? "" : "Adds it to your phone's calendar")
-            }
-        }
-        .padding(.leading, EventLook.backInset - (MeetupPillStyle.minTarget - EventLook.glass) / 2)
-        .padding(.trailing, EventLook.calendarInset - (MeetupPillStyle.minTarget - EventLook.glass) / 2)
-        .padding(.top, EventLook.glassTop - (MeetupPillStyle.minTarget - EventLook.glass) / 2)
+        EventGlassButton(glyph: "arrow.left", label: "Back", sun: sun) { dismiss() }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.leading, EventLook.backInset - (MeetupPillStyle.minTarget - EventLook.glass) / 2)
+            .padding(.top, EventLook.glassTop - (MeetupPillStyle.minTarget - EventLook.glass) / 2)
     }
 
     // MARK: Buttons
@@ -1280,8 +1267,6 @@ struct FactRow: View {
 /// store"); Add or Cancel comes back to the page.
 private struct AddToCalendar: UIViewControllerRepresentable {
     let entry: CalendarEntry
-    /// Add was tapped: the page's calendar button shows a check.
-    var onSaved: () -> Void = {}
     @Environment(\.dismiss) private var dismiss
 
     func makeUIViewController(context: Context) -> EKEventEditViewController {
@@ -1296,19 +1281,16 @@ private struct AddToCalendar: UIViewControllerRepresentable {
 
     func updateUIViewController(_ controller: EKEventEditViewController, context: Context) {}
 
-    func makeCoordinator() -> Coordinator { Coordinator(dismiss: dismiss, onSaved: onSaved) }
+    func makeCoordinator() -> Coordinator { Coordinator(dismiss: dismiss) }
 
     final class Coordinator: NSObject, EKEventEditViewDelegate {
         let dismiss: DismissAction
-        let onSaved: () -> Void
-        init(dismiss: DismissAction, onSaved: @escaping () -> Void) {
+        init(dismiss: DismissAction) {
             self.dismiss = dismiss
-            self.onSaved = onSaved
         }
 
         func eventEditViewController(_ controller: EKEventEditViewController,
                                      didCompleteWith action: EKEventEditViewAction) {
-            if action == .saved { onSaved() }
             dismiss()
         }
     }
