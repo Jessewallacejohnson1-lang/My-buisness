@@ -102,26 +102,20 @@ struct TownView: View {
     @State private var barTravel = BarTravel()
     /// How far the feed is pulled, and the read out now: only the refresh loop reads it (town-feed 69).
     @State private var refreshPull = RefreshPull()
-    /// The gap held open above the first card while the loop rides. `.refreshable` doesn't hold one
-    /// here (iOS 26.5: the feed sprang straight back), so the feed holds its own once no finger is
-    /// on it. Set from the read, never from the scroll's geometry (swift-traps.md).
+    /// The gap a Town tab tap opens for the loop above the first card, as a pull's read holds one.
+    /// Set from the read, never from the scroll's geometry (swift-traps.md).
     @State private var refreshGap: CGFloat = 0
 
-    /// A read the loop shows: at least one lap, however fast the read comes back.
+    /// A read the loop shows: at least one lap, however fast the read comes back. A pull's read holds
+    /// its own gap open (`.refreshable`) while this runs; a tab tap's opens one here.
     private func read(from start: RefreshStart) async {
         refreshPull.reading = start
-        if !townFeed.fingerDown { holdRefreshGap(true) }
+        if start == .tab { withAnimation(reduceMotion ? nil : Motion.sheet) { refreshGap = LoopRide.heldGap } }
         let began = Date.now
         await townFeed.pulled()
         try? await Task.sleep(for: .seconds(LoopRide.rest(afterReading: Date.now.timeIntervalSince(began))))
         refreshPull.reading = nil
-        holdRefreshGap(false)
-    }
-
-    private func holdRefreshGap(_ held: Bool) {
-        let gap = held ? LoopRide.heldGap : 0
-        guard gap != refreshGap else { return }
-        withAnimation(reduceMotion ? nil : Motion.sheet) { refreshGap = gap }
+        if start == .tab { withAnimation(reduceMotion ? nil : Motion.sheet) { refreshGap = 0 } }
     }
 
     /// DEBUG-only: `-header-collapsed` pins the bar to its scrolled-away state.
@@ -335,12 +329,10 @@ struct TownView: View {
         .scrollPosition($feedPosition)
         .onScrollPhaseChange { _, phase in
             townFeed.fingerDown = phase == .tracking || phase == .interacting
-            // A pull's read started under the finger: its gap holds once the finger lets go.
-            if !townFeed.fingerDown, refreshPull.reading != nil { holdRefreshGap(true) }
             if phase == .idle { Task { await townFeed.fingerLifted() } }
         }
-        // Apple's pull and trigger, its swirl hidden (`SwirlHider`); the loop rides at least one lap
-        // in the gap the feed holds.
+        // Apple's pull, trigger and held gap, its swirl hidden (`SwirlHider`); the loop rides at least
+        // one lap, so a quick read holds the gap that long.
         .refreshable {
             await read(from: .pull)
         }

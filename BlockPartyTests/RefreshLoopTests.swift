@@ -59,6 +59,8 @@ final class RefreshLoopTests: XCTestCase {
 
     func testThePullIsMeasuredFromTheRestingInset() {
         let pull = RefreshPull()
+        // Laid out before the bar: a smaller inset, then the real one at rest.
+        pull.scrolled(.init(top: 40, inset: 40))
         pull.scrolled(.init(top: 120, inset: 120))
         XCTAssertEqual(pull.points, 0)
         pull.scrolled(.init(top: 200, inset: 120))
@@ -66,6 +68,11 @@ final class RefreshLoopTests: XCTestCase {
         // A read adds to the inset under the finger; the content hasn't moved, so neither does the pull.
         pull.scrolled(.init(top: 200, inset: 160))
         XCTAssertEqual(pull.points, 80)
+        // The read holds its gap: the content rests at the read's inset, 60 pt down.
+        pull.reading = .pull
+        pull.scrolled(.init(top: 180, inset: 180))
+        XCTAssertEqual(pull.points, 60)
+        pull.reading = nil
         pull.scrolled(.init(top: -300, inset: 120))
         XCTAssertEqual(pull.points, 0)
     }

@@ -25,11 +25,12 @@ final class RefreshPull {
         var inset: CGFloat
     }
 
-    /// The top inset with no read adding to it: the least seen, as a read only ever adds.
+    /// The top inset with no read adding to it, taken while nothing is pulled or reading. A pull's
+    /// read adds to it as it starts, under the finger, and holds that gap open while it runs.
     @ObservationIgnored private var restInset = CGFloat.infinity
 
     func scrolled(_ scroll: Scroll) {
-        restInset = min(restInset, scroll.inset)
+        if reading == nil, scroll.top <= scroll.inset { restInset = scroll.inset }
         let pulled = max(0, scroll.top - restInset)
         if pulled != points { points = pulled }
     }
@@ -49,7 +50,8 @@ enum LoopRide {
     /// before frames 503–510).
     static let triggerPoints: CGFloat = 160
     static let fade: Double = 0.3
-    /// The gap held open above the first card while the loop rides (mock round 3, guessed).
+    /// The gap held open above the first card while the loop rides: about what `.refreshable` holds
+    /// during a pull's read (iOS 26.5: 69 pt), which a Town tab tap opens itself.
     static let heldGap: CGFloat = 64
 
     /// Gravity: speed² = bottom speed² − 2g·height, with the bottom speed 1 and the radius 1.
@@ -127,7 +129,7 @@ enum LoopRide {
 /// The loop itself, centred in the gap above the feed's first card.
 struct RefreshLoop: View {
     var pull: RefreshPull
-    /// The gap the feed holds open while the loop rides, under any pull.
+    /// The gap a Town tab tap opens, under any pull.
     var held: CGFloat
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
