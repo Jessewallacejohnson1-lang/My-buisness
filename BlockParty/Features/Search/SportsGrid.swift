@@ -64,8 +64,6 @@ struct SearchHead {
     let prompt: String
     /// The prompt and the magnifier.
     let faint: Color
-    let fieldFill: Color
-    let fieldGlass: Glass
     let chipGlass: Glass
     /// The selected pill's words, the page's paper inside ink.
     let chipWordsOn: Color
@@ -84,15 +82,14 @@ struct SearchHead {
     /// Apple Sports' on the app's dark colours: a capsule of glass for the field, every pill glass, the prompt and
     /// magnifier in the dark ramp's grey.
     static let sports = SearchHead(
-        word: "Sports", prompt: "Schools and teams", faint: Hue.inkSecondary, fieldFill: .clear,
-        fieldGlass: .regular.tint(Hue.ink.opacity(SearchMetric.sportsFieldGlass)),
+        word: "Sports", prompt: "Schools and teams", faint: Hue.inkSecondary,
         chipGlass: .regular.tint(Hue.ink.opacity(SearchMetric.sportsChipGlass)), chipWordsOn: Hue.paper)
 
     /// The Event calendar's (five-tabs 10), now every light pill's: the Sports header's shape, a round field and the
     /// pills in Search's own light colours (Jesse: "make it a lighter theme").
+    /// Its pills stay plain; its field is Sports' glass, as every pill's is (`SearchPage.field`).
     private static func light(word: String, prompt: String) -> SearchHead {
-        SearchHead(word: word, prompt: prompt, faint: Hue.searchFaint, fieldFill: Hue.searchField,
-                   fieldGlass: .identity, chipGlass: .identity, chipWordsOn: Hue.surface)
+        SearchHead(word: word, prompt: prompt, faint: Hue.searchFaint, chipGlass: .identity, chipWordsOn: Hue.surface)
     }
 }
 

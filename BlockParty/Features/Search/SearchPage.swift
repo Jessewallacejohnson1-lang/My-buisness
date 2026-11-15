@@ -356,8 +356,9 @@ struct SearchPage: View {
             }
         }
         .frame(height: SearchMetric.sportsFieldHeight)
-        .background(head.fieldFill, in: shape)
-        .glassEffect(head.fieldGlass, in: shape)
+        // Sports' glass on every pill, ink at 7% (Jesse: "all the search bars have the glass effect the sports page
+        // do", search-titles Check-in 2).
+        .glassEffect(.regular.tint(Hue.ink.opacity(SearchMetric.sportsFieldGlass)), in: shape)
     }
 
     private var chips: some View {

@@ -586,12 +586,12 @@ final class SearchModelTests: XCTestCase {
                        "Centennial Park")
     }
 
-    /// Every pill wears "BlockParty." and its word over its prompt, Sports alone in its dark glass (search-titles 02).
+    /// Every pill wears "BlockParty." and its word over its prompt in a glass field, Sports alone dark (search-titles 02).
     func testEveryPillTitled() {
         let heads = SearchChip.allCases.map { SearchHead.of($0) }
         XCTAssertEqual(heads.map(\.word), ["Search", "Calendar", "Businesses", "Sports", "Events"])
         XCTAssertEqual(heads.map(\.prompt), ["Search", "Events", "Businesses", "Schools and teams", "Events"])
-        XCTAssertEqual(heads.map { $0.fieldFill == .clear }, [false, false, false, true, false], "only Sports' field is glass")
+        XCTAssertEqual(heads.map { $0.chipWordsOn == Hue.paper }, [false, false, false, true, false], "only Sports is dark")
     }
 
     /// Search's Events are the Town feed's: shimmering until it's read, then what's on or still to come
