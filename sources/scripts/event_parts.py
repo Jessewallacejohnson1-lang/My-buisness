@@ -33,6 +33,7 @@ import sys
 import urllib.parse
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
+from time import monotonic
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import registry  # noqa: E402
@@ -150,6 +151,7 @@ def judge(event, a, b, existing=()):
 LOOKAHEAD = 7               # days ahead an Event starting soon is read
 MAX = 25                    # Events sent to the helpers a morning, the soonest first; the rest wait for tomorrow
 PAGE_CHARS = 6000           # a page's words a helper gets
+FETCH_MINUTES = 6           # the morning stops a command at 10: pages not fetched by then wait, the soonest Events' first
 AROUND = 3                  # lines kept either side of one naming the Event, on a page longer than PAGE_CHARS
 READINGS = ("parts.jsonl", "parts-2.jsonl")  # the two helpers' answers
 SOCIAL = re.compile(r"(facebook|instagram)\.com/", re.I)
@@ -214,9 +216,11 @@ def mentions_of(db, ids):
     return out
 
 
-def pages_of(db, events, read=polite):
-    """Each Event's pages to read, as [{url, text}]: its own, those that mentioned it, its host's watched ones. Each page
-    is fetched once however many Events it serves; a Facebook or Instagram page never is, its saved words stand in."""
+def pages_of(db, events, read=polite, minutes=FETCH_MINUTES):
+    """(each Event's pages to read as [{url, text}], how many pages time left unfetched): its own, those that mentioned
+    it, its host's watched ones. Each page is fetched once however many Events it serves, the soonest Events' first, for
+    `minutes` at most; a Facebook or Instagram page never is, its saved words stand in."""
+    stop, late = monotonic() + minutes * 60, set()
     mentioned = mentions_of(db, [e["id"] for e in events])
     hosts = ",".join(sorted({e["place_entry_id"] for e in events if e.get("place_entry_id")})) or "none"
     hosted = db.rest("GET", f"sources?select=entry_id,url&entry_id=in.({hosts})&status=eq.active") or []
@@ -230,21 +234,23 @@ def pages_of(db, events, read=polite):
             if SOCIAL.search(u):
                 text = next((m["host_words"] for m in mine if m["source_url"] == u and m.get("host_words")), "")
             else:
-                if u not in fetched:
+                if u not in fetched and monotonic() > stop:
+                    late.add(u)
+                elif u not in fetched:
                     try:
                         fetched[u] = read(u)
                     except Exception as ex:  # a page that can't be read is one line, the Event's others are still read
                         fetched[u] = ""
                         print(f"[parts] {u}: {' '.join(str(ex).split())[:120]}")
-                text = fetched[u]
+                text = fetched.get(u, "")
             text = passages(text, e["title"]) if text else ""
             if text.strip():
                 got.append({"url": u, "text": text})
         out[e["id"]] = got
-    return out
+    return out, len(late)
 
 
-def prepare(folder, db, today, read=polite, cap=MAX):
+def prepare(folder, db, today, read=polite, cap=MAX, minutes=FETCH_MINUTES):
     """Lays out the helpers' batch and found.json (the Events sent, by key, and the step's line for the report)."""
     for name in READINGS:  # an earlier prepare's answers: their keys were other Events'
         (folder.parent / name).unlink(missing_ok=True)
@@ -255,14 +261,15 @@ def prepare(folder, db, today, read=polite, cap=MAX):
     try:
         db.rest("GET", "event_parts?select=id&limit=1")  # not applied yet: the morning goes on without this step
         listed = candidates(db, today)
-        pages = pages_of(db, listed, read) if listed else {}
+        pages, late = pages_of(db, listed, read, minutes) if listed else ({}, 0)
     except DbError as e:
         print(f"[parts] skipped: {' '.join(str(e).split())[:150]}")
         return []
     passed = [e for e in listed if more_times(e, pages.get(e["id"]))]
     events = passed[:cap]
     said = (f"{len(listed)} Events running or within {LOOKAHEAD} days, {len(passed)} with a time besides their own start "
-            f"and end, {len(events)} sent to the helpers, {len(passed) - len(events)} left by the cap for tomorrow")
+            f"and end, {len(events)} sent to the helpers, {len(passed) - len(events)} left by the cap for tomorrow"
+            + (f"; {late} pages not fetched in {minutes} minutes, tried tomorrow" if late else ""))
     found = {}
     lines = []
     for i, e in enumerate(events, 1):
@@ -575,6 +582,15 @@ def selftest():
         with redirect_stdout(io.StringIO()):
             got = prepare(folder / "parts", FakeDb(answers=dict(small, event_mentions=no_column)), today, fetch)
         ok([e["id"] for e in got] == ["w3"], f"before the words' column is live the step still runs, on the links alone: {got}")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        folder = Path(tmp) / "morning"
+        asked.clear()
+        with redirect_stdout(io.StringIO()):
+            got = prepare(folder / "parts", FakeDb(answers=small), today, fetch, minutes=0)
+        line = json.loads((folder / "parts" / "found.json").read_text())["line"]
+        ok([e["id"] for e in got] == ["w1"] and not asked and line.endswith("; 3 pages not fetched in 0 minutes, tried tomorrow"),
+           f"past its minutes the step fetches no more pages, says how many, and the saved words still count: {got} {line}")
 
     def broken(method, path, body):
         raise DbError("GET", path, 404, '{"message":"relation public.event_parts does not exist"}')
