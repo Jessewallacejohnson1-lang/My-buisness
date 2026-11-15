@@ -116,12 +116,13 @@ def same_as(event, starts, existing, quote=""):
 
 def judge(event, a, b, existing=()):
     """(parts to write, report lines) for one Event from its two helpers' answers. A part is kept only where both
-    helpers found it on the same day at the same start, each quoting the host's words with that time and that day."""
+    helpers found it on the same day at the same start, each quoting the host's words with that time and that day. Its
+    end when the other helper gave the same end at that start (a festival has several parts at 6 PM, each its own end)."""
     seen = {}
     for x in b:
         got = stated(x, event)
         if got:
-            seen.setdefault(got[:2], (x, got))
+            seen.setdefault(got[:2], set()).add(got[2])
     kept, left = [], []
     for x in a:
         got = stated(x, event)
@@ -132,14 +133,13 @@ def judge(event, a, b, existing=()):
             left.append(f"only one helper found {x.get('title')!r} on {got[0]} at {x.get('start')}")
             continue
         day, start, end = got
-        other_end = seen[got[:2]][1][2]
         starts = datetime.combine(day, start)
         if not event["starts"] <= starts < event["ends"]:
             left.append(f"{x.get('title')!r} on {day} at {x.get('start')} is outside the Event's days")
             continue
         kept.append({"event_id": event["id"], "title": str(x.get("title")).strip(),
                      "starts_at": starts.replace(tzinfo=LOCAL).isoformat(),
-                     "ends_at": datetime.combine(day, end).replace(tzinfo=LOCAL).isoformat() if end and end == other_end else None,
+                     "ends_at": datetime.combine(day, end).replace(tzinfo=LOCAL).isoformat() if end and end in seen[got[:2]] else None,
                      "source_url": x.get("page") or "", "source_line": str(x.get("quote")).strip(),
                      "same_as": same_as(event, starts, existing, x.get("quote"))})
     return kept, left
@@ -382,6 +382,9 @@ def selftest():
     ranged = part("Reception", "2026-11-12", "5 PM", "Closing reception 5-7 p.m. Thursday, Nov. 12", end="7 PM")
     ok(judge(show, [ranged], [ranged])[0][0]["ends_at"] == "2026-11-12T19:00:00-06:00", "the host's end wins")
     ok(judge(show, [ranged], [dict(ranged, end="")])[0][0]["ends_at"] is None, "an end the helpers don't agree on is none")
+    talk_at_5 = part("Talk", "2026-11-12", "5 PM", "Talk at 5 PM, Thursday Nov. 12")
+    ok(judge(show, [ranged], [talk_at_5, ranged])[0][0]["ends_at"] == "2026-11-12T19:00:00-06:00",
+       "two parts at one start: each keeps the end both helpers gave it")
     ok(judge(show, [talk], [])[0] == [] and judge(show, [], [talk])[0] == [], "a part only one helper found is no part")
     late = part("Artist talk", "2026-12-20", "3 PM", "Artist talk Dec. 20 at 3 PM")
     ok(judge(show, [late], [late])[0] == [], "a part outside the Event's days is no part of it")
