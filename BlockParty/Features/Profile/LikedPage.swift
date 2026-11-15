@@ -3,7 +3,7 @@
 //  Block Party — You's Liked (BP app inside-cards 16, which took over you-tab 04's Saved): every
 //  Event you hearted, not over or called off, soonest first, as the You tab's Agenda cards, each
 //  saying its day; then the stories you hearted while the Town feed keeps them, newest first, as the
-//  Town feed's News card (inside-cards 22). Pushed from ☰'s Liked row, under Instagram's Saved top: a back chevron and
+//  Town feed's News card (inside-cards 22). Pushed from Settings' Liked row, under Instagram's Saved top: a back chevron and
 //  the title in the middle (BP app references/saved-in-profile), drawn as Search's shelf
 //  pages draw it, since Apple's bar dropped the page 20pt at the end of the push.
 //

@@ -340,4 +340,25 @@ final class AppSessionTests: XCTestCase {
         XCTAssertEqual(Set(server.requests.map { $0.value(forHTTPHeaderField: "Authorization") }), ["Bearer token-b"])
         XCTAssertTrue(signedOut)
     }
+
+    /// Your counts hold their place while `get_profile` is out, and let go when it answers or fails,
+    /// never staying up; the quiet account never asks, so it never waits (BP app profile-middle).
+    func testProfileCountsWaitOnlyWhileTheirReadIsOut() async {
+        signIn("b")
+        server.answers["rpc/get_profile"] = .init(body: #"[{"bio":null,"cover_url":null,"friends":3,"group_ids":[],"both_going":[],"following":2}]"#)
+        let answered = ProfileModel(supabase: Supabase(auth: auth, send: server.send), phone: phone)
+        XCTAssertTrue(answered.countsLoading)
+        await answered.load()
+        XCTAssertFalse(answered.countsLoading)
+        XCTAssertEqual(answered.extras?.following, 2)
+
+        server.failure = URLError(.notConnectedToInternet)
+        let failed = ProfileModel(supabase: Supabase(auth: auth, send: server.send), phone: phone)
+        await failed.load()
+        XCTAssertFalse(failed.countsLoading, "a failed read lets the skeleton go")
+        XCTAssertNil(failed.extras)
+
+        auth.isAnonymous = true
+        XCTAssertFalse(ProfileModel(supabase: Supabase(auth: auth, send: server.send), phone: phone).countsLoading)
+    }
 }

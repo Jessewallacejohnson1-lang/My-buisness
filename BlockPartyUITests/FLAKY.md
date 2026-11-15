@@ -45,6 +45,16 @@ flake moves to Fixed, dated, and stays there.
   to `sources/` and `DECISIONS.md` only (BP app event-photos 19): "Leave lands after Join, never before" got `[true]`
   where `[true, false]` was expected, and its mirror `[false, true]` for `[true]` · the rerun passed · cause not
   found: two taps' writes land out of order on a slow runner · no fix yet
+- 2026-11-14 · `OnboardingNextBarTests.testNextBarHoldsStillOnEveryStep` · red once on the Mac in a full run on
+  feat/splash-wordmark (the launch only; UI tests skip the launch) at load 100 to 150, just after a macOS update:
+  "Failed to get list of active applications: Timed out while fetching attributes
+  'XC_kAXXCAttributeFocusedApplications'", XCTest's own read of the screen timing out · passed alone straight after
+  (66 s) · no fix: XCTest's accessibility read under load
+- 2026-11-14 · `friend_requests.test.mjs` "search and the Friends page stay quick with 5,000 neighbours", on the Mac
+  only · red in the pre-push quick checks at load 390 (feat/guardrails-4, a change to `scripts/` only): search 1503 ms
+  against 1500, Friends 3760 ms against 3000; the whole database stories took 12 minutes; red again the same hour in a
+  full `ci_checks.sh` at load 100 to 300 (Friends 3756 ms), every other story green · no fix yet: skip its timing
+  on a busy Mac, as town_feed.test.mjs's 5,000-people read does (Fixed, 2026-11-01)
 
 ## Fixed
 

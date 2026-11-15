@@ -125,7 +125,18 @@ struct ReportedEvent: Identifiable, Equatable, Decodable {
     var poster: ReviewPoster? = nil
     /// What reporters said with Wrong info, once the post check kept it: the 3 newest, newest first (backlog 26).
     var notes: [String]? = nil
+    /// A post edited after its first report (backlog 29): its words and Place as they stood then; nil when no edit
+    /// changed them since.
+    var wasTitle: String? = nil
+    var wasPlace: String? = nil
     var id: String { eventId }
+
+    /// "Reported as “…” · Centennial Park": what neighbours reported, when an edit has changed it since.
+    var reportedAs: String? {
+        guard let wasTitle else { return nil }
+        let words = wasTitle.isEmpty ? "Photo" : ReviewRow.quoted(wasTitle)
+        return [words, wasPlace].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
+    }
 
     var tag: String { ReviewRow.reportTag(reasons: reasons, reports: reports, firstAt: firstAt) }
 }
@@ -285,6 +296,13 @@ final class ModerationModel: ObservableObject {
                                  photo: "events/event-place-retreat-group-gathered-in-chairs-around-a-teacher-by-the-3f8586a512.webp",
                                  created: "2026-10-19T17:00:00Z"),
                       notes: ["Starts at 6 now, not 5:30. Their Facebook moved it."]),
+        // A post edited after its report (backlog 29).
+        ReportedEvent(eventId: "report-2", title: "Farmers market was packed this morning. Got the last lamb brats before 9!",
+                      eventDate: nil, reasons: ["scam"], reports: 2, firstAt: "2026-11-14T13:00:00Z",
+                      card: card("report-2", "Farmers market was packed this morning. Got the last lamb brats before 9!", nil, nil,
+                                 place: "Cloverdale Park", created: "2026-11-14T12:00:00Z"),
+                      poster: ReviewPoster(name: "Avery", photo: nil),
+                      wasTitle: "BUY CHEAP FOLLOWERS NOW!!! DM me for crypto deals", wasPlace: "Centennial Park"),
     ]
 
     static let messageFixtures = [
@@ -355,8 +373,10 @@ struct ModerationView: View {
                             ForEach(Array(model.reports.enumerated()), id: \.element.id) { i, report in
                                 let card = report.card
                                 ReviewQueueRow(
-                                    who: who(card, report.poster), title: card.title.isEmpty ? report.title : card.title,
+                                    who: who(card, report.poster, edited: report.reportedAs != nil),
+                                    title: card.title.isEmpty ? report.title : card.title,
                                     when: when(card), words: card.description, picture: card.picture,
+                                    reportedAs: report.reportedAs,
                                     notes: report.notes ?? [],
                                     tag: .init(symbol: "flag", text: report.tag), line: i > 0,
                                     shakes: model.rollbacks[report.id, default: 0],
@@ -452,13 +472,15 @@ struct ModerationView: View {
     private static let rowTransition = AnyTransition.move(edge: .leading).combined(with: .opacity)
 
     /// A found Event's host and when it was found, else the neighbour and how long ago they posted.
-    private func who(_ card: ReviewCard, _ poster: ReviewPoster?) -> ReviewQueueRow.Who {
-        let age = ReviewRow.age(createdAt: card.createdAt, found: card.found, now: Date())
+    /// `edited`: "· edited" after the age, as YouTube Studio's comments say it (backlog 29).
+    private func who(_ card: ReviewCard, _ poster: ReviewPoster?, edited: Bool = false) -> ReviewQueueRow.Who {
+        let age = [ReviewRow.age(createdAt: card.createdAt, found: card.found, now: Date()), edited ? "edited" : nil]
+            .compactMap { $0 }.joined(separator: " · ")
         if let host = card.sourceName {
-            return .init(face: .host(host, card.event?.hostPicture?.url), name: host, age: age)
+            return .init(face: .host(host, card.event?.hostPicture?.url), name: host, age: age.isEmpty ? nil : age)
         }
         return .init(face: .person(poster?.photo.flatMap(URL.init(string:))),
-                     name: poster?.name.flatMap { $0.isEmpty ? nil : $0 } ?? "A neighbour", age: age)
+                     name: poster?.name.flatMap { $0.isEmpty ? nil : $0 } ?? "A neighbour", age: age.isEmpty ? nil : age)
     }
 
     private func when(_ card: ReviewCard) -> String {
@@ -547,6 +569,8 @@ struct ReviewQueueRow: View {
     var when: String? = nil
     var words: String? = nil
     var picture: URL? = nil
+    /// What was reported, when an edit has changed it since (backlog 29): "Reported as" in grey, then the old words.
+    var reportedAs: String? = nil
     /// Reporters' notes (backlog 26), each on its own line above the tag (Jesse's pick at Check-in 1).
     var notes: [String] = []
     var tag: Tag? = nil
@@ -575,6 +599,14 @@ struct ReviewQueueRow: View {
                     .accessibilityHint("Opens it")
             } else {
                 summary.accessibilityElement(children: .combine)
+            }
+
+            if let reportedAs {
+                Text("\(Text("Reported as").foregroundStyle(Hue.inkSecondary)) \(reportedAs)")
+                    .font(.sans(15)).foregroundStyle(Hue.ink).lineLimit(3)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, ReviewMetric.side)
+                    .padding(.top, 8)
             }
 
             if !notes.isEmpty {

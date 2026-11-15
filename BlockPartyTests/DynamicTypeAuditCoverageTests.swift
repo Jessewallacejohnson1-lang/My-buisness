@@ -44,6 +44,7 @@ final class DynamicTypeAuditCoverageTests: XCTestCase {
 
         "OnboardingProfile.swift:$camera": .notYetAudited(reason: "Apple's own camera (UIImagePickerController) for onboarding's photo: no text of ours to scale."),
         "FriendsWaysIn.swift:$showingCode": .notYetAudited(reason: "Your code (friends 07): a photo, a name, a line, the QR code and two buttons in Apple's sheet, as tall as it measures. Text-size checks wait for Jesse (MEMORY.md, 2026-09-24)."),
+        "ProfileView.swift:$showingCode": .notYetAudited(reason: "Your code from your Profile's share button (profile-middle): the same sheet as FriendsWaysIn.swift:$showingCode, a photo, a name, a line, the QR code and two buttons in Apple's sheet, as tall as it measures. Text-size checks wait for Jesse (MEMORY.md, 2026-09-24)."),
         "YourCode.swift:$scanning": .notYetAudited(reason: "Scan a code (friends 07): Apple's own scanner (VisionKit) with our round X and a one-line pill; the camera-off note wraps. Text-size checks wait for Jesse (MEMORY.md, 2026-09-24)."),
         "RootView.swift:$showMap": .notYetAudited(reason: "The full-screen map. Its text is the bubbles' time tags, one pill and the event card's four lines; the card's title is one line and truncates at the largest sizes. Text-size checks wait for Jesse (MEMORY.md, 2026-09-24)."),
         "FriendMenu.swift:$addingName": .notYetAudited(reason: "Edit profile, from a friend request refused for want of a name: the same screen as ProfileView.swift:$editing, not yet audited either."),

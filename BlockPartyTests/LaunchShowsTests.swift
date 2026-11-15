@@ -1,7 +1,7 @@
 //
 //  LaunchShowsTests.swift
-//  Block Party — the day's first two cold starts play the whole launch, the rest its short cut
-//  (Jesse, 2026-11-08), counted on the phone as "yyyy-m-d n".
+//  Block Party — the day's first two cold starts play the whole launch (Jesse, 2026-11-08), the
+//  rest the BlockParty. wordmark and its fade (Jesse, 2026-11-14), counted on the phone as "yyyy-m-d n".
 //
 
 import XCTest
@@ -24,16 +24,16 @@ final class LaunchShowsTests: XCTestCase {
         XCTAssertEqual(yesterday.record, "2026-11-8 1")
     }
 
-    /// The second start of the day is still the full show; the third and after are the short cut.
-    func testTwoFullShowsThenTheShortCut() {
+    /// The second start of the day is still the full show; the third and after are the wordmark.
+    func testTwoFullShowsThenTheWordmark() {
         XCTAssertEqual(LaunchShows.fullShowsADay, 2)
         let second = LaunchShows.next(now: today, calendar: calendar, record: "2026-11-8 1")
         XCTAssertEqual(second.kind, .full)
         XCTAssertEqual(second.record, "2026-11-8 2")
         let third = LaunchShows.next(now: today, calendar: calendar, record: "2026-11-8 2")
-        XCTAssertEqual(third.kind, .short)
+        XCTAssertEqual(third.kind, .word)
         XCTAssertEqual(third.record, "2026-11-8 3")
-        XCTAssertEqual(LaunchShows.next(now: today, calendar: calendar, record: "2026-11-8 40").kind, .short)
+        XCTAssertEqual(LaunchShows.next(now: today, calendar: calendar, record: "2026-11-8 40").kind, .word)
     }
 
     /// A record that isn't ours reads as none.
@@ -50,7 +50,7 @@ final class LaunchShowsTests: XCTestCase {
         defer { defaults.removePersistentDomain(forName: suite) }
         XCTAssertEqual(LaunchShows.kind(now: today, defaults: defaults), .full)
         XCTAssertEqual(LaunchShows.kind(now: today, defaults: defaults), .full)
-        XCTAssertEqual(LaunchShows.kind(now: today, defaults: defaults), .short)
+        XCTAssertEqual(LaunchShows.kind(now: today, defaults: defaults), .word)
         XCTAssertEqual(defaults.string(forKey: LaunchShows.key)?.hasSuffix(" 3"), true)
     }
 }

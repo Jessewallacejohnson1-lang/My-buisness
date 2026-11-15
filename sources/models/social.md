@@ -2,8 +2,8 @@
 
 Places' public Facebook and Instagram posts become Events and News in the Town feed (registry
 ADR-020, amended 2026-10-22 and 2026-11-11). Apify reads the pages on its own schedule (the busy list at 9:30am
-and 7pm Chicago; every other page once a week, a seventh of them each day at 3pm, each day a mix of kinds) and
-saves what it finds; two routines follow
+and 7pm Chicago; every other page once a week, a seventh of them each day at 3pm, each day a mix of kinds; and
+JoeTown's Instagram stories once a day, with the 7pm run) and saves what it finds; two routines follow
 this file in the cloud half an hour or more later, each in a fresh copy of this repository, and
 read what Apify saved: `busy` at 10:30am and 7:30pm, `weekly` every day at 3:45pm. The
 routine's prompt names which. Scripts read Apify and write the
@@ -57,6 +57,10 @@ carry on with the rest.
      place is in the event's name or words: write it in `place`. It is in St. Joseph only when
      `sources/st-joseph-mn.md` lists it (search the file); if not, the event is `outside`. Drop one hosted only
      by a private person: a birthday, a party, a sale at home (ADR-020: a neighbour's post is a tip, never content).
+   - A page that opens "… shared this in its Instagram story" is a story: its words are on its picture, and most
+     pass on another account's post, whose @name is on the picture (BP app watch-every-place 25). An item from one
+     belongs to that account's place: its `source_name` is that place's name when `sources/social/st-joseph-mn.json`
+     or `sources/st-joseph-mn.md` has it (search for the @name), else the story's own account. Judge it like a post.
    - A post's pictures are part of it: a flag from a picture is judged like one from the caption,
      and a caption that only teases ("come out to the cocktail lounge…") is not a teaser when its
      picture says what. Before keeping an item whose day, time or place comes only from a

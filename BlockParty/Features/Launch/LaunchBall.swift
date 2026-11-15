@@ -4,9 +4,9 @@
 //  launch lines). On a fresh start the Town's round logo drops onto Bp, bounces off B and p,
 //  lands as the !'s dot, the ! hops as the Daily tab's does, and Bp! lands on the tab bar's own
 //  Bp!, or zooms through when Welcome is up. It plays over the app, which loads underneath and
-//  never waits on it. A tap skips it. The day's first two cold starts play it whole; after
-//  them the short cut, and a link open pops Bp! out over the page it opened (Jesse, 2026-11-08;
-//  `LaunchMotion.Kind`, BP app references/launch-short).
+//  never waits on it. A tap skips it. Only the day's first two cold starts play it; every other
+//  open, a link's and Reduce Motion's too, shows the still's BlockParty. wordmark and fades into the
+//  app (Jesse, 2026-11-14; `LaunchMotion.Kind`, BP app references/splash-wordmark).
 //
 //  `LaunchMotion` holds the numbers; this file draws them, one frame at a time, from a
 //  `TimelineView`, so a tap can redirect it at any instant. No `phaseAnimator`: the splash
@@ -26,7 +26,6 @@ import SwiftUI
     /// Whether this process start plays the launch: always, except under UI tests that don't ask
     /// for it (`-launch-play`), or every test would wait it out.
     let plays: Bool
-    let reduceMotion: Bool
     /// DEBUG: a moment to hold (`-launch-at <ms>`) and a tap (`-launch-skip <ms>`), in the
     /// mock's simulation time, so frames line up with the mock's `#at-<ms>` ones.
     let frozenAt: Double?
@@ -41,12 +40,13 @@ import SwiftUI
     private(set) var landed: Bool
     /// Welcome's logo and headline may rise: the zoom through is half done.
     private(set) var headerUp: Bool
-    /// Which launch this start plays: the full show on the day's first two cold starts, the short
-    /// cut after them (`LaunchShows`), DEBUG `-launch-kind` naming one; a link open while signed in
-    /// turns it into `.link` as the URL arrives (`openedLink`).
+    /// Which launch this start plays: the full show on the day's first two cold starts, the
+    /// wordmark after them and with Reduce Motion (`LaunchShows`), DEBUG `-launch-kind` naming one;
+    /// a link opened while signed in turns the full show into the wordmark as the URL arrives
+    /// (`openedLink`).
     private(set) var kind: LaunchMotion.Kind
-    /// Where the ball was when a link turned the launch into the link open, to fade it out there.
-    var ballBefore: LaunchMotion.Ball?
+    /// Reduce Motion: the wordmark open only fades, and nothing under it moves.
+    let reduceMotion: Bool
     /// The tab bar's Daily Bp! in `space`, while it is on screen and the launch heads for it.
     var dailyMark: CGRect?
     /// Town's top bar and first cards may rise into place: the yellow is clearing (Jesse,
@@ -61,25 +61,29 @@ import SwiftUI
         linkAt = LaunchFlags.value(.launchLinkAt).flatMap(Double.init).map { $0 / 1000 }
         // Back after iOS shut the app down, the restart doesn't show (`LeftOff`).
         plays = (!LaunchFlags.has(.uiTests) || LaunchFlags.has(.launchPlay) || frozenAt != nil) && LeftOff.current == nil
-        reduceMotion = UIAccessibility.isReduceMotionEnabled || LaunchFlags.has(.launchReduce)
+        // Reduce Motion: no ball show, only the wordmark and its fade, and nothing under it moves.
+        let reduceMotion = UIAccessibility.isReduceMotionEnabled || LaunchFlags.has(.launchReduce)
+        self.reduceMotion = reduceMotion
         finished = !plays
-        // Reduce Motion crossfades into the app, so the tab bar's Bp! shows under it throughout.
-        landed = !plays || reduceMotion
+        let named = LaunchFlags.value(.launchKind).flatMap(LaunchMotion.Kind.init(rawValue:))
+        // Only a real cold start counts toward the day's full shows: not a held frame, a test or
+        // Reduce Motion, which only ever shows the wordmark.
+        let kind = named ?? (reduceMotion ? .word
+            : plays && frozenAt == nil && !LaunchFlags.has(.uiTests) ? LaunchShows.kind() : .full)
+        self.kind = kind
+        // The wordmark has no Bp! to land: the tab bar's own shows under the yellow throughout.
+        landed = !plays || kind == .word
         headerUp = !plays || reduceMotion
         townSettles = !plays || reduceMotion
-        let named = LaunchFlags.value(.launchKind).flatMap(LaunchMotion.Kind.init(rawValue:))
-        // Only a real cold start counts toward the day's full shows: not a held frame or a test.
-        kind = named ?? (plays && frozenAt == nil && !LaunchFlags.has(.uiTests) ? LaunchShows.kind() : .full)
     }
 
-    /// A link opened while signed in: the launch, still on its way, becomes the link open, which
-    /// has no tab bar to land on (the page the link opened is up) and zooms through.
+    /// A link opened while signed in: the full show, before its ending, becomes the wordmark open
+    /// over the page the link opened (Jesse, 2026-11-14), fading what it had drawn back into
+    /// BlockParty. first. Once the ending has begun, the show finishes over the page.
     func openedLink() {
-        guard plays, !finished, frozenAt == nil, kind != .link else { return }
-        kind = .link
+        guard plays, !finished, frozenAt == nil, kind == .full, !townSettles else { return }
+        kind = .word
         landed = true
-        headerUp = true
-        townSettles = true
     }
 
     func raiseHeader() { headerUp = true }
@@ -175,17 +179,16 @@ struct LaunchHost<Content: View>: View {
             backScale = 1
             tilt.stop()
         }
-        // A link open starts over from the still: the ! appears, then Bp! pops out. A ball already
-        // on screen fades out where it was, and a tap before the link is forgotten.
-        .onChange(of: stage.kind) { was, kind in
-            guard kind == .link else { return }
-            let t = clock.t
-            if t > 0 { stage.ballBefore = LaunchMotion(screen: screen.size, kind: was).ball(at: t) }
+        // A link turns the full show into the wordmark open: it starts over from the show's last
+        // frame, fading it back into BlockParty., and a tap before the link is forgotten.
+        .onChange(of: stage.kind) { _, kind in
+            guard kind == .word else { return }
+            if clock.t == 0 { clock.last = nil }   // still on the still: nothing to fade back
             skip = nil
             clock.reset()
         }
         .onAppear {
-            if stage.plays, !stage.finished, !stage.reduceMotion, stage.frozenAt == nil { tilt.start() }
+            if stage.plays, !stage.finished, stage.kind == .full, stage.frozenAt == nil { tilt.start() }
             guard stage.plays || LeftOff.current != nil, UIAccessibility.isVoiceOverRunning else { return }
             AccessibilityNotification.Announcement("Block Party").post()
         }
@@ -220,13 +223,15 @@ struct LaunchHost<Content: View>: View {
     private func moment(at date: Date) -> (frame: LaunchMotion.Frame, origin: CGPoint) {
         let t = stage.frozenAt ?? clock.time(at: date, pace: LaunchMotion.pace(for: stage.kind))
         var ending = LaunchMotion.Ending.zoom
-        if let mark = stage.dailyMark, stage.kind != .link {
+        if let mark = stage.dailyMark, stage.kind == .full {
             ending = .tab(mark.offsetBy(dx: appOrigin.x - screen.minX, dy: appOrigin.y - screen.minY))
         }
-        let motion = LaunchMotion(screen: screen.size, skip: skip ?? stage.skipAt,
-                                  reduceMotion: stage.reduceMotion, ending: ending, kind: stage.kind,
-                                  ballBefore: stage.ballBefore)
-        return (motion.frame(at: t), motion.origin)
+        let motion = LaunchMotion(screen: screen.size, skip: skip ?? stage.skipAt, ending: ending,
+                                  kind: stage.kind, before: stage.kind == .word ? clock.last : nil,
+                                  reduceMotion: stage.reduceMotion)
+        let frame = motion.frame(at: t)
+        if stage.kind == .full { clock.last = frame }
+        return (frame, motion.origin)
     }
 
     private func tap() {
@@ -276,20 +281,22 @@ struct LaunchHost<Content: View>: View {
 /// the ball past a bounce.
 final class LaunchClock {
     private(set) var t = 0.0
-    private var last: Date?
+    private var lastDate: Date?
+    /// The full show's latest frame, for a link that turns it into the wordmark open.
+    var last: LaunchMotion.Frame?
 
     func time(at date: Date, pace: Double) -> Double {
-        if let last, date > last {
-            t += min(0.05, date.timeIntervalSince(last)) * pace
+        if let lastDate, date > lastDate {
+            t += min(0.05, date.timeIntervalSince(lastDate)) * pace
         }
-        if last.map({ date > $0 }) ?? true { last = date }
+        if lastDate.map({ date > $0 }) ?? true { lastDate = date }
         return t
     }
 
-    /// Back to the still: a link open starts the launch over as the link open.
+    /// Back to the start: a link starts the launch over as the wordmark open.
     func reset() {
         t = 0
-        last = nil
+        lastDate = nil
     }
 }
 
@@ -361,6 +368,14 @@ private struct LaunchMark: View {
             }
             .offset(y: frame.yellowDrop)
             .opacity(frame.yellowOpacity)
+            // The still's BlockParty. wordmark with Bp!'s shade, in the screen's middle: the launch
+            // screen's own picture, so the still and this frame are one (Jesse, 2026-11-14). Over the
+            // yellow rather than in it, so it shoots out at its own pace while the yellow fades.
+            Image("LaunchStill")
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .scaleEffect(frame.zoom)
+                .opacity(frame.word)
+                .accessibilityHidden(true)
             ZStack(alignment: .topLeading) {
                 // Both shrink toward the !, so Bp! never splits (Jesse, 2026-11-08).
                 piece("LaunchMarkB")
@@ -371,9 +386,6 @@ private struct LaunchMark: View {
                     .scaleEffect(x: frame.p.width, y: frame.p.height, anchor: Self.unit(LaunchMotion.letterAnchor))
                     .offset(y: frame.lift * Self.hopPoints * k)
                     .opacity(frame.letters)
-                // Reduce Motion's full-size B and p, fading in over the 90% ones.
-                piece("LaunchMarkB").opacity(frame.fullLetters)
-                piece("LaunchMarkP").opacity(frame.fullLetters)
                 bang
                 ballShade
                 ball
@@ -401,7 +413,7 @@ private struct LaunchMark: View {
         piece("DailyMarkBangDot")
             .scaleEffect(x: frame.dot.width, y: frame.dot.height, anchor: DailyMarkGlyph.dotBase)
             .offset(y: frame.lift * Self.hopPoints * k)
-            .opacity(frame.dotShown ? frame.dotOpacity : 0)
+            .opacity(frame.dotShown ? 1 : 0)
     }
 
     /// The ball's shadow on the glass (Jesse, 2026-11-02, "ball shadow"). SwiftUI's blur radius is

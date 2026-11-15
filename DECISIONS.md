@@ -953,6 +953,24 @@ models (22 MB, `sources/models/weights/`) are a deliberate exception to keeping 
 routine gets its code from the repo and its libraries from PyPI, and Real-ESRGAN's own weights need torch to read.
 `convert_realesrgan.py` there remakes the larger model from them. numpy and onnxruntime are the morning's libraries only (`ci-packages.txt` "-").
 
+## Decided 2026-11-14 — the ball show twice a day, the wordmark the rest (BP app backlog 28)
+
+Only the day's first two cold starts play the ball show (`LaunchShows.fullShowsADay`); every
+other open, a link's and Reduce Motion's too, is `LaunchMotion.Kind.word`: the still's
+BlockParty. wordmark holds `wordHold` (0.20 s, guessed), then shoots out at you as the link
+open's Bp! did (the zoom to 6x on `glideFast`, gone 60% of the way) while the yellow and the
+signature fade in `yellowFadeFast` (0.18 s) and the app settles from 105%. Jesse: "for the other
+ones, I want it to say block party across, and then instead of the sheet going down, it just all
+fades into the app", then at Check-in 2: "the blockparty. splash shoots the text like the one we
+made when you open a event in message". Reduce Motion keeps the plain fade (`yellowFade`, 0.30 s,
+no zoom, the app still). The short cut and the link's own pop (backlog 27) are gone. The launch screen's
+still is now the wordmark (`LaunchStill`, 320 pt wide, Bp!'s shade), drawn by the app as the same
+picture, so a ball show starts from it and hands over to Bp in `wordSwap` (0.15 s of the show's
+time, 0.2 s on screen) as the ball drops in. The signature reads "Made by Jesse" alone
+(`LaunchFooter`), so BlockParty. shows once. A link that arrives during the ball show, before its
+ending, fades the show's last frame back into the wordmark over `wordSwap`; after that the show
+finishes over the page.
+
 ## Open — should the server decide which posts go live?
 
 Today the app decides: a post Claude clears is saved as `approved`, and nothing on the

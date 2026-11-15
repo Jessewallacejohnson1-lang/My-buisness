@@ -211,8 +211,8 @@ struct RootView: View {
         }
         .animation(.smooth(duration: 0.35), value: flowUp)
         .onOpenURL { url in
-            // Signed in, a link that opens something turns the launch into the link open: Bp! pops
-            // out over what it opened. Signed out, it plays whole, then the Welcome (Jesse, 2026-11-08).
+            // Signed in, a link that opens something turns the ball show into the wordmark open over
+            // what it opened (Jesse, 2026-11-14). Signed out, it plays whole, then the Welcome.
             if code.opened(url, signedOut: signedOut), !signedOut { LaunchStage.shared.openedLink() }
         }
         .overlay {
@@ -765,7 +765,8 @@ struct MainTabsView: View {
                                 .task { if townFeed.entries == nil { await townFeed.refresh() } }
                         // Your Profile, with your full Calendar and Agenda (five-tabs 03).
                         case .you:
-                            ProfileView(model: session.profile, likes: likes)
+                            // Its Map button opens the map as the Town bar's yellow disc does.
+                            ProfileView(model: session.profile, likes: likes, openMap: { showMap = true })
                                 // Settings' Calendar switch, and what Muted and Following read.
                                 .environment(calendarSync)
                                 .environment(townFeed)
