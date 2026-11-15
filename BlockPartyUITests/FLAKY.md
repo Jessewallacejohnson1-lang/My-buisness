@@ -10,6 +10,12 @@ flake moves to Fixed, dated, and stays there.
 
 ## Flaky
 
+- 2026-11-15 · `LaunchBallTests.testTownIsThereAndTappableAfterTheLaunch` · red once on the Mac in a full run on
+  feat/search-titles (Search's header and pills only; no launch or Town code) at load over 100: "Town's card didn't
+  open after the launch" · passed alone straight after, and in the next full run at load about 15 · no fix yet
+- 2026-11-15 · `AtNamesUITests.testTypingAtShowsTheRowAndAPickWritesTheName` · red once on the Mac in a full run on
+  feat/search-titles (no New post code) at load about 18: "typing @dal showed no row" · passed alone straight after,
+  and in the full run before it · no fix yet
 - 2026-11-08 · `YouCalendarTests.testRealLifeActionsDriveLiked` (red at 0b154f22, a three-number
   shadow change in `CastLogo` that can't reach it; the test is heart-replaces-save's, c573cbba, the
   same day) · `["card"]` still shown where `[]` was expected after two heart toggles behind a fixed
