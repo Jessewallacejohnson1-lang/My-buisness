@@ -116,7 +116,7 @@ enum EventSchedule {
     }
 
     /// One day's rows, by start.
-    static func rows(_ rows: [Row], on day: String, at now: Date) -> [Row] {
+    static func rows(_ rows: [Row], onDay day: String, at now: Date) -> [Row] {
         rows.filter { Self.day(of: $0, at: now) == day }
     }
 
@@ -174,6 +174,8 @@ struct EventScheduleSection: View {
     @State private var all = false
     /// The day tapped in the day row; nil until one is, so the row opens on today.
     @State private var day: String?
+    /// The number's disc grows with the text size.
+    @ScaledMetric(relativeTo: .body) private var disc: CGFloat = EventLook.scheduleDisc
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -189,9 +191,14 @@ struct EventScheduleSection: View {
                     let days = EventSchedule.days(rows, at: context.date)
                     if let shown = EventSchedule.shown(picked: day, in: days) {
                         dayRow(days, shown: shown)
-                        dayList(EventSchedule.rows(rows, on: shown, at: context.date))
-                            .id(shown)
-                            .transition(.opacity)
+                        // One day's list over the other while they cross-fade, held to a floor so a day with fewer
+                        // parts doesn't pull the page up under the finger (mock B's 128).
+                        ZStack(alignment: .topLeading) {
+                            dayList(EventSchedule.rows(rows, onDay: shown, at: context.date))
+                                .id(shown)
+                                .transition(.opacity)
+                        }
+                        .frame(minHeight: EventLook.scheduleDayFloor, alignment: .top)
                     } else {
                         list(rows)
                     }
@@ -212,12 +219,14 @@ struct EventScheduleSection: View {
             HStack(spacing: 0) {
                 ForEach(days) { day in
                     Button {
+                        // The day already shown changes nothing: no haptic, no fade.
+                        guard day.id != shown else { return }
                         withAnimation(reduceMotion ? nil : Motion.select) { self.day = day.id }
                     } label: {
                         dayLabel(day, on: day.id == shown)
                     }
                     .buttonStyle(.press(.squish))
-                    .containerRelativeFrame(.horizontal, count: min(days.count, EventLook.scheduleWeek), spacing: 0)
+                    .containerRelativeFrame(.horizontal, count: EventLook.scheduleWeek, spacing: 0)
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(day.spoken)
                     .accessibilityAddTraits(day.id == shown ? [.isButton, .isSelected] : .isButton)
@@ -240,7 +249,7 @@ struct EventScheduleSection: View {
                 .font(on ? .sansSemibold(17) : .sansMedium(17))
                 .monospacedDigit()
                 .foregroundStyle(on ? picked : ink)
-                .frame(width: EventLook.scheduleDisc, height: EventLook.scheduleDisc)
+                .frame(width: disc, height: disc)
                 .background(Circle().fill(ink).opacity(on ? 1 : 0))
             Circle()
                 .fill(Hue.today)

@@ -153,11 +153,11 @@ final class EventScheduleTests: XCTestCase {
         let parts = [part("Panel", 11, 19), part("Lunch", 10, 12), part("Talk", 10, 14, hours: 2),
                      part("Sale", 10, 14, hours: 3, live: false)]
         let now = at(10, 15)
-        let rows = EventSchedule.rows(EventSchedule.rows(parts, at: now), on: "2026-11-10", at: now)
+        let rows = EventSchedule.rows(EventSchedule.rows(parts, at: now), onDay: "2026-11-10", at: now)
         XCTAssertEqual(rows.map(\.part.title), ["Lunch", "Talk", "Sale"])
         XCTAssertEqual(rows.map(\.past), [true, false, false])
         XCTAssertEqual(rows.map(\.mark), [nil, .now, nil])
-        XCTAssertTrue(EventSchedule.rows(EventSchedule.rows(parts, at: now), on: "2026-11-12", at: now).isEmpty,
+        XCTAssertTrue(EventSchedule.rows(EventSchedule.rows(parts, at: now), onDay: "2026-11-12", at: now).isEmpty,
                       "a day with none: Nothing planned")
     }
 
