@@ -100,6 +100,11 @@ struct SearchItem: Identifiable, Hashable {
     /// instead (Jesse, 2026-11-08, BP app place-pages: the directory is complete, logos follow).
     var opens: Bool { [.business, .restaurant, .coffee].contains(kind) }
 
+    /// The photo Block Party saved that its card shows, which grows into its page when tapped.
+    var cover: URL? {
+        if case .saved(let picture) = photo { picture.url } else { nil }
+    }
+
     /// The letter its disc shows while it has no logo: the first letter of its name, as a young team's.
     var initial: String { name.first(where: \.isLetter).map { String($0).uppercased() } ?? "" }
 

@@ -223,6 +223,28 @@ final class EventPageTests: XCTestCase {
         XCTAssertEqual(FeedCardImageLoader.droppedOnLeaving(Array(repeating: 96, count: 50)), [])
     }
 
+    /// A photo on screen stays findable whatever the cache let go of, one bitmap per view: a page's big
+    /// copy leaving keeps the card's small one (place-photos 10).
+    func testAPhotoOnScreenStaysFindable() throws {
+        func bitmap(_ side: Int) throws -> CGImage {
+            let context = try XCTUnwrap(CGContext(data: nil, width: side, height: side, bitsPerComponent: 8, bytesPerRow: 0,
+                                                  space: CGColorSpaceCreateDeviceRGB(),
+                                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+            return try XCTUnwrap(context.makeImage())
+        }
+        let loader = FeedCardImageLoader.shared
+        let url = URL(string: "https://x.supabase.co/places/test-\(UUID().uuidString).webp")!
+        let card = try bitmap(4), page = try bitmap(8)
+        XCTAssertNil(loader.largest(for: url))
+        loader.showing(url, card)
+        loader.showing(url, page)
+        XCTAssertTrue(loader.largest(for: url) === page)
+        loader.gone(url, page)
+        XCTAssertTrue(loader.largest(for: url) === card)
+        loader.gone(url, card)
+        XCTAssertNil(loader.largest(for: url))
+    }
+
     func testCounterShowsOnlyForTwoOrMorePhotos() {
         let page = EventPage.self
 

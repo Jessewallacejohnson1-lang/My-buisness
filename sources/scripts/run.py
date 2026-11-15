@@ -364,6 +364,7 @@ FIRECRAWL = "https://api.firecrawl.dev/v1/scrape"
 FIRECRAWL_CREDITS = "https://api.firecrawl.dev/v2/team/credit-usage"
 FIRECRAWL_CAP = 30    # ponytail: credits per run (1 a page); the plan has 1,000 a month
 JS_TEXT = 200         # fewer characters than this from a plain fetch = built by JavaScript
+JS_HOSTS = ("churchcenter.com",)  # built by JavaScript though its empty calendar grid reads over JS_TEXT (Church of Saint Joseph, 2026-11-15)
 FEED_KINDS = {"ical", "rss"}             # read raw through Firecrawl, so the feed parser still sees items
 SOCIAL_KINDS = {"facebook", "instagram"}  # Firecrawl refuses them ("we do not support this site"); Apify reads them (ADR-020)
 GONE = re.compile(r"HTTP Error (404|410)")  # the page is gone: Firecrawl gets the same 404 and spends a credit
@@ -430,7 +431,8 @@ def read_page(url, kind, get=None, scrape=None):
             raise RuntimeError(f"{str(ex)[:150]}; Firecrawl: {str(fc)[:120]}") from None
         return 200, text, "firecrawl"
     text = to_text(raw)
-    if len(text) < JS_TEXT and kind not in FEED_KINDS | SOCIAL_KINDS:
+    js = len(text) < JS_TEXT or urllib.parse.urlsplit(url).hostname.endswith(JS_HOSTS)
+    if js and kind not in FEED_KINDS | SOCIAL_KINDS:
         try:
             return status, scrape(url), "firecrawl"
         except Exception:
@@ -465,6 +467,8 @@ def selftest():
         (case(RuntimeError("robots.txt disallows -> switch method to search_snippet"))[2] == "firecrawl",
          "a robots.txt no goes through Firecrawl (Jesse, 2026-10-22)"),
         (case("<div id=app></div>")[1] == "Read through Firecrawl", "a JavaScript page is read through Firecrawl"),
+        (read_page("https://x.churchcenter.com/calendar", "website", site(page), scrape)[2] == "firecrawl",
+         "a Church Center calendar is read through Firecrawl, however long its empty grid"),
         (str(case(RuntimeError("HTTP Error 404: Not Found"))).startswith("HTTP Error 404") and not calls,
          "a gone page spends no credit"),
         (str(case(RuntimeError("HTTP Error 403: Forbidden"), "facebook")).startswith("HTTP Error 403") and not calls,

@@ -158,8 +158,11 @@ def all_pages(root):
 def pages_for(run, root):
     """The pages a run reads: busy or not, and never one Facebook hides from logged-out readers, nor one with
     `skip` (why): a page that only advertises stays on the list, so the monthly accounts check doesn't offer it
-    again and its place keeps the link, but is never read (Jesse, 2026-11-11)."""
-    return [p for p in all_pages(root) if p["busy"] == (run == "busy") and not p.get("hidden") and not p.get("skip")]
+    again and its place keeps the link, but is never read (Jesse, 2026-11-11). Nor one marked `mirror`: its place
+    posts the same on its other channel, which is read instead; its Events tab still is (Jesse, 2026-11-15, BP app
+    watch-every-place 26: 73% of two-channel places' Instagram posts were their Facebook posts word for word)."""
+    return [p for p in all_pages(root) if p["busy"] == (run == "busy") and not p.get("hidden") and not p.get("skip")
+            and not p.get("mirror")]
 
 
 def events_tab(url):
@@ -366,7 +369,7 @@ def page_lists(root, missed=None, now=None, again=()):
     a cent for each tab read, empty or not: 178 of 193 tabs never listed an event; Jesse, 2026-11-15, BP app
     watch-every-place 26); and the town's events search, with `again` (rereads). A page set aside (`missed`)
     leaves its list for its day's weekly read: a busy page every week, a weekly page in the first week of
-    each month. sync_tasks gives each weekly page its day's task."""
+    each month; so does a weekly page marked `monthly`, always. With no `now` (finding a row's page), every page. sync_tasks gives each weekly page its day's task."""
     category = {e["id"]: e.get("category") for e in load(root)[0]}
     aside = {u for u, m in (missed or {}).items() if m.get("aside")}
     month = lambda p: bool(now) and monthly_try(now, day_of(p))
@@ -375,6 +378,8 @@ def page_lists(root, missed=None, now=None, again=()):
     for run in ("busy", "weekly"):
         for p in pages_for(run, root):
             p["category"] = category.get(p["entry_id"])
+            if p.get("monthly") and now and not month(p):  # it rarely posts anything to use: a month's first week only
+                continue  # (Jesse, 2026-11-15, BP app watch-every-place 26)
             if canon(p["url"]) not in aside:
                 out.setdefault((run, p["kind"]), []).append(p)
             elif run == "busy" or month(p):
@@ -1438,6 +1443,16 @@ def set_aside_reads():
                                 if p["entry_id"] == "hall"]
             monthly = [len(wk(4, 21, 30)), len(wk(5, 0, 5)), len(wk(5, 15, 45))]
             ev = lambda *when: sorted(p["entry_id"] for p in page_lists(root, {}, datetime(2026, 11, *when, tzinfo=LOCAL))[("weekly", "events")])
+            flagged = json.loads(json.dumps(pages)) + [
+                {"entry_id": "m", "name": "M", "kind": "facebook", "url": "https://www.facebook.com/m", "busy": False, "day": "thu", "monthly": True},
+                {"entry_id": "mi", "name": "Mi", "kind": "instagram", "url": "https://www.instagram.com/mi", "busy": True, "mirror": True},
+                {"entry_id": "mi", "name": "Mi", "kind": "facebook", "url": "https://www.facebook.com/mi", "busy": False, "day": "thu",
+                 "mirror": True, "events": True}]
+            (root / "sources" / "social" / f"{TOWN}.json").write_text(json.dumps(flagged))
+            at = lambda d: {k: sorted(p["entry_id"] for p in v) for k, v in page_lists(root, {}, d).items()}
+            flags = [at(datetime(2026, 11, 4, 21, 30, tzinfo=LOCAL)), at(datetime(2026, 11, 10, 21, 30, tzinfo=LOCAL)),
+                     page_lists(root, {}, None)]
+            (root / "sources" / "social" / f"{TOWN}.json").write_text(json.dumps(pages))
             events_lists = [ev(4, 21, 30), ev(10, 21, 30),
                             sorted(p["entry_id"] for p in page_lists(root, {}, datetime(2026, 12, 31, 21, 30, tzinfo=LOCAL))[("weekly", "events")])]
             twice = [{"entry_id": "x", "name": "X", "kind": "search", "busy": False, "reread": True,
@@ -1477,6 +1492,12 @@ def set_aside_reads():
          "the weekly Events tabs read the pages marked `events`, and every one when its day falls in a quarter's "
          "first week (January's: hidden La Playette's too, never the page that only advertises); the town's events "
          "searches have tasks of their own"),
+        ("m" in flags[0][("weekly", "facebook")] and "m" not in flags[1][("weekly", "facebook")]
+         and any(p["entry_id"] == "m" for p in flags[2][("weekly", "facebook")])
+         and "mi" not in flags[0].get(("busy", "instagram"), []) and "mi" not in flags[0][("weekly", "facebook")]
+         and "mi" in flags[1][("weekly", "events")],
+         "a page marked monthly is read in its day's first week of a month only (every page when finding a row's page); "
+         "a mirror page's posts are never read, its marked Events tab is"),
         (monthly == [1, 1, 0], "a weekly page set aside is tried with its day's read in a month's first week, "
                                "by the clock: a 7:30 PM check that starts past midnight still puts it on"),
         (tally([("t", [sals, krewe, bo], [{"inputUrl": krewe, "error": "no_items"}, {"inputUrl": bo, "error": "no_items"}],

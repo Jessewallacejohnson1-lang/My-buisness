@@ -1085,7 +1085,7 @@ tier: listed
 category: amenity=arts_centre
 added_by: agent:discover
 sources:
-  - url: TODO
+  - url: https://www.csbsju.edu/fine-arts/venues/escher-auditorium
     kind: website
     method: submission
     trust: official
@@ -1229,7 +1229,7 @@ tier: listed
 category: amenity=restaurant
 added_by: agent:discover
 sources:
-  - url: TODO
+  - url: http://www.saintjosephchinaone.com
     kind: website
     method: submission
     trust: official
@@ -1276,7 +1276,7 @@ category: amenity=library
 added_by: agent:discover
 address: "37 College Ave S"
 sources:
-  - url: TODO
+  - url: http://www.csbsju.edu/library
     kind: website
     method: submission
     trust: official
@@ -1295,7 +1295,7 @@ tier: listed
 category: shop=supermarket
 added_by: agent:discover
 sources:
-  - url: TODO
+  - url: https://www.coborns.com/cob-home
     kind: website
     method: submission
     trust: official
@@ -1340,7 +1340,7 @@ tier: listed
 category: shop=florist
 added_by: agent:discover
 sources:
-  - url: TODO
+  - url: http://www.daisyadayfloral.com
     kind: website
     method: submission
     trust: official
@@ -1372,7 +1372,7 @@ category: office=financial_advisor
 added_by: agent:discover
 address: "24 W Birch Street"
 sources:
-  - url: TODO
+  - url: https://www.edwardjones.com/us-en/financial-advisor/beau-hanowski?y_source=1_MjU1MTUxOC00ODMtbG9jYXRpb24ud2Vic2l0ZQ%3D%3D
     kind: website
     method: submission
     trust: official
@@ -1431,7 +1431,7 @@ tier: listed
 category: amenity=fast_food
 added_by: agent:discover
 sources:
-  - url: TODO
+  - url: http://www.garyspizza.com/
     kind: website
     method: submission
     trust: official
@@ -1519,7 +1519,7 @@ tier: listed
 category: home-services
 added_by: agent:discover
 sources:
-  - url: TODO
+  - url: http://www.httitle.com/
     kind: website
     method: submission
     trust: official
@@ -1565,7 +1565,7 @@ category: shop=massage
 added_by: agent:discover
 address: "33 W Minnesota St"
 sources:
-  - url: TODO
+  - url: https://youniquewellnessllc.massagetherapy.com/
     kind: website
     method: submission
     trust: official
@@ -1636,7 +1636,7 @@ added_by: agent:discover
 address: "1000 Dale St E"
 at: [45.55884, -94.30395]
 sources:
-  - url: TODO
+  - url: http://www.cityofstjoseph.com/index.aspx?nid=112
     kind: website
     method: submission
     trust: official
@@ -1681,7 +1681,7 @@ tier: listed
 category: shop=hardware
 added_by: agent:discover
 sources:
-  - url: TODO
+  - url: http://www.acehardware.com/store-details/07221?utm_source=bing&utm_medium=local&utm_campaign=localmaps&utm_content=07221
     kind: website
     method: submission
     trust: official
@@ -1711,7 +1711,7 @@ tier: listed
 category: education-training
 added_by: agent:discover
 sources:
-  - url: TODO
+  - url: http://www.littlesaintsacademy.com/
     kind: website
     method: submission
     trust: official
@@ -1726,7 +1726,7 @@ tier: listed
 category: amenity=bank
 added_by: agent:discover
 sources:
-  - url: TODO
+  - url: https://mymagnifi.org/
     kind: website
     method: submission
     trust: official
@@ -2090,7 +2090,7 @@ tier: listed
 category: office=government
 added_by: agent:discover
 sources:
-  - url: TODO
+  - url: http://www.cityofstjoseph.com
     kind: website
     method: submission
     trust: official
@@ -2261,18 +2261,21 @@ Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56802, -94.313
 ## Church of Saint Joseph
 ```yaml
 id: church-jospehs-st
+aka: ["St. Joseph Catholic Church", "Saint Joseph Catholic Church"]
 status: active
-tier: listed
+tier: watched
 category: amenity=place_of_worship
 added_by: agent:discover
+address: "12 W Minnesota St"
+phone: "+13203637505"
 sources:
-  - url: TODO
+  - url: https://church-of-st-joseph-470993.churchcenter.com/calendar?view=list
     kind: website
-    method: submission
+    method: fetch
     trust: official
 at: [45.56417, -94.31874]
 ```
-Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56410, -94.31887. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56410, -94.31887. Discovery found no URL, and town-verify's row "St. Joseph Catholic Church" (churchstjoseph.org) never matched this name, so it sat `listed` with a TODO; only its Facebook page was read (weekly). churchstjoseph.org now forwards to Benedictine Catholic Communities, the parish group it shares with St John the Baptist; its page is https://www.benedictinecatholiccommunities.org/saint-joseph. Its calendar is on Church Center (Planning Center), built by JavaScript, so it is read through Firecrawl (`run.py` `JS_HOSTS`): Masses, Adoration, groups, choirs, youth nights, socials. The group's own Calendar and Bulletin pages hold only the embed and a bulletin link, so they are not watched. Watched since 2026-11-15 (Jesse: "yes we want it because they host live masses and are connected to many things").
 
 ## St. Cloud Area Chamber of Commerce
 ```yaml
@@ -2327,7 +2330,7 @@ tier: listed
 category: amenity=veterinary
 added_by: agent:discover
 sources:
-  - url: TODO
+  - url: http://www.cssjpvets.com
     kind: website
     method: submission
     trust: official
@@ -2343,7 +2346,7 @@ category: professional-services
 added_by: agent:discover
 address: "29643 Frontage Rd"
 sources:
-  - url: TODO
+  - url: http://www.stearnselectric.org/
     kind: website
     method: submission
     trust: official
@@ -2408,7 +2411,7 @@ category: amenity=fast_food
 added_by: agent:discover
 address: "211 County Road 75"
 sources:
-  - url: TODO
+  - url: https://locations.tacojohns.com/mn/st-joseph/211-county-rd-75-w/
     kind: website
     method: submission
     trust: official
@@ -2537,7 +2540,7 @@ tier: listed
 category: automotive
 added_by: agent:discover
 sources:
-  - url: TODO
+  - url: http://www.tiremaxx.com/
     kind: website
     method: submission
     trust: official
@@ -6071,7 +6074,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Named by its own website, https://www.simonson-lumber.com/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Named by its own website, https://www.simonson-lumber.com/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022). No Facebook page of its own (2026-11-15): Simonson Lumber's page, its parent's, came off the list (Apify could never read it; BP app watch-every-place 27).
 
 ## Mattressota
 ```yaml
@@ -6229,7 +6232,7 @@ sources:
     method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022). Listed again 2026-10-17 (Jesse): its one page was dgcoursereview.com's weekly disc golf calendar for the whole country, which Overture gave this company by mistake (category "park"), so nothing is read for it until its own site is known. It wrote no events.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022). Listed again 2026-10-17 (Jesse): its one page was dgcoursereview.com's weekly disc golf calendar for the whole country, which Overture gave this company by mistake (category "park"), so nothing is read for it until its own site is known. It wrote no events. Its social pages came off 2026-11-15: bnnorthtown is Barnes & Noble Northtown, not this place (BP app watch-every-place 27).
 
 ## Minnesota Association of Farm Mutual Insurance Companies
 ```yaml
@@ -7411,7 +7414,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 7 PM). Named by its own website, http://www.schwegelsllc.com/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 7 PM). Named by its own website, http://www.schwegelsllc.com/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022). No Facebook page (2026-11-15): its site's only Facebook link is its WordPress theme's default, facebook.com/WordPresscom; none found by search (BP app watch-every-place 27).
 
 ## Scott Investigation
 ```yaml
@@ -8815,12 +8818,12 @@ phone: "+13203638825"
 aka: ["St. Joseph Town Hall"]
 added_by: agent:town-verify
 sources:
-  - url: https://www.sjct.org
+  - url: https://stjosephtownship.org/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 4:30 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 4:30 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted. Website fixed 2026-11-15: sjct.org (and its Facebook page) is St. Joseph Charter Township, Michigan; this township's own site is stjosephtownship.org, which links no social page (BP app watch-every-place 27).
 
 ## US Army Reserve Training
 ```yaml
@@ -9115,6 +9118,7 @@ Notes: Proposed on 2026-10-18 for BP app place-photos 04 (a picture for every ev
 ## Scheels Athletic Complex
 ```yaml
 id: scheels-athletic-complex
+venue_only: true
 venues: ["Bernick's Arena, Sartell", "RDR Arena, Sartell"]
 status: proposed
 tier: listed
@@ -9136,6 +9140,7 @@ Notes: Proposed on 2026-10-18 for BP app place-photos 04 (a picture for every ev
 ## Municipal Athletic Complex
 ```yaml
 id: municipal-athletic-complex
+venue_only: true
 status: proposed
 tier: listed
 category: "sports_complex"
