@@ -179,20 +179,27 @@ def candidates(db, today):
 
 def more_times(event, pages):
     """The free check, no model and no paid read: whether the Event's passages state a clock time besides its own start
-    and end. "4 – 8 PM" alone is the Event itself; "Santa arrives 4:30 PM" is a part to look for."""
-    said = set().union(*(times_in(p["text"]) for p in pages)) if pages else set()
+    and end. "4 – 8 PM" alone is the Event itself; "Santa arrives 4:30 PM" is a part to look for. Its own page (or the
+    host's words saved for it) counts whole; another page only near a line naming the Event, so a shop's hours or the
+    next Event on a host's calendar don't send it to the helpers (Jesse, 2026-11-15: 35 passes a morning became 21)."""
+    said = set()
+    for p in pages or []:
+        said |= times_in(p["text"] if p.get("url") == event.get("source_url") else naming(p["text"], event["title"]))
     return bool(said - {event["starts"].time(), event["ends"].time()})
 
 
-def passages(text, title):
-    """A short page whole; a long one only the lines naming the Event (two of its title's words) and AROUND either side."""
-    if len(text) <= PAGE_CHARS:
-        return text
+def naming(text, title):
+    """Only the lines naming the Event (two of its title's words) and AROUND either side."""
     want = words(title)
     lines = text.splitlines()
     near = {j for i, ln in enumerate(lines) if len(want & words(ln)) >= min(2, len(want))
             for j in range(i - AROUND, i + AROUND + 1)}
-    return "\n".join(lines[i] for i in sorted(near) if 0 <= i < len(lines))[:PAGE_CHARS]
+    return "\n".join(lines[i] for i in sorted(near) if 0 <= i < len(lines))
+
+
+def passages(text, title):
+    """A short page whole; a long one only the lines naming the Event and AROUND either side."""
+    return text if len(text) <= PAGE_CHARS else naming(text, title)[:PAGE_CHARS]
 
 
 def no_firecrawl(url, fmt="markdown"):
@@ -525,13 +532,19 @@ def selftest():
              "event_mentions": said, "sources": [{"entry_id": "joetown", "url": "https://www.instagram.com/joetown/"},
                                                  {"entry_id": "hall", "url": "https://hall.example/"}]}
     sites = {"https://church.example/concert": "Choir Concert, Friday Nov. 13, 4 – 8 PM",
-             "https://hall.example/fair": "Craft Fair Nov. 12, 4-8 PM", "https://hall.example/": "Bingo Nov. 12 at 6 PM"}
+             "https://hall.example/fair": "Craft Fair Nov. 12, 4-8 PM", "https://hall.example/": "Craft Fair Nov. 12, 4-8 PM\nBingo Nov. 12 at 6 PM"}
     asked = []
     fetch = lambda url: asked.append(url) or sites[url]
-    ok(more_times(dict(walk, starts=datetime(2026, 11, 13, 16), ends=datetime(2026, 11, 13, 20)), [{"text": words}])
+    ok(more_times(dict(walk, starts=datetime(2026, 11, 13, 16), ends=datetime(2026, 11, 13, 20)),
+                  [{"url": walk["source_url"], "text": words}])
        and not more_times(dict(walk, starts=datetime(2026, 11, 13, 16), ends=datetime(2026, 11, 13, 20)),
                           [{"text": sites["https://church.example/concert"]}]),
        "a 4-hour Event with 'Santa arrives 4:30 PM, tree lighting 7 PM' passes the check; '4 – 8 PM' alone does not")
+    late_walk = dict(walk, starts=datetime(2026, 11, 13, 16), ends=datetime(2026, 11, 13, 20))
+    shop = "Open 10 AM - 6 PM daily\n\n\n\n\n\nWinterWalk Friday 4 - 8 PM"
+    ok(not more_times(late_walk, [{"url": "https://shop.example/", "text": shop}])
+       and more_times(late_walk, [{"url": "https://shop.example/", "text": shop + "\nWinterWalk carolers 5:30 PM"}]),
+       "on another page only a time near the Event's name counts: the shop's hours don't, its carolers line does")
     with tempfile.TemporaryDirectory() as tmp:
         folder = Path(tmp) / "morning"
         r = Run(folder, today, FakeDb(answers=small))
