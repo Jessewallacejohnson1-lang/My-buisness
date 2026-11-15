@@ -2644,6 +2644,14 @@ test("following a school lifts the games its activities play under another team'
   await signIn(ME);
   assert.deepEqual((await why('2026-10-08 12:00'))['Kennedy Girls Basketball vs Sartell'],
                    ['follow', 'Kennedy Girls Basketball 6-8'], 'a starred activity names itself before its school');
+  // Two schools followed that share a game: the school the game names, before the one playing under its name.
+  await follow(ME, 'team', 'apollo');
+  await signIn(ME);
+  assert.deepEqual(await why('2026-10-08 12:00'), {
+    'Apollo Girls Tennis vs Sartell': ['follow', 'Apollo'],
+    'St. Cloud Wrestling vs Sartell': ['follow', 'Apollo'],
+    'Kennedy Girls Basketball vs Sartell': ['follow', 'Kennedy Girls Basketball 6-8'],
+    'Apollo Football vs Sartell': ['follow', 'Apollo'] });
 });
 
 // The follow check's speed (town-feed 67). Live, a neighbour who followed a whole school had activity_has_event
