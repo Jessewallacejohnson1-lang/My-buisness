@@ -167,6 +167,37 @@ test("a campus calendar is a page: a follow round-trips, it lists its own Events
   assert.equal((await db.query(`select count(*)::int n from public.town_pages where kind = 'College'`)).rows[0].n, 5);
 });
 
+// An Event page names who its Town card names (BP app inside-cards 32): the source's page, else the place its name
+// finds, before the venue; the venue only when the source has neither.
+test("an Event page names the host its card names, not the venue it is held at", async () => {
+  await reset();
+  const [VENUE, POSTER] = ['00000000-0000-0000-0000-000000000901', '00000000-0000-0000-0000-000000000902'];
+  await db.exec(`delete from public.places where entry_id in ('test-venue', 'test-poster');
+    delete from public.host_entries where name in ('Test Poster', 'Unknown Club')`);
+  await db.query(`insert into public.places (id, name, lat, lon, family, primary_type, entry_id) values
+                  ($1, 'The Venue', 45.5, -94.3, 'food', 'bar', 'test-venue'),
+                  ($2, 'Test Poster', 45.5, -94.3, 'food', 'cafe', 'test-poster')`, [VENUE, POSTER]);
+  await db.exec(`insert into public.host_entries (name, entry_id) values ('Test Poster', 'test-poster'),
+                                                                         ('Unknown Club', 'no-such-place')`);
+  const at = async (source) => {
+    const id = await event('Night out', source, 2);
+    await db.query(`update public.club_events set place_entry_id = 'test-venue' where id = $1`, [id]);
+    return (await as(CAL, 'select target_type, name from public.event_host($1)', [id]))[0];
+  };
+  assert.deepEqual(await at('CSB SJU Libraries'), { target_type: 'page', name: 'CSB SJU Libraries' }, 'its page');
+  assert.deepEqual(await at('Test Poster'), { target_type: 'place', name: 'Test Poster' }, 'the place its name finds');
+  assert.deepEqual(await at('Unknown Club'), { target_type: 'place', name: 'The Venue' }, 'neither: the venue');
+  assert.deepEqual(await at('City of St. Joseph'), { target_type: 'page', name: 'City of St. Joseph' }, 'the City');
+  await db.query(`insert into public.places (id, name, lat, lon, family, primary_type, entry_id) values
+                  ('00000000-0000-0000-0000-000000000903', 'A City Place', 45.5, -94.3, 'food', 'city_hall', 'city-of-st-joseph')
+                  on conflict do nothing`);
+  assert.deepEqual(await at('JoeTown'), { target_type: 'page', name: 'Joetown' },
+                   'a page beats the place its name finds, whatever the names');
+  await db.exec(`delete from public.places where id = '00000000-0000-0000-0000-000000000903'`);
+  await db.exec(`delete from public.places where entry_id in ('test-venue', 'test-poster');
+    delete from public.host_entries where name in ('Test Poster', 'Unknown Club')`);
+});
+
 // Every door to the Event page carries its card (BP app inside-cards 27): a Town page's Events and a board's meetings
 // each send the Event card, so a page opened from one shows your heart and its count before any other read, even for
 // an Event outside the Town feed's window. The row's own keys stay for apps from before it.
