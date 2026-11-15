@@ -50,6 +50,13 @@ final class RefreshLoopTests: XCTestCase {
         XCTAssertNil(LoopRide.stroke(from: .tab, since: 1.0 + LoopRide.fade, endsAfter: 1.0))
     }
 
+    func testTheLoopSitsMidGapThenPinsUnderTheBar() {
+        XCTAssertEqual(LoopRide.rise(gap: 40), -20)
+        XCTAssertEqual(LoopRide.rise(gap: LoopRide.tabGap), -LoopRide.tabGap / 2)
+        // Pulled further, it stays half a held gap under the bar.
+        XCTAssertEqual(LoopRide.rise(gap: 160), -(160 - LoopRide.tabGap / 2))
+    }
+
     func testAtLeastOneLap() {
         XCTAssertEqual(LoopRide.rest(afterReading: 0.3), LoopRide.lap - 0.3, accuracy: 0.0001)
         XCTAssertEqual(LoopRide.rest(afterReading: 2.6), 0)

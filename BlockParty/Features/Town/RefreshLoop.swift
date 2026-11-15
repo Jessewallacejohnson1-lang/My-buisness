@@ -29,8 +29,10 @@ enum LoopRide {
     static let lap: Double = 1.2
     /// Speed over the top as a share of speed through the bottom.
     static let topSpeedShare = 0.32
-    /// The pull at which the line reaches the top: where `.refreshable` starts the read.
-    static let triggerPoints: CGFloat = 80
+    /// The pull at which the line reaches the top: where `.refreshable` starts the read. Measured
+    /// on iOS 26.5: Apple's swirl fills its last spoke between 149 and 171 pt of pull (refresh-coaster
+    /// before frames 503–510).
+    static let triggerPoints: CGFloat = 160
     static let fade: Double = 0.3
     /// The gap a Town tab tap opens: the one `.refreshable` holds during a pull's read.
     static let tabGap: CGFloat = 64
@@ -100,6 +102,9 @@ enum LoopRide {
         return Stroke(head: head, length: length, opacity: opacity)
     }
 
+    /// How far above the first card the loop's centre sits, for a gap of `gap` points over it.
+    static func rise(gap: CGFloat) -> CGFloat { -(gap - min(gap, tabGap) / 2) }
+
     /// What is left of the one lap the line always rides, after a read took `seconds`.
     static func rest(afterReading seconds: Double) -> Double { max(0, lap - seconds) }
 }
@@ -138,8 +143,10 @@ struct RefreshLoop: View {
             }
         }
         .frame(width: side, height: side)
-        // Centred in the gap the pull (or the tab tap) opens above the first card.
-        .offset(y: -max(pull.points, tabGap) / 2)
+        // Centred in the gap until the gap passes the one a read holds open, then pinned under the
+        // bar there, as Apple's swirl is.
+        .offset(y: LoopRide.rise(gap: max(pull.points, tabGap)))
+        .background(SwirlHider(pulling: pull.points > 0))
         .frame(height: 0)
         // Kept in the tree, as a paused timeline keeps its last frame (swift-traps.md).
         .opacity(live ? 1 : 0)
@@ -178,5 +185,34 @@ struct RefreshLoop: View {
             return .init(head: pulled.head * 2, length: pulled.length * 2, opacity: pulled.opacity)
         }
         return LoopRide.stroke(pull: pull.points)
+    }
+}
+
+/// Apple's swirl, hidden. `.tint(.clear)` on the feed doesn't reach the `UIRefreshControl` that
+/// `.refreshable` puts in the scroll view (iOS 26.5: the grey swirl showed over the gap, refresh-coaster
+/// before frames 470–530), so this finds that scroll view and clears the control's tint, again each
+/// time a pull starts in case SwiftUI set it back. DECISIONS.md: the one reach into the feed's UIKit.
+private struct SwirlHider: UIViewRepresentable {
+    var pulling: Bool
+
+    func makeUIView(context: Context) -> Probe { Probe() }
+    func updateUIView(_ probe: Probe, context: Context) { probe.clearSwirl() }
+
+    final class Probe: UIView {
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            clearSwirl()
+        }
+
+        func clearSwirl() {
+            var view = superview
+            while let current = view {
+                if let scroll = current as? UIScrollView, let control = scroll.refreshControl {
+                    control.tintColor = .clear
+                    return
+                }
+                view = current.superview
+            }
+        }
     }
 }
