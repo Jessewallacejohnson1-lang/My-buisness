@@ -62,6 +62,70 @@ enum YouMetric {
     /// it, https://claude.ai/artifact/VdKZpF5NX8n4hdLVpKAY6J), faded under the ink number. The fade is picked.
     static let dayLogo: CGFloat = 38
     static let dayLogoOpacity: Double = 0.45
+    /// The fold's handle, Structured's measured 50 x 5 (BP app `references/profile-middle/SPEC.md`,
+    /// "The folded Calendar"), centred in `calendarToLabel`'s 26 pt so it adds no height. The width it
+    /// takes a touch across is picked.
+    static let handleWidth: CGFloat = 50
+    static let handleHeight: CGFloat = 5
+    static let handleTouchWidth: CGFloat = 120
+    /// How far below the folded row the fold still draws: today's dot (7 pt down) and the plans count
+    /// (2 pt down) show, the next week's top (11.7 pt down) doesn't.
+    static let foldSpill: CGFloat = 9
+    /// Reduce Motion's fold: the three weeks fade in or out (ticket 14).
+    static let foldFade: Double = 0.15
+}
+
+/// You's Calendar folded to one week (BP app you-tab 14): 0 is the picked day's week alone, 1 the
+/// three weeks. Between the two the window grows from the folded row while the rows above it slide
+/// down into place, so the picked week never jumps.
+enum CalendarFold {
+    static let pitch = YouMetric.day + YouMetric.rowGap
+    /// The height folding takes off: the two other weeks' rows.
+    static let travel = pitch * CGFloat(YouCalendar.length / 7 - 1)
+
+    /// Which week of the three a day's index falls in; the first when it's off them.
+    static func row(of index: Int?) -> Int { (index ?? 0) / 7 }
+
+    static func height(openness: CGFloat) -> CGFloat { YouMetric.day + travel * openness }
+
+    static func offset(openness: CGFloat, row: CGFloat) -> CGFloat { -row * pitch * (1 - openness) }
+
+    /// Where a pull of `pulled` points (down opens) takes a fold that was at `start`.
+    static func openness(from start: CGFloat, pulled: CGFloat) -> CGFloat {
+        min(1, max(0, start + pulled / travel))
+    }
+
+    /// Whether a let-go settles open: the nearer end to where the flick would carry it.
+    static func settlesOpen(from start: CGFloat, flung: CGFloat) -> Bool {
+        start + flung / travel >= 0.5
+    }
+}
+
+/// The fold as it is drawn this frame, which the fold's spring moves between the two ends. A pull
+/// that catches it mid-spring starts from here, not from the end it was heading to.
+final class FoldShown {
+    var openness: CGFloat = 0
+}
+
+/// Draws the fold: the window's height and the roll that keeps the picked week in it. Animatable, so
+/// the page under it moves with every frame.
+private struct FoldWindow: ViewModifier, Animatable {
+    var openness: CGFloat
+    var row: CGFloat
+    let shown: FoldShown
+
+    var animatableData: AnimatablePair<CGFloat, CGFloat> {
+        get { AnimatablePair(openness, row) }
+        set { openness = newValue.first; row = newValue.second }
+    }
+
+    func body(content: Content) -> some View {
+        shown.openness = openness
+        return content
+            .offset(y: CalendarFold.offset(openness: openness, row: row))
+            .frame(height: CalendarFold.height(openness: openness), alignment: .top)
+            .mask(alignment: .top) { Rectangle().padding(.bottom, -YouMetric.foldSpill) }
+    }
 }
 
 struct YouPage: View {
@@ -78,6 +142,13 @@ struct YouPage: View {
     /// The day the Agenda shows; nil is today.
     @State private var picked: Date?
     @Namespace private var ring
+    /// The Calendar's fold (ticket 14): 0 one week, 1 three. Folded on every open of the app.
+    @State private var openness: CGFloat = 0
+    @State private var shown = FoldShown()
+    /// Where a pull on the handle started; nil while nothing pulls.
+    @State private var pullStart: CGFloat?
+    /// Reduce Motion's fold: the three weeks fade in rather than move.
+    @State private var foldFaded = false
 
     var body: some View {
         TimelineView(.everyMinute) { context in
@@ -111,9 +182,9 @@ struct YouPage: View {
         VStack(spacing: 0) {
             calendar(days: days, today: today, day: day, going: going ?? [])
                 .padding(.top, YouMetric.calendarTop)
+            foldHandle
             // A working word; Jesse writes the final one.
             DailySectionLabel(title: "Agenda", ink: Hue.ink)
-                .padding(.top, YouMetric.calendarToLabel)
             // A tapped day's cards come in at once; only the ring travels (`calendar`),
             // so two days' cards never show over each other mid-fade.
             agenda(going: going, days: days, today: today, day: day, now: now)
@@ -156,10 +227,14 @@ struct YouPage: View {
                 .padding(.horizontal, -YouMetric.ruleOutset)
                 .padding(.top, YouMetric.weekdayToRule)
             let byDay = YouCalendar.byDay(going)
+            let row = CalendarFold.row(of: days.firstIndex(of: day))
+            // Folded and at rest, the other weeks take no tap and VoiceOver skips them.
+            let folded = openness == 0 && pullStart == nil
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 0), count: 7),
                       spacing: YouMetric.rowGap) {
-                ForEach(days, id: \.self) { date in
+                ForEach(Array(days.enumerated()), id: \.element) { index, date in
                     let events = byDay[date] ?? []
+                    let away = folded && CalendarFold.row(of: index) != row
                     Button { pick(date, from: day) } label: {
                         YouDay(date: date, month: YouCalendar.month(on: date, first: days.first),
                                events: events, isToday: date == today,
@@ -169,13 +244,79 @@ struct YouPage: View {
                     .buttonStyle(.press(.squish))
                     .accessibilityLabel(Self.spoken(date, plans: events.count, today: date == today))
                     .accessibilityAddTraits(date == day ? .isSelected : [])
+                    .allowsHitTesting(!away)
+                    .accessibilityHidden(away)
                 }
             }
-            .padding(.top, YouMetric.ruleToDays)
             // The ring travels to the picked day; nothing outside the grid animates.
             .animation(reduceMotion ? nil : Motion.select, value: day)
+            .opacity(foldFaded ? 0 : 1)
+            .modifier(FoldWindow(openness: openness, row: CGFloat(row), shown: shown))
+            // Folded, the row rolls to the week the Agenda swipes into.
+            .animation(reduceMotion ? nil : Motion.smooth, value: row)
+            .padding(.top, YouMetric.ruleToDays)
         }
         .padding(.horizontal, YouMetric.calendarSide)
+    }
+
+    // MARK: The fold
+
+    /// Structured's handle under the Calendar (ticket 14): a tap opens or folds the three weeks, a
+    /// pull follows the finger both ways and settles on the nearer end, and either can catch the
+    /// fold mid-spring. Only a touch that starts on it pulls; the page scrolls from everywhere else.
+    private var foldHandle: some View {
+        let open = openness >= 0.5
+        return Capsule()
+            .fill(Hue.edge)
+            .frame(width: YouMetric.handleWidth, height: YouMetric.handleHeight)
+            .frame(width: YouMetric.handleTouchWidth, height: YouMetric.calendarToLabel)
+            .contentShape(Rectangle())
+            .onTapGesture { settle(open: !open, from: openness) }
+            .gesture(
+                DragGesture(minimumDistance: 4)
+                    .onChanged { drag in
+                        // Caught mid-spring, it carries on from where it is drawn.
+                        let start = pullStart ?? shown.openness
+                        pullStart = start
+                        var still = Transaction()
+                        still.disablesAnimations = true
+                        withTransaction(still) {
+                            openness = CalendarFold.openness(from: start, pulled: drag.translation.height)
+                        }
+                    }
+                    .onEnded { drag in
+                        let start = pullStart ?? openness
+                        pullStart = nil
+                        settle(open: CalendarFold.settlesOpen(from: start, flung: drag.predictedEndTranslation.height),
+                               from: start, pulled: true)
+                    }
+            )
+            .accessibilityElement()
+            .accessibilityLabel(open ? "Show one week" : "Show three weeks")
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction { settle(open: !open, from: openness) }
+    }
+
+    /// Takes the fold to one end on `Motion.smooth`, from wherever it is drawn. With Reduce Motion a
+    /// tap fades the three weeks in or out instead, and a pull, which followed the finger, lands.
+    private func settle(open: Bool, from start: CGFloat, pulled: Bool = false) {
+        let target: CGFloat = open ? 1 : 0
+        // A tick when it changes ends, as a day's pick ticks; a pull let go where it began doesn't.
+        if (start >= 0.5) != open { Haptics.selection() }
+        guard reduceMotion else {
+            withAnimation(Motion.smooth) { openness = target }
+            return
+        }
+        var still = Transaction()
+        still.disablesAnimations = true
+        withTransaction(still) {
+            openness = target
+            foldFaded = !pulled
+        }
+        guard !pulled else { return }
+        DispatchQueue.main.async {
+            withAnimation(.easeInOut(duration: YouMetric.foldFade)) { foldFaded = false }
+        }
     }
 
     /// "Today, Tuesday, October 13, 2 plans". Working words; Jesse writes the final ones.
