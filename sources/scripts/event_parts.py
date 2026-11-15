@@ -97,16 +97,19 @@ def stated(answer, event):
     return day, start, end if end in said and end > start else None
 
 
-def same_as(event, starts, existing):
+def same_as(event, starts, existing, quote=""):
     """The id of an Event already listed on the part's day, at its start and place, else None: that Event stays, and
     the part points at it rather than making a double (Jesse, 2026-11-05). No place on either side counts as the
-    Event's own."""
-    here = words(event.get("location"), PLACE_STOP)
+    Event's own. A festival's part is often somewhere else than the festival ("Downtown"), so the part's place is also
+    the one its host's words name: words naming most of the listed Event's title and its place count too ("Tree
+    Lighting at 7 pm on the Church of Saint Joseph lawn" is WinterWalk Tree Lighting there)."""
+    here, said = words(event.get("location"), PLACE_STOP), words(quote)
     for e in existing:
-        there = words(e.get("location"), PLACE_STOP)
+        there, named = words(e.get("location"), PLACE_STOP), words(e.get("title"))
         if (str(e.get("event_date"))[:10] == starts.date().isoformat() and parse_clock(e.get("start_time")) == starts.time()
                 and (not (here and there) or same_place(here, there)
-                     or bool(e.get("place_entry_id")) and e.get("place_entry_id") == event.get("place_entry_id"))):
+                     or bool(e.get("place_entry_id")) and e.get("place_entry_id") == event.get("place_entry_id")
+                     or bool(named) and len(named & said) / len(named) > 0.5 and same_place(there, said))):
             return e["id"]
     return None
 
@@ -138,7 +141,7 @@ def judge(event, a, b, existing=()):
                      "starts_at": starts.replace(tzinfo=LOCAL).isoformat(),
                      "ends_at": datetime.combine(day, end).replace(tzinfo=LOCAL).isoformat() if end and end == other_end else None,
                      "source_url": x.get("page") or "", "source_line": str(x.get("quote")).strip(),
-                     "same_as": same_as(event, starts, existing)})
+                     "same_as": same_as(event, starts, existing, x.get("quote"))})
     return kept, left
 
 
@@ -328,7 +331,7 @@ def kept_lines(run_, dry_run):
     put, left = [], []
     for key, e in events.items():
         e = {**e, "starts": datetime.fromisoformat(e["starts"]), "ends": datetime.fromisoformat(e["ends"])}
-        listed = run_.db.rest("GET", f"club_events?select=id,event_date,start_time,location,place_entry_id&status=eq.approved"
+        listed = run_.db.rest("GET", f"club_events?select=id,event_date,start_time,location,place_entry_id,title&status=eq.approved"
                                      f"&event_date=gte.{e['starts'].date()}&event_date=lte.{e['ends'].date()}"
                                      f"&id=neq.{e['id']}") or []
         a, b = readings[0].get(key, []), readings[1].get(key, [])
@@ -409,6 +412,19 @@ def selftest():
     ok(judge(show, [talk], [talk], [elsewhere])[0][0]["same_as"] is None, "an Event at another place is another thing")
     ok(judge(show, [talk], [talk], [dict(gallery_talk, start_time="7 PM")])[0][0]["same_as"] is None,
        "an Event at another start is another thing")
+    festival = dict(show, id="w1", title="JoeTown WinterWalk Festival", starts=datetime(2026, 12, 4, 16),
+                    ends=datetime(2026, 12, 4, 20), location="Downtown", place_entry_id=None)
+    lighting = part("Tree Lighting", "2026-12-04", "7 PM", "Tree Lighting at 7 pm on the Church of Saint Joseph lawn")
+    harp = part("Harp Ensemble", "2026-12-04", "7 PM",
+                "Harp Ensemble, 7 pm at Art & Heritage Place (Whitby Gift Shop), Saint Benedict's Monastery")
+    listed = [{"id": "t1", "title": "WinterWalk Tree Lighting", "event_date": "2026-12-04", "start_time": "7 PM",
+               "location": "Church of St. Joseph lawn", "place_entry_id": "church"},
+              {"id": "r1", "title": "Advent Centering Prayer Retreat", "event_date": "2026-12-04", "start_time": "7 PM",
+               "location": "Saint Benedict's Monastery", "place_entry_id": "sbm"}]
+    kept, _ = judge(festival, [lighting, harp], [lighting, harp], listed)
+    ok([(k["title"], k["same_as"]) for k in kept] == [("Tree Lighting", "t1"), ("Harp Ensemble", None)],
+       f"a festival's part the host's words name as an Event already listed, title and place, points at it, though the "
+       f"festival is 'Downtown'; one at the same start and another Event's place is still a part: {kept}")
 
     # prepare and keep, as the morning runs them
     import io
