@@ -82,11 +82,13 @@ final class SmallListsCountdownTests: XCTestCase {
 
     /// Search's part of the day row, and its Event rows, worked out at the minute they're drawn.
     func testSearchCountsDown() {
-        let model = SearchModel(supabase: SupabaseClientFactory.preview, defaults: UserDefaults(suiteName: #function)!)
+        let defaults = UserDefaults(suiteName: "SmallListsCountdownTests")!
+        defaults.removePersistentDomain(forName: "SmallListsCountdownTests")
+        let model = SearchModel(supabase: Supabase(auth: FakeTokenProvider(), send: FakeServer().send), defaults: defaults)
         model.show(events: [card()], now: at(12))
         XCTAssertEqual(model.happening(at: at(18, 40)).first?.sub, "In 20 min")
         XCTAssertEqual(model.happening(at: at(19)).first?.sub, "Now")
-        let row = try? XCTUnwrap(model.row(.event).first)
+        let row = model.row(.event).first
         XCTAssertEqual(plain(row?.line(at(12))), "7 PM")
         XCTAssertEqual(row?.line(at(18, 40)), "In 20 min", "the row loaded at noon still counts down")
         XCTAssertEqual(row?.line(at(19)), "Now")
