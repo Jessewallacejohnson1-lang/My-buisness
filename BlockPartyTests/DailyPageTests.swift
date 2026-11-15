@@ -595,23 +595,26 @@ final class DailyPageTests: XCTestCase {
                     entry(dayCard("Trivia", day: "2026-10-22", at: "7 PM")),
                     story("milk", "Cider pour", interest: "bars")]
         func titles(_ interests: [String]) -> [String] {
-            DailyForYou.picks(from: feed, days: week, interests: interests, shown: [], left: { _ in true }).map(\.id)
+            DailyForYou.picks(from: feed, days: week, interests: interests, shown: [], now: dayStart).map(\.id)
         }
         XCTAssertEqual(titles([]), ["Trivia", "Book fair", "zoo", "Book club", "Latte art", "milk"])
         XCTAssertEqual(titles(["coffee", "bars"]), ["Trivia", "Book fair", "zoo", "Latte art", "Book club", "milk"])
     }
 
-    /// Nothing the page shows above, nothing past the week or called off, nothing you're Going to or hearted.
+    /// Nothing the page shows above, nothing past the week, called off or already left (the feed holds its
+    /// list while Town is scrolled down); what you're Going to stays, as on Town, so Attend answers in place.
     @MainActor
     func testForYouLeavesOutWhatThePageShowsAndWhatsOutOfTheWeek() {
         let week = DailyWeek.days(from: dayStart).map(\.id)
         var off = dayCard("Called off", day: "2026-10-23", at: "6 PM")
         off.cancelled = true
         let feed = [entry(dayCard("Shown", day: "2026-10-22", at: "7 PM")), entry(dayCard("Next week", day: "2026-10-29", at: "7 PM")),
-                    entry(off), entry(dayCard("Going", day: "2026-10-23", at: "7 PM")),
+                    entry(off), TownFeedEntry(card: dayCard("Over", day: "2026-10-22", at: "6 AM"), leavesAt: dayStart),
+                    entry(dayCard("Going", day: "2026-10-23", at: "7 PM")),
                     entry(dayCard("Kept", day: "2026-10-28", at: "7 PM")), story("n", "News")]
-        let picks = DailyForYou.picks(from: feed, days: week, interests: [], shown: ["Shown"], left: { $0.id != "Going" })
-        XCTAssertEqual(picks.map(\.id), ["Kept", "n"])
+        let picks = DailyForYou.picks(from: feed, days: week, interests: [], shown: ["Shown"],
+                                      now: dayStart.addingTimeInterval(8 * 3600))
+        XCTAssertEqual(picks.map(\.id), ["Going", "Kept", "n"])
     }
 
     /// For you is today's page's under Best of alone, and takes in Suggestions' row there: a topic, or

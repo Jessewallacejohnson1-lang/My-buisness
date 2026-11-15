@@ -266,7 +266,7 @@ struct DailyLists {
             ? DailyForYou.picks(from: feed, days: week.map(\.id), interests: interests,
                                 shown: Set((events + friendsGoing).map(\.id)).union(followed)
                                     .union(followingCards.map(\.entryID)),
-                                left: { !isGoing($0) && !isHearted($0) })
+                                now: clock)
             : []
         return DailyLists(events: events, friendsGoing: friendsGoing, suggestions: suggestions, following: following,
                           followingCards: followingCards, forYou: forYou)

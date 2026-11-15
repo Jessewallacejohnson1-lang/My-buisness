@@ -15,18 +15,19 @@ enum DailyForYou {
     static let interestLift = 2.0
 
     /// The Town feed's entries (`feed`, in its order) that For you shows: Events of `days` (today
-    /// and the six after it), the neighbours' posts and News, never one whose id is in `shown` (a
-    /// section above has it) nor an Event `left` turns down (Going to or hearted, as Suggestions).
+    /// and the six after it), the neighbours' posts and News, still on at `now` (the feed holds its
+    /// list while Town is scrolled down), never one whose id is in `shown` (a section above has it).
+    /// One you heart or go to stays, as on Town, so its heart and Attend answer under your finger.
     /// Today's Events come first, so For you today's row folds in at the top; then the rest, each
     /// at its place in the feed, lifted by `interestLift` when it shares one of your `interests`.
     static func picks(from feed: [TownFeedEntry], days: [String], interests: [String],
-                      shown: Set<String>, left: (FeedCardItem) -> Bool) -> [TownFeedEntry] {
+                      shown: Set<String>, now: Date) -> [TownFeedEntry] {
         let week = Set(days)
         let today = days.first
         let ranked = feed.enumerated().compactMap { place, entry -> (entry: TownFeedEntry, today: Bool, score: Double, place: Int)? in
-            guard !shown.contains(entry.id) else { return nil }
+            guard !shown.contains(entry.id), entry.leavesAt > now else { return nil }
             if let card = entry.card {
-                guard let day = card.eventDate, week.contains(day), !card.cancelled, left(card) else { return nil }
+                guard let day = card.eventDate, week.contains(day), !card.cancelled else { return nil }
             }
             let lift = shares(entry, interests) ? interestLift : 1
             return (entry, entry.card?.eventDate == today, lift / Double(place + 1), place)
