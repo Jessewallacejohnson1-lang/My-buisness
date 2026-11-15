@@ -51,8 +51,9 @@ town-feed 53). Then run `python3 sources/scripts/team_logos.py prepare`: it look
 wait on one, on a sheet in `.runs/morning/logos/` (game-card 17). Then run `python3 sources/scripts/venue_spots.py prepare`: it
 takes the place lines of upcoming Events that have no spot, at most 8, into `.runs/morning/venues/batch.txt` (BP app
 inside-cards 20; `skipped` or no batch: nothing to do). Then run `python3 sources/scripts/event_parts.py prepare`: it reads
-the pages of each Event running 12 hours or longer into `.runs/morning/parts/batch.txt` (BP app happening-now 03; `skipped`
-or no batch: nothing to do). Then start the helpers
+the pages of every Event in the next 7 days, and puts each whose pages state a time besides its own start and end, at most
+25, into `.runs/morning/parts/batch.txt` (BP app happening-now 03, event-schedule 01; `skipped` or no batch: nothing to do).
+Its `[parts]` line (candidates, passed, sent, left by the cap) reaches the report through finish. Then start the helpers
 together, at most 10 running at once:
 - for each `.runs/morning/tag/batch-N.txt`, one helper on the cheap model (Haiku) with: "Read
   `sources/models/tag.md` and follow it for the Events in `.runs/morning/tag/batch-N.txt`.
