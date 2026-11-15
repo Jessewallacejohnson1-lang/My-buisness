@@ -107,7 +107,7 @@ struct OnboardingProfile: View {
     }
 
     private var nameBox: some View {
-        TextField("Name", text: $store.name, prompt: Text("Your Name").foregroundStyle(Hue.inkSecondary))
+        TextField("Name", text: $store.name, prompt: Text("What Mom calls you").foregroundStyle(Hue.inkSecondary))
             .textContentType(.name)
             .textInputAutocapitalization(.words)
             .autocorrectionDisabled()
