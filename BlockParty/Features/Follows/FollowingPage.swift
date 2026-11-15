@@ -510,15 +510,12 @@ private struct EventHostLine: View {
         .background { if opens { pressButton(host) } }
     }
 
-    /// The host's logo on a white circle, as the mock draws it; a person's photo; else the first letter.
+    /// The host's logo as its Town card draws it, trimmed and fitted on a white disc in a white ring (BP app
+    /// inside-cards 31); a person's photo; else the first letter.
     @ViewBuilder private func hostPicture(_ host: FollowRow) -> some View {
         let size = EventLook.hostLogo
         if host.pictureKind == "logo", let url = host.picture.flatMap(URL.init) {
-            Circle()
-                .fill(.white)
-                .overlay { FeedCardURLPhoto(url: url, loadingFill: .white).padding(size * 0.16) }
-                .frame(width: size, height: size)
-                .clipShape(Circle())
+            HostMarkDisc(picture: PlacePicture(url: url, kind: .logo), name: host.name, size: size)
                 .accessibilityHidden(true)
         } else if host.targetType == .profile || host.picture != nil {
             FollowPicture(row: host, size: size)
