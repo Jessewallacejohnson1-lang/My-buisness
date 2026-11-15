@@ -586,8 +586,8 @@ final class HelloDropTests: XCTestCase {
         XCTAssertEqual(line("2026-10-21 09:00", town: [followed("Football", "7 PM", followed: "Gustavus Football",
                                                                  game: game())])?.text,
                        "Gusties vs Johnnies tonight at 7", "the side you follow, by its name")
-        XCTAssertEqual(line("2026-10-21 09:00", town: [followed("Football", "1 PM", followed: "Sauk Rapids", game: game())])?.text,
-                       "Johnnies vs Gusties today at 1", "a co-op's name: the local team")
+        XCTAssertEqual(line("2026-10-21 09:00", town: [followed("Football", "1 PM", followed: "Clemens Field", game: game())])?.text,
+                       "Football today at 1", "a game at a place you follow is that place's Event, not your team's")
         XCTAssertEqual(line("2026-10-21 13:30", town: [followed("Football", "1 PM", game: game())])?.text,
                        "Johnnies vs Gusties today", "on now: no time")
         XCTAssertEqual(line("2026-10-21 09:00", town: [followed("Football", "1 PM", followed: nil, game: game())])?.text,
@@ -622,9 +622,10 @@ final class HelloDropTests: XCTestCase {
     }
 
     func testGameDaySaysHello() {
-        func hello(_ now: String, lastSeen: String = "2026-10-20 20:00") -> String {
-            HelloDrop.hello(name: "Jesse", now: town(now), lastSeen: town(lastSeen), yesterday: nil, gameDay: true).text
+        func hello(_ now: String, lastSeen: String = "2026-10-20 20:00", yesterday: String? = nil) -> String {
+            HelloDrop.hello(name: "Jesse", now: town(now), lastSeen: town(lastSeen), yesterday: yesterday, gameDay: true).text
         }
+        XCTAssertEqual(hello("2026-10-21 08:00", yesterday: "Happy game day"), "Morning, Jesse", "never two days running")
         XCTAssertEqual(hello("2026-10-21 08:00"), "Happy game day, Jesse")
         XCTAssertEqual(hello("2026-10-25 08:00", lastSeen: "2026-10-24 20:00"), "Happy game day, Jesse", "beats Happy Sunday")
         XCTAssertEqual(hello("2026-10-31 08:00", lastSeen: "2026-10-30 20:00"), "Happy Halloween, Jesse")
@@ -635,6 +636,8 @@ final class HelloDropTests: XCTestCase {
         XCTAssertFalse(HelloDrop.gameDay(now: town("2026-10-21 08:00"), town: [followed("Football", "1 PM", followed: nil,
                                                                                          game: game())]))
         XCTAssertFalse(HelloDrop.gameDay(now: town("2026-10-21 08:00"), town: [followed("Trivia", "7 PM")]), "not a game")
+        XCTAssertFalse(HelloDrop.gameDay(now: town("2026-10-21 08:00"), town: [followed("Football", "1 PM", followed: "Clemens Field",
+                                                                                         game: game())]), "a place, not a team")
     }
 
     // MARK: A contact who joined (hello-drop 04)

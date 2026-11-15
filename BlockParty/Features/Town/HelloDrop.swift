@@ -84,7 +84,7 @@ enum HelloDrop {
         guard let lastSeen else { return said("Welcome to Block Party") }
         if now.timeIntervalSince(lastSeen) >= 3 * 86_400 { return said("Welcome back") }
         if let holiday = holiday(now, calendar: calendar) { return said(holiday) }
-        if gameDay { return said("Happy game day") }
+        if gameDay, yesterday != "Happy game day" { return said("Happy game day") }
         let weekday = calendar.component(.weekday, from: now)
         if weekday == 6 || weekday == 7 || weekday == 1 {
             return said("Happy \(Town.format(now, "EEEE"))")
@@ -155,11 +155,11 @@ enum HelloDrop {
         func at(_ event: DailyEvent) -> String {
             " \(when(event.starts))" + (event.timed && !event.isOn(now) ? " at \(clock(event.starts))" : "")
         }
-        if let event = followed.first(where: { $0.item.game != nil }), let game = event.item.game,
-           let (mine, other) = game.sides(followed: event.item.followed) {
+        if let (event, (mine, other)) = followed.lazy.compactMap({ event in
+            Self.sides(event).map { (event, $0) } }).first {
             return Message(text: "\(mine.called) vs \(other.called)\(at(event))", target: .event(event.item), logo: mine.logo)
         }
-        if let event = followed.first(where: { $0.item.game == nil }) {
+        if let event = followed.first(where: { Self.sides($0) == nil }) {
             let picture = HelloItem.Added.picture(event.item)
             return Message(text: "\(event.item.title)\(at(event))", target: .event(event.item), logo: picture?.url,
                            photo: picture?.photo ?? false)
@@ -208,8 +208,12 @@ enum HelloDrop {
 
     /// A team you follow plays today and hasn't finished: the hello says "Happy game day" (hello-drop 09).
     static func gameDay(now: Date, town: [DailyEvent]) -> Bool {
-        town.contains { $0.item.game != nil && $0.item.followed != nil && !$0.item.cancelled
-            && Town.day($0.starts) == Town.day(now) && $0.ends > now }
+        town.contains { sides($0) != nil && !$0.item.cancelled && Town.day($0.starts) == Town.day(now) && $0.ends > now }
+    }
+
+    /// A game of a team you follow: your side and theirs; nil for any other card.
+    private static func sides(_ event: DailyEvent) -> (mine: Game.Team, other: Game.Team)? {
+        event.item.game?.sides(followed: event.item.followed)
     }
 
     /// "4", "7:30": the hour alone, as the board words it ("Rocktoberfest is today at 4").

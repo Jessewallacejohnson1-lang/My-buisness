@@ -420,11 +420,12 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
         return sets.count - 1
     }
 
-    /// Your side and theirs, by what you follow ("Saint John's", "Cathedral Volleyball (girls)"
-    /// start with the team's short name), else the local team; nil without two teams (hello-drop 09).
+    /// Your side and theirs, by what you follow: a school or its activity starts with the team's short name
+    /// ("Saint John's", "Cathedral Volleyball (girls)"). nil when what you follow is the place or page it's
+    /// at, not a team in it (hello-drop 09).
     func sides(followed: String?) -> (mine: Team, other: Team)? {
-        guard teams.count == 2 else { return nil }
-        let mine = teams.firstIndex { followed?.hasPrefix($0.short) == true } ?? teams.firstIndex(where: \.local) ?? 0
+        guard teams.count == 2, let mine = teams.firstIndex(where: { followed?.hasPrefix($0.short) == true })
+        else { return nil }
         return (teams[mine], teams[1 - mine])
     }
 
