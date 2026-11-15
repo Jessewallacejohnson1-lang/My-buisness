@@ -109,6 +109,8 @@ struct TownView: View {
     /// A read the loop shows: at least one lap, however fast the read comes back. A pull's read holds
     /// its own gap open (`.refreshable`) while this runs; a tab tap's opens one here.
     private func read(from start: RefreshStart) async {
+        // One at a time: a tab tap during a pull's read (still at the top) would open a second gap.
+        guard refreshPull.reading == nil else { return }
         refreshPull.reading = start
         if start == .tab { withAnimation(reduceMotion ? nil : Motion.sheet) { refreshGap = LoopRide.heldGap } }
         let began = Date.now

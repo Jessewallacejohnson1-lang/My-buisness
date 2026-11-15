@@ -2,8 +2,8 @@
 //  RefreshLoop.swift
 //  Block Party — the Town feed's pull-to-refresh: one chunky ink line round one loop, with
 //  gravity (BP app town-feed 69; taste/town.md 2026-11-15). Apple's `.refreshable` still does the
-//  pull, the trigger and the gap it holds open; its swirl is hidden (`.tint(.clear)` on the feed)
-//  and this draws in that gap.
+//  pull, the trigger and the gap it holds open; its swirl is hidden (`SwirlHider`, below) and
+//  this draws in that gap.
 //
 
 import SwiftUI
