@@ -1085,7 +1085,7 @@ tier: listed
 category: amenity=arts_centre
 added_by: agent:discover
 sources:
-  - url: TODO
+  - url: https://www.csbsju.edu/fine-arts/venues/escher-auditorium
     kind: website
     method: submission
     trust: official
@@ -1229,7 +1229,7 @@ tier: listed
 category: amenity=restaurant
 added_by: agent:discover
 sources:
-  - url: TODO
+  - url: http://www.saintjosephchinaone.com
     kind: website
     method: submission
     trust: official
@@ -1276,7 +1276,7 @@ category: amenity=library
 added_by: agent:discover
 address: "37 College Ave S"
 sources:
-  - url: TODO
+  - url: http://www.csbsju.edu/library
     kind: website
     method: submission
     trust: official
@@ -1295,7 +1295,7 @@ tier: listed
 category: shop=supermarket
 added_by: agent:discover
 sources:
-  - url: TODO
+  - url: https://www.coborns.com/cob-home
     kind: website
     method: submission
     trust: official
@@ -1340,7 +1340,7 @@ tier: listed
 category: shop=florist
 added_by: agent:discover
 sources:
-  - url: TODO
+  - url: http://www.daisyadayfloral.com
     kind: website
     method: submission
     trust: official
@@ -1372,7 +1372,7 @@ category: office=financial_advisor
 added_by: agent:discover
 address: "24 W Birch Street"
 sources:
-  - url: TODO
+  - url: https://www.edwardjones.com/us-en/financial-advisor/beau-hanowski?y_source=1_MjU1MTUxOC00ODMtbG9jYXRpb24ud2Vic2l0ZQ%3D%3D
     kind: website
     method: submission
     trust: official
@@ -1431,7 +1431,7 @@ tier: listed
 category: amenity=fast_food
 added_by: agent:discover
 sources:
-  - url: TODO
+  - url: http://www.garyspizza.com/
     kind: website
     method: submission
     trust: official
@@ -1519,7 +1519,7 @@ tier: listed
 category: home-services
 added_by: agent:discover
 sources:
-  - url: TODO
+  - url: http://www.httitle.com/
     kind: website
     method: submission
     trust: official
@@ -1565,7 +1565,7 @@ category: shop=massage
 added_by: agent:discover
 address: "33 W Minnesota St"
 sources:
-  - url: TODO
+  - url: https://youniquewellnessllc.massagetherapy.com/
     kind: website
     method: submission
     trust: official
@@ -1636,7 +1636,7 @@ added_by: agent:discover
 address: "1000 Dale St E"
 at: [45.55884, -94.30395]
 sources:
-  - url: TODO
+  - url: http://www.cityofstjoseph.com/index.aspx?nid=112
     kind: website
     method: submission
     trust: official
@@ -1681,7 +1681,7 @@ tier: listed
 category: shop=hardware
 added_by: agent:discover
 sources:
-  - url: TODO
+  - url: http://www.acehardware.com/store-details/07221?utm_source=bing&utm_medium=local&utm_campaign=localmaps&utm_content=07221
     kind: website
     method: submission
     trust: official
@@ -1711,7 +1711,7 @@ tier: listed
 category: education-training
 added_by: agent:discover
 sources:
-  - url: TODO
+  - url: http://www.littlesaintsacademy.com/
     kind: website
     method: submission
     trust: official
@@ -1726,7 +1726,7 @@ tier: listed
 category: amenity=bank
 added_by: agent:discover
 sources:
-  - url: TODO
+  - url: https://mymagnifi.org/
     kind: website
     method: submission
     trust: official
@@ -2090,7 +2090,7 @@ tier: listed
 category: office=government
 added_by: agent:discover
 sources:
-  - url: TODO
+  - url: http://www.cityofstjoseph.com
     kind: website
     method: submission
     trust: official
@@ -2330,7 +2330,7 @@ tier: listed
 category: amenity=veterinary
 added_by: agent:discover
 sources:
-  - url: TODO
+  - url: http://www.cssjpvets.com
     kind: website
     method: submission
     trust: official
@@ -2346,7 +2346,7 @@ category: professional-services
 added_by: agent:discover
 address: "29643 Frontage Rd"
 sources:
-  - url: TODO
+  - url: http://www.stearnselectric.org/
     kind: website
     method: submission
     trust: official
@@ -2411,7 +2411,7 @@ category: amenity=fast_food
 added_by: agent:discover
 address: "211 County Road 75"
 sources:
-  - url: TODO
+  - url: https://locations.tacojohns.com/mn/st-joseph/211-county-rd-75-w/
     kind: website
     method: submission
     trust: official
@@ -2540,7 +2540,7 @@ tier: listed
 category: automotive
 added_by: agent:discover
 sources:
-  - url: TODO
+  - url: http://www.tiremaxx.com/
     kind: website
     method: submission
     trust: official
