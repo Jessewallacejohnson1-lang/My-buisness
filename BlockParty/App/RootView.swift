@@ -670,7 +670,6 @@ struct MainTabsView: View {
     /// What New post's Event shared: the pill says it at once, and Town reads again so it's there.
     private func shared(_ posted: HelloItem.Posted) {
         HelloInbox.shared.add(.posted(posted))
-        Task { await HelloInbox.shared.freshen() }
         Task { await townFeed.reload() }
     }
 
