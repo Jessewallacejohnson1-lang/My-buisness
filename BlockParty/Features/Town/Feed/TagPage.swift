@@ -28,9 +28,18 @@ struct TagPage: View {
             Hue.paper.ignoresSafeArea()
             ScrollView {
                 LazyVStack(spacing: 0) {
-                    ForEach(shown, id: \.id) { FeedPostCard(post: $0) }
+                    ForEach(shown, id: \.id) { post in
+                        // Not interested or Report folds the post into the Town feed's Undo line, then away.
+                        if let feed, let hide = feed.hides.undo, hide.id == post.id {
+                            FeedUndoLine(hide: hide, feed: feed)
+                        } else {
+                            FeedPostCard(post: post)
+                        }
+                    }
                 }
                 .padding(.top, PageMetric.bar + 8)
+                .animation(Motion.sheet, value: feed?.hides.undo)
+                .animation(Motion.sheet, value: feed?.hides.hiddenIDs)
             }
             // Pull to read again; also the way to retry a failed read.
             .refreshable { await read() }

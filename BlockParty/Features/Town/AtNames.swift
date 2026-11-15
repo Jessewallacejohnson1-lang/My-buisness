@@ -87,7 +87,7 @@ nonisolated enum PostWords {
         let target: Target
     }
 
-    /// Instagram's: a `#` at the start or after a space, then letters, numbers or `_`, with a letter among them.
+    /// Instagram's: a `#` at the start or after a space, then up to 100 letters, numbers or `_`, with a letter among them.
     static func tags(_ words: String) -> [Link] {
         var out: [Link] = []
         var i = words.startIndex
@@ -96,7 +96,8 @@ nonisolated enum PostWords {
             while end < words.endIndex, words[end].isLetter || words[end].isNumber || words[end] == "_" { end = words.index(after: end) }
             let word = words[words.index(after: hash)..<end]
             let starts = hash == words.startIndex || words[words.index(before: hash)].isWhitespace
-            if starts, word.contains(where: \.isLetter) { out.append(Link(range: hash..<end, target: .tag(String(word)))) }
+            // Up to 100 long, as the tag's own page reads them (get_tag_posts).
+            if starts, word.count <= 100, word.contains(where: \.isLetter) { out.append(Link(range: hash..<end, target: .tag(String(word)))) }
             i = end > hash ? end : words.index(after: hash)
             if i >= words.endIndex { break }
         }
