@@ -138,8 +138,10 @@ enum EventSchedule {
             EventPart(title: title, start: now.addingTimeInterval(offset * minute),
                       end: now.addingTimeInterval((offset + length) * minute))
         }
+        // Late in the evening the later ones would run past midnight onto a second day: those are left out.
         return [at(-150, 30, "Luminary walk"), at(-10, 40, "Santa arrives"), at(20, 30, "Carolers"),
                 at(60, 30, "Letters to Santa"), at(90, 60, "Live music")]
+            .filter { Town.day($0.start) == Town.day(now) && Town.day($0.end.addingTimeInterval(-1)) == Town.day(now) }
     }
 
     /// `-town-part`: an opening that ended 2 hours ago, the artist talk on since 10 minutes before launch, a reception
