@@ -3991,7 +3991,7 @@ test('a part: one running 12 hours or longer never reaches the card, nor makes i
 });
 
 // An Event's parts as its page reads them (get_event_parts, happening-now review): finished on the server, by start.
-test('an Event page reads its finished parts: by start, an hour when no end, its own Event left out, live marked', async () => {
+test('an Event page reads its finished parts: by start, an hour when no end, one with its own Event listed too, live marked', async () => {
   const exhibit = await exhibitWithTalk();
   const fav = (await db.query(`select id from public.club_events where title = 'Favourite'`)).rows[0].id;
   await db.query(`insert into public.event_parts (event_id, title, starts_at, ends_at, source_url, source_line, same_as)
@@ -4001,8 +4001,10 @@ test('an Event page reads its finished parts: by start, an hour when no end, its
   await db.exec(`set role anon; set request.jwt.claims = '{"role": "anon"}'`);
   try {
     const { rows } = await db.query(`select title, starts_at, ends_at, live from public.get_event_parts($1)`, [exhibit]);
-    assert.deepEqual(rows.map((r) => [r.title, r.live]), [['Holiday sale', false], ['Artist talk', true], ['Overnight vigil', false]],
-      'by start; a sale is no happening, 14 hours is too long; the part that is an Event of its own is left out');
+    assert.deepEqual(rows.map((r) => r.title), ['Holiday sale', 'Artist talk', 'Overnight vigil', 'Dance night'],
+      'by start; the part that is an Event of its own is a line on the page too (WinterWalk\'s Tree Lighting, Jesse 2026-11-15)');
+    assert.deepEqual(rows.map((r) => r.live), [false, true, false, false],
+      'a sale is no happening, 14 hours is too long, and a part with its own card is never live here (its card is)');
     assert.equal(rows[1].ends_at.getTime() - rows[1].starts_at.getTime(), 3600e3, 'no stated end: 1 hour');
   } finally {
     await db.exec('reset role; reset request.jwt.claims');
