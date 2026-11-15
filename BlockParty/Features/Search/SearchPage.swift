@@ -957,16 +957,19 @@ struct ItemRow: View {
                     avatar
                         .frame(width: SearchMetric.avatar, height: SearchMetric.avatar)
                         .trackFrame(avatarFrame)
-                    VStack(alignment: .leading, spacing: 0) {
-                        Text(item.name)
-                            .font(.sansSemibold(14))
-                            .foregroundStyle(Hue.ink)
-                            .lineLimit(1)
-                        if let line = item.line(.now) {
-                            Text(line)
-                                .font(.sans(13))
-                                .foregroundStyle(Hue.inkSecondary)
+                    // Each minute, so an Event's "In 20 min" counts down and turns Now (BP app happening-now 07).
+                    TimelineView(.everyMinute) { context in
+                        VStack(alignment: .leading, spacing: 0) {
+                            Text(item.name)
+                                .font(.sansSemibold(14))
+                                .foregroundStyle(Hue.ink)
                                 .lineLimit(1)
+                            if let line = item.line(context.date) {
+                                Text(line)
+                                    .font(.sans(13))
+                                    .foregroundStyle(Hue.inkSecondary)
+                                    .lineLimit(1)
+                            }
                         }
                     }
                     Spacer(minLength: removable ? SearchMetric.removeSide : 0)
