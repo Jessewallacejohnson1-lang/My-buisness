@@ -167,4 +167,46 @@ new = merge([rec("Sal's Bar", address="1 Main St"), rec("Sal's Bar and Grill", a
 assert changes_since(old, new) == ["- Krewe", "= Sal's Bar now also: Sal's Bar and Grill"], \
     changes_since(old, new)
 
+# A registry entry finds its census row by phone or street too (watch-every-place 31): the
+# church's entry "Church of Saint Joseph" and the census's "St. Joseph Catholic Church" are one
+# place, so the row's website reaches the entry.
+import verify
+TOWN = {"label": "St. Joseph MN", "directories": [{"url": "https://lakesnwoods.com/x", "stale": True}]}
+church = merge([rec("St. Joseph Catholic Church", phone="+13203637505", address="12 W Minnesota St",
+                    website="http://www.churchstjoseph.org"),
+                rec("St. Joseph Catholic Church", source="lakesnwoods.com", phone="(320) 363-7505",
+                    address="12 W Minnesota Street", website="http://www.churchstjoseph.org")])
+entry = {"_name": "Church of Saint Joseph", "phone": "+13203637505", "address": "12 W Minnesota St"}
+hit, asks = verify.same_spot(entry, church, TOWN, {})
+assert hit is church[0] and asks == [], (hit, asks)
+
+# A different name on the same phone is a hint, not proof (town-discovery): asked, never filled.
+huls = merge([rec("Huls Bros Trucking Inc", phone="320-363-8838", website="https://hulstrucking.com/")])
+hit, asks = verify.same_spot({"_name": "Avon Ag-Lime", "phone": "3203638838"}, huls, TOWN, {})
+assert hit is None and asks == [["same phone", "Avon Ag-Lime", "Huls Bros Trucking Inc"]], (hit, asks)
+
+# A census website goes into an entry only when two sources name that site: Overture alone gave
+# Centennial Park the website of Centennial, Maryland.
+assert verify.census_website(church[0]) == "http://www.churchstjoseph.org"
+park = merge([rec("Centennial Park", website="http://www.centennialmd.org/"),
+              rec("Centennial Park", source="maps", website="https://www.cityofstjoseph.com/x")])
+assert verify.census_website(park[0]) is None
+assert verify.census_website(merge([rec("Kay's", website="kays.com"),
+                                    rec("Kay's", source="osm", website="https://www.kays.com/")])[0]) \
+    == "https://kays.com"
+
+# The website goes in place of the entry's `url: TODO`, and never back into an entry whose notes
+# say it was dropped (dead, or someone else's: place-photos 07).
+with tempfile.TemporaryDirectory() as tmp:
+    town_md = Path(tmp) / "st-joseph-mn.md"
+    block = "## {}\n```yaml\nid: {}\nsources:\n  - url: TODO\n    kind: website\n```\nNotes: {}\n\n"
+    town_md.write_text("---\n" +block.format("Church of Saint Joseph", "church", "From osm.") +
+                       block.format("Petrek Law Office", "petrek", "Website dropped: petrekcriminallaw.com is gone."))
+    done = verify.fill_websites(town_md, [("Church of Saint Joseph", "http://www.churchstjoseph.org"),
+                                          ("Petrek Law Office", "https://www.petrekcriminallaw.com")])
+    after = town_md.read_text()
+    assert done == ["Church of Saint Joseph"], done
+    assert "id: church\nsources:\n  - url: http://www.churchstjoseph.org\n" in after, after
+    assert "id: petrek\nsources:\n  - url: TODO\n" in after, after
+
 print("census rules OK")

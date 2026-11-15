@@ -225,6 +225,30 @@ final class SearchModelTests: XCTestCase {
         XCTAssertEqual(middle.minY, 145.6, accuracy: 0.5)
     }
 
+    /// A card's photo grows from the card into the page's top photo (402 x 334 on a 402 pt phone), scrolled
+    /// up with the page, overshooting a touch past it; only at rest open is it the page's own (place-photos 10).
+    func testACardsPhotoGrowsIntoThePagesTopPhoto() {
+        let card = CGRect(x: 16, y: 352, width: 167, height: 157)
+        XCTAssertEqual(BusinessPage.flight(from: card, width: 402, scrollY: 0, progress: 0), card)
+        let open = BusinessPage.flight(from: card, width: 402, scrollY: 0, progress: 1)
+        XCTAssertEqual(open.origin, .zero)
+        XCTAssertEqual(open.width, 402)
+        XCTAssertEqual(open.height, 402 * 303 / 393 + 24, accuracy: 0.01)
+        XCTAssertEqual(BusinessPage.flight(from: card, width: 402, scrollY: 120, progress: 1).minY, -120)
+        XCTAssertGreaterThan(BusinessPage.flight(from: card, width: 402, scrollY: 0, progress: 1.02).width, 402)
+        XCTAssertTrue(BusinessPage.inFlight(0.98))
+        XCTAssertTrue(BusinessPage.inFlight(1.01))
+        XCTAssertFalse(BusinessPage.inFlight(1))
+    }
+
+    /// The photo a card shows is the one that grows: a saved photo's, else none (an Event's or a park's
+    /// opens its own page).
+    func testTheCoverIsTheCardsSavedPhoto() {
+        let cover = picture("krewe-0")
+        XCTAssertEqual(SearchItem(id: "p:k", kind: .restaurant, name: "Krewe", photo: .saved(cover)).cover, cover.url)
+        XCTAssertNil(SearchItem(id: "k:t", kind: .park, name: "Trail", photo: .bundled("trail")).cover)
+    }
+
     /// The mockup's order first (the 3D logos lead), then by name.
     func testRowsKeepTheMockupsOrder() {
         let model = SearchModel(supabase: supabase, defaults: defaults)

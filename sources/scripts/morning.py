@@ -53,7 +53,9 @@ docs/plans/watch-every-place, ticket 05). The routine's steps are sources/models
             morning report: save's summary, the tag, describe (with its CHECK lines) and standouts lines,
             every Event added since the last report (the social watch's and a chat's too) whose card shows no
             photo of what it is (BP app event-photos 08), the social watch's Apify spend (social.py spend; Jesse, 2026-10-22), asked here so no
-            step can skip it (Oct 29's run did), and Firecrawl's credits left (BP app backlog 12). On Sundays it reads each school's club
+            step can skip it (Oct 29's run did), and Firecrawl's credits left (BP app backlog 12). One line names the
+            places busy with Events in the last 60 days that have no watched page of their own, a `venue_only` entry
+            aside (busy_lines; BP app watch-every-place 28). On Sundays it reads each school's club
             page for its clubs' meeting times, a line per change (meeting_times.sunday; BP app nothing-scheduled 05),
             and ends with how many things with nothing scheduled are due for a walk (nothing_scheduled.due_line; BP app
             nothing-scheduled 04). Its last line is Ready's, which ready.py keeps in .runs/: the Python and the
@@ -81,7 +83,7 @@ from pathlib import Path
 from urllib.parse import quote, urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from registry import find_root, load, town_entries
+from registry import find_root, load, town_entries, validate, is_watched
 from read_events import LOCAL, CAMPUS_HOSTS
 from batch import layout, page_id
 import write_judged
@@ -451,6 +453,35 @@ def place_lines(db):
     return [f"- Places: {len(rows)} open, {sum(1 for r in rows if r.get('apple_place_id'))} with an Apple id, "
             f"{sum(1 for r in rows if r.get('hours'))} with hours, {sum(1 for r in rows if r.get('search_logo'))} with a logo, "
             f"{sum(1 for r in rows if r.get('entry_id') in photos)} with a photo"]
+
+
+BUSY_DAYS = 60
+BUSY_NAMED = 10
+
+
+def busy_lines(db, entries, today):
+    """Places that held approved Events in the last 60 days, upcoming ones too, with no watched page of their own
+    (BP app watch-every-place 28): the Church of Saint Joseph hosted three other hosts' Events for weeks while its own
+    calendar was never read. The top 10 by Events, with how many hosts posted them; a `venue_only` entry (a field
+    that only lends its space) is never named. A read that fails is one line, never a lost report."""
+    try:
+        rows = venue_spots.pages(db, "club_events?select=place_entry_id,source_name&status=eq.approved&kind=eq.event"
+                                     f"&cancelled_at=is.null&place_entry_id=not.is.null"
+                                     f"&event_date=gte.{today - timedelta(days=BUSY_DAYS)}&order=id")
+    except Exception as e:
+        return [f"- Busy but not watched: not read ({' '.join(str(e).split())[:200]})"]
+    by_id = {e["id"]: e for e in entries}
+    held = collections.defaultdict(list)
+    for r in rows:
+        e = by_id.get(r.get("place_entry_id"), {})
+        if r.get("place_entry_id") and not is_watched(e) and not e.get("venue_only"):
+            held[r["place_entry_id"]].append(r.get("source_name"))
+    name = lambda i: by_id.get(i, {}).get("_name", i)
+    top = sorted(held, key=lambda i: (-len(held[i]), -len(set(held[i])), name(i).lower()))
+    plural = lambda n, w: f"{n} {w}{'s' * (n != 1)}"
+    named = ", ".join(f"{name(i)} ({plural(len(held[i]), 'Event')}, {plural(len(set(held[i])), 'host')})"
+                      for i in top[:BUSY_NAMED])
+    return [f"- Busy but not watched: {len(held)}, {named}"] if held else []
 
 
 def photo_lines(db, today):
@@ -1188,6 +1219,7 @@ def finish(run, dry_run):
                        ("event photos", lambda: photo_lines(db, today)),
                        ("map spots", lambda: map_spots(run, dry_run)),
                        ("places", lambda: place_lines(db)),
+                       ("busy places", lambda: busy_lines(db, load(find_root(SCRIPTS))[0], today)),
                        ("Apple Maps", lambda: apple_maps.check(db, not dry_run, today)),
                        ("Sunday steps", lambda: sunday_lines(run, dry_run))):
         waited = run.part("apple-waited-dry-run.json" if dry_run else "apple-waited.json")
@@ -1613,6 +1645,26 @@ def selftest():
                    and "closed_at=is.null" in counted.calls[0][1] and "status=eq.live&kind=eq.photo" in counted.calls[1][1]
                    and place_lines(SinceDb(down=True))[0].startswith("- Places: not counted (Supabase GET"),
                    f"the report counts the place pages and what each still lacks: {place_lines(counted)}"))
+    places_ = [{"id": "sju", "_name": "Saint John's University", "status": "proposed"},
+               {"id": "abbey", "_name": "Saint John's Abbey", "status": "active", "tier": "listed"},
+               {"id": "city", "_name": "City", "status": "active", "tier": "watched"},
+               {"id": "fields", "_name": "Municipal Athletic Complex", "status": "proposed", "venue_only": True}]
+    held = [("sju", "Choir"), ("sju", "Arts"), ("sju", "Choir"), ("abbey", "Abbey"), ("city", "City"), ("city", "City"),
+            ("city", "City"), ("fields", "Sartell"), ("fields", "Apollo"), ("fields", "Tech"), ("gone", "Gone")]
+    busy = FakeDb(answers={"club_events?": lambda m, p, b: [{"place_entry_id": i, "source_name": h} for i, h in held]
+                           if "offset=0" in p else []})
+    checks.append((busy_lines(busy, places_, date(2026, 11, 15)) == [
+                       "- Busy but not watched: 3, Saint John's University (3 Events, 2 hosts), gone (1 Event, 1 host), "
+                       "Saint John's Abbey (1 Event, 1 host)"]
+                   and "event_date=gte.2026-09-16" in busy.calls[0][1] and "status=eq.approved" in busy.calls[0][1]
+                   and "cancelled_at=is.null" in busy.calls[0][1]
+                   and busy_lines(SinceDb(down=True), places_, date(2026, 11, 15))[0].startswith("- Busy but not watched: not read (")
+                   and busy_lines(FakeDb(), places_, date(2026, 11, 15)) == [],
+                   f"the report names busy places with no watched page of their own, never a watched or venue-only one: "
+                   f"{busy_lines(busy, places_, date(2026, 11, 15))}"))
+    bad = lambda v: [x for x in validate([{"id": "fields", "_name": "F", "_file": "t", "status": "proposed", "venue_only": v,
+                                            "sources": [{"url": "TODO", "method": "submission"}]}]) if "venue_only" in x]
+    checks.append((bad(True) == [] and bad(False) == [] and bad("yes") != [], "validate takes venue_only true or false only"))
     checks.append(("- Source failed: x https://x: HTTP 403" in lines
                    and "- Reader failed: Stearns County (civicplus-hcms): TimeoutError" in lines, "the summary names what failed"))
     refused = {"entry_id": "b", "url": "https://b/",
@@ -2848,6 +2900,7 @@ def whole_morning():
                     "- Sat Nov 21 · 7 PM · Sacred Heart Chapel Anniversary · Sacred Heart Chapel",
                     "- Map spots: set 4, 0 with no spot",
                     "- Places: 0 open, 0 with an Apple id, 0 with hours, 0 with a logo, 0 with a photo",
+                    "- Busy but not watched: 2, milk-and-honey-ciders (3 Events, 1 host), chapel-heart-sacred (1 Event, 1 host)",
                     "- Apple Maps: 60 places checked, 0 closed for good, 24 with no Apple Maps place",
                     "Apify: $4.20 of $25 this month (resets after 2026-11-18)",
                     "Firecrawl: 1,000 of 1,000 credits left (resets after Nov 20)",

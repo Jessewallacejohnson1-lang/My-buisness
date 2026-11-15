@@ -20,7 +20,11 @@ The pictures are the ones each Event came with, so nothing paid starts and no ne
   same page's other posts, for an Event whose own post is only a flyer; a post that shares a link to a story
   also offers that story's share picture (og:image), since Facebook hands over only a 139 px preview of it
 - a CSB SJU campus listing: its banner picture, one call to the campus calendar for every listing
-- any other page: its share picture (og:image), read politely
+- any other page: its share picture (og:image), read politely; a page that sets none and names the Event in its
+  title is the Event's own page, and gives the photos in it (BP app event-photos 20: Gingerbread Architecture's
+  ticket page, 2026-11-15); a list of events gives none, since its photos are other Events'
+- with any of these, the cover of the host's Facebook event when the watch found one beside the Event's own listing
+  (event_mentions), from the same free runs: the museum's flyer was its Facebook event's cover
 Each is downloaded once, at least MIN_WIDTH wide, and drawn numbered on .runs/morning/photos/sheet-N.png; a
 helper on the cheap model picks one per Event by sources/models/event-photo.md: a real photo, else the Event's own
 flyer from its own post or page (Jesse, 2026-11-02: Pizza night's flyer over the bakery's pastry photo), or none.
@@ -103,7 +107,8 @@ def todo(db, now):
 def todo_again(db, now, skip=()):
     """Upcoming Events to look at again (BP app watch-every-place 24; Jesse, 2026-11-14: "new images we can use"): a
     host's new cover on its Facebook event (apply_judged empties photo_checked_at when source_words' cover changes), or
-    a post about it first seen since it was looked at, laid out with that post's pictures. Not `skip` (this step's new
+    a post or Facebook event about it first seen since it was looked at, laid out with that post's pictures or that
+    event's cover (BP app event-photos 20). The Event's own listing seen again is not new. Not `skip` (this step's new
     Events) or a sport."""
     import place_photos
     today, since = now.astimezone(LOCAL).date(), (now - NEW).isoformat()
@@ -112,11 +117,14 @@ def todo_again(db, now, skip=()):
     again = {e["id"]: e for e in db.rest("GET", f"club_events?select={cols}&status=eq.approved&kind=eq.event"
                                                 f"&photo_checked_at=is.null&source_words=not.is.null"
                                                 f"&created_at=lt.{quote(since)}&event_date=gte.{today}")}
-    for m in db.rest("GET", f"event_mentions?select=source_name,source_url,first_seen,club_events!inner({cols})"
-                            f"&first_seen=gte.{quote(since)}&source_url=match.{quote('(facebook|instagram)[.]com/')}"
-                            f"&club_events.status=eq.approved&club_events.kind=eq.event&club_events.event_date=gte.{today}"):
+    seen = db.rest("GET", f"event_mentions?select=source_name,source_url,first_seen,club_events!inner({cols})"
+                          f"&first_seen=gte.{quote(since)}&source_url=match.{quote('(facebook|instagram)[.]com/')}"
+                          f"&club_events.status=eq.approved&club_events.kind=eq.event&club_events.event_date=gte.{today}")
+    # A post goes before a Facebook event: its pictures are laid out, and the event's cover comes with any look (candidates).
+    for m in sorted(seen, key=lambda m: "/events/" in m["source_url"]):
         e = m.get("club_events") or {}
-        if not e.get("id") or e["id"] in again or "/events/" in m["source_url"] or not post_key(m["source_url"]):
+        if (not e.get("id") or e["id"] in again or not post_key(m["source_url"])
+                or post_key(m["source_url"]) == post_key(e.get("source_url"))):
             continue
         looked = e.get("photo_checked_at")
         if not looked or when(m["first_seen"]) > when(looked):  # credited to whoever posted it
@@ -126,6 +134,17 @@ def todo_again(db, now, skip=()):
 
 def when(stamp):
     return datetime.fromisoformat(str(stamp).replace("Z", "+00:00"))
+
+
+def also_listed(db, events):
+    """{Event id: [[a Facebook event of it, whose event it is]]}: the ones the watch found beside the Event's own
+    listing (event_mentions). Its cover is this Event's too (BP app event-photos 20)."""
+    ids, out = sorted({e["id"] for e in events}), {}
+    for i in range(0, len(ids), 100):
+        for m in db.rest("GET", "event_mentions?select=event_id,source_name,source_url"
+                                f"&event_id=in.({','.join(ids[i:i + 100])})&source_url=match.{quote('facebook[.]com/events/')}"):
+            out.setdefault(m["event_id"], []).append([m["source_url"], m.get("source_name") or ""])
+    return out
 
 
 def showing(db, events):
@@ -204,8 +223,10 @@ def full_size(url):
 
 
 def owner(row):
+    """Whose post a row is. A Facebook event names only its hosts: the first one's page, as a post names it."""
+    host = next(iter(row.get("organizators") or []), None) or {}
     return (row.get("ownerUsername") or row.get("pageName") or (row.get("user") or {}).get("name")
-            or row.get("facebookUrl") or "").lower()
+            or row.get("facebookUrl") or (host.get("url") or "").rstrip("/").rsplit("/", 1)[-1]).lower()
 
 
 def kind_of(row):
@@ -249,7 +270,8 @@ def from_posts(group, rows, share=None, more=PLACE_MORE):
     to (facebook.com/events/<n>) takes that post's pictures, or the Events tab's cover. A post that shares a
     link to a story (CSB's post on Emily Sheehan's show, 2026-11-03) comes with Facebook's 139 px preview only:
     the story's own share picture goes first. A link that names no post (a page, a video) has none: every row
-    without a post id would match it, whoever posted it."""
+    without a post id would match it, whoever posted it. The same holds for a row that names no owner: it has no
+    page whose other photos could be offered."""
     key = post_key(group["source_url"])
     if not key:
         return []
@@ -269,7 +291,7 @@ def from_posts(group, rows, share=None, more=PLACE_MORE):
     for r in rows:
         if len(out) >= mine + more:
             break
-        if owner(r) == owner(own[0]) and post_key(r.get("url")) not in seen:
+        if owner(own[0]) and owner(r) == owner(own[0]) and post_key(r.get("url")) not in seen:
             seen.add(post_key(r.get("url")))
             out += [{**p, "from": "other post", "page": r.get("url") or page, "posted": posted(r)[:10], "words": said(r)}
                     for p in pictures(r)[:2]]
@@ -312,7 +334,25 @@ def groups_of(events, by=lambda e: e.get("source_url") or ""):
     return list(out.values())
 
 
-def candidates(groups, rows, banners, share=share_picture):
+def own_page_photos(group, read=None, pages=None):
+    """The photos in an Event's own page, for a page that sets no share picture: [{url, about, from, page}]. Own means
+    the page's title names the Event; a list of events doesn't, and its photos are other Events'. `pages` keeps each
+    page's read, so a list of twenty Events is read once."""
+    src, pages = group["source_url"], {} if pages is None else pages
+    if src not in pages:
+        try:
+            pages[src] = (read or page_pictures)(src)
+        except Exception:
+            pages[src] = ([], "")
+    pics, title = pages[src]
+    words = lambda s: " ".join(re.findall(r"[a-z0-9]+", (s or "").lower()))
+    if not words(group["title"]) or words(group["title"]) not in words(title):
+        return []
+    return [{"url": u, "about": alt, "from": "page", "page": group["source_url"]} for u, alt in pics[:PER_PAGE]]
+
+
+def candidates(groups, rows, banners, share=share_picture, read=None):
+    pages = {}
     for g in groups:
         src = g["source_url"]
         if POST.search(src):
@@ -323,9 +363,14 @@ def candidates(groups, rows, banners, share=share_picture):
             g["cands"] = [{"url": pic, "about": "", "from": "listing", "page": src}] if pic else []
         elif src.startswith("http"):
             pic = share(src)
-            g["cands"] = [{"url": pic, "about": "", "from": "page", "page": src}] if pic else []
+            g["cands"] = [{"url": pic, "about": "", "from": "page", "page": src}] if pic else own_page_photos(g, read, pages)
         else:
             g["cands"] = []
+        had = {post_key(src)}
+        for url, by in g.get("also") or ():  # its host's Facebook event, found beside this listing: the cover, once
+            if post_key(url) not in had:
+                had.add(post_key(url))
+                g["cands"] += [{**c, "by": by} for c in from_posts({"source_url": url}, rows, share, more=0)]
     return groups
 
 
@@ -410,7 +455,7 @@ def sheets(groups, folder):
     return (len(shown) + PER_SHEET - 1) // PER_SHEET
 
 
-def prepare(out, now=None, db=None, rows=None, banners=None, share=share_picture, grab=None):
+def prepare(out, now=None, db=None, rows=None, banners=None, share=share_picture, grab=None, read=None):
     now = now or datetime.now(timezone.utc)
     folder = out / "photos"
     if folder.exists():
@@ -436,9 +481,15 @@ def prepare(out, now=None, db=None, rows=None, banners=None, share=share_picture
     except DbError as x:  # a second look is an addition: without it every new Event is still laid out
         print(f"[photos] Events to look at again not read, new Events only: {x}")
         own = {}
+    try:
+        also = also_listed(db, events)
+    except DbError as x:  # an addition too: without it each Event is laid out from its own listing
+        print(f"[photos] Facebook events beside a listing not read: {x}")
+        also = {}
     groups = groups_of(events)
     for i, g in enumerate(groups, 1):
         g["key"] = f"e{i}"
+        g["also"] = sorted({(u, by) for e in g["events"] for u, by in also.get(e["id"], [])})
     try:
         news = news_groups(todo_news(db, now))
     except DbError as x:  # the News are an addition: without them every Event is still laid out
@@ -446,8 +497,8 @@ def prepare(out, now=None, db=None, rows=None, banners=None, share=share_picture
         news = []
     groups += news
     if rows is None:
-        rows = social_rows(now) if any(POST.search(g["source_url"]) for g in groups) else []
-    candidates(groups, rows, campus_banners(groups) if banners is None else banners, share)
+        rows = social_rows(now) if any(POST.search(g["source_url"]) or g.get("also") for g in groups) else []
+    candidates(groups, rows, campus_banners(groups) if banners is None else banners, share, read)
     for g in groups:  # what an Event shows now goes first; a better pick retires it (keep)
         now_rows = [r for e in g["events"] for r in own.get(e["id"], [])]
         if now_rows:
@@ -556,7 +607,7 @@ def keep(out, dry_run=False, db=None, now=None):
                 db.rest("POST", "rpc/retire_own_event_photos", {"p_ids": gone})
             place_photos.save_picture(db, im, "flyer" if flyer else "event", c["page"], town=TOWN,
                                       events=[(e["id"], entry_of(e)) for e in g["events"]], description=shows,
-                                      credit=g["events"][0].get("source_name") if POST.search(c["page"]) else None,
+                                      credit=(c.get("by") or g["events"][0].get("source_name")) if POST.search(c["page"]) else None,
                                       proposed_by=OWN)
         except DbError as e:
             if e.status != 409:  # the database's one live photo an Event has: an earlier run's save that got through
@@ -1063,6 +1114,43 @@ def selftest():
     check([c["from"] for c in gs[1]["cands"]] == ["listing"] and gs[2]["cands"][0]["url"] == "https://givemn.org/og.jpg",
           "a campus listing's banner, a page's share picture")
 
+    # BP app event-photos 20 (Gingerbread Architecture, 2026-11-15): its ticket page set no share picture, and its
+    # flyer was the cover of the museum's Facebook event, found beside that listing.
+    fb_event = lambda n, host, cover: {"_task": "bp-weekly-sat-search", "url": f"https://www.facebook.com/events/{n}/",
+                                       "imageUrl": cover, "imageCaption": "May be an image of text",
+                                       "organizators": [{"name": host, "url": f"https://www.facebook.com/{host}/"}]}
+    erows = rows + [fb_event("111", "Prep", "https://x.fbcdn.net/cover.jpg"), fb_event("222", "Museum", "https://x.fbcdn.net/ginger.jpg")]
+    got = from_posts({"source_url": "https://www.facebook.com/events/111/", "events": []}, erows)
+    check(owner(erows[-1]) == "museum" and owner({}) == ""
+          and [(c["url"].rsplit("/", 1)[1], c["from"]) for c in got] == [("cover.jpg", "post"), ("flyer.jpg", "other post"),
+                                                                        ("cast.jpg", "other post"), ("menu.jpg", "other post")],
+          "a Facebook event is its host's: its cover, then that host's own posts, never another host's event")
+    lone = [{"_task": "bp-weekly-sat-search", "url": f"https://www.facebook.com/events/{n}/", "imageUrl": f"https://x.fbcdn.net/{n}.jpg"}
+            for n in ("333", "444")]
+    check([c["url"] for c in from_posts({"source_url": "https://www.facebook.com/events/333/", "events": []}, lone)]
+          == ["https://x.fbcdn.net/333.jpg"], "a row that names no owner takes no other row's pictures")
+    site = [{"title": "Gingerbread Architecture", "source_url": "https://museum.example/event-1", "events": [],
+             "also": [["https://www.facebook.com/events/222/", "Museum"], ["https://www.facebook.com/events/222", "Town search"],
+                      ["https://www.facebook.com/events/999/", "Museum"]]},
+            {"title": "Wreath Workshop", "source_url": "https://farm.example/events/", "events": []},
+            {"title": "Centerpiece Workshop", "source_url": "https://farm.example/events/", "events": []},
+            {"title": "Fall Play", "source_url": "https://www.facebook.com/events/111/", "events": [],
+             "also": [["https://www.facebook.com/events/111", "Prep"]]}]
+    pages = {"https://museum.example/event-1": ([("https://museum.example/house.jpg", "Stearns House")],
+                                                "Museum - Gingerbread Architecture: The Sweet Elements of Design"),
+             "https://farm.example/events/": ([("https://farm.example/wreath.jpg", "")], "Events for November – Farm")}
+    reads = []
+    candidates(site, erows, {}, share=lambda u: None, read=lambda u: reads.append(u) or pages[u])
+    check([(c["url"], c["from"], c.get("by")) for c in site[0]["cands"]]
+          == [("https://museum.example/house.jpg", "page", None), ("https://x.fbcdn.net/ginger.jpg", "post", "Museum")],
+          "a page with no share picture that names the Event gives its own photos; the host's Facebook event found beside "
+          "it gives its cover once, credited to the host; one no run read gives none")
+    check(site[1]["cands"] == [] and site[2]["cands"] == [] and reads.count("https://farm.example/events/") == 1
+          and own_page_photos(site[0], read=lambda u: 1 / 0) == [],
+          "a list of events gives none (its photos are other Events') and is read once, nor does a page that won't read")
+    check([c["url"] for c in site[3]["cands"]].count("https://x.fbcdn.net/cover.jpg") == 1,
+          "an Event listed from its Facebook event takes the cover once")
+
     with tempfile.TemporaryDirectory() as tmp:
         folder, out = Path(tmp) / "sheets", Path(tmp) / "out"
         folder.mkdir()
@@ -1246,7 +1334,7 @@ def selftest():
                     return [{"id": "old", "title": "Reflection", "place_entry_id": "arts"}]
                 if path.startswith("place_photos"):
                     return [sheehan]
-                if path.startswith("board_items"):
+                if path.startswith(("board_items", "event_mentions")):
                     return []
                 return [dict(e, place_entry_id="arts") if e["title"] == "Reflection" else dict(e) for e in events]
         laid = prepare(out, now=datetime(2026, 11, 3, tzinfo=timezone.utc), db=Follows("https://db.example"), rows=rows,
@@ -1659,15 +1747,26 @@ def selftest():
                      "club_events": ev("seen", photo_checked_at="2026-11-10T12:00:00+00:00")},
                     {"source_name": "Sunny Mary Meadow", "source_url": "https://www.facebook.com/events/1107906461871802/",
                      "first_seen": "2026-11-16T20:00:00+00:00", "club_events": ev("listing")},
+                    {"source_name": "Stearns History Museum", "source_url": "https://www.facebook.com/events/2933954456984190/",
+                     "first_seen": "2026-11-16T20:00:00+00:00",
+                     "club_events": ev("site", source_url="https://museum.example/event-1", photo_checked_at="2026-11-15T12:00:00+00:00")},
+                    {"source_name": "Stearns History Museum", "source_url": "https://www.facebook.com/events/2933954456984190/",
+                     "first_seen": "2026-11-16T20:00:00+00:00",
+                     "club_events": ev("both", source_url="https://museum.example/event-2", photo_checked_at="2026-11-15T12:00:00+00:00")},
+                    {"source_name": "JoeTown", "source_url": "https://www.instagram.com/p/Cy/",
+                     "first_seen": "2026-11-16T20:00:00+00:00",
+                     "club_events": ev("both", source_url="https://museum.example/event-2", photo_checked_at="2026-11-15T12:00:00+00:00")},
                     {"source_name": "Bad Habit Brewing", "source_url": "https://www.instagram.com/p/Cx/",
                      "first_seen": "2026-11-16T20:00:00+00:00", "club_events": ev("game", sport="Hockey")}]
     again = todo_again(Again(), now, skip={"new"})
-    check([e["id"] for e in again] == ["cover", "post"] and again[1]["source_url"].endswith("pfbid0")
-          and again[1]["source_name"] == "Bad Habit Brewing"
+    check([e["id"] for e in again] == ["cover", "post", "both", "site"] and again[1]["source_url"].endswith("pfbid0")
+          and again[1]["source_name"] == "Bad Habit Brewing" and again[3]["source_url"].endswith("/events/2933954456984190/")
+          and again[3]["source_name"] == "Stearns History Museum" and again[2]["source_name"] == "JoeTown"
           and "photo_checked_at=is.null" in asked[0] and "source_words=not.is.null" in asked[0]
           and "created_at=lt." in asked[0] and "first_seen=gte." in asked[1],
-          "looked at again: a new cover, or a post first seen since the last look (credited to its poster); not a new "
-          "Event, a post seen before, the Facebook event's own re-read, or a game")
+          "looked at again: a new cover, or a post or a Facebook event first seen since the last look (credited to its "
+          "poster or host; a post before a Facebook event seen the same days); not a new Event, a post seen before, the "
+          "Event's own Facebook event read again, or a game")
 
     class Photos:
         def rest(self, method, path, body=None, prefer=None):
@@ -1689,7 +1788,7 @@ def selftest():
                  "cands": [{"n": 1, "url": "https://x/photo.webp", "from": "now showing", "page": "https://x/photo.webp",
                             "file": str(out / "photos" / "c1.png"), "w": 1200, "h": 900, "about": ""},
                            {"n": 2, "url": "https://fb/cover.jpg", "from": "listing", "page": ev("cover")["source_url"],
-                            "file": str(out / "photos" / "c2.jpg"), "w": 1200, "h": 900, "about": ""}]}
+                            "file": str(out / "photos" / "c2.jpg"), "w": 1200, "h": 900, "about": "", "by": "Co-host"}]}
         (out / "photos" / "events.json").write_text(json.dumps([group]))
         for pick, flyer, sent, gone in (("c1", False, [], None),
                                         ("c2", False, ["POST rpc/retire_own_event_photos", "PUT", "POST place_photos"], [8]),
@@ -1701,9 +1800,11 @@ def selftest():
             line = keep(out, db=fake, now=now)
             calls = [m if m == "PUT" else f"{m} {p.split('?')[0]}" for m, p, b in fake.calls if m != "PATCH"]
             check(calls == sent and any(m == "PATCH" and "photo_checked_at" in b for m, p, b in fake.calls)
-                  and (gone is None or next(b for m, p, b in fake.calls if p == "rpc/retire_own_event_photos") == {"p_ids": gone}),
+                  and (gone is None or next(b for m, p, b in fake.calls if p == "rpc/retire_own_event_photos") == {"p_ids": gone})
+                  and all(r["credit"] == "Co-host" for m, p, b in fake.calls if p == "place_photos" for r in b),
                   {None: "what it shows now kept: nothing written but the look",
-                   8: "a new cover photo beats it: its own photo retired (its own flyer stays), then the new one saved",
+                   8: "a new cover photo beats it: its own photo retired (its own flyer stays), then the new one saved, "
+                      "credited to whose Facebook event it is",
                    7: "a new flyer picked over it: its own photo and flyer retired, so the flyer shows"}[gone and gone[0]]
                   + f" ({calls}; {line})")
 

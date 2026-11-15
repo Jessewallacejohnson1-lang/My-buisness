@@ -128,7 +128,9 @@ private struct FeedCardDownsampledPhoto: View {
             guard !Task.isCancelled else { return }
             if let loadedImage {
                 // Cross-fade the photograph in rather than hard-cutting it over the ink.
+                if let loaded { FeedCardImageLoader.shared.gone(loaded.url, loaded.image) }
                 withAnimation(.easeOut(duration: 0.2)) { loaded = (request.url, loadedImage) }
+                FeedCardImageLoader.shared.showing(request.url, loadedImage)
             }
             // A photo already on screen at another size has not failed.
             if image != nil {
@@ -141,7 +143,10 @@ private struct FeedCardDownsampledPhoto: View {
         // Off screen it lets go, or a long scroll holds every photo it passed: 473 MB on Town at
         // 40 swipes, and iOS shuts the biggest apps down first (BP app backlog 21). On the way back
         // the loader's newest draw at once.
-        .onDisappear { loaded = nil }
+        .onDisappear {
+            if let loaded { FeedCardImageLoader.shared.gone(loaded.url, loaded.image) }
+            loaded = nil
+        }
     }
 
     /// One bitmap drawn twice, so a flyer costs one download and one decode: blurred to fill the frame, as
@@ -256,7 +261,20 @@ final class FeedCardImageLoader {
     /// The largest bitmap decoded for this photo at any size. Largest, so a host's
     /// 96 px avatar cut from the same file never stands in for a full-width photo.
     func largest(for url: URL) -> CGImage? {
-        cache.filter { $0.key.url == url }.values.max { $0.width < $1.width }
+        (cache.filter { $0.key.url == url }.values + (onScreen[url] ?? [])).max { $0.width < $1.width }
+    }
+
+    /// The bitmaps the photos on screen draw, by URL, one per view. The 24 above can let go of one still
+    /// showing (Around town loads 60 tiles at once), and a photo growing out of its tile into a business
+    /// page draws it from here (BP app place-photos 10). A view adds its bitmap as it lands and takes that
+    /// one out as it leaves or moves to another photo, so another view of the same photo keeps its own.
+    private var onScreen: [URL: [CGImage]] = [:]
+
+    func showing(_ url: URL, _ image: CGImage) { onScreen[url, default: []].append(image) }
+
+    func gone(_ url: URL, _ image: CGImage) {
+        onScreen[url]?.removeAll { $0 === image }
+        if onScreen[url]?.isEmpty == true { onScreen[url] = nil }
     }
 
     /// Where to centre this photo in a frame of another shape; the middle until it has been looked at.
