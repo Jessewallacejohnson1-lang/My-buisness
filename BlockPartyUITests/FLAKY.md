@@ -10,6 +10,9 @@ flake moves to Fixed, dated, and stays there.
 
 ## Flaky
 
+- 2026-11-15 · `EventCardPhotoTapTests.testEdgeSwipeOverTheHeroPopsAndTheRootStillPushes` · crashed (signal term)
+  once on the Mac in a full run on feat/name-hint (the onboarding name box's hint text only) just after merging
+  663ca83, at load 30 to 50 · passed alone straight after · no fix yet
 - 2026-11-15 · `LaunchBallTests.testTownIsThereAndTappableAfterTheLaunch` · red once on the Mac in a full run on
   feat/search-titles (Search's header and pills only; no launch or Town code) at load over 100: "Town's card didn't
   open after the launch" · passed alone straight after, and in the next full run at load about 15 · no fix yet
