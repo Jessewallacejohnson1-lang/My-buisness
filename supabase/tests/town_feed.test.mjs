@@ -2620,6 +2620,90 @@ test('a followers-only Event reaches only those following its activity or its sc
                    'the other school, followed whole');
 });
 
+// A whole school followed (town-feed 67): the feed keeps a row only for its activities that play under another
+// team's name, since the school's own id already names the rest.
+test("following a school lifts the games its activities play under another team's name, and no other game", async () => {
+  await reset();
+  await schools();
+  await db.exec(`insert into public.teams (id, name, short_name, local) values
+    ('kennedy', 'Kennedy', 'Kennedy', true), ('st-cloud', 'St. Cloud', 'St. Cloud', false) on conflict do nothing`);
+  // Kennedy's Girls Tennis 7-12 is Apollo's team (fielded_by); its Wrestling 7-12 also wrestles as the St. Cloud
+  // co-op (coop); its Girls Basketball 6-8 is its own; it has no football.
+  await game('Apollo Girls Tennis vs Sartell', '2026-10-09', 'Girls Tennis', ['apollo', 'sartell']);
+  await game('St. Cloud Wrestling vs Sartell', '2026-10-09', 'Wrestling', ['st-cloud', 'sartell']);
+  await game('Kennedy Girls Basketball vs Sartell', '2026-10-09', 'Girls Basketball', ['kennedy', 'sartell']);
+  await game('Apollo Football vs Sartell', '2026-10-09', 'Football', ['apollo', 'sartell']);
+  await follow(ME, 'team', 'kennedy');
+  await signIn(ME);
+  assert.deepEqual(await why('2026-10-08 12:00'), {
+    'Apollo Girls Tennis vs Sartell': ['follow', 'Kennedy'],
+    'St. Cloud Wrestling vs Sartell': ['follow', 'Kennedy'],
+    'Kennedy Girls Basketball vs Sartell': ['follow', 'Kennedy'],
+    'Apollo Football vs Sartell': ['tomorrow', null] });
+  await follow(ME, 'activity', 'kennedy', 'Girls Basketball 6-8');
+  await signIn(ME);
+  assert.deepEqual((await why('2026-10-08 12:00'))['Kennedy Girls Basketball vs Sartell'],
+                   ['follow', 'Kennedy Girls Basketball 6-8'], 'a starred activity names itself before its school');
+  // Two schools followed that share a game: the school the game names, before the one playing under its name.
+  await follow(ME, 'team', 'apollo');
+  await signIn(ME);
+  assert.deepEqual(await why('2026-10-08 12:00'), {
+    'Apollo Girls Tennis vs Sartell': ['follow', 'Apollo'],
+    'St. Cloud Wrestling vs Sartell': ['follow', 'Apollo'],
+    'Kennedy Girls Basketball vs Sartell': ['follow', 'Kennedy Girls Basketball 6-8'],
+    'Apollo Football vs Sartell': ['follow', 'Apollo'] });
+});
+
+// The follow check's speed (town-feed 67). Live, a neighbour who followed a whole school had activity_has_event
+// asked about each of its 45 activities for each of 1,421 school Events: 16 s a read, past the 8 s a signed-in
+// read gets, so their feed stopped for two days. The check now runs only for an activity whose team the Event
+// names and whose name could be the Event's. Judged against the same Town read by a neighbour who follows
+// nothing, back to back, so the machine's speed moves both alike: 26 times as long before the change, 1.5 to
+// 1.6 after (Mac, 2026-11-14, four runs). The bar is twice the after.
+const FOLLOWER_TIMES = 3;
+test('following a school and an activity keeps the feed near the speed of following nothing', async () => {
+  await reset();
+  // 700 games in eight weeks, spread over the ten local schools and ten sports, as a real season is.
+  const SCHOOLS = ['apollo', 'cathedral', 'kennedy', 'rocori', 'saint-benedict', 'saint-johns', 'sartell',
+                   'sauk-rapids-rice', 'tech', 'apollo-cathedral'];
+  const SPORTS = ['Girls Soccer', 'Boys Soccer', 'Football', 'Volleyball', 'Girls Tennis', 'Wrestling',
+                  'Girls Basketball', 'Boys Basketball', 'Girls Swimming', 'Boys Hockey'];
+  await db.query(`insert into public.teams (id, name, short_name, local)
+                  select s, s, s, true from unnest($1::text[]) s on conflict do nothing`, [SCHOOLS]);
+  await db.query(`
+    insert into public.club_events (status, title, event_date, source_name, start_time, sport, team_ids, created_at)
+    select 'approved', 'Game ' || g, date '2026-10-08' + (g % 56), 'School ' || (g % 10), (g % 12 + 1) || ' PM',
+           ($2::text[])[(g / 7) % 10 + 1],
+           array[($1::text[])[g % 10 + 1], ($1::text[])[(g % 10 + 1 + (g / 10) % 9) % 10 + 1]],
+           timestamptz '2026-09-01 12:00-05'
+    from generate_series(1, 700) g`, [SCHOOLS, SPORTS]);
+  await db.exec('analyze');
+  const FAN = '00000000-0000-0000-0000-00000000000b';
+  const NOBODY = '00000000-0000-0000-0000-00000000000c';
+  await follow(FAN, 'team', 'apollo');
+  await follow(FAN, 'activity', 'apollo', 'Girls Soccer');
+  const read = async (who) => {
+    await signIn(who);
+    const t0 = performance.now();
+    const { rows } = await db.query(
+      `select reason from public.get_town_feed(('2026-10-08 12:00'::timestamp at time zone 'America/Chicago'))`);
+    return { ms: performance.now() - t0, follows: rows.filter((r) => r.reason === 'follow').length };
+  };
+  await read(NOBODY); // warm up
+  const pairs = [];
+  for (let i = 0; i < 5; i++) {
+    const nobody = await read(NOBODY);
+    const fan = await read(FAN);
+    pairs.push({ fan: fan.ms, nobody: nobody.ms, follows: fan.follows });
+  }
+  const mid = (xs) => xs.sort((a, b) => a - b)[2];
+  const times = mid(pairs.map((p) => p.fan / p.nobody));
+  console.log(`  get_town_feed following a school and an activity: median ${mid(pairs.map((p) => p.fan)).toFixed(1)} ms, ` +
+              `following nothing ${mid(pairs.map((p) => p.nobody)).toFixed(1)} ms, ${times.toFixed(2)} times as long`);
+  assert.ok(pairs[0].follows > 20, `${pairs[0].follows} Events lifted by the follows`);
+  assert.ok(times < FOLLOWER_TIMES, `${times.toFixed(2)} times as long as following nothing, bar ${FOLLOWER_TIMES}`);
+});
+
 test("a concert lands on its activity by Bound's name: Choir is never Chamber Choir, Drama is Theatre/Drama", async () => {
   await reset();
   await schools();
