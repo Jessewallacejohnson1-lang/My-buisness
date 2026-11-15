@@ -107,8 +107,10 @@ final class HelloPill {
         let seen = HelloDrop.debugSeen(now: now)
             ?? (lastSeen > 0 && !HelloDrop.forcedWelcome ? Date(timeIntervalSince1970: lastSeen) : nil)
         self.seen = seen
+        // A game day once the Town feed is in; one still loading leaves the plain hello.
+        let gameDay = HelloDrop.gameDay(now: now, town: reads.day().town)
         let greeting = HelloDrop.hello(name: reads.name(), now: now, lastSeen: seen,
-                                       yesterday: phone.string(forKey: Self.lastHelloKey) ?? "")
+                                       yesterday: phone.string(forKey: Self.lastHelloKey) ?? "", gameDay: gameDay)
         phone.set(greeting.key, forKey: Self.lastHelloKey)
         readsIn = false
         Task { await reads.prepare() }

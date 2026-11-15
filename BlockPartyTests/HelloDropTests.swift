@@ -67,10 +67,10 @@ final class HelloDropTests: XCTestCase {
         XCTAssertEqual(hello("2026-10-21 08:00", lastSeen: nil), "Welcome to Block Party, Jesse")
     }
 
-    /// Everyone gets a name: someone who hasn't given one is a neighbor.
-    func testNoNameIsANeighbor() {
+    /// Never "neighbor": someone who hasn't given a name gets the hello alone (Jesse, 2026-11-15).
+    func testNoNameIsTheHelloAlone() {
         XCTAssertEqual(HelloDrop.hello(name: nil, now: town("2026-10-21 08:00"),
-                                       lastSeen: town("2026-10-20 20:00"), yesterday: nil).text, "Morning, neighbor")
+                                       lastSeen: town("2026-10-20 20:00"), yesterday: nil).text, "Morning")
     }
 
     // MARK: Firsts and milestones (hello-drop 02)
@@ -548,6 +548,96 @@ final class HelloDropTests: XCTestCase {
     func testYourEventTomorrow() {
         XCTAssertEqual(message("2026-10-21 09:00", going: [event("Farmers Market", "2026-10-22", "8 AM")]),
                        "Farmers Market is tomorrow")
+    }
+
+    // MARK: What you follow, today (hello-drop 09)
+
+    private func game() -> Game {
+        let json = """
+        {"sport": "Football", "occasion": null,
+         "teams": [{"name": "Gustavus Adolphus", "short": "Gustavus", "logo": "https://x/gus.png", "nickname": "Gusties"},
+                   {"name": "Saint John's", "short": "Saint John's", "logo": "https://x/sju.png", "local": true,
+                    "nickname": "Johnnies"}]}
+        """
+        return try! JSONDecoder().decode(Game.self, from: Data(json.utf8))
+    }
+
+    private func followed(_ title: String, _ time: String?, followed: String? = "Saint John's", game: Game? = nil,
+                          picture: PlacePicture? = nil, day: String = "2026-10-21") -> DailyEvent {
+        var card = FeedCardItem(UpcomingEvent(id: title, title: title, eventDate: day, startTime: time, location: nil,
+                                              goingCount: 0, createdAt: ""))
+        card.followed = followed
+        card.game = game
+        card.hostPicture = picture
+        return YouCalendar.event(from: card)!
+    }
+
+    private func line(_ now: String, going: [DailyEvent] = [], town: [DailyEvent]) -> HelloDrop.Message? {
+        HelloDrop.message(now: self.town(now), lastSeen: nil, going: going, groups: [], town: town)
+    }
+
+    /// Your side first, by what you follow, with your team's logo; a tap opens the game.
+    func testATeamYouFollowPlaysToday() {
+        let football = followed("Football", "1 PM", game: game())
+        let said = line("2026-10-21 09:00", town: [football])
+        XCTAssertEqual(said?.text, "Johnnies vs Gusties today at 1")
+        XCTAssertEqual(said?.logo, URL(string: "https://x/sju.png"))
+        XCTAssertEqual(said?.target, .event(football.item))
+        XCTAssertEqual(line("2026-10-21 09:00", town: [followed("Football", "7 PM", followed: "Gustavus Football",
+                                                                 game: game())])?.text,
+                       "Gusties vs Johnnies tonight at 7", "the side you follow, by its name")
+        XCTAssertEqual(line("2026-10-21 09:00", town: [followed("Football", "1 PM", followed: "Clemens Field", game: game())])?.text,
+                       "Football today at 1", "a game at a place you follow is that place's Event, not your team's")
+        XCTAssertEqual(line("2026-10-21 13:30", town: [followed("Football", "1 PM", game: game())])?.text,
+                       "Johnnies vs Gusties today", "on now: no time")
+        XCTAssertEqual(line("2026-10-21 09:00", town: [followed("Football", "1 PM", followed: nil, game: game())])?.text,
+                       "1 thing happening today", "a game you don't follow is a count")
+        XCTAssertNotEqual(line("2026-10-21 09:00", town: [followed("Football", "1 PM", game: game(), day: "2026-10-22")])?.text
+                          .hasPrefix("Johnnies"), true, "tomorrow's game isn't today's")
+    }
+
+    /// Anything else you follow (a place, a page, a person), its picture at the left and no name.
+    func testSomethingYouFollowHasAnEventToday() {
+        let logo = PlacePicture(url: URL(string: "https://x/bad-habit.png")!, kind: .logo)
+        let said = line("2026-10-21 09:00", town: [followed("Cardio Drumming", "5 PM", followed: "Bad Habit Brewing",
+                                                            picture: logo)])
+        XCTAssertEqual(said?.text, "Cardio Drumming tonight at 5")
+        XCTAssertEqual(said?.logo, logo.url)
+        XCTAssertEqual(said?.photo, false)
+        XCTAssertEqual(line("2026-10-21 09:00", town: [followed("Craft Sale", "2 PM", followed: "Church of St. Joseph"),
+                                                        followed("Cardio Drumming", "5 PM", followed: "Bad Habit Brewing")])?.text,
+                       "Craft Sale today at 2", "the soonest")
+        XCTAssertEqual(line("2026-10-21 09:00", town: [followed("Cardio Drumming", "5 PM", followed: "Bad Habit Brewing"),
+                                                        followed("Football", "7 PM", game: game())])?.text,
+                       "Johnnies vs Gusties tonight at 7", "a game first")
+    }
+
+    /// Friends going still beats them; they beat your event tomorrow.
+    func testWhatYouFollowSitsFourthAndFifth() {
+        let football = followed("Football", "1 PM", game: game())
+        XCTAssertEqual(line("2026-10-21 09:00", town: [football, event("Trivia", "2026-10-21", "7 PM", friends: ["Sam"])])?.text,
+                       "Sam is going tonight")
+        XCTAssertEqual(line("2026-10-21 09:00", going: [event("Farmers Market", "2026-10-22", "8 AM")], town: [football])?.text,
+                       "Johnnies vs Gusties today at 1")
+    }
+
+    func testGameDaySaysHello() {
+        func hello(_ now: String, lastSeen: String = "2026-10-20 20:00", yesterday: String? = nil) -> String {
+            HelloDrop.hello(name: "Jesse", now: town(now), lastSeen: town(lastSeen), yesterday: yesterday, gameDay: true).text
+        }
+        XCTAssertEqual(hello("2026-10-21 08:00", yesterday: "Happy game day"), "Morning, Jesse", "never two days running")
+        XCTAssertEqual(hello("2026-10-21 08:00"), "Happy game day, Jesse")
+        XCTAssertEqual(hello("2026-10-25 08:00", lastSeen: "2026-10-24 20:00"), "Happy game day, Jesse", "beats Happy Sunday")
+        XCTAssertEqual(hello("2026-10-31 08:00", lastSeen: "2026-10-30 20:00"), "Happy Halloween, Jesse")
+        XCTAssertEqual(hello("2026-10-21 08:00", lastSeen: "2026-10-17 20:00"), "Welcome back, Jesse")
+        let football = followed("Football", "1 PM", game: game())
+        XCTAssertTrue(HelloDrop.gameDay(now: town("2026-10-21 08:00"), town: [football]))
+        XCTAssertFalse(HelloDrop.gameDay(now: town("2026-10-21 23:00"), town: [football]), "over")
+        XCTAssertFalse(HelloDrop.gameDay(now: town("2026-10-21 08:00"), town: [followed("Football", "1 PM", followed: nil,
+                                                                                         game: game())]))
+        XCTAssertFalse(HelloDrop.gameDay(now: town("2026-10-21 08:00"), town: [followed("Trivia", "7 PM")]), "not a game")
+        XCTAssertFalse(HelloDrop.gameDay(now: town("2026-10-21 08:00"), town: [followed("Football", "1 PM", followed: "Clemens Field",
+                                                                                         game: game())]), "a place, not a team")
     }
 
     // MARK: A contact who joined (hello-drop 04)

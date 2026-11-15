@@ -118,6 +118,8 @@ def validate(entries):
             errs.append(f"{where}: bad status {e.get('status')!r}")
         if "tier" in e and e["tier"] not in ENUMS["tier"]:
             errs.append(f"{where}: bad tier {e['tier']!r}")
+        if "venue_only" in e and not isinstance(e["venue_only"], bool):
+            errs.append(f"{where}: venue_only must be true or false, not {e['venue_only']!r}")
         srcs = e.get("sources")
         if not isinstance(srcs, list) or not srcs:
             errs.append(f"{where}: needs at least one source")
