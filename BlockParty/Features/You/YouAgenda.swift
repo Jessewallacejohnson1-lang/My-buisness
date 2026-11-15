@@ -239,6 +239,26 @@ struct AgendaCards: View {
     /// What VoiceOver reads for a card, the words page's `agenda-friends-vo`: "Trivia Night,
     /// 7 PM, Anna and Ben are going", the Town card's friends line after the time, then what an
     /// open card adds.
+    /// A card's time: "Now" while it's on, "In 20 min" within the hour before (spoken "Starts in 20 minutes",
+    /// BP app happening-now 07), else its time, or with `withDay` the Town card's when line from the organizer's
+    /// own time ("Tonight · 7 PM"; an all-day Event shows only its day), and how VoiceOver reads it ("Saturday,
+    /// October 17 at Noon"). Beside the next plan's pill it's always the date, so "Tomorrow" never shows twice,
+    /// and never a countdown, which the pill already says.
+    static func when(_ event: DailyEvent, now: Date, withDay: Bool, pill: String?) -> (text: String, spoken: String) {
+        if pill == nil, event.group == nil, !event.isNow(now), let soon = event.item.startsIn(at: now) {
+            return (soon.text, soon.spoken)
+        }
+        if withDay, !event.isNow(now),
+           let line = FeedWhenLine(eventDate: event.item.eventDate, startTime: event.item.startTime,
+                                   now: now, relative: pill == nil) {
+            return (line.text, line.spoken)
+        }
+        let time = event.startTime(now: now)
+        // A Group get-together says whose it is: its title is only "Meeting" or "Bingo" (rsvp-and-groups 09).
+        if let group = event.group { return ("\(time) · \(group.name)", "\(time), \(group.name)") }
+        return (time, time)
+    }
+
     static func spoken(title: String, when: String, friends: [String], more: String) -> String {
         [title, when, RSVPWords.friendsLine(friends, bar: false), more]
             .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ", ")
@@ -369,20 +389,8 @@ private struct AgendaCard: View {
         return faces + AgendaMetric.textGap
     }
 
-    /// When it starts: "Now" while it's on, else its time, or with `withDay` the Town
-    /// card's when line from the organizer's own time ("Tonight · 7 PM"; an all-day Event
-    /// shows only its day), and how VoiceOver reads it ("Saturday, October 17 at Noon").
-    /// Beside the pill it's always the date, so "Tomorrow" never shows twice.
     private var when: (text: String, spoken: String) {
-        if withDay, !event.isNow(now),
-           let line = FeedWhenLine(eventDate: event.item.eventDate, startTime: event.item.startTime,
-                                   now: now, relative: pill == nil) {
-            return (line.text, line.spoken)
-        }
-        let time = event.startTime(now: now)
-        // A Group get-together says whose it is: its title is only "Meeting" or "Bingo" (rsvp-and-groups 09).
-        if let group = event.group { return ("\(time) · \(group.name)", "\(time), \(group.name)") }
-        return (time, time)
+        AgendaCards.when(event, now: now, withDay: withDay, pill: pill)
     }
 
     /// What the open card adds, and VoiceOver always reads: "Until 11 AM, Lake Wobegon

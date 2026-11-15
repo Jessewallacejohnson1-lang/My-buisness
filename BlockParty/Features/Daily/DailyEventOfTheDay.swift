@@ -31,12 +31,13 @@ struct DailyEvent: Identifiable {
     /// the Agenda or in Liked. nil for a logo and for none.
     var photo: URL? { item.image.url }
 
-    /// The card's time: "Now" while a real happening is on, as the Town card, else when
-    /// it starts ("9 AM", "7:30 PM"), in the Town's time. An untimed Event shows the
-    /// organizer's own words, or "All day".
+    /// The card's time: "Now" while a real happening is on, as the Town card, and within the hour
+    /// before it "In 20 min" (BP app happening-now 07), else when it starts ("9 AM", "7:30 PM"), in
+    /// the Town's time. An untimed Event shows the organizer's own words, or "All day".
     /// Working words; Jesse writes the final ones.
     func startTime(now: Date) -> String {
         if isNow(now) { return "Now" }
+        if let soon = item.startsIn(at: now) { return soon.text }
         return timed ? Town.clock(starts) : item.startTime ?? "All day"
     }
 

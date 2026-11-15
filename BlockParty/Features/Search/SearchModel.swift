@@ -75,9 +75,12 @@ struct SearchItem: Identifiable, Hashable {
     /// drawn, so a Search left open overnight never says Today for yesterday.
     var next: EventWhen? = nil
 
-    /// The line under its name: `sub`, then an activity's next day ("Kennedy · Tomorrow").
+    /// The line under its name: `sub`, then an activity's next day ("Kennedy · Tomorrow"). An Event's
+    /// time is worked out at `now`, as `SearchModel.events` first wrote it, so "In 20 min" ticks down to Now
+    /// (BP app happening-now 07).
     func line(_ now: Date) -> String? {
-        let parts = [sub, next.flatMap { Self.day($0, now: now) }].compactMap { $0 }
+        let when = kind == .event ? card.flatMap(YouCalendar.event(from:)).map(SearchModel.eventLine(now: now)) : nil
+        let parts = [when ?? sub, next.flatMap { Self.day($0, now: now) }].compactMap { $0 }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
@@ -645,6 +648,11 @@ final class SearchModel {
     /// The Town feed's Events as Search shows them (five-tabs 04): what's on or still to come, not
     /// called off, soonest first, each opening its Event page. Under the Events pill they sit in
     /// Today, This week and Later.
+    /// An Event row's time: another day's "Fri · 7 PM", else today's "7 PM", "In 20 min" or "Now".
+    static func eventLine(now: Date) -> (DailyEvent) -> String {
+        { $0.dayLine(now: now) ?? $0.startTime(now: now) }
+    }
+
     static func events(from cards: [FeedCardItem], now: Date) -> [SearchItem] {
         let timed = cards.compactMap { card in
             YouCalendar.event(from: card).flatMap { !card.cancelled && $0.ends > now ? $0 : nil }
@@ -653,7 +661,7 @@ final class SearchModel {
             let card = event.item, days = Town.days(from: now, to: event.starts)
             return SearchItem(id: "e:\(card.id)", kind: .event, name: card.title,
                               // No photo: its place's logo bare on the page, as Search shows every logo.
-                              sub: event.dayLine(now: now) ?? event.startTime(now: now), logo: card.image.logo,
+                              sub: eventLine(now: now)(event), logo: card.image.logo,
                               photo: card.image.isPhoto ? .card(card.image) : nil,
                               group: days <= 0 ? "Today" : days < 7 ? "This week" : "Later",
                               keywords: ["event", card.what, card.hostName, card.location].compactMap { $0 },
@@ -693,7 +701,8 @@ final class SearchModel {
             guard item.card?.image.isPhoto == true, let when = item.card?.when, when.end > now, when.start < ends
             else { return nil }
             var item = item
-            item.sub = item.card?.isNow(at: now) == true ? "Now" : when.timed ? Town.clock(when.start) : "All day"
+            item.sub = item.card?.isNow(at: now) == true ? "Now"
+                : item.card?.startsIn(at: now)?.text ?? (when.timed ? Town.clock(when.start) : "All day")
             return (item, when)
         }
         .sorted { a, b in

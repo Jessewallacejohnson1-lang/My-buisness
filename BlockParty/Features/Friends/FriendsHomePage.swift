@@ -186,9 +186,12 @@ struct FriendsHomePage: View {
                 case .title(let title, let more): FriendsSectionTitle(text: title, more: more)
                 case .person(let person, let waiting): PersonRow(person: person, waiting: waiting)
                 case .going:
-                    DailyCardRow(title: nil, events: going, size: DailyRowMetric.friendsSize,
-                                 titleSize: DailyRowMetric.friendsTitle, showsFriends: true, now: Date(),
-                                 side: FriendsMetric.side)
+                    // Each minute, so a card's "In 20 min" counts down and turns Now (BP app happening-now 07).
+                    TimelineView(.everyMinute) { context in
+                        DailyCardRow(title: nil, events: going, size: DailyRowMetric.friendsSize,
+                                     titleSize: DailyRowMetric.friendsTitle, showsFriends: true, now: context.date,
+                                     side: FriendsMetric.side)
+                    }
                 case .groups: groupsBlock(groups)
                 case .suggested: PeopleYouMayKnowSection(people: book.suggested, title: nil, side: FriendsMetric.side)
                 }
