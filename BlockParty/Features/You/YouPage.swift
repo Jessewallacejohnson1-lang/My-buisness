@@ -73,6 +73,8 @@ enum YouMetric {
     static let handleTouchBelow: CGFloat = 44 - calendarToLabel
     /// Under the finger the handle darkens and swells a little (picked), on `Press`'s timing.
     static let handlePressedScale: CGFloat = 1.1
+    /// How far the finger moves on the handle before a touch is a pull and no longer a tap (picked).
+    static let handleSlop: CGFloat = 4
     /// How far below the folded row the fold still draws: today's dot (7 pt down) and the plans count
     /// (2 pt down) show, the next week's top (11.7 pt down) doesn't.
     static let foldSpill: CGFloat = 9
@@ -110,26 +112,6 @@ enum CalendarFold {
 /// that catches it mid-spring starts from here, not from the end it was heading to.
 final class FoldShown {
     var openness: CGFloat = 0
-}
-
-/// The fold's handle: Structured's grey capsule at the top of its touch, darker and a little wider
-/// while the finger is on it or pulling.
-private struct FoldHandleStyle: ButtonStyle {
-    let held: Bool
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    func makeBody(configuration: Configuration) -> some View {
-        let down = configuration.isPressed || held
-        return configuration.label
-            .overlay(alignment: .top) {
-                Capsule()
-                    .fill(down ? Hue.inkSecondary : Hue.edge)
-                    .frame(width: YouMetric.handleWidth, height: YouMetric.handleHeight)
-                    .scaleEffect(down ? YouMetric.handlePressedScale : 1)
-                    .frame(height: YouMetric.calendarToLabel)
-                    .animation(Press.animation(down: down, reduceMotion: reduceMotion), value: down)
-            }
-    }
 }
 
 /// Draws the fold: the window's height and the roll that keeps the picked week in it. Animatable, so
@@ -172,6 +154,8 @@ struct YouPage: View {
     @State private var shown = FoldShown()
     /// Where a pull on the handle started; nil while nothing pulls.
     @State private var pullStart: CGFloat?
+    /// A finger on the handle, before it pulls or lifts.
+    @State private var handleDown = false
     /// Reduce Motion's fold: the other two weeks fade in or out rather than move.
     @State private var othersHidden = false
 
@@ -292,36 +276,45 @@ struct YouPage: View {
     /// fold mid-spring. Only a touch that starts on it pulls; the page scrolls from everywhere else.
     private var foldHandle: some View {
         let open = openness >= 0.5
-        return Button { settle(open: !open, from: openness) } label: {
-            Color.clear
-                .frame(width: YouMetric.handleTouchWidth, height: YouMetric.calendarToLabel)
-                .padding(.bottom, YouMetric.handleTouchBelow)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(FoldHandleStyle(held: pullStart != nil))
-        .padding(.bottom, -YouMetric.handleTouchBelow)
-        // Wins over the button once the finger moves, so a pull never also taps. Read on the screen,
-        // not on the handle, which moves with the fold: a local read only counted half the finger.
-        .highPriorityGesture(
-            DragGesture(minimumDistance: 4, coordinateSpace: .global)
-                .onChanged { drag in
-                    // Caught mid-spring, it carries on from where it is drawn.
-                    let start = pullStart ?? shown.openness
-                    pullStart = start
-                    var still = Transaction()
-                    still.disablesAnimations = true
-                    withTransaction(still) {
-                        openness = CalendarFold.openness(from: start, pulled: drag.translation.height)
+        let down = handleDown || pullStart != nil
+        return Capsule()
+            .fill(down ? Hue.inkSecondary : Hue.edge)
+            .frame(width: YouMetric.handleWidth, height: YouMetric.handleHeight)
+            .scaleEffect(down ? YouMetric.handlePressedScale : 1)
+            .animation(Press.animation(down: down, reduceMotion: reduceMotion), value: down)
+            .frame(width: YouMetric.handleTouchWidth, height: YouMetric.calendarToLabel)
+            .padding(.bottom, YouMetric.handleTouchBelow)
+            .contentShape(Rectangle())
+            .padding(.bottom, -YouMetric.handleTouchBelow)
+            // One gesture for the touch-down, the tap and the pull, so the handle answers the moment
+            // the finger lands. Read on the screen, not on the handle, which moves with the fold: a
+            // local read only counted half the finger (the run's review).
+            .gesture(
+                DragGesture(minimumDistance: 0, coordinateSpace: .global)
+                    .onChanged { drag in
+                        handleDown = true
+                        guard pullStart != nil || abs(drag.translation.height) >= YouMetric.handleSlop else { return }
+                        // Caught mid-spring, it carries on from where it is drawn.
+                        let start = pullStart ?? shown.openness
+                        pullStart = start
+                        var still = Transaction()
+                        still.disablesAnimations = true
+                        withTransaction(still) {
+                            openness = CalendarFold.openness(from: start, pulled: drag.translation.height)
+                        }
                     }
-                }
-                .onEnded { drag in
-                    let start = pullStart ?? openness
-                    pullStart = nil
-                    settle(open: CalendarFold.settlesOpen(from: start, flung: drag.predictedEndTranslation.height),
-                           from: start, pulled: true)
-                }
-        )
-        .accessibilityLabel(open ? "Show one week" : "Show three weeks")
+                    .onEnded { drag in
+                        handleDown = false
+                        guard let start = pullStart else { return settle(open: !open, from: openness) }
+                        pullStart = nil
+                        settle(open: CalendarFold.settlesOpen(from: start, flung: drag.predictedEndTranslation.height),
+                               from: start, pulled: true)
+                    }
+            )
+            .accessibilityElement()
+            .accessibilityLabel(open ? "Show one week" : "Show three weeks")
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction { settle(open: !open, from: openness) }
     }
 
     /// Takes the fold to one end on `Motion.smooth`, from wherever it is drawn. With Reduce Motion a
