@@ -139,8 +139,8 @@ struct ExploreBlock: Layout {
     }
 }
 
-/// One of Around town's photos: it opens what it shows, an Event's page or a business's, the logo
-/// flying out of the photo's middle as from a food card.
+/// One of Around town's photos: it opens what it shows, an Event's page or a business's, the photo
+/// growing into the page's top photo as from a food card.
 private struct ExploreTile: View {
     let item: SearchItem
     @Environment(SearchModel.self) private var model
@@ -151,6 +151,8 @@ private struct ExploreTile: View {
         OpenButton(item: item, press: .squish, tap: tap) {
             SearchPhoto(item: item)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .opacity(opener.isAway(item) ? 0 : 1)
+                .animation(nil, value: opener.isAway(item))
                 .contentShape(Rectangle())
                 .trackFrame(frame)
         }
@@ -160,10 +162,8 @@ private struct ExploreTile: View {
     private func tap() {
         model.remember(item.id)
         guard item.opens else { return }
-        let box = frame.rect, size = SearchMetric.logoOnTile
-        opener.open(item, from: .init(
-            logo: CGRect(x: box.midX - size / 2, y: box.midY - size / 2, width: size, height: size),
-            box: box, radius: 0, shadow: item.markShadow, fades: true))
+        let box = frame.rect
+        opener.open(item, from: .init(logo: box, box: box, radius: 0, shadow: item.markShadow, photo: item.cover))
     }
 }
 

@@ -5,7 +5,9 @@
 //  page (Jesse, 2026-10-17), the photos Block Party saved of it swiping at the top under the
 //  logo, then its name, what it is, its street, its own words and its links. With no photo
 //  the logo lands in the middle of the top, as an Event page draws a place it has no photo of.
-//  Back, or a drag down on the band under the clock, sends it home the way it came.
+//  Back, or a drag down on the band under the clock, sends it home the way it came. Opened from a
+//  photo (a card, an Around town tile), the photo itself grows into the page's top photo instead,
+//  the page riding its foot (BP app place-photos 10).
 //
 //  Everything runs off one progress value (0 closed, 1 open), stepped by a spring that
 //  always starts from where it is, so the page can stop and turn around anywhere and a
@@ -114,8 +116,12 @@ final class BusinessOpener {
         /// wall, a result row): there the backdrop fades in instead of growing out.
         var radius: CGFloat
         var shadow: Color
-        /// Opened from a photo card, where the logo isn't on screen: the backdrop
-        /// fades in over the photo and the logo fades in as it flies.
+        /// Opened from a photo (a card, an Around town tile): that photo grows out of `box` into the
+        /// page's top photo and the page comes with it, with no backdrop growing and nothing rising
+        /// from below (BP app place-photos 10). Nil opens from a logo.
+        var photo: URL? = nil
+        /// Opened from a round photo (a Following row), where the logo isn't on screen: the backdrop
+        /// fades in over it and the logo fades in as it flies.
         var fades = false
     }
 
@@ -220,16 +226,35 @@ struct BusinessPage: View {
         let side = min(hero * 0.43, width * 0.4, room)
         return CGRect(x: (width - side) / 2, y: top + (room - side) / 2, width: side, height: side)
     }
+
+    /// Where a photo opened from a card is at `progress`: from the card's `box` to the page's top photo
+    /// (full width, running on under the sheet's corners), scrolled up by `scrollY`. Not clamped: the
+    /// open's overshoot grows it a touch past its spot and back.
+    static func flight(from box: CGRect, width: CGFloat, scrollY: CGFloat, progress p: CGFloat) -> CGRect {
+        let m = EventPage.Metric.self
+        let to = CGRect(x: 0, y: -max(0, scrollY), width: width, height: width / m.heroAspect + m.heroUnderlap)
+        return CGRect(x: box.minX + (to.minX - box.minX) * p, y: box.minY + (to.minY - box.minY) * p,
+                      width: box.width + (to.width - box.width) * p, height: box.height + (to.height - box.height) * p)
+    }
+
+    /// While a photo opened from a card is on its way (in or home, or held by a drag), the page's own
+    /// photos wait under it; at rest open, they take over from it.
+    static func inFlight(_ progress: CGFloat) -> Bool { progress != 1 }
 }
 
-/// What the page's scroll tells the logo over it: how far down the page is, and whether a photo
-/// is left for it to rest beside (none, and it sits in the middle of the top instead).
+/// What the page's scroll tells the logo over it: how far down the page is, whether a photo is left
+/// for it to rest beside (none, and it sits in the middle of the top instead), and which photo is on
+/// screen, which goes home into the card it came from (Jesse, 2026-11-15, place-photos 10).
 @MainActor @Observable
 private final class PageState {
     var scrollY: CGFloat = 0
     var hasPhotos: Bool
+    var photo: URL?
 
-    init(hasPhotos: Bool) { self.hasPhotos = hasPhotos }
+    init(hasPhotos: Bool, photo: URL?) {
+        self.hasPhotos = hasPhotos
+        self.photo = photo
+    }
 }
 
 private struct BusinessPageBody: View {
@@ -242,7 +267,7 @@ private struct BusinessPageBody: View {
         self.item = item
         self.source = source
         self.opener = opener
-        _page = State(initialValue: PageState(hasPhotos: !item.photos.isEmpty))
+        _page = State(initialValue: PageState(hasPhotos: !item.photos.isEmpty, photo: source.photo))
     }
 
     var body: some View {
@@ -256,14 +281,23 @@ private struct BusinessPageBody: View {
             let frame = geo.frame(in: .global)
             let origin = CGPoint(x: frame.minX - insets.leading, y: frame.minY - insets.top)
 
+            let box = source.box.offsetBy(dx: -origin.x, dy: -origin.y)
             ZStack(alignment: .topLeading) {
-                // The page's paper grows out of the card it came from.
-                GrowingBackdrop(box: source.box.offsetBy(dx: -origin.x, dy: -origin.y),
-                                radius: source.radius, fades: source.fades,
+                // The page's paper grows out of the card it came from; under a photo, it fades in.
+                GrowingBackdrop(box: box, radius: source.radius, photo: source.photo != nil, fades: source.fades,
                                 screen: CGRect(origin: .zero, size: full), progress: opener.progress)
 
-                Rising(progress: opener.progress, travel: full.height) {
-                    BusinessPageContent(item: item, page: page, size: full)
+                if let photo = source.photo {
+                    // The card's photo grows into the page's top photo, the page riding its foot.
+                    GrowingPhoto(url: page.photo ?? photo, box: box, radius: source.radius, width: full.width,
+                                 page: page, progress: opener.progress)
+                    RidingPhoto(box: box, width: full.width, page: page, progress: opener.progress) {
+                        BusinessPageContent(item: item, page: page, size: full, flight: opener.progress)
+                    }
+                } else {
+                    Rising(progress: opener.progress, travel: full.height) {
+                        BusinessPageContent(item: item, page: page, size: full)
+                    }
                 }
 
                 CloseBand(opener: opener, page: page, height: insets.top + SearchMetric.bizBand)
@@ -296,6 +330,9 @@ private struct BusinessPageContent: View {
     let item: SearchItem
     let page: PageState
     let size: CGSize
+    /// Opened from a photo: the open's progress, which holds the page's photos back while the card's
+    /// photo is on its way and fades in the name and credit over it as it lands.
+    var flight: LiveSpring? = nil
 
     @State private var photoPage: Int? = 0
     /// Photos whose bitmaps are on screen: until then a photo shimmers, and its credit waits.
@@ -328,6 +365,9 @@ private struct BusinessPageContent: View {
             page.scrollY = y
         }
         .onChange(of: photos.isEmpty) { _, none in page.hasPhotos = !none }
+        .onChange(of: photoPage) { _, index in
+            if let index, photos.indices.contains(index) { page.photo = photos[index].url }
+        }
     }
 
     /// As tall as the Event page's: 303/393 of the width, the photos running on under the
@@ -343,6 +383,7 @@ private struct BusinessPageContent: View {
                             photoPage = min(photoPage ?? 0, max(photos.count - 1, 0))
                         }
                         .frame(width: proxy.size.width, height: proxy.size.height + Metric.heroUnderlap)
+                        .modifier(Landed(flight: flight, from: 1))
                     }
                 }
             }
@@ -359,14 +400,23 @@ private struct BusinessPageContent: View {
                 if let name = item.nameArt, !name.emblem, !photos.isEmpty {
                     ZStack(alignment: .bottom) {
                         PlaceNameArt.fade
+                        // A little see-through, the photo showing through its letters (Jesse, 2026-11-15:
+                        // a restaurant poster, measured 80%); as one piece, so a letter never shows its
+                        // own shadow through it.
                         PlaceNameArt(name: name, spoken: item.name)
+                            .compositingGroup()
+                            .opacity(PlaceNameArt.seeThrough)
                             .padding(.bottom, PlaceNameArt.bottom)
                     }
+                    .modifier(Landed(flight: flight, from: Self.lettersFrom))
                 }
             }
-            .overlay(alignment: .bottomLeading) { credit }
-            .overlay(alignment: .bottomTrailing) { counter }
+            .overlay(alignment: .bottomLeading) { credit.modifier(Landed(flight: flight, from: Self.lettersFrom)) }
+            .overlay(alignment: .bottomTrailing) { counter.modifier(Landed(flight: flight, from: Self.lettersFrom)) }
     }
+
+    /// Opened from a photo, the name, credit and counter fade in over its last 45% (the mock's).
+    static let lettersFrom: CGFloat = 0.55
 
     /// The photo on screen's credit, once it is drawn: the site it came from, or a free photo's
     /// author and licence. Bottom left, as on the Event page; the counter has the right. A tap
@@ -577,15 +627,102 @@ private struct HoursPill: View {
 private struct GrowingBackdrop: View {
     let box: CGRect
     let radius: CGFloat
+    /// Opened from a photo: no box grows, the paper fades in over the whole screen while the photo
+    /// grows over it, gone from Search by 40% of the way (the mock's).
+    let photo: Bool
     let fades: Bool
     let screen: CGRect
     let progress: LiveSpring
 
     var body: some View {
         let c = min(max(progress.value, 0), 1)
-        Hue.paper
-            .clipShape(RoundedClip(rect: lerp(box, screen, c), radius: lerp(radius, 0, c)))
-            .opacity(radius > 0 && !fades ? 1 : min(1, c * 4))
+        if photo {
+            Hue.paper.opacity(min(1, c * 2.5))
+        } else {
+            Hue.paper
+                .clipShape(RoundedClip(rect: lerp(box, screen, c), radius: lerp(radius, 0, c)))
+                .opacity(radius > 0 && !fades ? 1 : min(1, c * 4))
+        }
+    }
+}
+
+/// The photo a card showed, growing out of the card into the page's top photo and back, its corners
+/// squaring off as it goes (Jesse, 2026-11-15: "yes I agree with the mockup 100%", place-photos 10).
+/// Drawn as the card and the page draw it, filling its frame round the photo's focus, so the hand-over
+/// to the page's own photos at rest can't be seen. It reads the largest bitmap already decoded: the
+/// card's at first, the page's sharper one once the pager under it has loaded.
+private struct GrowingPhoto: View {
+    let url: URL
+    let box: CGRect
+    let radius: CGFloat
+    let width: CGFloat
+    let page: PageState
+    let progress: LiveSpring
+
+    var body: some View {
+        let p = progress.value
+        if BusinessPage.inFlight(p) {
+            let f = BusinessPage.flight(from: box, width: width, scrollY: page.scrollY, progress: p)
+            let loader = FeedCardImageLoader.shared
+            ZStack {
+                if let image = loader.largest(for: url) {
+                    Image(decorative: image, scale: 1)
+                        .resizable()
+                        .scaledToFill()
+                        .offset(FeedCardURLPhoto.offset(image: CGSize(width: image.width, height: image.height),
+                                                        box: f.size, focus: loader.focus(for: url)))
+                } else {
+                    Hue.fill
+                }
+            }
+            .frame(width: f.width, height: f.height)
+            .clipShape(RoundedRectangle(cornerRadius: max(0, lerp(radius, 0, min(max(p, 0), 1))), style: .continuous))
+            .offset(x: f.minX, y: f.minY)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
+    }
+}
+
+/// The page under a growing photo: shrunk to the photo's width and riding its foot, so the sheet's
+/// corners sit on the photo the whole way, its words fading in from a third of the way (the mock's).
+private struct RidingPhoto<Content: View>: View {
+    let box: CGRect
+    let width: CGFloat
+    let page: PageState
+    let progress: LiveSpring
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        let p = progress.value
+        let c = min(max(p, 0), 1)
+        let flying = BusinessPage.inFlight(p)
+        let f = BusinessPage.flight(from: box, width: width, scrollY: page.scrollY, progress: p)
+        let k = flying ? f.width / max(width, 1) : 1
+        // Where the page's own photo (as tall as the flight's end, scrolled up by scrollY) puts its
+        // foot on the flying photo's.
+        let photo = width / EventPage.Metric.heroAspect + EventPage.Metric.heroUnderlap - max(0, page.scrollY)
+        content
+            .scaleEffect(k, anchor: .topLeading)
+            .offset(x: flying ? f.minX : 0, y: flying ? f.maxY - k * photo : 0)
+            .opacity(flying ? min(max((c - 0.35) / 0.5, 0), 1) : 1)
+    }
+}
+
+/// Opened from a photo, what waits for it to land: hidden while it's on its way, then fading in over
+/// the end of the way from `from` (1: only once it rests). Nothing to wait for opens as before.
+private struct Landed: ViewModifier {
+    let flight: LiveSpring?
+    let from: CGFloat
+
+    func body(content: Content) -> some View {
+        content.opacity(Self.opacity(flight?.value, from: from))
+    }
+
+    static func opacity(_ progress: CGFloat?, from: CGFloat) -> Double {
+        guard let progress, BusinessPage.inFlight(progress) else { return 1 }
+        guard from < 1 else { return 0 }
+        return min(max((min(progress, 1) - from) / (1 - from), 0), 1)
     }
 }
 
@@ -685,9 +822,15 @@ private struct FlyingLogo: View {
     var body: some View {
         let p = progress.value
         let c = min(max(p, 0), 1)
-        let lift = sin(.pi * c)
+        // From a photo the logo was never on screen: it doesn't fly, it fades in where it rests as
+        // the photo lands, and not at all over the place's name (Jesse, 2026-11-15, place-photos 10).
+        let fromPhoto = source.photo != nil
+        let lift = fromPhoto ? 0 : sin(.pi * c)
         let fades = named && page.hasPhotos
-        let flying = lerp(from, page.hasPhotos ? bottom ?? corner : middle, p)
+        let rest = page.hasPhotos ? bottom ?? corner : middle
+        let flying = lerp(fromPhoto ? rest : from, rest, p)
+        let shown = fromPhoto ? (fades ? 0 : Landed.opacity(p, from: BusinessPageContent.lettersFrom))
+            : (source.fades ? min(1, c * 4) : 1) * (fades ? 1 - c : 1)
         Group {
             if let logo = item.logo {
                 CastLogo(logo: logo, side: flying.width, shadow: source.shadow,
@@ -697,7 +840,7 @@ private struct FlyingLogo: View {
             }
         }
             .offset(x: flying.minX, y: flying.minY - max(0, page.scrollY) * c)
-            .opacity((source.fades ? min(1, c * 4) : 1) * (fades ? 1 - c : 1))
+            .opacity(shown)
             .animation(Motion.smooth, value: fades)
             // Every photo failed after it landed: it moves to the middle, not jumps.
             .animation(Motion.smooth, value: page.hasPhotos)

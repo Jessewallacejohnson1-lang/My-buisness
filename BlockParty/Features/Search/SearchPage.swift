@@ -548,14 +548,14 @@ struct SearchPage: View {
     /// Once a launch, so coming back to Search doesn't open it again.
     private static var debugBusinessOpened = false
     /// `-open-business <place id>` (with `-open-tab search`): opens that business's page once
-    /// Search has read it, its logo flying in from mid-screen as from a photo card, so a
+    /// Search has read it, its cover growing from mid-screen as from a photo card, so a
     /// place-photos check needn't find it on the wall (BP app backlog 03).
     private func openDebugBusiness() {
         guard !Self.debugBusinessOpened, let id = LaunchFlags.value(.openBusiness),
               let item = model.items.first(where: { $0.id == id || $0.id == "p:\(id)" }), item.opens else { return }
         Self.debugBusinessOpened = true
         let size = SearchMetric.logoOnTile, rect = CGRect(x: 160, y: 400, width: size, height: size)
-        opener.open(item, from: .init(logo: rect, box: rect, radius: 0, shadow: item.markShadow, fades: true))
+        opener.open(item, from: .init(logo: rect, box: rect, radius: 0, shadow: item.markShadow, photo: item.cover))
     }
     /// `-search-focus`: opens on the recents, as after a tap on the field.
     private static var debugSearching: Bool {
@@ -834,6 +834,9 @@ struct PhotoCard: View {
                     .frame(height: SearchMetric.cardPhoto)
                     .overlay(alignment: .topLeading) { if new { NewTag() } }
                     .clipShape(RoundedRectangle(cornerRadius: Radius.photoCard, style: .continuous))
+                    // Away on its business's page while that is open: there is only ever one.
+                    .opacity(opener.isAway(item) ? 0 : 1)
+                    .animation(nil, value: opener.isAway(item))
                     .trackFrame(photoFrame)
                 Text(item.name)
                     .font(.sansSemibold(15))
@@ -854,15 +857,14 @@ struct PhotoCard: View {
         .accessibilityLabel([new ? "New" : nil, item.name, item.sub].compactMap { $0 }.joined(separator: ", "))
     }
 
-    /// A restaurant or coffee shop opens its page from the photo: the logo, or its letter disc, flies
-    /// out of the photo's middle.
+    /// A restaurant or coffee shop opens its page from the photo: the photo itself grows into the
+    /// page's top photo (BP app place-photos 10).
     private func tap() {
         model.remember(item.id)
         guard item.opens else { return }
-        let box = photoFrame.rect, size = SearchMetric.logoOnTile
-        opener.open(item, from: .init(
-            logo: CGRect(x: box.midX - size / 2, y: box.midY - size / 2, width: size, height: size),
-            box: box, radius: Radius.photoCard, shadow: item.markShadow, fades: true))
+        let box = photoFrame.rect
+        opener.open(item, from: .init(logo: box, box: box, radius: Radius.photoCard, shadow: item.markShadow,
+                                      photo: item.cover))
     }
 }
 
