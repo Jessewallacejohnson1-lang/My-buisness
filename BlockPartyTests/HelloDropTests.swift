@@ -67,10 +67,10 @@ final class HelloDropTests: XCTestCase {
         XCTAssertEqual(hello("2026-10-21 08:00", lastSeen: nil), "Welcome to Block Party, Jesse")
     }
 
-    /// Everyone gets a name: someone who hasn't given one is a neighbor.
-    func testNoNameIsANeighbor() {
+    /// Never "neighbor": someone who hasn't given a name gets the hello alone (Jesse, 2026-11-15).
+    func testNoNameIsTheHelloAlone() {
         XCTAssertEqual(HelloDrop.hello(name: nil, now: town("2026-10-21 08:00"),
-                                       lastSeen: town("2026-10-20 20:00"), yesterday: nil).text, "Morning, neighbor")
+                                       lastSeen: town("2026-10-20 20:00"), yesterday: nil).text, "Morning")
     }
 
     // MARK: Firsts and milestones (hello-drop 02)

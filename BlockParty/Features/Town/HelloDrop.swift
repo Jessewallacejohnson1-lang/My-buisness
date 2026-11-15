@@ -71,15 +71,15 @@ enum HelloDrop {
     /// Plain hellos only, never a phrase like "Good to see you" (Jesse, 2026-10-29).
     private static let anyTime = ["Hi", "Hey", "Hello"]
 
-    /// Always a name: the first name, else "neighbor" for someone who hasn't given one (Jesse,
-    /// 2026-10-29: "make sure to add names for everyone"). A special day beats the time of day
+    /// Always the first name, never "neighbor"; someone who hasn't given one gets the hello alone (Jesse,
+    /// 2026-11-15: "never use neighbor always use name"). A special day beats the time of day
     /// (a holiday, then `gameDay`: a team you follow plays today, hello-drop 09),
     /// which beats the any-time ones; those stand in when the time of day's would repeat
     /// yesterday's. `lastSeen` is nil on the very first open; `yesterday` is the last hello's key.
     static func hello(name: String?, now: Date, lastSeen: Date?, yesterday: String?, gameDay: Bool = false) -> Hello {
         let calendar = Town.calendar
         func said(_ words: String, _ key: String? = nil) -> Hello {
-            Hello(text: "\(words), \(name ?? "neighbor")", key: key ?? words)
+            Hello(text: name.map { "\(words), \($0)" } ?? words, key: key ?? words)
         }
         guard let lastSeen else { return said("Welcome to Block Party") }
         if now.timeIntervalSince(lastSeen) >= 3 * 86_400 { return said("Welcome back") }
