@@ -395,7 +395,7 @@ nonisolated enum NewsWords {
 }
 
 /// A neighbour's post in the Town feed (BP app town-feed 29, references/post-screen): their own words,
-/// maybe one photo in its own shape and a Place, who posted it and the friends they tagged. It stays
+/// maybe photos (up to 10, all in the first one's shape) and a Place, who posted it and the friends they tagged. It stays
 /// 7 days. Friends-only ones reach only the poster's friends: the server sends them to no one else.
 nonisolated struct TownPost: Hashable, Identifiable, Sendable {
     struct Person: Hashable, Sendable {
@@ -412,6 +412,8 @@ nonisolated struct TownPost: Hashable, Identifiable, Sendable {
     /// The photo's shape, width over height, inside Instagram's limits (4:5 to 1.91:1); nil when
     /// unknown.
     var aspect: Double? = nil
+    /// Its photos after the first, in the poster's order (town-feed 46), each shown in the first one's shape.
+    var morePhotos: [URL] = []
     var place: String? = nil
     var tagged: [Person] = []
     /// The `@` names in its words still good for you, each with its page (BP app town-feed 60).
@@ -441,6 +443,9 @@ nonisolated struct TownPost: Hashable, Identifiable, Sendable {
         if with.isEmpty && place.isEmpty { return name }
         return name + (with.isEmpty ? " is" : with) + (place.isEmpty ? "" : " at \(place)") + "."
     }
+
+    /// Every photo, the first first: what the card swipes through.
+    var photos: [URL] { (photo.map { [$0] } ?? []) + morePhotos }
 
     /// The card's shape for the photo: its own, inside the limits; 4:5 when unknown.
     var photoAspect: Double {
@@ -797,6 +802,8 @@ nonisolated struct NewPostInput: Equatable {
     var imageURL: String? = nil
     /// Width over height, inside 4:5 to 1.91:1.
     var aspect: Double? = nil
+    /// Photos 2 to 10, in the order picked (town-feed 46).
+    var morePhotos: [String] = []
     var place: String? = nil
     var friendsOnly = false
     /// Friends' ids, in the order tagged.

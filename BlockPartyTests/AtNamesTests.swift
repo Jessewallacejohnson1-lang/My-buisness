@@ -68,9 +68,9 @@ final class AtNamesTests: XCTestCase {
         _ = draft.pick(sam, replacing: AtTyping.typed(draft.words, cursor: draft.words.endIndex)!.range)
         _ = draft.pick(sam, replacing: draft.words.endIndex..<draft.words.endIndex)
         XCTAssertEqual(draft.atNames, [habit, sam], "once each, in the order picked")
-        XCTAssertEqual(draft.input(id: "x", imageURL: nil, aspect: nil).atNames, [habit, sam])
+        XCTAssertEqual(draft.input(id: "x", photos: [], aspect: nil).atNames, [habit, sam])
         draft.words = "Pint night with @Sam Rivera"
-        XCTAssertEqual(draft.input(id: "x", imageURL: nil, aspect: nil).atNames, [sam], "Bad Habit was typed away")
+        XCTAssertEqual(draft.input(id: "x", photos: [], aspect: nil).atNames, [sam], "Bad Habit was typed away")
     }
 
     func testThePostedWordsLinkEachNameAndTag() {

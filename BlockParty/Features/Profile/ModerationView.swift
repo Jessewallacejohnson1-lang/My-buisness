@@ -110,6 +110,10 @@ extension ReviewCard: Decodable {
 struct ReviewPoster: Decodable, Hashable {
     let name: String?
     let photo: String?
+    /// A post's photos after the first (town-feed 46): the queue shows every one.
+    var morePhotos: [String]? = nil
+
+    var morePictures: [URL] { (morePhotos ?? []).compactMap(URL.init(string:)) }
 }
 
 /// An Event neighbours reported (town-feed 22): its reasons and how many reports, never who sent them.
@@ -279,6 +283,11 @@ final class ModerationModel: ObservableObject {
                    })
     }
 
+    /// A bundled town photo's file, for a sample.
+    private static func bundled(_ name: String) -> String? {
+        Bundle.main.url(forResource: name, withExtension: "jpg")?.absoluteString
+    }
+
     /// Two reported Events (`-review-queue-preview`): a made-up scam, and the first real report (Oct 26).
     static let reportFixtures = [
         ReportedEvent(eventId: "report-0", title: "Free iPhone giveaway", eventDate: "2026-11-12",
@@ -324,6 +333,12 @@ final class ModerationModel: ObservableObject {
                     card: card("fixture-post", "Lost cat near 3rd Ave, grey with a white chest. Call if you see her!",
                                nil, nil, created: "2026-11-07T17:00:00Z"),
                     poster: ReviewPoster(name: "Jordan", photo: nil)),
+        // A post with three photos the check didn't answer (town-feed 46): every one shows, the bundled ones.
+        PendingPost(id: "fixture-photos", kind: .post, checkedAt: "2026-11-14T15:00:00Z",
+                    card: ReviewCard(title: "Millstream was packed today", createdAt: "2026-11-14T15:00:00Z",
+                                     imageUrl: bundled("welcome-millstream")),
+                    poster: ReviewPoster(name: "Avery", photo: nil,
+                                         morePhotos: ["millstream-arts-festival", "rocktoberfest"].compactMap(bundled))),
         PendingPost(id: "fixture-fare", kind: .event, checkedAt: nil,
                     card: card("fixture-fare", "Fare for All", "2026-11-09", nil, allDay: true, place: "610 County Rd 2",
                                words: "Fare for All sells packages of fresh produce and frozen meat once a month at Resurrection Lutheran Church.",
@@ -376,6 +391,7 @@ struct ModerationView: View {
                                     who: who(card, report.poster, edited: report.reportedAs != nil),
                                     title: card.title.isEmpty ? report.title : card.title,
                                     when: when(card), words: card.description, picture: card.picture,
+                                    morePictures: report.poster?.morePictures ?? [], openPicture: { link = SafariLink(url: $0) },
                                     reportedAs: report.reportedAs,
                                     notes: report.notes ?? [],
                                     tag: .init(symbol: "flag", text: report.tag), line: i > 0,
@@ -419,6 +435,7 @@ struct ModerationView: View {
                                     title: post.kind == .post && card.title.isEmpty ? "Photo" : card.title,
                                     titleLines: card.event == nil ? nil : 2,
                                     when: when(card), words: card.description, picture: card.picture,
+                                    morePictures: post.poster?.morePictures ?? [], openPicture: { link = SafariLink(url: $0) },
                                     tag: ReviewRow.heldTag(found: card.found, checkedAt: post.checkedAt)
                                         .map { .init(symbol: "clock", text: $0) },
                                     line: i > 0,
@@ -534,6 +551,8 @@ enum ReviewMetric {
     static let picture: CGFloat = 68
     static let pictureCorner: CGFloat = 8
     static let pictureGap: CGFloat = 12
+    /// Between a post's later photos (town-feed 46): Instagram's New post strip's 6 pt (BP app SPEC.md).
+    static let morePicturesGap: CGFloat = 6
     /// The words to the tag, and the tag's own shape.
     static let tagTop: CGFloat = 10
     static let tagCorner: CGFloat = 6
@@ -569,6 +588,10 @@ struct ReviewQueueRow: View {
     var when: String? = nil
     var words: String? = nil
     var picture: URL? = nil
+    /// A post's photos after the first (town-feed 46), in a row under it, each opening on a tap: the yes or Take down
+    /// sees every photo neighbours would.
+    var morePictures: [URL] = []
+    var openPicture: (URL) -> Void = { _ in }
     /// What was reported, when an edit has changed it since (backlog 29): "Reported as" in grey, then the old words.
     var reportedAs: String? = nil
     /// Reporters' notes (backlog 26), each on its own line above the tag (Jesse's pick at Check-in 1).
@@ -599,6 +622,24 @@ struct ReviewQueueRow: View {
                     .accessibilityHint("Opens it")
             } else {
                 summary.accessibilityElement(children: .combine)
+            }
+
+            if !morePictures.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: ReviewMetric.morePicturesGap) {
+                        ForEach(Array(morePictures.enumerated()), id: \.offset) { i, url in
+                            Button { openPicture(url) } label: {
+                                FeedCardURLPhoto(url: url, loadingFill: Hue.fill)
+                                    .frame(width: ReviewMetric.picture, height: ReviewMetric.picture)
+                                    .clipShape(RoundedRectangle(cornerRadius: ReviewMetric.pictureCorner, style: .continuous))
+                            }
+                            .buttonStyle(.press(.squish))
+                            .accessibilityLabel("Photo \(i + 2) of \(morePictures.count + 1)")
+                        }
+                    }
+                    .padding(.horizontal, ReviewMetric.side)
+                }
+                .padding(.top, 8)
             }
 
             if let reportedAs {

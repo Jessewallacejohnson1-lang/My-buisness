@@ -4,8 +4,9 @@
 //
 //  Facebook's post, picked at post-screen's Check-in 1 (Jesse: "A yes"; mock
 //  https://claude.ai/artifact/9M6EyMvnwRZk8d1AGL8vjD, BP app references/post-screen/checkin1.py, card A):
-//  their picture, the name line and when, then the words, then the photo edge to edge in its own shape,
-//  then the heart and send, with a light grey band before the next card. The ••• is Report for someone
+//  their picture, the name line and when, then the words, then the photo edge to edge in its own shape
+//  (several swipe sideways as Instagram's do, town-feed 46), then the heart and send, with a light grey band
+//  before the next card. The ••• is Report for someone
 //  else's post; on your own it is Apple's menu with Edit and Delete (town-feed 44).
 //
 
@@ -40,6 +41,8 @@ struct FeedPostCard: View {
     @State private var fullHeight: CGFloat = 0
     /// `heartFailureCount` at the last tap: a tap mid-shake stills it.
     @State private var heartTappedAt = 0
+    /// The photo on show of several (town-feed 46).
+    @State private var photoPage: Int?
 
     /// Card A's measurements (checkin1.py `.fb`): 16 pt sides, a 40 pt picture 10 pt from the name, words
     /// 16 on 22 with 10 above and 12 below, the row 14 pt in, an 8 pt band.
@@ -68,7 +71,12 @@ struct FeedPostCard: View {
                     .padding(.top, Metric.wordsTop)
                     .padding(.bottom, post.photo == nil ? 0 : Metric.wordsBottom)
             }
-            if let url = post.photo {
+            if post.photos.count > 1 && sendable {
+                PostPhotos(urls: post.photos, aspect: post.photoAspect, page: $photoPage, zooms: true,
+                           label: post.words.isEmpty ? "Photos from \(post.poster.name)" : "Photos")
+                    .padding(.top, post.words.isEmpty ? Metric.wordsTop : 0)
+            } else if let url = post.photo {
+                // One photo as it always was; the share's picture takes the first of several.
                 photo(url)
                     .padding(.top, post.words.isEmpty ? Metric.wordsTop : 0)
             }
@@ -269,5 +277,79 @@ struct FeedPostCard: View {
                     .background(Hue.surface)
             }
         )
+    }
+}
+
+/// A post's photos (BP app town-feed 46; Jesse at Check-in 1, 2026-11-14: "yes" to Instagram's several-photo post,
+/// `references/several-photos/`): one alone fills the post's shape as a single photo always has; several swipe sideways
+/// in the Event page's pager, each in the first one's shape and filled around where the eye goes, with the Event
+/// page's counter in Instagram's spot, 14 pt in from the top right, and Instagram's dots under them, ink on paper,
+/// centred 15 pt under the photo in a 20 pt row (SPEC.md). New post shows its picks through it too, from their files,
+/// so what you pick is what neighbours see.
+struct PostPhotos: View {
+    let urls: [URL]
+    /// The first photo's shape, width over height.
+    let aspect: Double
+    @Binding var page: Int?
+    /// The "2/4" pill: Instagram's top right on a post; New post's at the bottom right, its trash in the top corner
+    /// (Jesse at Check-in 2, 2026-11-14: "i agree").
+    var counter = true
+    var counterAt: Alignment = .topTrailing
+    /// Two fingers lift it where it sits (BP app photo-zoom), as a post's one photo does.
+    var zooms = false
+    var label = "Photos"
+
+    @State private var shown: Set<URL> = []
+    /// A photo that can't load leaves the set rather than holding a grey page.
+    @State private var failed: Set<URL> = []
+
+    private enum Metric {
+        static let counterInset: CGFloat = 14
+        static let dotsCentre: CGFloat = 15
+        static let dotsRow: CGFloat = 20
+    }
+
+    var body: some View {
+        let urls = self.urls.filter { !failed.contains($0) }
+        let on = min(page ?? 0, max(urls.count - 1, 0))
+        VStack(spacing: 0) {
+            pager(urls, on: on)
+                .aspectRatio(CGFloat(aspect), contentMode: .fit)
+                .frame(maxWidth: .infinity)
+                .overlay(alignment: counterAt) {
+                    if counter && urls.count > 1 {
+                        PhotoCounter(text: "\(on + 1)/\(urls.count)")
+                            .padding(Metric.counterInset)
+                    }
+                }
+                .modifier(Zooms(on: zooms))
+            if urls.count > 1 {
+                EventPageDots(count: urls.count, page: CGFloat(on), onPaper: true)
+                    .padding(.top, Metric.dotsCentre - EventPageDots.side / 2)
+                    .frame(maxWidth: .infinity, minHeight: Metric.dotsRow, alignment: .top)
+            }
+        }
+        .animation(Motion.smooth, value: urls)
+    }
+
+    @ViewBuilder private func pager(_ urls: [URL], on: Int) -> some View {
+        if urls.count > 1 {
+            PhotoPager(urls: urls, page: $page, shown: $shown, value: "\(on + 1) of \(urls.count)",
+                       onFailure: { failed.insert($0) }, skeleton: false, loadingFill: Hue.fill)
+                .accessibilityLabel(label)
+        } else if let url = urls.first {
+            FeedCardURLPhoto(url: url, loadingFill: Hue.fill)
+                .clipped()
+                .accessibilityLabel(label == "Photos" ? "Photo" : label)
+        } else {
+            Hue.fill
+        }
+    }
+
+    private struct Zooms: ViewModifier {
+        let on: Bool
+        func body(content: Content) -> some View {
+            if on { content.pinchToZoom(slot: Hue.paper) } else { content }
+        }
     }
 }

@@ -22,6 +22,10 @@ flake moves to Fixed, dated, and stays there.
 - 2026-10-30 · `FriendsBookTests.testAFailedUnfriendComesBackAndShakes` · red once locally at load 38,
   passed alone · `waitOutTurnBack` sleeps a fixed hold + flip + 150 ms · no fix yet: wait on the
   state instead (`waitWhile`, as the 2026-10-30 Fixed line below does)
+- 2026-11-14 · `FriendsBookSuggestionTests.testAnXThatFailsBringsThemBackWhereTheyWere` · red once on the Mac in a
+  full run on feat/several-photos (post photos only; no Friends code) at load about 200: `["Hal"]` where
+  `["Kim", "Hal"]` was expected, the class taking 3.4 s · passed alone straight after (8 of 8, 0.44 s) · no fix yet:
+  it sleeps a fixed 200 ms before checking the turn back: wait on the state (`waitWhile`) instead
 - 2026-11-13 · `EventCardPhotoTapTests.testAHeldCardOpensItsMenuAndItsButtonsKeepTheirTaps` · red once on the Mac
   in a full run on feat/nothing-scheduled (no Town card code: school rows and the sources scripts) just after merging
   e5d335e4: "a tap on the poster's heart didn't like it" (the like's wait timed out) · passed alone straight after,

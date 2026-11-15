@@ -16,7 +16,7 @@ const CORS = {
 
 const SYSTEM = `You moderate posts for Block Party, a warm, calm, hyper-local community app for the real town of St. Joseph, Minnesota. Neighbors post events, clubs, and trails, and everyday posts (kind "post"): a few words about life around town, maybe with a photo, with no date; a photo with no words is fine.
 
-Approve when the post is a plausible local community post of its stated kind, is not spam/advertising/scam, is not abusive/hateful/harassing, and is not sexual, violent, or otherwise inappropriate. If an image is provided it must also be appropriate. A photo from another day, angle or place is fine: never turn a post down because its photo doesn't match its name or its place. An everyday post's words, Location and photo needn't match each other either: someone at a brewery may write about sledding. Minor unpolished wording is fine — do not reject for tone alone.
+Approve when the post is a plausible local community post of its stated kind, is not spam/advertising/scam, is not abusive/hateful/harassing, and is not sexual, violent, or otherwise inappropriate. If an image is provided it must also be appropriate. A post may have several photos, each after a "Photo n of N" line: every one must be appropriate, and when one is the problem the reason names it by its place ("The third photo ..."). A photo from another day, angle or place is fine: never turn a post down because its photo doesn't match its name or its place. An everyday post's words, Location and photo needn't match each other either: someone at a brewery may write about sledding. Minor unpolished wording is fine — do not reject for tone alone.
 
 Reject only with a clear, kind, specific reason the poster can act on, in one short sentence.
 
@@ -70,7 +70,12 @@ Deno.serve(async (req) => {
       e.description ? `Description: ${e.description}` : null,
     ].filter(Boolean).join('\n')
     const content: any[] = [{ type: 'text', text: facts }]
-    if (e.image_url && note === undefined) content.push({ type: 'image', source: { type: 'url', url: e.image_url } })
+    // Every photo, in the poster's order (BP app town-feed 46): one alone as before, several each after its number.
+    const photos = note === undefined ? [e.image_url, ...(e.more_photos ?? [])].filter((u) => typeof u === 'string') : []
+    photos.forEach((url, i) => {
+      if (photos.length > 1) content.push({ type: 'text', text: `Photo ${i + 1} of ${photos.length}` })
+      content.push({ type: 'image', source: { type: 'url', url } })
+    })
     try {
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -114,7 +119,7 @@ Deno.serve(async (req) => {
     if (error) return json({ ok: false, reason: 'Could not auto-check.' }, 502)
     if (!claimed) return json({ ok: false, reason: 'Not checked.' }, 429)
     const { data: e } = await admin.from('club_events')
-      .select('id, kind, title, event_date, start_time, location, more_places, description, image_url').eq('id', id).single()
+      .select('id, kind, title, event_date, start_time, location, more_places, description, image_url, more_photos').eq('id', id).single()
     if (!e) return json({ ok: false, reason: 'Could not auto-check.' }, 502)
     const said = await verdict(e)
     if (!said) return json({ ok: false, reason: 'Could not auto-check.' }, 502)
@@ -123,12 +128,14 @@ Deno.serve(async (req) => {
       return up ? json({ ok: false, reason: 'Could not auto-check.' }, 502) : json({ ok: true, reason: '' })
     }
     await admin.from('club_events').update({ status: 'rejected', review_reason: 'declined' }).eq('id', id)
-    const photo = typeof e.image_url === 'string' ? e.image_url.split('/event-images/')[1] : undefined
-    if (photo) await admin.storage.from('event-images').remove([photo])
+    // Every photo's file goes with it, the later ones too (town-feed 46).
+    const files = [e.image_url, ...(e.more_photos ?? [])]
+      .map((u) => typeof u === 'string' ? u.split('/event-images/')[1] : undefined).filter((f): f is string => !!f)
+    if (files.length) await admin.storage.from('event-images').remove(files)
     return json({ ok: false, reason: said.reason })
   }
 
-  // A neighbour's edit of their own live post (BP app town-feed 44): new words and Place, read with the post's own photo.
+  // A neighbour's edit of their own live post (BP app town-feed 44): new words and Place, read with the post's own photos.
   // claim_edit lets it through only on the caller's live post, 10 a day; nothing is written until the model says yes, so
   // a no or no answer leaves the post as it was (and, unlike `submit`, never takes its photo down). A yes writes the
   // words, the Place and the kept @ names alone (apply_post_edit). 'limit' is a 429 the app reads as the day's 10; a post
@@ -142,9 +149,10 @@ Deno.serve(async (req) => {
     if (error) return json({ ok: false, reason: 'Could not auto-check.' }, 502)
     if (claimed === 'limit') return json({ ok: false, reason: 'Not checked.' }, 429)
     if (claimed !== 'claimed') return json({ ok: false, reason: 'Not checked.' }, 403)
-    const { data: e } = await admin.from('club_events').select('image_url').eq('id', id).single()
+    const { data: e } = await admin.from('club_events').select('image_url, more_photos').eq('id', id).single()
     if (!e) return json({ ok: false, reason: 'Gone.' }, 410)
-    const said = await verdict({ kind: 'post', title: words, location: place || null, image_url: e.image_url })
+    const said = await verdict({ kind: 'post', title: words, location: place || null, image_url: e.image_url,
+                                 more_photos: e.more_photos })
     if (!said) return json({ ok: false, reason: 'Could not auto-check.' }, 502)
     if (!said.ok) return json({ ok: false, reason: said.reason })
     const { data: applied, error: up } = await admin.rpc('apply_post_edit',
@@ -180,7 +188,7 @@ Deno.serve(async (req) => {
   if (error) return json({ ok: false, reason: 'Could not auto-check.' }, 502)
   if (!claimed) return json({ ok: true, reason: '' })
   const { data: e } = await admin.from('club_events')
-    .select('id, kind, title, location, more_places, description, image_url').eq('id', body.recheck).single()
+    .select('id, kind, title, location, more_places, description, image_url, more_photos').eq('id', body.recheck).single()
   if (!e) return json({ ok: true, reason: '' })
   const said = await verdict(e)
   if (!said) { await unclaim(); return json({ ok: false, reason: 'Could not auto-check.' }, 502) }
