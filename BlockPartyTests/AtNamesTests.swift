@@ -86,6 +86,12 @@ final class AtNamesTests: XCTestCase {
         XCTAssertEqual(PostWords.links("No names here", names: [sam]), [])
     }
 
+    /// A tag's own page reads tags up to 100 long (town-feed 63, `get_tag_posts`): a longer one is plain words.
+    func testATagLongerThanItsPageReadsIsNoLink() {
+        let long = String(repeating: "a", count: 101)
+        XCTAssertEqual(PostWords.tags("#\(long.dropLast()) #\(long)").map(\.target), [.tag(String(long.dropLast()))])
+    }
+
     func testALinkTapOpensWhatItNames() {
         let habit = AtName(kind: .place, id: "3f3c5259-67f9-491e-9af5-5c4b21a80b58", name: "Bad Habit Brewing")
         XCTAssertEqual(PostWords.target(PostWords.url(.name(habit)), names: [habit]), .name(habit))
