@@ -9118,6 +9118,7 @@ Notes: Proposed on 2026-10-18 for BP app place-photos 04 (a picture for every ev
 ## Scheels Athletic Complex
 ```yaml
 id: scheels-athletic-complex
+venue_only: true
 venues: ["Bernick's Arena, Sartell", "RDR Arena, Sartell"]
 status: proposed
 tier: listed
@@ -9139,6 +9140,7 @@ Notes: Proposed on 2026-10-18 for BP app place-photos 04 (a picture for every ev
 ## Municipal Athletic Complex
 ```yaml
 id: municipal-athletic-complex
+venue_only: true
 status: proposed
 tier: listed
 category: "sports_complex"
