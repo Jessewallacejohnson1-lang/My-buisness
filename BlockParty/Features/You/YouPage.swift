@@ -68,6 +68,11 @@ enum YouMetric {
     static let handleWidth: CGFloat = 50
     static let handleHeight: CGFloat = 5
     static let handleTouchWidth: CGFloat = 120
+    /// The touch reaches this far under the 26 pt, over the "Agenda" label, which takes no tap, so it
+    /// is 44 pt tall without adding height or covering the days above.
+    static let handleTouchBelow: CGFloat = 44 - calendarToLabel
+    /// Under the finger the handle darkens and swells a little (picked), on `Press`'s timing.
+    static let handlePressedScale: CGFloat = 1.1
     /// How far below the folded row the fold still draws: today's dot (7 pt down) and the plans count
     /// (2 pt down) show, the next week's top (11.7 pt down) doesn't.
     static let foldSpill: CGFloat = 9
@@ -105,6 +110,26 @@ enum CalendarFold {
 /// that catches it mid-spring starts from here, not from the end it was heading to.
 final class FoldShown {
     var openness: CGFloat = 0
+}
+
+/// The fold's handle: Structured's grey capsule at the top of its touch, darker and a little wider
+/// while the finger is on it or pulling.
+private struct FoldHandleStyle: ButtonStyle {
+    let held: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        let down = configuration.isPressed || held
+        return configuration.label
+            .overlay(alignment: .top) {
+                Capsule()
+                    .fill(down ? Hue.inkSecondary : Hue.edge)
+                    .frame(width: YouMetric.handleWidth, height: YouMetric.handleHeight)
+                    .scaleEffect(down ? YouMetric.handlePressedScale : 1)
+                    .frame(height: YouMetric.calendarToLabel)
+                    .animation(Press.animation(down: down, reduceMotion: reduceMotion), value: down)
+            }
+    }
 }
 
 /// Draws the fold: the window's height and the roll that keeps the picked week in it. Animatable, so
@@ -147,8 +172,8 @@ struct YouPage: View {
     @State private var shown = FoldShown()
     /// Where a pull on the handle started; nil while nothing pulls.
     @State private var pullStart: CGFloat?
-    /// Reduce Motion's fold: the three weeks fade in rather than move.
-    @State private var foldFaded = false
+    /// Reduce Motion's fold: the other two weeks fade in or out rather than move.
+    @State private var othersHidden = false
 
     var body: some View {
         TimelineView(.everyMinute) { context in
@@ -234,7 +259,8 @@ struct YouPage: View {
                       spacing: YouMetric.rowGap) {
                 ForEach(Array(days.enumerated()), id: \.element) { index, date in
                     let events = byDay[date] ?? []
-                    let away = folded && CalendarFold.row(of: index) != row
+                    let other = CalendarFold.row(of: index) != row
+                    let away = folded && other
                     Button { pick(date, from: day) } label: {
                         YouDay(date: date, month: YouCalendar.month(on: date, first: days.first),
                                events: events, isToday: date == today,
@@ -242,6 +268,7 @@ struct YouPage: View {
                                gapColor: Hue.onboardingCanvas, dayFill: Hue.onboardingField)
                     }
                     .buttonStyle(.press(.squish))
+                    .opacity(othersHidden && other ? 0 : 1)
                     .accessibilityLabel(Self.spoken(date, plans: events.count, today: date == today))
                     .accessibilityAddTraits(date == day ? .isSelected : [])
                     .allowsHitTesting(!away)
@@ -250,7 +277,6 @@ struct YouPage: View {
             }
             // The ring travels to the picked day; nothing outside the grid animates.
             .animation(reduceMotion ? nil : Motion.select, value: day)
-            .opacity(foldFaded ? 0 : 1)
             .modifier(FoldWindow(openness: openness, row: CGFloat(row), shown: shown))
             // Folded, the row rolls to the week the Agenda swipes into.
             .animation(reduceMotion ? nil : Motion.smooth, value: row)
@@ -266,39 +292,41 @@ struct YouPage: View {
     /// fold mid-spring. Only a touch that starts on it pulls; the page scrolls from everywhere else.
     private var foldHandle: some View {
         let open = openness >= 0.5
-        return Capsule()
-            .fill(Hue.edge)
-            .frame(width: YouMetric.handleWidth, height: YouMetric.handleHeight)
-            .frame(width: YouMetric.handleTouchWidth, height: YouMetric.calendarToLabel)
-            .contentShape(Rectangle())
-            .onTapGesture { settle(open: !open, from: openness) }
-            .gesture(
-                DragGesture(minimumDistance: 4)
-                    .onChanged { drag in
-                        // Caught mid-spring, it carries on from where it is drawn.
-                        let start = pullStart ?? shown.openness
-                        pullStart = start
-                        var still = Transaction()
-                        still.disablesAnimations = true
-                        withTransaction(still) {
-                            openness = CalendarFold.openness(from: start, pulled: drag.translation.height)
-                        }
+        return Button { settle(open: !open, from: openness) } label: {
+            Color.clear
+                .frame(width: YouMetric.handleTouchWidth, height: YouMetric.calendarToLabel)
+                .padding(.bottom, YouMetric.handleTouchBelow)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(FoldHandleStyle(held: pullStart != nil))
+        .padding(.bottom, -YouMetric.handleTouchBelow)
+        // Wins over the button once the finger moves, so a pull never also taps. Read on the screen,
+        // not on the handle, which moves with the fold: a local read only counted half the finger.
+        .highPriorityGesture(
+            DragGesture(minimumDistance: 4, coordinateSpace: .global)
+                .onChanged { drag in
+                    // Caught mid-spring, it carries on from where it is drawn.
+                    let start = pullStart ?? shown.openness
+                    pullStart = start
+                    var still = Transaction()
+                    still.disablesAnimations = true
+                    withTransaction(still) {
+                        openness = CalendarFold.openness(from: start, pulled: drag.translation.height)
                     }
-                    .onEnded { drag in
-                        let start = pullStart ?? openness
-                        pullStart = nil
-                        settle(open: CalendarFold.settlesOpen(from: start, flung: drag.predictedEndTranslation.height),
-                               from: start, pulled: true)
-                    }
-            )
-            .accessibilityElement()
-            .accessibilityLabel(open ? "Show one week" : "Show three weeks")
-            .accessibilityAddTraits(.isButton)
-            .accessibilityAction { settle(open: !open, from: openness) }
+                }
+                .onEnded { drag in
+                    let start = pullStart ?? openness
+                    pullStart = nil
+                    settle(open: CalendarFold.settlesOpen(from: start, flung: drag.predictedEndTranslation.height),
+                           from: start, pulled: true)
+                }
+        )
+        .accessibilityLabel(open ? "Show one week" : "Show three weeks")
     }
 
     /// Takes the fold to one end on `Motion.smooth`, from wherever it is drawn. With Reduce Motion a
-    /// tap fades the three weeks in or out instead, and a pull, which followed the finger, lands.
+    /// tap fades the other two weeks in after the height opens, or out before it folds; a pull, which
+    /// followed the finger, just lands.
     private func settle(open: Bool, from start: CGFloat, pulled: Bool = false) {
         let target: CGFloat = open ? 1 : 0
         // A tick when it changes ends, as a day's pick ticks; a pull let go where it began doesn't.
@@ -309,13 +337,23 @@ struct YouPage: View {
         }
         var still = Transaction()
         still.disablesAnimations = true
-        withTransaction(still) {
-            openness = target
-            foldFaded = !pulled
-        }
-        guard !pulled else { return }
-        DispatchQueue.main.async {
-            withAnimation(.easeInOut(duration: YouMetric.foldFade)) { foldFaded = false }
+        let fade = Animation.easeInOut(duration: YouMetric.foldFade)
+        if pulled {
+            withTransaction(still) { openness = target }
+        } else if open {
+            withTransaction(still) {
+                openness = target
+                othersHidden = true
+            }
+            // A turn later, or the two changes cancel out and nothing fades.
+            DispatchQueue.main.async { withAnimation(fade) { othersHidden = false } }
+        } else {
+            withAnimation(fade) { othersHidden = true } completion: {
+                withTransaction(still) {
+                    openness = target
+                    othersHidden = false
+                }
+            }
         }
     }
 
