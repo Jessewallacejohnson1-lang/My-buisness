@@ -6071,7 +6071,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Named by its own website, https://www.simonson-lumber.com/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Named by its own website, https://www.simonson-lumber.com/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022). No Facebook page of its own (2026-11-15): Simonson Lumber's page, its parent's, came off the list (Apify could never read it; BP app watch-every-place 27).
 
 ## Mattressota
 ```yaml
@@ -6229,7 +6229,7 @@ sources:
     method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022). Listed again 2026-10-17 (Jesse): its one page was dgcoursereview.com's weekly disc golf calendar for the whole country, which Overture gave this company by mistake (category "park"), so nothing is read for it until its own site is known. It wrote no events.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022). Listed again 2026-10-17 (Jesse): its one page was dgcoursereview.com's weekly disc golf calendar for the whole country, which Overture gave this company by mistake (category "park"), so nothing is read for it until its own site is known. It wrote no events. Its social pages came off 2026-11-15: bnnorthtown is Barnes & Noble Northtown, not this place (BP app watch-every-place 27).
 
 ## Minnesota Association of Farm Mutual Insurance Companies
 ```yaml
@@ -7411,7 +7411,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 7 PM). Named by its own website, http://www.schwegelsllc.com/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 7 PM). Named by its own website, http://www.schwegelsllc.com/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022). No Facebook page (2026-11-15): its site's only Facebook link is its WordPress theme's default, facebook.com/WordPresscom; none found by search (BP app watch-every-place 27).
 
 ## Scott Investigation
 ```yaml
@@ -8815,12 +8815,12 @@ phone: "+13203638825"
 aka: ["St. Joseph Town Hall"]
 added_by: agent:town-verify
 sources:
-  - url: https://www.sjct.org
+  - url: https://stjosephtownship.org/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 4:30 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 4:30 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted. Website fixed 2026-11-15: sjct.org (and its Facebook page) is St. Joseph Charter Township, Michigan; this township's own site is stjosephtownship.org, which links no social page (BP app watch-every-place 27).
 
 ## US Army Reserve Training
 ```yaml

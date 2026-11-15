@@ -302,7 +302,7 @@
   "entry_id": "24-north-lofts-on-college-avenue",
   "name": "24 North: Lofts on College Avenue",
   "kind": "facebook",
-  "url": "https://www.facebook.com/GCREmn",
+  "url": "https://www.facebook.com/24NorthLofts",
   "busy": false,
   "day": "sat"
  },
@@ -1038,7 +1038,7 @@
   "entry_id": "golden-hill-doodles",
   "name": "Golden Hill Doodles",
   "kind": "facebook",
-  "url": "https://www.facebook.com/Goldenhilldoodles",
+  "url": "https://www.facebook.com/GoldenHillKennel83",
   "busy": false,
   "day": "tue"
  },
@@ -1322,7 +1322,7 @@
   "entry_id": "bank-kensington",
   "name": "Kensington Bank",
   "kind": "facebook",
-  "url": "https://www.facebook.com/KensingtonBank",
+  "url": "https://www.facebook.com/KensingtonBankStJoeMN",
   "busy": false,
   "day": "mon"
  },
@@ -1432,14 +1432,6 @@
   "day": "tue"
  },
  {
-  "entry_id": "mathew-hall-components",
-  "name": "Mathew Hall Components",
-  "kind": "facebook",
-  "url": "https://www.facebook.com/SimonsonLumber",
-  "busy": false,
-  "day": "fri"
- },
- {
   "entry_id": "michelich-granite-sunburst-memorials",
   "name": "Michelich Granite (Sunburst Memorials)",
   "kind": "facebook",
@@ -1464,22 +1456,6 @@
   "busy": false,
   "day": "thu",
   "monthly": true
- },
- {
-  "entry_id": "millstream-communications",
-  "name": "Millstream Communications",
-  "kind": "facebook",
-  "url": "https://www.facebook.com/BNNorthtown",
-  "busy": false,
-  "day": "mon"
- },
- {
-  "entry_id": "millstream-communications",
-  "name": "Millstream Communications",
-  "kind": "instagram",
-  "url": "https://www.instagram.com/bnnorthtown",
-  "busy": false,
-  "day": "mon"
  },
  {
   "entry_id": "minnesota-public-radio",
@@ -1786,15 +1762,6 @@
   "busy": false,
   "day": "mon",
   "monthly": true
- },
- {
-  "entry_id": "schwegels-landscaping-tree-service",
-  "name": "Schwegel's Landscaping & Tree Service",
-  "kind": "facebook",
-  "url": "https://www.facebook.com/WordPresscom",
-  "busy": false,
-  "day": "tue",
-  "skip": "Wrong page: WordPress.com product ads, not Schwegel's"
  },
  {
   "entry_id": "semi-legal-service",
@@ -2419,14 +2386,6 @@
   "url": "https://www.facebook.com/ehouseofprayer",
   "busy": false,
   "day": "sun"
- },
- {
-  "entry_id": "st-joseph-township-hall",
-  "name": "St. Joseph Township Hall",
-  "kind": "facebook",
-  "url": "https://www.facebook.com/St-Joseph-Charter-Township-561229234269016",
-  "busy": false,
-  "day": "mon"
  },
  {
   "entry_id": "hemker-park-zoo",

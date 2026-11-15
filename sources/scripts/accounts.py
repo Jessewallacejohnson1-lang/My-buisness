@@ -49,7 +49,12 @@ NOT_THE_PLACE = {"squarespace", "wix", "weebly", "godaddy", "shopify", "wordpres
                  "facebook", "instagram", "meta", "hashtag", "acehardware", "kwiktrip", "statefarm",
                  "edwardjones", "installedbuildingproducts",
                  "fmcsa", "dot_fmcsa",  # Iman Carrier's site links the federal trucking agency (2026-11-11)
-                 "minnesotadnr"}  # the statewide DNR, not the St. Wendel Tamarack Bog it runs (2026-11-11)
+                 "minnesotadnr",  # the statewide DNR, not the St. Wendel Tamarack Bog it runs (2026-11-11)
+                 # Wrong pages taken off the list (BP app watch-every-place 27, 2026-11-15): a WordPress theme's
+                 # default link, Michigan's St. Joseph Charter Township, Barnes & Noble Northtown, parent companies,
+                 # and pages Apify could never read, each place's own page on the list instead.
+                 "wordpresscom", "st-joseph-charter-township-561229234269016", "bnnorthtown", "simonsonlumber",
+                 "gcremn", "goldenhilldoodles", "kensingtonbank"}
 STOP = {"the", "and", "llc", "inc", "saint", "joseph", "company", "minnesota", "central", "center", "services"}
 
 
@@ -439,6 +444,7 @@ def selftest():
     assert out["counts"]["matched"] == 1 and out["counts"]["no_match"] == 1, "only a result with the place's street, phone or site is it"
     assert out["new"] == [{"entry_id": "krewe", "name": "Krewe", "kind": "facebook", "url": "https://www.facebook.com/KreweStJoe"}], "a new page"
     assert not out["changed"], "a page the list already has is not news"
+    assert social("https://www.facebook.com/WordPresscom/") is None, "a theme's default link is not the place"
     assert social("https://www.facebook.com/sharer/sharer.php?u=x") is None and social("https://wix.com/x") is None, "share links and site builders"
     assert pick("Krewe", ["https://www.facebook.com/a", "https://www.facebook.com/krewe"], Counter()) == "https://www.facebook.com/krewe"
     closed = match([e], [{**hit, "permanentlyClosed": True}], [])
