@@ -154,7 +154,6 @@ private struct PhotoPinch: UIGestureRecognizerRepresentable {
     private var photo: UIView?
     /// Where the photo sits now, read when the lift is drawn and followed while it's up.
     private let place: PinchSpot
-    private var spot: CGRect = .zero
     private var onAway: (Bool) -> Void = { _ in }
     private var onLift: (Bool) -> Void = { _ in }
     /// The fingers' scale when they landed, and the point of the photo under them.
@@ -205,7 +204,7 @@ private struct PhotoPinch: UIGestureRecognizerRepresentable {
         // the feed still moving, so the ground sat off its spot and a dark edge of the photo showed round it
         // (Jesse's phone, 2026-11-14).
         DispatchQueue.main.async { [self] in
-            spot = place.rect
+            let spot = place.rect
             guard held, photo == nil,
                   let picture = window.resizableSnapshotView(from: spot, afterScreenUpdates: false, withCapInsets: .zero)
             else { if photo == nil { finish() }; return }
@@ -239,14 +238,17 @@ private struct PhotoPinch: UIGestureRecognizerRepresentable {
 
     /// The fingers from the spot's top left.
     private var fingers: CGPoint {
-        CGPoint(x: point.x - spot.minX, y: point.y - spot.minY)
+        CGPoint(x: point.x - place.rect.minX, y: point.y - place.rect.minY)
     }
 
     /// The real photo moved under the lift (a squish letting go late, a scroll settling): its ground and its
-    /// home move with it, and the picture stays under the fingers.
+    /// home move with it, and the picture stays under the fingers, the same point of it when it grows.
     func follow(_ rect: CGRect) {
-        guard let photo, rect != spot else { return }
-        spot = rect
+        guard let photo else { return }
+        let was = photo.bounds.size
+        if was.width > 0, was.height > 0 {
+            anchor = CGPoint(x: anchor.x * rect.width / was.width, y: anchor.y * rect.height / was.height)
+        }
         ground.frame = rect
         photo.layer.position = rect.origin
         photo.bounds.size = rect.size
