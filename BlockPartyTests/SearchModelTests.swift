@@ -591,7 +591,6 @@ final class SearchModelTests: XCTestCase {
         let heads = SearchChip.allCases.map { SearchHead.of($0) }
         XCTAssertEqual(heads.map(\.word), ["Search", "Calendar", "Businesses", "Sports", "Events"])
         XCTAssertEqual(heads.map(\.prompt), ["Search", "Events", "Businesses", "Schools and teams", "Events"])
-        XCTAssertEqual(Set(heads.map(\.height)), [SearchMetric.sportsHeadHeight], "one header height: changing pills moves nothing")
         XCTAssertEqual(heads.map { $0.fieldFill == .clear }, [false, false, false, true, false], "only Sports' field is glass")
     }
 

@@ -25,6 +25,8 @@ nonisolated extension SearchMetric {
     static let sportsFieldHeight: CGFloat = 43
     static let sportsFieldIconLead: CGFloat = 14
     static let sportsFieldIconGap: CGFloat = 8
+    /// The magnifier and the prompt.
+    static let sportsFieldGlyph: CGFloat = 17
     /// Apple's field and chips sit 8 pt in; the words over them keep the page's 16.
     static let sportsSide: CGFloat = 8
     static let sportsChipsTop: CGFloat = 9
@@ -48,24 +50,17 @@ nonisolated extension SearchMetric {
     static let discSkeletonName: CGFloat = 12
     /// A pressed disc sinks to the mock's 90%, its name holding still.
     static let discSink: CGFloat = 0.9
-    /// Everything above the Sports chip's content, from the safe area's top.
+    /// Everything above every pill's content, from the safe area's top (search-titles 02).
     static let sportsHeadHeight: CGFloat = sportsTitle + sportsFieldTop + sportsFieldHeight + sportsChipsTop
         + chipsHeight + headBottom
 }
 
 /// Search's header for each pill: "BlockParty." and the pill's word over a round field and the pills, in Sports' dark
 /// colours (school-search 04) or the Event calendar's light ones (five-tabs 10) on every other pill (BP app
-/// search-titles 02). The one choice behind every size and colour that differs between them.
+/// search-titles 02). Every size is the Sports one's (`SearchMetric.sports*`); this holds the words and colours that differ.
 struct SearchHead {
     /// The word after "BlockParty.".
     let word: String
-    let fieldTop: CGFloat
-    let fieldHeight: CGFloat
-    let fieldRadius: CGFloat
-    let fieldGlyph: CGFloat
-    let fieldIconLead: CGFloat
-    let fieldIconGap: CGFloat
-    let fieldWords: CGFloat
     let prompt: String
     /// The prompt and the magnifier.
     let faint: Color
@@ -74,11 +69,6 @@ struct SearchHead {
     let chipGlass: Glass
     /// The selected pill's words, the page's paper inside ink.
     let chipWordsOn: Color
-    /// The field's and pills' inset from the screen's sides.
-    let side: CGFloat
-    let chipsTop: CGFloat
-    /// Everything above the content, from the safe area's top.
-    let height: CGFloat
 
     /// Each pill's: its word and prompt (Jesse, search-titles, 2026-11-15), Sports alone dark.
     static func of(_ chip: SearchChip) -> SearchHead {
@@ -94,22 +84,15 @@ struct SearchHead {
     /// Apple Sports' on the app's dark colours: a capsule of glass for the field, every pill glass, the prompt and
     /// magnifier in the dark ramp's grey.
     static let sports = SearchHead(
-        word: "Sports", fieldTop: SearchMetric.sportsFieldTop, fieldHeight: SearchMetric.sportsFieldHeight,
-        fieldRadius: SearchMetric.sportsFieldHeight / 2, fieldGlyph: 17, fieldIconLead: SearchMetric.sportsFieldIconLead,
-        fieldIconGap: SearchMetric.sportsFieldIconGap, fieldWords: 17, prompt: "Schools and teams", faint: Hue.inkSecondary,
-        fieldFill: .clear, fieldGlass: .regular.tint(Hue.ink.opacity(SearchMetric.sportsFieldGlass)),
-        chipGlass: .regular.tint(Hue.ink.opacity(SearchMetric.sportsChipGlass)), chipWordsOn: Hue.paper,
-        side: SearchMetric.sportsSide, chipsTop: SearchMetric.sportsChipsTop, height: SearchMetric.sportsHeadHeight)
+        word: "Sports", prompt: "Schools and teams", faint: Hue.inkSecondary, fieldFill: .clear,
+        fieldGlass: .regular.tint(Hue.ink.opacity(SearchMetric.sportsFieldGlass)),
+        chipGlass: .regular.tint(Hue.ink.opacity(SearchMetric.sportsChipGlass)), chipWordsOn: Hue.paper)
 
     /// The Event calendar's (five-tabs 10), now every light pill's: the Sports header's shape, a round field and the
     /// pills in Search's own light colours (Jesse: "make it a lighter theme").
     private static func light(word: String, prompt: String) -> SearchHead {
-        SearchHead(
-            word: word, fieldTop: SearchMetric.sportsFieldTop, fieldHeight: SearchMetric.sportsFieldHeight,
-            fieldRadius: SearchMetric.sportsFieldHeight / 2, fieldGlyph: 17, fieldIconLead: SearchMetric.sportsFieldIconLead,
-            fieldIconGap: SearchMetric.sportsFieldIconGap, fieldWords: 17, prompt: prompt, faint: Hue.searchFaint,
-            fieldFill: Hue.searchField, fieldGlass: .identity, chipGlass: .identity, chipWordsOn: Hue.surface,
-            side: SearchMetric.sportsSide, chipsTop: SearchMetric.sportsChipsTop, height: SearchMetric.sportsHeadHeight)
+        SearchHead(word: word, prompt: prompt, faint: Hue.searchFaint, fieldFill: Hue.searchField,
+                   fieldGlass: .identity, chipGlass: .identity, chipWordsOn: Hue.surface)
     }
 }
 
@@ -138,6 +121,9 @@ struct SportsTitle: View {
                 .alignmentGuide(.firstTextBaseline) { $0.height * 171 / 216 }
             Text(word)
                 .font(.display(SearchMetric.sportsWord))
+                // "Businesses" is the longest word: on a 375 pt phone it shrinks a little rather than wrap.
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
         }
         .foregroundStyle(Hue.ink)
         .padding(.horizontal, SearchMetric.side)

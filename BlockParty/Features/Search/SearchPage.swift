@@ -254,14 +254,15 @@ struct SearchPage: View {
     // MARK: Header
 
     private var header: some View {
+        // Every pill's header has the Sports one's sizes (search-titles 02); `SearchHead` holds what differs.
         // The field's and chips' glass blend only with each other, never across the 8 pt between chips.
         GlassEffectContainer(spacing: 0) {
             VStack(alignment: .leading, spacing: 0) {
                 SportsTitle(word: head.word)
                 fieldRow
-                    .padding(.top, head.fieldTop)
+                    .padding(.top, SearchMetric.sportsFieldTop)
                 chips
-                    .padding(.top, head.chipsTop)
+                    .padding(.top, SearchMetric.sportsChipsTop)
             }
         }
         .padding(.bottom, SearchMetric.headBottom)
@@ -314,24 +315,24 @@ struct SearchPage: View {
                 .allowsHitTesting(model.searching)
                 .accessibilityHidden(!model.searching)
         }
-        .padding(.horizontal, head.side)
-        .frame(height: head.fieldHeight)
+        .padding(.horizontal, SearchMetric.sportsSide)
+        .frame(height: SearchMetric.sportsFieldHeight)
         .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 1), value: model.searching)
     }
 
     private var field: some View {
         let head = head
-        let shape = RoundedRectangle(cornerRadius: head.fieldRadius, style: .continuous)
+        let shape = Capsule(style: .continuous)
         return HStack(spacing: 0) {
             Image(systemName: "magnifyingglass")
-                .font(.glyph(head.fieldGlyph, weight: .medium))
+                .font(.glyph(SearchMetric.sportsFieldGlyph, weight: .medium))
                 .foregroundStyle(head.faint)
                 .frame(width: SearchMetric.fieldIcon, height: SearchMetric.fieldIcon)
-                .padding(.leading, head.fieldIconLead)
-                .padding(.trailing, head.fieldIconGap)
+                .padding(.leading, SearchMetric.sportsFieldIconLead)
+                .padding(.trailing, SearchMetric.sportsFieldIconGap)
                 .accessibilityHidden(true)
             TextField(head.prompt, text: $model.words, prompt: Text(head.prompt).foregroundStyle(head.faint))
-                .font(.sans(head.fieldWords))
+                .font(.sans(SearchMetric.sportsFieldGlyph))
                 .foregroundStyle(Hue.ink)
                 .focused($fieldFocused)
                 .submitLabel(.search)
@@ -354,7 +355,7 @@ struct SearchPage: View {
                 .accessibilityLabel("Clear")
             }
         }
-        .frame(height: head.fieldHeight)
+        .frame(height: SearchMetric.sportsFieldHeight)
         .background(head.fieldFill, in: shape)
         .glassEffect(head.fieldGlass, in: shape)
     }
@@ -367,7 +368,7 @@ struct SearchPage: View {
                         chipButton(c).id(c)
                     }
                 }
-                .padding(.horizontal, head.side)
+                .padding(.horizontal, SearchMetric.sportsSide)
                 .frame(height: SearchMetric.chipsHeight)
             }
             .onChange(of: model.chip) { _, c in
@@ -411,7 +412,7 @@ struct SearchPage: View {
                     modeBody
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.top, head.height)
+                .padding(.top, SearchMetric.sportsHeadHeight)
                 .padding(.bottom, SearchMetric.tabBarClearance)
             }
             .scrollDismissesKeyboard(.immediately)
