@@ -2261,18 +2261,21 @@ Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56802, -94.313
 ## Church of Saint Joseph
 ```yaml
 id: church-jospehs-st
+aka: ["St. Joseph Catholic Church", "Saint Joseph Catholic Church"]
 status: active
-tier: listed
+tier: watched
 category: amenity=place_of_worship
 added_by: agent:discover
+address: "12 W Minnesota St"
+phone: "+13203637505"
 sources:
-  - url: TODO
+  - url: https://church-of-st-joseph-470993.churchcenter.com/calendar?view=list
     kind: website
-    method: submission
+    method: fetch
     trust: official
 at: [45.56417, -94.31874]
 ```
-Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56410, -94.31887. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56410, -94.31887. Discovery found no URL, and town-verify's row "St. Joseph Catholic Church" (churchstjoseph.org) never matched this name, so it sat `listed` with a TODO; only its Facebook page was read (weekly). churchstjoseph.org now forwards to Benedictine Catholic Communities, the parish group it shares with St John the Baptist; its page is https://www.benedictinecatholiccommunities.org/saint-joseph. Its calendar is on Church Center (Planning Center), built by JavaScript, so it is read through Firecrawl (`run.py` `JS_HOSTS`): Masses, Adoration, groups, choirs, youth nights, socials. The group's own Calendar and Bulletin pages hold only the embed and a bulletin link, so they are not watched. Watched since 2026-11-15 (Jesse: "yes we want it because they host live masses and are connected to many things").
 
 ## St. Cloud Area Chamber of Commerce
 ```yaml
@@ -6071,7 +6074,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Named by its own website, https://www.simonson-lumber.com/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 5 PM). Named by its own website, https://www.simonson-lumber.com/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022). No Facebook page of its own (2026-11-15): Simonson Lumber's page, its parent's, came off the list (Apify could never read it; BP app watch-every-place 27).
 
 ## Mattressota
 ```yaml
@@ -6229,7 +6232,7 @@ sources:
     method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022). Listed again 2026-10-17 (Jesse): its one page was dgcoursereview.com's weekly disc golf calendar for the whole country, which Overture gave this company by mistake (category "park"), so nothing is read for it until its own site is known. It wrote no events.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022). Listed again 2026-10-17 (Jesse): its one page was dgcoursereview.com's weekly disc golf calendar for the whole country, which Overture gave this company by mistake (category "park"), so nothing is read for it until its own site is known. It wrote no events. Its social pages came off 2026-11-15: bnnorthtown is Barnes & Noble Northtown, not this place (BP app watch-every-place 27).
 
 ## Minnesota Association of Farm Mutual Insurance Companies
 ```yaml
@@ -7411,7 +7414,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 7 PM). Named by its own website, http://www.schwegelsllc.com/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 7 PM). Named by its own website, http://www.schwegelsllc.com/ (ADR-016). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022). No Facebook page (2026-11-15): its site's only Facebook link is its WordPress theme's default, facebook.com/WordPresscom; none found by search (BP app watch-every-place 27).
 
 ## Scott Investigation
 ```yaml
@@ -8815,12 +8818,12 @@ phone: "+13203638825"
 aka: ["St. Joseph Town Hall"]
 added_by: agent:town-verify
 sources:
-  - url: https://www.sjct.org
+  - url: https://stjosephtownship.org/
     kind: website
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 4:30 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 4:30 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted. Website fixed 2026-11-15: sjct.org (and its Facebook page) is St. Joseph Charter Township, Michigan; this township's own site is stjosephtownship.org, which links no social page (BP app watch-every-place 27).
 
 ## US Army Reserve Training
 ```yaml

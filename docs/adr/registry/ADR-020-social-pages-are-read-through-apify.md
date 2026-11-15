@@ -115,6 +115,17 @@ list so the monthly accounts check doesn't offer them again. Iman Carrier's two 
 not the place's, and left the list; so did the St. Wendel Tamarack Bog's Instagram, the statewide Minnesota DNR
 account (its statewide tips showed as the bog's News; Jesse, "i agree"). A weekly page with no new post 4 reads in a row is read in the first week of
 each month until it posts.
+**Amended 2026-11-15 (Jesse, "yes to all", after a study of every Apify run since Oct 16; BP app watch-every-place
+26):** 37% of what the watch paid for were reads that found nothing new, and three changes cost nothing in Events:
+- The busy list is read once a day, at 7pm, not at 9:30am and 7pm: 69% of its reads found nothing new. Replayed on
+  three weeks of real posts it saves about $4.70 a month and shows 2 more of 131 Events late.
+- A Facebook page's Events tab is read weekly only when its page is marked `events` (its tab lists events: 15 pages),
+  and every page's in the first week of each quarter, not each month: 178 of 193 tabs never listed an event. A
+  quarter's read names each tab with events that isn't marked yet.
+- An Event linked to a Facebook event is not read again on a day whose town search returned it last time: 34 of 41
+  were paid twice. The "Collegeville, Minnesota" words search is dropped (16 of its 28 events were past and billed
+  every week), and Facebook's events page for the town, the cheapest source of new Events (4 cents each), is read on
+  Mondays and Saturdays.
 **Date:** 2026-10-05
 **Decided by:** Jesse, 2026-10-05, in a grilling session on how to use Apify. His reason:
 live posts from businesses are Block Party's essential feature, and taking them straight

@@ -8,10 +8,11 @@ label: St. Joseph MN
 # Minnesota") and the social watch's post pages ("A St. Joseph place").
 display: St. Joseph
 # The weekly Facebook events searches, one page each (social.py; 2026-11-03: 8 events the watch had
-# missed, for 35 cents; Collegeville added 2026-11-08 for CSB, SJU, the Prep and the Abbey, Jesse's yes)
+# missed, for 35 cents). Collegeville's, added 2026-11-08, left 2026-11-15 (Jesse's yes, BP app
+# watch-every-place 26): 16 of its 28 events were past and billed every week; the town's events page
+# below finds CSB, SJU, the Prep and the Abbey.
 facebook_events_search:
   - St. Joseph, Minnesota
-  - Collegeville, Minnesota
 # Facebook's own events page for the town, the location-based list (social.py; 2026-11-08: 20 events
 # for 20 cents, one of them in the words search, 8 in town and new). The number is St. Joseph's Facebook
 # city id, read off the Location filter on facebook.com/events/search.
@@ -136,7 +137,7 @@ aliases:
   - [Millstream Park, Millstream Park Pickleball Courts]
   - [Kennedy Community School, Kennedy Elementary, John F Kennedy Elementary School]
   - [St. Joseph Catholic School, St Joseph Laboratory School, St. Joseph Laboratory School]
-  - [St. Joseph Catholic Church, St Joseph Catholic Church, St Jospeh’s Church, St. Joseph Parish]
+  - [Church of Saint Joseph, St. Joseph Catholic Church, Church of St. Joseph, St Joseph Catholic Church, St Jospeh’s Church, St. Joseph Parish]
   - [Saint Benedict's Monastery, Sisters of the Order of Saint Benedict, Sisters of St. Benedict,
      Sacred Heart Chapel]
   - [River of Life Church, River of Life Church - St Joseph]
