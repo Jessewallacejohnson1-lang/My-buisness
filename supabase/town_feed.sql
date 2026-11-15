@@ -236,20 +236,28 @@ as $$
     select m.host from public.feed_mutes m where m.user_id = auth.uid()
   ),
   -- What the caller follows of the schools (school-activities 03): each activity starred, named as
-  -- "Cathedral Volleyball (girls)", then every activity of a whole school followed, named by the school.
-  -- Read once here, so an Event is matched against a short list.
-  my_activities as (
-    select a, t.short_name || ' ' || a.name as label, 1 as ord
-    from public.town_follows f
-    join public.team_activities a on a.id = f.target_id
-    join public.teams t on t.id = a.team_id
-    where f.follower_id = auth.uid() and f.target_type = 'activity'
-    union all
-    select a, t.short_name, 2
-    from public.town_follows f
-    join public.teams t on t.uuid = f.target_id
-    join public.team_activities a on a.team_id = t.id
-    where f.follower_id = auth.uid() and f.target_type = 'team'
+  -- "Cathedral Volleyball (girls)", then the activities of a whole school followed that play under another
+  -- team's name (a co-op, another school's team), named by the school. The school's other activities need no
+  -- row: their Events name the school, which `my_schools` matches with the same label.
+  -- Read once, each name through sport_base once (town-feed 67): `real_events` asks activity_has_event only
+  -- about an activity whose team the Event names and whose name could be the Event's. Asked about every
+  -- activity of a followed school for every Event (45 x 1,421), it took 16 s and the feed timed out.
+  my_activities as materialized (
+    select m.a, m.label, m.ord, coalesce((m.a).fielded_by, (m.a).team_id) as fielder, (m.a).coop as coop,
+           private.sport_base((m.a).name) as base, private.sport_gender((m.a).name) as gender
+    from (
+      select a, t.short_name || ' ' || a.name as label, 1 as ord
+      from public.town_follows f
+      join public.team_activities a on a.id = f.target_id
+      join public.teams t on t.id = a.team_id
+      where f.follower_id = auth.uid() and f.target_type = 'activity'
+      union all
+      select a, t.short_name, 2
+      from public.town_follows f
+      join public.teams t on t.uuid = f.target_id
+      join public.team_activities a on a.team_id = t.id
+      where f.follower_id = auth.uid() and f.target_type = 'team'
+        and (a.fielded_by is not null or a.coop is not null)) m
   ),
   my_schools as (
     select t.id, t.short_name as label
@@ -310,11 +318,25 @@ as $$
            mt.is_meeting,
            mt.board as meeting_board
     from public.club_events e
+    -- The teams the Event names and its sport or activity name, through sport_base once (`offset 0` as below)
+    -- and only for a caller who follows something of the schools: most don't, and no name is read for them.
+    cross join lateral (select x.n, array_append(coalesce(e.team_ids, '{}'), e.activity_team) as teams,
+                               case when f.follows then private.sport_base(x.n) end as base,
+                               case when f.follows then private.sport_gender(x.n) end as gender
+                        from (select coalesce(e.sport, e.activity_name) as n) x,
+                             (select exists (select 1 from my_activities) as follows) f
+                        offset 0) v
     -- The activity or school you follow that this Event is of, by name; null when none.
-    -- Only an Event naming a school can be one's: the rest skip the activity match.
+    -- Only an Event naming a school can be one's: the rest skip the activity match. The `case` keeps the
+    -- order: activity_has_event's team rule and activity_may_have first, both cheap, then the function.
     cross join lateral (select case when e.team_ids is not null or e.activity_team is not null then coalesce(
-      (select m.label from my_activities m where public.activity_has_event(m.a, e) order by m.ord limit 1),
-      (select s.label from my_schools s where s.id = any(e.team_ids) or s.id = e.activity_team limit 1)) end as followed) fl
+      (select m.label from my_activities m
+       where case when (m.fielder = any(v.teams) or m.coop = any(v.teams))
+                   and private.activity_may_have(m.base, m.gender, v.n, v.base, v.gender, e.sport is null)
+                  then public.activity_has_event(m.a, e) end
+       order by m.ord, m.label limit 1),
+      (select s.label from my_schools s where s.id = any(e.team_ids) or s.id = e.activity_team
+       order by s.label limit 1)) end as followed) fl
     cross join lateral (select
       regexp_match(lower(btrim(e.start_time)), '^(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m\.?$') as m12,
       regexp_match(btrim(e.start_time), '^(\d{1,2}):(\d{2})(?::\d{2})?$') as m24
