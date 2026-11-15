@@ -339,7 +339,7 @@ final class SearchModelTests: XCTestCase {
         ])
         XCTAssertEqual(model.results(for: "hair", in: .all).first?.items.first?.name, "Her Hair Studio")
         XCTAssertEqual(model.results(for: "pizza", in: .businesses).map(\.kind), [.restaurant])
-        XCTAssertTrue(model.results(for: "pizza", in: .parks).isEmpty)
+        XCTAssertTrue(model.results(for: "pizza", in: .events).isEmpty)
         XCTAssertTrue(model.results(for: "   ", in: .all).isEmpty)
     }
 
@@ -548,11 +548,27 @@ final class SearchModelTests: XCTestCase {
     private static let game = try? JSONDecoder().decode(
         Game.Lenient.self, from: Data(#"{"sport":"Soccer","teams":[{"name":"CSB"},{"name":"Hamline"}]}"#.utf8)).value
 
-    /// The pills are All, Businesses, Sports, Events and Parks: Groups and people left for Friends, Sports beside
-    /// Businesses as the mock draws it (school-search 04).
-    /// The Event calendar right after All (BP app five-tabs 10).
-    func testSixPills() {
-        XCTAssertEqual(SearchChip.allCases.map(\.title), ["All", "Event calendar", "Businesses", "Sports", "Events", "Parks"])
+    /// The pills are All, Businesses, Sports and Events: Groups and people left for Friends, Sports beside
+    /// Businesses as the mock draws it (school-search 04), the Event calendar right after All (BP app five-tabs 10),
+    /// and no Parks pill (BP app search-titles 01).
+    func testFivePills() {
+        XCTAssertEqual(SearchChip.allCases.map(\.title), ["All", "Event calendar", "Businesses", "Sports", "Events"])
+    }
+
+    /// With the Parks pill gone, a park is still found by typing its name under All (search-titles 01).
+    func testParksFoundWithoutTheirPill() {
+        let model = SearchModel(supabase: supabase, defaults: defaults)
+        XCTAssertEqual(model.results(for: "centennial", in: .all).first { $0.kind == .park }?.items.first?.name,
+                       "Centennial Park")
+    }
+
+    /// Every pill wears "BlockParty." and its word over its prompt, Sports alone in its dark glass (search-titles 02).
+    func testEveryPillTitled() {
+        let heads = SearchChip.allCases.map { SearchHead.of($0) }
+        XCTAssertEqual(heads.map(\.word), ["Search", "Calendar", "Businesses", "Sports", "Events"])
+        XCTAssertEqual(heads.map(\.prompt), ["Search", "Events", "Businesses", "Schools and teams", "Events"])
+        XCTAssertEqual(Set(heads.map(\.height)), [SearchMetric.sportsHeadHeight], "one header height: changing pills moves nothing")
+        XCTAssertEqual(heads.map { $0.fieldFill == .clear }, [false, false, false, true, false], "only Sports' field is glass")
     }
 
     /// Search's Events are the Town feed's: shimmering until it's read, then what's on or still to come

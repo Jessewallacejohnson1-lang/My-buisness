@@ -171,11 +171,12 @@ struct SearchLogo: Hashable {
     static func shadow(hue: Double, chroma: Bool) -> Color { Hue.hsl(hue, chroma ? 30 : 10, 18) }
 }
 
-/// The filter pills: places, businesses, the schools' sports and events (BP app five-tabs 04, school-search 04), and
-/// right after All the Event calendar (five-tabs 10).
-/// Groups and people moved to the Friends tab; typing still finds them under All.
+/// The filter pills: businesses, the schools' sports and events (BP app five-tabs 04, school-search 04), and right
+/// after All the Event calendar (five-tabs 10).
+/// Groups and people moved to the Friends tab, and the Parks pill went (BP app search-titles 01): typing still finds
+/// all three under All.
 enum SearchChip: CaseIterable, Hashable {
-    case all, calendar, businesses, sports, events, parks
+    case all, calendar, businesses, sports, events
 
     var title: String {
         switch self {
@@ -184,7 +185,6 @@ enum SearchChip: CaseIterable, Hashable {
         case .businesses: "Businesses"
         case .sports: "Sports"
         case .events: "Events"
-        case .parks: "Parks"
         }
     }
 
@@ -194,7 +194,6 @@ enum SearchChip: CaseIterable, Hashable {
         case .businesses: .business
         case .sports: .school
         case .events: .event
-        case .parks: .park
         }
     }
 
