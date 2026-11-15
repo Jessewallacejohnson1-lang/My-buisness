@@ -279,6 +279,9 @@ final class HelloInbox {
 
     /// Oldest first.
     private(set) var items: [HelloItem]
+    /// Your own live Events' cards as the database has them (inside-cards 29), by id: their heart, count and
+    /// map spot. Read while the pill or the bell shows them, never kept on the phone.
+    private(set) var cards: [String: FeedCardItem] = [:]
     /// When the pill dropped, oldest first: the last day's.
     private var pills: [Date]
     private let keep: UserDefaults
@@ -304,6 +307,20 @@ final class HelloInbox {
         items.removeAll { Town.days(from: $0.at, to: now) >= Self.days }
         if !items.contains(where: { $0.id == item.id }), Town.days(from: at, to: now) < Self.days { items.append(item) }
         save()
+    }
+
+    /// Reads each of your live Events' cards again (inside-cards 29), so its door opens with them on the first
+    /// frame: as it's shared, and each time the bell's page opens. A read that fails keeps the last one.
+    func freshen(read: (String) async -> FeedCardItem? = { await CommunityAPI(auth: AuthStore.shared).eventCard(id: $0) }) async {
+        for item in items {
+            guard case .posted(let posted) = item.what, posted.live, let card = await read(posted.eventId) else { continue }
+            cards[posted.eventId] = card
+        }
+    }
+
+    /// The card an Event's door opens: the Town feed's, else the one read for it, else the one it came with.
+    func card(_ id: String, feed: [FeedCardItem], or made: FeedCardItem) -> FeedCardItem {
+        feed.first { $0.id == id } ?? cards[id] ?? made
     }
 
     /// Today's contacts check: anyone kept who isn't in it any more is a friend now, asked, or

@@ -230,6 +230,38 @@ final class NewEventTests: XCTestCase {
         XCTAssertNil(inbox.next)
     }
 
+    /// Your own Event's door (inside-cards 29): the card read for it, the feed's first, and a failed read keeps
+    /// the one New post made.
+    func testYourEventOpensTheCardReadForIt() async {
+        let keep = UserDefaults(suiteName: "NewEventTests")!
+        keep.removePersistentDomain(forName: "NewEventTests")
+        let inbox = HelloInbox(keep: keep)
+        let posted = HelloItem.Posted(eventId: "e1", title: "Porch concert", photo: nil, live: true,
+                                      eventDate: "2026-11-30", startTime: "19:00", location: "Bad Habit Brewing")
+        inbox.add(.posted(posted))
+        inbox.add(.posted(.init(eventId: "e2", title: "Waiting", photo: nil, live: false,
+                                eventDate: "2026-11-30", startTime: "19:00", location: "")))
+
+        var asked: [String] = []
+        await inbox.freshen { asked.append($0); return nil }
+        XCTAssertEqual(asked, ["e1"], "only a live one is read")
+        XCTAssertFalse(inbox.card("e1", feed: [], or: posted.card).isLiked, "a failed read keeps New post's card")
+        XCTAssertEqual(inbox.card("e1", feed: [], or: posted.card).title, "Porch concert")
+
+        var read = posted.card
+        read.isLiked = true
+        read.likeCount = 3
+        await inbox.freshen { _ in read }
+        XCTAssertTrue(inbox.card("e1", feed: [], or: posted.card).isLiked)
+        XCTAssertEqual(inbox.card("e1", feed: [], or: posted.card).likeCount, 3)
+        await inbox.freshen { _ in nil }
+        XCTAssertEqual(inbox.card("e1", feed: [], or: posted.card).likeCount, 3, "a later failed read keeps the last")
+
+        var feed = posted.card
+        feed.likeCount = 5
+        XCTAssertEqual(inbox.card("e1", feed: [feed], or: posted.card).likeCount, 5, "the Town feed's card first")
+    }
+
     // MARK: New post (town-feed 29)
 
     func testPostLightsUpWithWordsOrAPhoto() {

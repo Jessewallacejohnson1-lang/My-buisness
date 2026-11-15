@@ -278,7 +278,8 @@ struct MainTabsView: View {
     @MainActor
     private func openHello(_ target: HelloDrop.Target) {
         switch target {
-        case .event(let card): path.append(card)
+        // Your own Event's pill opens the card read for it (inside-cards 29); the feed's comes first.
+        case .event(let card): path.append(HelloInbox.shared.card(card.id, feed: townFeed.cards, or: card))
         case .group(let group): path.append(group)
         case .person(let person): path.append(person)
         case .town: if tab != .town { select(.town) }
@@ -669,6 +670,7 @@ struct MainTabsView: View {
     /// What New post's Event shared: the pill says it at once, and Town reads again so it's there.
     private func shared(_ posted: HelloItem.Posted) {
         HelloInbox.shared.add(.posted(posted))
+        Task { await HelloInbox.shared.freshen() }
         Task { await townFeed.reload() }
     }
 
