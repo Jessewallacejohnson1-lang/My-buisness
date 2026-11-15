@@ -147,3 +147,15 @@ test('the Review queue sends a held or reported post\'s later photos with its po
   assert.equal(heldRow.poster.name, 'Sam Rivera', 'still the poster');
   assert.deepEqual(reportRow.poster.more_photos, [photo(PAL, reported, 3), photo(PAL, reported, 2)]);
 });
+
+test('a stranger\'s row naming your photo doesn\'t keep it from your delete', async () => {
+  const id = nextId(), theirs = nextId();
+  await posted(ME, id, { status: 'approved', image_url: photo(ME, id) });
+  await posted(YOU, theirs, { image_url: photo(ME, id) });
+  await db.query(`insert into storage.objects (bucket_id, name) values ('event-images', $1)`, [`${ME}/${id}.jpg`]);
+  await as('authenticated', ME);
+  assert.equal((await db.query('delete from public.club_events where id = $1', [id])).affectedRows, 1);
+  assert.equal((await db.query('delete from storage.objects where name = $1', [`${ME}/${id}.jpg`])).affectedRows, 1,
+               'only your own posts keep your files');
+  await db.exec('reset role');
+});
