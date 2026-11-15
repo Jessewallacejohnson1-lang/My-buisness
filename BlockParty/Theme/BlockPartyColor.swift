@@ -264,6 +264,9 @@ nonisolated enum Hue {
     /// The dot before "Now" on a Town card whose event is on (Jesse, 2026-10-20: "use the word
     /// now with green dot"): Apple's own green. A game's "Live" keeps Apple's red.
     static let now           = Color(uiColor: .systemGreen)
+    /// The dot under today in an Event's day row (BP app event-schedule 02, mock B): Apple's own red, as Apple's
+    /// Calendar marks today.
+    static let today         = Color(uiColor: .systemRed)
     /// The green Add on a Group get-together you haven't put on your Agenda, where an Event's
     /// Attend sits (Jesse, 2026-11-13: "add option in green instead of the attend"; BP app
     /// rsvp-and-groups 09): Apple's deeper green, its Increase Contrast shade, so white "Add"

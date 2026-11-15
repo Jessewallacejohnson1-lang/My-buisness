@@ -66,7 +66,82 @@ enum EventSchedule {
         return Array(ended) + ahead
     }
 
+    // MARK: The day row (BP app event-schedule 02; mock B beside Apple Store Upcoming)
+
+    /// One day of the day row.
+    struct Day: Equatable, Identifiable {
+        /// "2026-11-14", the Town day.
+        let id: String
+        /// Town midnight that day.
+        let start: Date
+        /// Parts that day.
+        let count: Int
+        let today: Bool
+
+        /// "S", over the number.
+        var letter: String { Town.format(start, "EEEEE") }
+        /// "14".
+        var number: String { Town.format(start, "d") }
+        /// "Saturday, November 14, today, 3 planned": one button for VoiceOver.
+        var spoken: String {
+            [Town.format(start, "EEEEMMMMd"), today ? "today" : nil, count == 0 ? "nothing planned" : "\(count) planned"]
+                .compactMap { $0 }.joined(separator: ", ")
+        }
+    }
+
+    /// The Town day a row sits under: its start's, or today's for one that began on an earlier day and runs on.
+    static func day(of row: Row, at now: Date) -> String {
+        Town.day(max(row.part.start, Town.gregorian.startOfDay(for: now)))
+    }
+
+    /// The day row when the rows left fall on two or more Town days: every day from the first to the last, gaps
+    /// included, each with its count. Empty when they fall on one day: the list (A) shows them.
+    static func days(_ rows: [Row], at now: Date) -> [Day] {
+        let counts = Dictionary(grouping: rows) { day(of: $0, at: now) }.mapValues(\.count)
+        guard counts.count > 1, let first = counts.keys.min().flatMap(Town.midnight),
+              let last = counts.keys.max().flatMap(Town.midnight) else { return [] }
+        let today = Town.day(now)
+        return (0...Town.days(from: first, to: last)).compactMap { offset in
+            // By calendar day, not 24 hours, so the days stay midnights across a clock change.
+            guard let start = Town.gregorian.date(byAdding: .day, value: offset, to: first) else { return nil }
+            let id = Town.day(start)
+            return Day(id: id, start: start, count: counts[id] ?? 0, today: id == today)
+        }
+    }
+
+    /// The day shown: the one picked while it's still in the row, else today, else the first day.
+    static func shown(picked: String?, in days: [Day]) -> String? {
+        if let picked, days.contains(where: { $0.id == picked }) { return picked }
+        return (days.first(where: \.today) ?? days.first)?.id
+    }
+
+    /// One day's rows, by start.
+    static func rows(_ rows: [Row], on day: String, at now: Date) -> [Row] {
+        rows.filter { Self.day(of: $0, at: now) == day }
+    }
+
+    /// "3 – 4 PM", "11 AM – 1 PM": a part's hours under its name in the day row.
+    static func span(_ part: EventPart) -> String {
+        let start = Town.gregorian.component(.hour, from: part.start) * 60 + Town.gregorian.component(.minute, from: part.start)
+        let length = Int(part.end.timeIntervalSince(part.start) / 60)
+        guard length > 0, length < PlaceHours.day else { return Town.clock(part.start) }
+        return PlaceHours.line([start..<start + length])
+    }
+
     #if DEBUG
+    /// `-town-part-day`: today's parts only, so the page shows the list (A): one that ended 2 hours ago, one on
+    /// since 10 minutes before launch, one in 20 minutes and two later tonight.
+    static func oneDaySamples(_ launch: Date) -> [EventPart] {
+        let now = Town.gregorian.dateInterval(of: .minute, for: launch)?.start ?? launch
+        let minute: TimeInterval = 60
+        let at = { (offset: TimeInterval, length: TimeInterval, title: String) in
+            EventPart(title: title, start: now.addingTimeInterval(offset * minute),
+                      end: now.addingTimeInterval((offset + length) * minute))
+        }
+        return [at(-150, 30, "Luminary walk"), at(-10, 40, "Santa arrives"), at(20, 30, "Carolers"),
+                at(60, 30, "Letters to Santa"), at(90, 60, "Live music")]
+    }
+
     /// `-town-part`: an opening that ended 2 hours ago, the artist talk on since 10 minutes before launch, a reception
     /// in 20 minutes, a film tomorrow and the showcase the day after, so the page shows a faded row, "Now",
     /// "In 20 min" and "See all".
@@ -91,7 +166,12 @@ struct EventScheduleSection: View {
     /// The time column's and "See all"'s: the page's tint.
     let tint: Color
 
+    /// The picked day's number on its disc: the page's colour behind the words (BP yellow on the yellow page).
+    let picked: Color
+
     @State private var all = false
+    /// The day tapped in the day row; nil until one is, so the row opens on today.
+    @State private var day: String?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -104,22 +184,131 @@ struct EventScheduleSection: View {
                         .foregroundStyle(ink)
                         .accessibilityAddTraits(.isHeader)
                         .padding(.bottom, EventLook.scheduleHeadingGap)
-                    let visible = EventSchedule.visible(rows)
-                    ForEach(all ? rows : visible, id: \.part) { row(for: $0) }
-                    if rows.count > visible.count {
-                        Button(all ? "Show less" : "See all") {
-                            withAnimation(reduceMotion ? nil : Motion.smooth) { all.toggle() }
-                        }
-                        .font(.sansSemibold(15))
-                        .foregroundStyle(tint)
-                        .frame(minHeight: MeetupPillStyle.minTarget)
-                        .buttonStyle(.press(.squish))
+                    let days = EventSchedule.days(rows, at: context.date)
+                    if let shown = EventSchedule.shown(picked: day, in: days) {
+                        dayRow(days, shown: shown)
+                        dayList(EventSchedule.rows(rows, on: shown, at: context.date))
+                            .id(shown)
+                            .transition(.opacity)
+                    } else {
+                        list(rows)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.top, EventLook.scheduleTop)
                 .transition(.opacity)
             }
+        }
+        .sensoryFeedback(.selection, trigger: day)
+    }
+
+    // MARK: The day row (B): Events across several days (BP app event-schedule 02)
+
+    /// Every day from today to the last part's, a week to the screen's width; a longer run scrolls sideways.
+    private func dayRow(_ days: [EventSchedule.Day], shown: String) -> some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: 0) {
+                ForEach(days) { day in
+                    Button {
+                        withAnimation(reduceMotion ? nil : Motion.select) { self.day = day.id }
+                    } label: {
+                        dayLabel(day, on: day.id == shown)
+                    }
+                    .buttonStyle(.press(.squish))
+                    .containerRelativeFrame(.horizontal, count: min(days.count, EventLook.scheduleWeek), spacing: 0)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(day.spoken)
+                    .accessibilityAddTraits(day.id == shown ? [.isButton, .isSelected] : .isButton)
+                }
+            }
+        }
+        .scrollIndicators(.hidden)
+        .scrollDisabled(days.count <= EventLook.scheduleWeek)
+        .padding(.bottom, EventLook.scheduleDaysGap)
+    }
+
+    /// Mock B's day: the weekday's letter over its number on a disc, the picked one's disc filled; today's dot
+    /// under it, as Apple's Calendar marks today; a day with nothing planned at 40%.
+    private func dayLabel(_ day: EventSchedule.Day, on: Bool) -> some View {
+        VStack(spacing: EventLook.scheduleDayGap) {
+            Text(day.letter)
+                .font(.sansMedium(12))
+                .foregroundStyle(tint.opacity(EventLook.scheduleDim))
+            Text(day.number)
+                .font(on ? .sansSemibold(17) : .sansMedium(17))
+                .monospacedDigit()
+                .foregroundStyle(on ? picked : ink)
+                .frame(width: EventLook.scheduleDisc, height: EventLook.scheduleDisc)
+                .background(Circle().fill(ink).opacity(on ? 1 : 0))
+            Circle()
+                .fill(Hue.today)
+                .frame(width: EventLook.scheduleDot, height: EventLook.scheduleDot)
+                .opacity(day.today ? 1 : 0)
+        }
+        .padding(.vertical, EventLook.scheduleDayGap)
+        .frame(maxWidth: .infinity)
+        .contentShape(Rectangle())
+        .opacity(day.count == 0 && !on ? EventLook.schedulePast : 1)
+    }
+
+    /// The picked day's parts, every one: the name over its hours, "Now" or the countdown at the right.
+    @ViewBuilder
+    private func dayList(_ rows: [EventSchedule.Row]) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if rows.isEmpty {
+                Text("Nothing planned")
+                    .font(.sans(15))
+                    .foregroundStyle(tint)
+                    .frame(minHeight: EventLook.scheduleRow)
+            }
+            ForEach(rows, id: \.part) { row in
+                HStack(spacing: EventLook.scheduleGap) {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(row.part.title)
+                            .font(.sansMedium(17))
+                            .foregroundStyle(ink)
+                            .lineLimit(1)
+                        Text(EventSchedule.span(row.part))
+                            .font(.sans(14))
+                            .monospacedDigit()
+                            .foregroundStyle(tint)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    mark(row)
+                }
+                .padding(.vertical, EventLook.scheduleDayRowPad)
+                .opacity(row.past ? EventLook.schedulePast : 1)
+                .animation(reduceMotion ? nil : Motion.smooth, value: row.past)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(row.spoken)
+            }
+        }
+    }
+
+    // MARK: The list (A): one day's parts (happening-now 06)
+
+    @ViewBuilder
+    private func list(_ rows: [EventSchedule.Row]) -> some View {
+        let visible = EventSchedule.visible(rows)
+        ForEach(all ? rows : visible, id: \.part) { row(for: $0) }
+        if rows.count > visible.count {
+            Button(all ? "Show less" : "See all") {
+                withAnimation(reduceMotion ? nil : Motion.smooth) { all.toggle() }
+            }
+            .font(.sansSemibold(15))
+            .foregroundStyle(tint)
+            .frame(minHeight: MeetupPillStyle.minTarget)
+            .buttonStyle(.press(.squish))
+        }
+    }
+
+    /// "Now" behind the green dot, or the countdown, for a live part. One `CardTime` from the countdown on, so
+    /// "In 1 min" cross-fades to "Now" at the start minute, as on the card.
+    @ViewBuilder
+    private func mark(_ row: EventSchedule.Row) -> some View {
+        if let mark = row.mark {
+            let soon: FeedWhenLine? = if case .soon(let line) = mark { line } else { nil }
+            CardTime(text: soon?.text ?? "", now: mark == .now, color: soon == nil ? ink : tint)
         }
     }
 
@@ -137,11 +326,7 @@ struct EventScheduleSection: View {
                 .foregroundStyle(ink)
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            // One `CardTime` from the countdown on, so "In 1 min" cross-fades to "Now" at the start minute, as on the card.
-            if let mark = row.mark {
-                let soon: FeedWhenLine? = if case .soon(let line) = mark { line } else { nil }
-                CardTime(text: soon?.text ?? "", now: mark == .now, color: soon == nil ? ink : tint)
-            }
+            mark(row)
         }
         .frame(minHeight: EventLook.scheduleRow)
         .opacity(row.past ? EventLook.schedulePast : 1)

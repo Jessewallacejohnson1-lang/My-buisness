@@ -253,6 +253,7 @@ struct EventPage: View {
         }
         .task(id: item.id) {
             #if DEBUG
+            if LaunchFlags.has(.townPartDay) { parts = EventSchedule.oneDaySamples(.now); return }
             if LaunchFlags.has(.townPart) { parts = EventSchedule.samples(.now); return }
             #endif
             // A game never has parts; a sample's id isn't a real one.
@@ -717,7 +718,7 @@ struct EventPage: View {
             }
 
             // A long Event's parts (happening-now 06): none, no section.
-            EventScheduleSection(parts: parts, ink: ink, tint: tint)
+            EventScheduleSection(parts: parts, ink: ink, tint: tint, picked: sun ? Hue.brandDisc : Hue.onBrandDisc)
                 .animation(reduceMotion ? nil : Motion.smooth, value: parts)
 
             // Who hosts it, with Instagram's Follow, in a plain row (follows 02; inside-cards 09).

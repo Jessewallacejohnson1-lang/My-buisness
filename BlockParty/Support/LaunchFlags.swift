@@ -94,6 +94,7 @@ nonisolated enum LaunchFlags {
         case townNow = "-town-now"
         case townSoon = "-town-soon"
         case townPart = "-town-part"
+        case townPartDay = "-town-part-day"
         case townPhoto = "-town-photo"
         case townPosts = "-town-posts"
         case townOffline = "-town-offline"

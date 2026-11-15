@@ -100,4 +100,74 @@ final class EventScheduleTests: XCTestCase {
         let on = EventSchedule.rows([part("Artist talk", 10, 15)], at: at(10, 15, 10))[0]
         XCTAssertEqual(on.spoken, "Tuesday 3 PM, Artist talk, happening now")
     }
+
+    // MARK: The day row (BP app event-schedule 02)
+
+    /// Parts left on one day give the list; on two or more, the day row.
+    func testOneDayIsTheListAndTwoDaysTheDayRow() {
+        let evening = [part("Santa arrives", 14, 16, 30), part("Carolers", 14, 17), part("Tree lighting", 14, 19)]
+        XCTAssertTrue(EventSchedule.days(EventSchedule.rows(evening, at: at(14, 12)), at: at(14, 12)).isEmpty)
+        let week = evening + [part("Brunch", 15, 10)]
+        XCTAssertEqual(EventSchedule.days(EventSchedule.rows(week, at: at(14, 12)), at: at(14, 12)).map(\.id),
+                       ["2026-11-14", "2026-11-15"])
+    }
+
+    /// Every day from today to the last part's, the empty ones in between counted 0; earlier days gone, and a
+    /// part that began yesterday and runs on sits under today.
+    func testTheRowRunsFromTodayToTheLastDayWithItsGaps() {
+        let parts = [part("Opening", 9, 19), part("Vigil", 9, 22, hours: 18), part("Panel", 11, 19), part("Showcase", 14, 19)]
+        let now = at(10, 12)
+        let days = EventSchedule.days(EventSchedule.rows(parts, at: now), at: now)
+        XCTAssertEqual(days.map(\.id), ["2026-11-10", "2026-11-11", "2026-11-12", "2026-11-13", "2026-11-14"])
+        XCTAssertEqual(days.map(\.count), [1, 1, 0, 0, 1])
+        XCTAssertEqual(days.map(\.today), [true, false, false, false, false])
+        XCTAssertEqual(days.map(\.letter), ["T", "W", "T", "F", "S"])
+        XCTAssertEqual(days.map(\.number), ["10", "11", "12", "13", "14"])
+    }
+
+    /// It opens on today; before the Event, on its first day; a tapped day stays while it's in the row.
+    func testItOpensOnTodayElseTheFirstDay() {
+        let parts = [part("Dance", 10, 19), part("Panel", 11, 19), part("Showcase", 14, 19)]
+        let during = EventSchedule.days(EventSchedule.rows(parts, at: at(11, 9)), at: at(11, 9))
+        XCTAssertEqual(EventSchedule.shown(picked: nil, in: during), "2026-11-11")
+        XCTAssertEqual(EventSchedule.shown(picked: "2026-11-14", in: during), "2026-11-14")
+        let before = EventSchedule.days(EventSchedule.rows(parts, at: at(8, 9)), at: at(8, 9))
+        XCTAssertEqual(EventSchedule.shown(picked: nil, in: before), "2026-11-10")
+    }
+
+    /// At midnight the day that ended drops off, and a pick of it moves to the new today.
+    func testAtMidnightThePickedDayMovesToTheNewToday() {
+        let parts = [part("Dance", 10, 19), part("Panel", 11, 19), part("Showcase", 12, 19)]
+        let tuesday = at(10, 21)
+        XCTAssertEqual(EventSchedule.shown(picked: "2026-11-10",
+                                           in: EventSchedule.days(EventSchedule.rows(parts, at: tuesday), at: tuesday)),
+                       "2026-11-10")
+        let wednesday = at(11, 0, 1)
+        let days = EventSchedule.days(EventSchedule.rows(parts, at: wednesday), at: wednesday)
+        XCTAssertEqual(days.first?.id, "2026-11-11")
+        XCTAssertEqual(EventSchedule.shown(picked: "2026-11-10", in: days), "2026-11-11")
+    }
+
+    /// A day's rows: only its own, by start, with today's ended ones faded and "Now" only on a live part on.
+    func testADaysRowsFadeAndSayNowAsTheListDoes() {
+        let parts = [part("Panel", 11, 19), part("Lunch", 10, 12), part("Talk", 10, 14, hours: 2),
+                     part("Sale", 10, 14, hours: 3, live: false)]
+        let now = at(10, 15)
+        let rows = EventSchedule.rows(EventSchedule.rows(parts, at: now), on: "2026-11-10", at: now)
+        XCTAssertEqual(rows.map(\.part.title), ["Lunch", "Talk", "Sale"])
+        XCTAssertEqual(rows.map(\.past), [true, false, false])
+        XCTAssertEqual(rows.map(\.mark), [nil, .now, nil])
+        XCTAssertTrue(EventSchedule.rows(EventSchedule.rows(parts, at: now), on: "2026-11-12", at: now).isEmpty,
+                      "a day with none: Nothing planned")
+    }
+
+    /// The hours under a part's name, and a day spoken as one button.
+    func testTheSpanAndTheSpokenDay() {
+        XCTAssertEqual(EventSchedule.span(part("Talk", 12, 15)), "3 – 4 PM")
+        XCTAssertEqual(EventSchedule.span(part("Brunch", 12, 11, hours: 2)), "11 AM – 1 PM")
+        XCTAssertEqual(EventSchedule.span(part("Carolers", 12, 16, 30, hours: 0.5)), "4:30 – 5 PM")
+        let days = EventSchedule.days(EventSchedule.rows([part("A", 14, 19), part("B", 14, 20), part("C", 15, 9)],
+                                                         at: at(14, 9)), at: at(14, 9))
+        XCTAssertEqual(days.map(\.spoken), ["Saturday, November 14, today, 2 planned", "Sunday, November 15, 1 planned"])
+    }
 }

@@ -115,6 +115,16 @@ enum EventLook {
     static let scheduleTime: CGFloat = 96
     static let scheduleGap: CGFloat = 12
     static let schedulePast: Double = 0.4
+    /// The day row (BP app event-schedule 02, mock B): a week across the screen's width, then it scrolls.
+    static let scheduleWeek = 7
+    /// The day's number disc, the gap between its three lines, today's dot and the weekday letter's dim.
+    static let scheduleDisc: CGFloat = 38
+    static let scheduleDayGap: CGFloat = 4
+    static let scheduleDot: CGFloat = 4
+    static let scheduleDim: Double = 0.55
+    /// Under the day row, and above and below each of the day's parts.
+    static let scheduleDaysGap: CGFloat = 6
+    static let scheduleDayRowPad: CGFloat = 10
     /// About: 18 under the row, Inter Tight Bold 20, 8 to its words at 17 on 22.
     static let aboutTop: CGFloat = 18
     static let aboutHeading: CGFloat = 20
