@@ -27,6 +27,7 @@ nonisolated enum LaunchFlags {
         case helloDrop = "-hello-drop"
         case helloDropHold = "-hello-drop-hold"
         case helloFinal = "-hello-final"
+        case helloFollows = "-hello-follows"
         case helloJoined = "-hello-joined"
         case helloLater = "-hello-later"
         case helloMoment = "-hello-moment"

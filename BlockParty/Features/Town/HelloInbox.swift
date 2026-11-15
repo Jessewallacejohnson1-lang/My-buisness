@@ -229,17 +229,22 @@ extension HelloItem.Added {
         return byName.keys.sorted().compactMap { name in
             let group = (byName[name] ?? []).sorted { ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast) }
             guard let newest = group.first else { return nil }
-            let hosted = newest.hostPicture.map { ($0.url, $0.kind == .photo) }
             let own = url(newest.image)
-            let place = url(newest.place)
-            let placeIsPhoto = if case .placeLogo = newest.place { false } else { true }
-            let picture = hosted ?? place.map { ($0, placeIsPhoto) } ?? own.map { ($0, true) }
+            let picture = Self.picture(newest)
             return HelloItem.Added(name: name, day: Town.day(now), eventId: newest.id, title: newest.title,
                                    eventDate: newest.eventDate, startTime: newest.startTime, count: group.count,
                                    picture: picture?.0, pictureIsPhoto: picture?.1 ?? true,
                                    // Not the same picture on both sides of the bell's row.
                                    photo: own == picture?.0 ? nil : own)
         }
+    }
+
+    /// Who it's of, as a pill's picture: its host's, else its place's, else its own photo.
+    static func picture(_ card: FeedCardItem) -> (url: URL, photo: Bool)? {
+        if let hosted = card.hostPicture { return (hosted.url, hosted.kind == .photo) }
+        let placeIsPhoto = if case .placeLogo = card.place { false } else { true }
+        if let place = url(card.place) { return (place, placeIsPhoto) }
+        return url(card.image).map { ($0, true) }
     }
 
     private static func url(_ image: FeedCardImageSource?) -> URL? {
