@@ -8,11 +8,13 @@
 //
 //  Times here are the mock's simulation time. The screen plays the full show at `fullPace`, so
 //  each motion takes 1.33x its value (Jesse: "can you do .75 speed"; slower still was tried and
-//  dropped on 2026-11-02: "nvm do 1 speed"); the short cut and a link open play at full speed.
+//  dropped on 2026-11-02: "nvm do 1 speed"); the wordmark open plays at full speed.
 //
-//  Three kinds (Jesse, 2026-11-08; BP app references/launch-short): the full show on the day's
-//  first two cold starts; after them the short cut, the ball dropping straight into the dot; and
-//  a link open, no ball, the ! appearing and Bp! popping out over the page the link opened.
+//  Two kinds (Jesse, 2026-11-14; BP app references/splash-wordmark): the full show on the day's
+//  first two cold starts, starting from the still's BlockParty. wordmark, which gives way to Bp as
+//  the ball drops in; every other open (later ones, a link, Reduce Motion) shows the wordmark,
+//  which shoots out at you as the link's Bp! did while the yellow fades into the app (Reduce Motion:
+//  only the fade). The short cut and the link's own pop (2026-11-08) went with it.
 //
 
 import SwiftUI
@@ -21,7 +23,7 @@ nonisolated struct LaunchMotion {
     // MARK: Tuning (the mock's `T`)
 
     static let fullPace = 0.75
-    /// The short cut and a link open play at full speed (Jesse, 2026-11-08).
+    /// The wordmark open plays at full speed.
     static func pace(for kind: Kind) -> Double { kind == .full ? fullPace : 1 }
     var pace: Double { Self.pace(for: kind) }
     /// Gravity and the drop's starting speed, in points per second (per second).
@@ -55,14 +57,13 @@ nonisolated struct LaunchMotion {
     /// one beat with one firm buzz. The ending starts 0.63 in, once the landing has rebounded.
     static let jumpLands = 0.49
     private static let jumpEnds = 0.63
-    /// The short cut's jump has no hang at the top (Jesse, 2026-11-08: about 1.5 s in all).
-    static let jumpLandsShort = 0.35
-    private static let jumpEndsShort = 0.49
-    var landBeat: Double { kind == .short ? Self.jumpLandsShort : Self.jumpLands }
-    private var jumpEnd: Double { kind == .short ? Self.jumpEndsShort : Self.jumpEnds }
-    /// A link open: the ! appears over `linkAppear`, then Bp! pops out from `linkPop`.
-    static let linkAppear = 0.12
-    static let linkPop = 0.20
+    /// The still's BlockParty. gives way to Bp over the show's first 0.15 s, as the ball drops in
+    /// (Jesse, 2026-11-14: "yes" to the agent's pick).
+    static let wordSwap = 0.15
+    /// Every other open: BlockParty. holds 0.2 s (guessed), then shoots out at you as the yellow fades
+    /// (Jesse, 2026-11-14: "instead of the sheet going down, it just all fades", then "the blockparty.
+    /// splash shoots the text like the one we made when you open a event in message").
+    static let wordHold = 0.20
     /// Into the tab bar, the yellow falls off the bottom of the screen like a curtain, gathering
     /// speed, gone as Bp! lands (Jesse, 2026-11-08: "curtain"); quicker after a tap. A zoom fades.
     static let curtainTime = 0.36
@@ -97,9 +98,6 @@ nonisolated struct LaunchMotion {
     private static let skipToEnd = 0.10
     /// A first open zooms Bp! through, to 6x.
     private static let zoomTo: CGFloat = 6
-    /// Reduce Motion's beats: the crest fades in, turns black, the ! line fades in, then the
-    /// whole launch fades into the app.
-    private static let reduceOut = 0.80
 
     // MARK: The mark: the Daily mark's canvas, viewBox 137 302 751 422
 
@@ -142,20 +140,21 @@ nonisolated struct LaunchMotion {
         case zoom
     }
 
-    /// Which launch plays (file header): the full show, the short cut, or a link open.
+    /// Which launch plays (file header): the full show, or the wordmark shooting out.
     enum Kind: String {
-        case full, short, link
+        case full, word
     }
 
     let screen: CGSize
     /// When a tap skipped, in simulation time; ignored at moments before it.
     var skip: Double?
-    var reduceMotion = false
     var ending: Ending = .zoom
     var kind: Kind = .full
-    /// A link open that caught the ball already on screen (`LaunchStage.openedLink`): it fades
-    /// out where it was as the ! appears, rather than vanishing.
-    var ballBefore: Ball?
+    /// A link that caught the full show on its way (`LaunchStage.openedLink`): the show's last
+    /// frame, which fades out as BlockParty. comes back, rather than vanishing.
+    var before: Frame?
+    /// Reduce Motion: the wordmark fades with the yellow instead of shooting out.
+    var reduceMotion = false
 
     // MARK: The path, worked out once per screen
 
@@ -166,14 +165,14 @@ nonisolated struct LaunchMotion {
     private let drop: Flight, toP: Flight, toDot: Flight
     let hitB: Double, hitP: Double, landAt: Double, ballEnd: Double
 
-    init(screen: CGSize, skip: Double? = nil, reduceMotion: Bool = false, ending: Ending = .zoom, kind: Kind = .full,
-         ballBefore: Ball? = nil) {
+    init(screen: CGSize, skip: Double? = nil, ending: Ending = .zoom, kind: Kind = .full, before: Frame? = nil,
+         reduceMotion: Bool = false) {
         self.screen = screen
         self.skip = skip
-        self.reduceMotion = reduceMotion
         self.ending = ending
         self.kind = kind
-        self.ballBefore = ballBefore
+        self.before = before
+        self.reduceMotion = reduceMotion
         let s = Self.scale
         origin = CGPoint(x: (screen.width - Self.canvas.width * s) / 2 + Self.centring.width,
                          y: (screen.height - Self.canvas.height * s) / 2 + Self.centring.height)
@@ -203,17 +202,8 @@ nonisolated struct LaunchMotion {
             hitB = drop.time
             hitP = hitB + Self.contact + toP.time
             landAt = hitP + Self.contact + toDot.time
-        case .short:
-            // Straight down into the dot from above it, shrinking on the way (Jesse, 2026-11-08).
-            let from = CGPoint(x: onDot.x, y: start.y)
-            drop = Flight(from: from, time: Double(fall(from, to: onDot)), vy: v0, vx: 0, spin: (-120, 360), shrinks: true)
-            toP = drop
-            toDot = drop
-            hitB = .infinity
-            hitP = .infinity
-            landAt = drop.time
-        case .link:
-            // No ball: the ! is there from the start.
+        case .word:
+            // No ball: the wordmark.
             drop = Flight(from: onDot, time: 0, vy: 0, vx: 0, spin: (0, 0), shrinks: false)
             toP = drop
             toDot = drop
@@ -253,11 +243,7 @@ nonisolated struct LaunchMotion {
     /// The ball as it flies and bounces, with no tap.
     func ball(at t: Double) -> Ball {
         let r0 = Self.ball / 2, rf = Self.dot / 2
-        if kind == .link || t >= ballEnd { return Ball(x: onDot.x, y: onDot.y, r: rf, roll: kind == .full ? 720 : 360) }
-        if kind == .short {
-            if t < landAt { return fly(drop, t, r0) }
-            return hit(t - landAt, at: onDot, r: rf, roll: 360, squash: Self.squashDot, letter: nil)
-        }
+        if kind == .word || t >= ballEnd { return Ball(x: onDot.x, y: onDot.y, r: rf, roll: 720) }
         if t < hitB { return fly(drop, t, r0) }
         if t < hitB + Self.contact { return hit(t - hitB, at: onB, r: r0, roll: 0, squash: Self.squash, letter: (hitB, capB, Self.dipB)) }
         if t < hitP { return fly(toP, t - hitB - Self.contact, r0) }
@@ -327,20 +313,6 @@ nonisolated struct LaunchMotion {
     private static let jumpLineWidth: [Key] = [(1.10, 0.07, .linear), (1.027, 0.16, lift)] + jumpWidth.dropFirst(2)
     private static let jumpLineHeight: [Key] = [(0.86, 0.07, .linear), (0.94, 0.16, lift)] + jumpHeight.dropFirst(2)
 
-    /// The short cut's jump: the same without the hang at the top, each track's third key (Jesse,
-    /// 2026-11-08).
-    private static func noHang(_ keys: [Key]) -> [Key] { Array(keys[..<2] + keys[3...]) }
-    private static let jumpYShort = noHang(jumpY)
-    private static let jumpWidthShort = noHang(jumpWidth)
-    private static let jumpHeightShort = noHang(jumpHeight)
-    private static let jumpLineWidthShort = noHang(jumpLineWidth)
-    private static let jumpLineHeightShort = noHang(jumpLineHeight)
-    private var keysY: [Key] { kind == .short ? Self.jumpYShort : Self.jumpY }
-    private var keysWidth: [Key] { kind == .short ? Self.jumpWidthShort : Self.jumpWidth }
-    private var keysHeight: [Key] { kind == .short ? Self.jumpHeightShort : Self.jumpHeight }
-    private var keysLineWidth: [Key] { kind == .short ? Self.jumpLineWidthShort : Self.jumpLineWidth }
-    private var keysLineHeight: [Key] { kind == .short ? Self.jumpLineHeightShort : Self.jumpLineHeight }
-
     private static func track(_ keys: [Key], from start: CGFloat, at time: Double) -> CGFloat {
         var from = start, t = time
         for key in keys {
@@ -367,20 +339,19 @@ nonisolated struct LaunchMotion {
     /// Everything the screen draws at one moment.
     struct Frame: Equatable {
         var ball: Ball
-        /// How far the ball's colours have gone black, and how strongly it shows: Reduce Motion
-        /// fades it in, and it goes once it has become the real dot.
+        /// How far the ball's colours have gone black, and how strongly it shows: it goes once it
+        /// has become the real dot.
         var ballBlack: Double = 0
         var ballOpacity = 1.0
         /// B and p's scale about their feet, and how strongly they show.
         var b = CGSize(width: Self.small, height: Self.small)
         var p = CGSize(width: Self.small, height: Self.small)
         var letters = 1.0
-        /// Reduce Motion only: B and p at full size, fading in over the 90% ones as the ! appears.
-        var fullLetters = 0.0
         var dotShown = false
-        /// A link open fades the dot in; everywhere else it simply shows once `dotShown`.
-        var dotOpacity = 1.0
         var lineOpacity = 0.0
+        /// The still's BlockParty. wordmark, on the yellow: all there on the still, giving way to Bp
+        /// on the full show, and staying till the fade on every other open.
+        var word = 0.0
         /// The jump: how far up everything is, in the tab bar's points, and the !'s line and dot's
         /// squash and stretch about their feet.
         var lift: CGFloat = 0
@@ -426,27 +397,23 @@ nonisolated struct LaunchMotion {
         private static let small = LaunchMotion.startSize
     }
 
-    /// The buzzes in order: the full show's five, or the short cut's three (the dot, the jump's
-    /// landing, the tab bar). A link open has none.
+    /// The buzzes in order: the full show's five. The wordmark open has none.
     static func buzzKinds(_ kind: Kind) -> [SensoryFeedback] {
         switch kind {
         case .full: [.impact(weight: .light), .impact(weight: .light), .impact(weight: .medium), .impact(weight: .medium), .impact(weight: .light)]
-        case .short: [.impact(weight: .medium), .impact(weight: .medium), .impact(weight: .light)]
-        case .link: []
+        case .word: []
         }
     }
 
     func frame(at t: Double) -> Frame {
-        if reduceMotion { return reduced(at: t) }
-        if kind == .link { return linked(at: t) }
-        return moving(at: t)
+        kind == .word ? worded(at: t) : moving(at: t)
     }
 
     private func moving(at t: Double) -> Frame {
         let rf = Self.dot / 2
         let skip = self.skip.flatMap { $0 <= t ? $0 : nil }
         let swapNormally = landAt + Self.blacken
-        let endNormally = swapNormally + jumpEnd
+        let endNormally = swapNormally + Self.jumpEnds
         // A tap before the ball has turned into the dot sends it there and drops the jump.
         let early = skip.flatMap { $0 < swapNormally ? $0 : nil }
         let swapAt = early.map { $0 + Self.skipMove } ?? swapNormally
@@ -460,6 +427,10 @@ nonisolated struct LaunchMotion {
         }
 
         var f = Frame(ball: ball(at: t), markOrigin: origin)
+        // The still's BlockParty. gives way to Bp as the ball drops in.
+        let shown = clamp01(t / Self.wordSwap)
+        f.word = 1 - shown
+        f.markOpacity = shown
         f.ballBlack = clamp01(Self.ease((t - landAt) / Self.blacken))
         if let early {
             let from = ball(at: min(early, ballEnd))
@@ -477,7 +448,7 @@ nonisolated struct LaunchMotion {
         // The ball's shadow on the glass: farther off, softer and fainter while the ball is high
         // above where it comes down next, closing in under it as it lands.
         if !swapped {
-            let next = kind == .short ? onDot : t < hitB ? onB : t < hitP ? onP : onDot
+            let next = t < hitB ? onB : t < hitP ? onP : onDot
             let height = max(0, next.y - f.ball.y)
             f.shadeDrop = 3 + 0.10 * height
             f.shadeBlur = 1.5 + 0.05 * height
@@ -489,7 +460,7 @@ nonisolated struct LaunchMotion {
         func jump(_ keys: [Key], _ rest: CGFloat) -> CGFloat {
             h < 0 ? rest : rest + (Self.track(keys, from: rest, at: h) - rest) * CGFloat(settle)
         }
-        let jumpWidth = jump(keysWidth, 1), jumpHeight = jump(keysHeight, 1)
+        let jumpWidth = jump(Self.jumpWidth, 1), jumpHeight = jump(Self.jumpHeight, 1)
 
         // B and p dip and bulge on their hit and stay at 90%, then grow to full size on the jump's
         // way up. A tap grows them as the ! appears, and a letter the ball never reached doesn't dip.
@@ -511,11 +482,11 @@ nonisolated struct LaunchMotion {
         // The ! : after a tap it simply appears; otherwise it jumps with B and p, its line growing
         // out of the dot during the crouch and fading in over its first 40 ms. It grows on a plain
         // ease-out: on the mock's sharp one it was nearly full height in two frames, a pop (2026-11-07).
-        f.lift = jump(keysY, 0)
+        f.lift = jump(Self.jumpY, 0)
         f.dot = CGSize(width: jumpWidth, height: jumpHeight)
         if let popAt {
-            let height = h < DailyMarkGlyph.crouch ? 0.86 * CGFloat(UnitCurve.easeOut.value(at: h / DailyMarkGlyph.crouch)) : jump(keysLineHeight, 1)
-            f.line = CGSize(width: jump(keysLineWidth, 1), height: h < 0 ? 0 : height)
+            let height = h < DailyMarkGlyph.crouch ? 0.86 * CGFloat(UnitCurve.easeOut.value(at: h / DailyMarkGlyph.crouch)) : jump(Self.jumpLineHeight, 1)
+            f.line = CGSize(width: jump(Self.jumpLineWidth, 1), height: h < 0 ? 0 : height)
             f.lineOpacity = clamp01((t - popAt) / 0.04)
         } else {
             f.lineOpacity = swapped ? 1 : 0
@@ -524,7 +495,7 @@ nonisolated struct LaunchMotion {
         // The ending: Bp! leaps into the tab bar's Bp!, or zooms through.
         guard t >= endAt else {
             f.backScale = ending == .zoom ? 1.05 : 0.985
-            f.buzzes = buzzes(at: t, skip: skip, beats: [hitB, hitP, landAt, popAt.map { $0 + landBeat } ?? .infinity])
+            f.buzzes = buzzes(at: t, skip: skip, beats: [hitB, hitP, landAt, popAt.map { $0 + Self.jumpLands } ?? .infinity])
             return f
         }
         f.ending = paced(skip == nil ? Self.glide : Self.glideFast)
@@ -578,7 +549,7 @@ nonisolated struct LaunchMotion {
             f.headerUp = p >= 0.5
             settled = abs(p - 1) < 0.003 && abs(v) < 0.01
         }
-        f.buzzes = buzzes(at: t, skip: skip, beats: [hitB, hitP, landAt, popAt.map { $0 + landBeat } ?? .infinity, landed])
+        f.buzzes = buzzes(at: t, skip: skip, beats: [hitB, hitP, landAt, popAt.map { $0 + Self.jumpLands } ?? .infinity, landed])
         if case .tab = ending {
             // The curtain: the yellow, glass and signature with it, falls off the bottom of the
             // screen gathering speed (Jesse, 2026-11-08), gone about as Bp! lands in the tab bar.
@@ -593,43 +564,44 @@ nonisolated struct LaunchMotion {
         return f
     }
 
-    /// A link open, signed in (Jesse, 2026-11-08: "pops out at you ... and goes to the event
-    /// directly"): no ball. From the still, the ! appears where the icon has it and B and p grow to
-    /// full size; then Bp! pops out (the zoom, on the fast spring) over the page the link opened,
-    /// which settles from 105%. A tap jumps to the pop.
-    private func linked(at real: Double) -> Frame {
+    /// Every open but the day's first two (Jesse, 2026-11-14; BP app references/splash-wordmark): no
+    /// ball and no Bp. The still's BlockParty. holds, then shoots out at you as the 2026-11-08 link
+    /// open's Bp! did (the zoom to 6x on the fast spring, gone by 60% of the way), the yellow and the
+    /// signature fading in 0.18 s and the app settling from 105%. Reduce Motion: no zoom, everything
+    /// fades together on the launch's 0.3 s fade, the app holding still. A link that caught the full
+    /// show on its way fades what the show had drawn back into the wordmark first. A tap starts the
+    /// ending at once.
+    private func worded(at real: Double) -> Frame {
+        let swap = before == nil ? 0 : Self.wordSwap
+        let fadeAt = swap + Self.wordHold
         var t = real
-        if let skip, skip <= real, skip < Self.linkPop { t = Self.linkPop + (real - skip) }
-        var f = Frame(ball: ballBefore ?? ball(at: t), markOrigin: origin)
-        let v = CGFloat(Self.ease(t / Self.linkAppear))
-        f.ballOpacity = ballBefore == nil ? 0 : Double(1 - v)
-        f.dotShown = true
-        f.dotOpacity = Double(v)
-        f.lineOpacity = Double(v)
-        f.dot = CGSize(width: lerp(0.6, 1, v), height: lerp(0.6, 1, v))
-        f.line = CGSize(width: lerp(0.6, 1, v), height: lerp(0.5, 1, v))
-        let k = size(t, hit: 0)
-        f.b = CGSize(width: k, height: k)
-        f.p = f.b
-        guard t >= Self.linkPop else {
-            f.backScale = 1.05
-            return f
-        }
-        let spring = Self.glideFast
-        f.ending = paced(spring)
-        let p = spring.value(target: 1.0, time: t - Self.linkPop), speed = spring.velocity(target: 1.0, time: t - Self.linkPop)
-        f.zoom = 1 + (Self.zoomTo - 1) * CGFloat(max(0, p))
-        f.markOpacity = 1 - clamp01((p - 0.1) / 0.5)
-        f.backScale = 1 + 0.05 * (1 - CGFloat(clamp01(p)))
-        f.headerUp = p >= 0.5
-        f.yellow = 1 - Self.ease((t - Self.linkPop) / Self.yellowFadeFast)
+        if let skip, skip <= real, skip < fadeAt { t = fadeAt + (real - skip) }
+        let v = swap > 0 ? clamp01(t / swap) : 1
+        var f = before ?? Frame(ball: ball(at: 0), markOrigin: origin)
+        f.word = before.map { $0.word + (1 - $0.word) * v } ?? 1
+        f.markOpacity = (before?.markOpacity ?? 0) * (1 - v)
+        f.backScale = reduceMotion ? 1 : 1.05
+        f.buzzes = 0
+        guard t >= fadeAt else { return f }
+        let spring = paced(Self.glideFast)
+        f.ending = spring
+        f.headerUp = true
+        f.yellow = 1 - Self.ease((t - fadeAt) / (reduceMotion ? Self.yellowFade : Self.yellowFadeFast))
         f.yellowOpacity = f.yellow
-        f.done = abs(p - 1) < 0.003 && abs(speed) < 0.01 && f.yellow <= 0.001
+        if reduceMotion {
+            f.word = f.yellow
+        } else {
+            let p = max(0, spring.value(target: 1.0, time: t - fadeAt))
+            f.zoom = 1 + (Self.zoomTo - 1) * CGFloat(p)
+            f.word = 1 - clamp01((p - 0.1) / 0.5)
+            f.backScale = 1 + 0.05 * (1 - CGFloat(clamp01(p)))
+        }
+        f.done = f.yellow <= 0.001
         return f
     }
 
-    /// The buzzes this far, none after a tap. A beat that never comes (a letter the short cut's
-    /// ball never hits) doesn't hold the ones after it.
+    /// The buzzes this far, none after a tap. A beat that never comes (a letter a tap kept the
+    /// ball from) doesn't hold the ones after it.
     private func buzzes(at t: Double, skip: Double?, beats: [Double]) -> Int {
         beats.filter(\.isFinite).prefix { beat in beat <= t && (skip.map { beat <= $0 } ?? true) }.count
     }
@@ -650,32 +622,6 @@ nonisolated struct LaunchMotion {
         }
         let spring = skip == nil ? Self.glide : Self.glideFast
         return (spring.value(target: 1.0, time: t - endAt), spring.velocity(target: 1.0, time: t - endAt))
-    }
-
-    /// Reduce Motion: nothing moves. B and p start at the still's 90%, so nothing jumps from it,
-    /// and fade over to full size as the ! line fades in, so it ends on the true Bp! (Jesse,
-    /// 2026-11-02): the full ones fade in on top, then the 90% ones go, so where they overlap
-    /// never thins. The crest fades in at the dot and goes black, and the whole launch fades into
-    /// the app. A tap jumps to the fade.
-    private func reduced(at real: Double) -> Frame {
-        var t = real
-        if let skip, skip <= real, skip < Self.reduceOut { t = Self.reduceOut + (real - skip) }
-        let out = clamp01((t - Self.reduceOut) / 0.25)
-        var f = Frame(ball: Ball(x: onDot.x, y: onDot.y, r: Self.dot / 2, roll: 0), markOrigin: origin)
-        f.b = CGSize(width: Self.startSize, height: Self.startSize)
-        f.p = f.b
-        f.ballOpacity = t < 0.5 ? clamp01(t / 0.15) : 0
-        f.ballBlack = clamp01((t - 0.30) / 0.20)
-        f.dotShown = t >= 0.5
-        f.lineOpacity = clamp01((t - 0.50) / 0.15)
-        f.fullLetters = f.lineOpacity
-        f.letters = 1 - clamp01((t - 0.65) / 0.15)
-        f.yellow = 1 - out
-        f.yellowOpacity = f.yellow
-        f.markOpacity = 1 - out
-        f.headerUp = true
-        f.done = out >= 1
-        return f
     }
 }
 

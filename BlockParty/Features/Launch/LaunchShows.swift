@@ -1,8 +1,8 @@
 //
 //  LaunchShows.swift
-//  Block Party — which launch a cold start plays. The day's first two play the whole show; the
-//  rest its short cut (Jesse, 2026-11-08: "yes, if you're saying the first few times a day", then
-//  "2"). Kept on the phone as "yyyy-mm-dd n".
+//  Block Party — which launch a cold start plays. The day's first two play the whole show (Jesse,
+//  2026-11-08: "yes, if you're saying the first few times a day", then "2"); the rest show the
+//  BlockParty. wordmark and fade into the app (Jesse, 2026-11-14). Kept on the phone as "yyyy-mm-dd n".
 //
 
 import Foundation
@@ -17,7 +17,7 @@ nonisolated enum LaunchShows {
         let day = "\(parts.year ?? 0)-\(parts.month ?? 0)-\(parts.day ?? 0)"
         var shown = 0
         if let record, record.hasPrefix(day + " ") { shown = Int(record.dropFirst(day.count + 1)) ?? 0 }
-        let kind: LaunchMotion.Kind = shown < fullShowsADay ? .full : .short
+        let kind: LaunchMotion.Kind = shown < fullShowsADay ? .full : .word
         return (kind, "\(day) \(shown + 1)")
     }
 

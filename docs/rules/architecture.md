@@ -42,9 +42,13 @@ seeder, and mounts `RootView` inside `LaunchHost`.
 - **The launch** (Jesse, 2026-11-01, reversing 2026-09-18's no splash; BP app
   `references/launch-ball/`): on a fresh process start the Town's round logo bounces off Bp,
   lands as the !'s dot, the ! hops as the Daily tab's does, and Bp! lands on the tab bar's own
-  (or zooms through over Welcome). `LaunchScreen.storyboard` is its first frame: BP yellow with
-  "Bp" at 90%. The app loads underneath from the first frame and never waits on it; a tap
-  skips it, Reduce Motion fades it, UI tests skip it (`-ui-tests`) unless they ask
+  (or zooms through over Welcome). Only the day's first two cold starts play it; every other
+  open, a link's and Reduce Motion's too, shows the BlockParty. wordmark, which shoots out at you
+  as the yellow fades into the app (Reduce Motion: only the fade; Jesse, 2026-11-14, BP app
+  backlog 28). `LaunchScreen.storyboard` is the first frame of both:
+  BP yellow with the BlockParty. wordmark, which gives way to Bp as the ball drops in. The app
+  loads underneath from the first frame and never waits on it; a tap skips it, UI tests skip it
+  (`-ui-tests`) unless they ask
   (`-launch-play`), and the app shows within 6 s whatever happens. The math is
   `LaunchMotion`, the drawing `LaunchBall`. Back within 10 minutes of iOS shutting the app down
   it doesn't play, and the app opens as you left it (`LeftOff`, BP app backlog 21).
