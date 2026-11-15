@@ -22,6 +22,10 @@ flake moves to Fixed, dated, and stays there.
 - 2026-10-30 · `FriendsBookTests.testAFailedUnfriendComesBackAndShakes` · red once locally at load 38,
   passed alone · `waitOutTurnBack` sleeps a fixed hold + flip + 150 ms · no fix yet: wait on the
   state instead (`waitWhile`, as the 2026-10-30 Fixed line below does)
+- 2026-11-15 · `LaunchBallTests.testTownIsThereAndTappableAfterTheLaunch` · red once on the Mac in a full run on
+  feat/inside-cards-29-live-door (the bell and pill's own-Event card; no launch or Town card code) at load 48 to 17:
+  "Town's card didn't open after the launch" · passed alone straight after (23 s) · no fix yet · the same run's
+  `EventCardPhotoTapTests.testDoubleTapOnPhotoLikesAndDoesNotPush` crashed (signal term) and passed alone too
 - 2026-11-14 · `FriendsBookSuggestionTests.testAnXThatFailsBringsThemBackWhereTheyWere` · red once on the Mac in a
   full run on feat/several-photos (post photos only; no Friends code) at load about 200: `["Hal"]` where
   `["Kim", "Hal"]` was expected, the class taking 3.4 s · passed alone straight after (8 of 8, 0.44 s) · no fix yet:
