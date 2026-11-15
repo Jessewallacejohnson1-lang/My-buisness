@@ -151,7 +151,7 @@ private struct ExploreTile: View {
         OpenButton(item: item, press: .squish, tap: tap) {
             SearchPhoto(item: item)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .opacity(opener.isAway(item) ? 0 : 1)
+                .opacity(opener.isAway(item, from: frame.rect) ? 0 : 1)
                 .animation(nil, value: opener.isAway(item))
                 .contentShape(Rectangle())
                 .trackFrame(frame)
@@ -162,8 +162,7 @@ private struct ExploreTile: View {
     private func tap() {
         model.remember(item.id)
         guard item.opens else { return }
-        let box = frame.rect
-        opener.open(item, from: .init(logo: box, box: box, radius: 0, shadow: item.markShadow, photo: item.cover))
+        opener.open(item, from: .tile(item, box: frame.rect, radius: 0))
     }
 }
 

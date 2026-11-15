@@ -123,6 +123,17 @@ final class BusinessOpener {
         /// Opened from a round photo (a Following row), where the logo isn't on screen: the backdrop
         /// fades in over it and the logo fades in as it flies.
         var fades = false
+
+        /// From a tile on Search: its photo grows when the tile shows it; a tile showing the logo instead
+        /// (no photo saved, or it failed or hasn't landed) flies the logo out of its middle, as before.
+        static func tile(_ item: SearchItem, box: CGRect, radius: CGFloat) -> Source {
+            if let cover = item.cover, FeedCardImageLoader.shared.largest(for: cover) != nil {
+                return Source(logo: box, box: box, radius: radius, shadow: item.markShadow, photo: cover)
+            }
+            let side = SearchMetric.logoOnTile
+            return Source(logo: CGRect(x: box.midX - side / 2, y: box.midY - side / 2, width: side, height: side),
+                          box: box, radius: radius, shadow: item.markShadow, fades: true)
+        }
     }
 
     private(set) var item: SearchItem?
@@ -162,6 +173,10 @@ final class BusinessOpener {
 
     /// Hides the logo it flew from while it is away, so there is only ever one.
     func isAway(_ item: SearchItem) -> Bool { self.item?.id == item.id }
+
+    /// The same, for a tile whose photo grew: only the tile it grew from, when the place shows twice on
+    /// Search (the open-now row and Around town).
+    func isAway(_ item: SearchItem, from box: CGRect) -> Bool { isAway(item) && source?.box == box }
 }
 
 /// The open business, over the whole screen. Draws nothing while nothing is open.

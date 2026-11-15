@@ -548,14 +548,14 @@ struct SearchPage: View {
     /// Once a launch, so coming back to Search doesn't open it again.
     private static var debugBusinessOpened = false
     /// `-open-business <place id>` (with `-open-tab search`): opens that business's page once
-    /// Search has read it, its cover growing from mid-screen as from a photo card, so a
+    /// Search has read it, out of a small tile mid-screen as from a photo card, so a
     /// place-photos check needn't find it on the wall (BP app backlog 03).
     private func openDebugBusiness() {
         guard !Self.debugBusinessOpened, let id = LaunchFlags.value(.openBusiness),
               let item = model.items.first(where: { $0.id == id || $0.id == "p:\(id)" }), item.opens else { return }
         Self.debugBusinessOpened = true
         let size = SearchMetric.logoOnTile, rect = CGRect(x: 160, y: 400, width: size, height: size)
-        opener.open(item, from: .init(logo: rect, box: rect, radius: 0, shadow: item.markShadow, photo: item.cover))
+        opener.open(item, from: .tile(item, box: rect, radius: 0))
     }
     /// `-search-focus`: opens on the recents, as after a tap on the field.
     private static var debugSearching: Bool {
@@ -835,7 +835,7 @@ struct PhotoCard: View {
                     .overlay(alignment: .topLeading) { if new { NewTag() } }
                     .clipShape(RoundedRectangle(cornerRadius: Radius.photoCard, style: .continuous))
                     // Away on its business's page while that is open: there is only ever one.
-                    .opacity(opener.isAway(item) ? 0 : 1)
+                    .opacity(opener.isAway(item, from: photoFrame.rect) ? 0 : 1)
                     .animation(nil, value: opener.isAway(item))
                     .trackFrame(photoFrame)
                 Text(item.name)
@@ -862,9 +862,7 @@ struct PhotoCard: View {
     private func tap() {
         model.remember(item.id)
         guard item.opens else { return }
-        let box = photoFrame.rect
-        opener.open(item, from: .init(logo: box, box: box, radius: Radius.photoCard, shadow: item.markShadow,
-                                      photo: item.cover))
+        opener.open(item, from: .tile(item, box: photoFrame.rect, radius: Radius.photoCard))
     }
 }
 
