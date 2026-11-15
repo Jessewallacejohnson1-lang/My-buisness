@@ -333,8 +333,10 @@ struct TownView: View {
         }
         // Apple's pull, trigger and held gap, its swirl hidden (`SwirlHider`); the loop rides at least
         // one lap, so a quick read holds the gap that long.
+        // Its own task, as TeamPage's: SwiftUI cancelled the refresh's task as the new cards landed,
+        // which cut the lap short and let the gap go (measured 0.75 s in, refresh-coaster).
         .refreshable {
-            await read(from: .pull)
+            await Task { await read(from: .pull) }.value
         }
         // The Town tab tapped again, as Instagram's Home: to the top, then a read, the loop
         // riding in a gap of its own.
