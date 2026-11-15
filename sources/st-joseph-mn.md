@@ -167,7 +167,7 @@ at: [45.56555, -94.31766]
 venue_at:
   "flour & flower": [45.56555, -94.31766]
 ```
-Notes: Partner bakery. **`url: TODO` on purpose** — no URL was confirmed on 2026-09-22,
+Notes: Partner bakery. **`url: TODO` on purpose** — no URL was confirmed on 2026-09-22, Not watched: Busy-place research 2026-11-15 (BP app watch-every-place 30) scored it 1 and 3 of 10, both 5 or below: Its pizza-night dates are only in an image the website read cannot see, and its daily Facebook and Instagram already bring every Event.
 and a guessed one would point the runner at a stranger's site under the bakery's name
 (ADR-007). Confirm the real page (site, or Instagram/Facebook if that is where they
 actually post) before this is activated; an active entry may not carry a TODO url.
@@ -326,8 +326,8 @@ Missouri (ADR-006).
 ## Saint John's University
 ```yaml
 id: sju
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: college
 place_type: School / college
 added_by: agent:claude
@@ -339,7 +339,11 @@ venues: ["Sexton Arena", "Clemens Stadium", "Warner Palaestra", "Warner Palaestr
   "Alice R. Rogers and Target Galleries", "SBH Auditorium", "Stephen B. Humphrey Auditorium", "Radio Towers",
   "Gertken Organ Studio"]
 sources:
-  - url: https://www.csbsju.edu/
+  - url: https://www.csbsju.edu/outdooru/events/
+    kind: website
+    method: fetch
+    trust: official
+  - url: https://www.csbsju.edu/fine-arts/visual-arts/
     kind: website
     method: fetch
     trust: official
@@ -372,15 +376,15 @@ venue_at:
   "mcneely spectrum": [45.58419, -94.39164]
   "Clemens and Alcuin": [45.58129, -94.39178]
 ```
-Notes: Proposed 2026-10-16 so events at SJU's buildings show a Saint John's picture (`venues`).
+Notes: Proposed 2026-10-16 so events at SJU's buildings show a Saint John's picture (`venues`). Watched since 2026-11-15: Busy-place research 2026-11-15 (BP app watch-every-place 30) scored it 7 and 8 of 10, both above 5 (Jesse's rule, 2026-11-15: "rank them 1-10 and every above 5 gets added"): Outdoor U's own program page (free, dates in text) is the only source of its programs, which arrived once by hand; 6 spring and winter programs are not in the feed and nothing else reads it each morning.
 Its events already arrive through `csbsju-events` and `activities-athletic-sju`; this entry
 publishes nothing.
 
 ## Saint John's Abbey
 ```yaml
 id: saint-johns-abbey
-status: proposed
-tier: listed
+status: active
+tier: watched
 category: church
 place_type: Church
 added_by: agent:claude
@@ -391,13 +395,17 @@ sources:
     kind: website
     method: fetch
     trust: official
+  - url: https://abbeyguesthouse.org/
+    kind: website
+    method: fetch
+    trust: official
 at: [45.58003, -94.39229]
 venue_at:
   "saint john's abbey, collegeville": [45.58003, -94.39229]
   "Liturgical Press": [45.57925, -94.39548]
   "liturgical press": [45.57925, -94.39548]
 ```
-Notes: Proposed 2026-10-16 so events at the Abbey show its picture (`venues`). Publishes nothing.
+Notes: Proposed 2026-10-16 so events at the Abbey show its picture (`venues`). Watched since 2026-11-15: Busy-place research 2026-11-15 (BP app watch-every-place 30) scored it 6 and 7 of 10, both above 5 (Jesse's rule, 2026-11-15: "rank them 1-10 and every above 5 gets added"): The Abbey Guesthouse lists 5 retreats not in the feed but changes only a few times a year; the Abbey's events page adds nothing the portal does not.
 
 ## CSB SJU events
 ```yaml
@@ -1017,10 +1025,14 @@ Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56394, -94.289
 id: 328-american-legion-post
 aka: ["St. Joseph American Legion", "John Kuebelbeck American Legion Post 328"]
 status: active
-tier: listed
+tier: watched
 added_by: agent:discover
 sources:
   - url: https://johnkuebelbeckpost328.org/
+    kind: website
+    method: fetch
+    trust: official
+  - url: https://johnkuebelbeckpost328.org/site/eventscalendar
     kind: website
     method: fetch
     trust: official
@@ -1028,7 +1040,7 @@ at: [45.56355, -94.32078]
 venue_at:
   "american legion": [45.56355, -94.32078]
 ```
-Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Unreviewed — tier `listed`, so it publishes nothing until promoted. Website moved 2026-10-19: https://stjoelegion.weebly.com no longer opens; https://johnkuebelbeckpost328.org/ is its site now (place-photos 07, Jesse's yes).
+Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Website moved 2026-10-19: https://stjoelegion.weebly.com no longer opens; https://johnkuebelbeckpost328.org/ is its site now (place-photos 07, Jesse's yes). Watched since 2026-11-15: Busy-place research 2026-11-15 (BP app watch-every-place 30) scored it 9 and 9 of 10, both above 5 (Jesse's rule, 2026-11-15: "rank them 1-10 and every above 5 gets added"): The Post's own calendar (checked 200 today) lists public 500 card games and bingo, about 8 public items a month plus game parties and drives, none in the feed, free.
 
 ## Amy Hedtke State Farm
 ```yaml
@@ -1081,13 +1093,13 @@ Retired 2026-11-01 (Jesse): closed. Its own Facebook said goodbye on 2026-10-24 
 id: arts-benedicta-center
 venues: ["Colman Theater", "Escher Auditorium", "Gorecki Gallery", "Benedict and Dorothy Gorecki Gallery"]
 status: active
-tier: listed
+tier: watched
 category: amenity=arts_centre
 added_by: agent:discover
 sources:
-  - url: https://www.csbsju.edu/fine-arts/venues/escher-auditorium
+  - url: https://www.csbsju.edu/fine-arts/performances/
     kind: website
-    method: submission
+    method: fetch
     trust: official
 at: [45.55921, -94.32159]
 venue_at:
@@ -1095,7 +1107,7 @@ venue_at:
   "colman theater": [45.55921, -94.32159]
   "escher auditorium": [45.55921, -94.32159]
 ```
-Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.55921, -94.32159. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.55921, -94.32159. Watched since 2026-11-15: Busy-place research 2026-11-15 (BP app watch-every-place 30) scored it 6 and 6 of 10, both above 5 (Jesse's rule, 2026-11-15: "rank them 1-10 and every above 5 gets added"): Fine Arts Programming's own show list caught one 5-night play the campus portal missed; most other shows reach the portal, so about one new item a month, free.
 
 ## Bo-Diddley's
 ```yaml
@@ -1284,7 +1296,7 @@ at: [45.56036, -94.32088]
 venue_at:
   "clemens library": [45.56036, -94.32088]
 ```
-Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56036, -94.32088. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56036, -94.32088. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Unreviewed — tier `listed`, so it publishes nothing until promoted. Not watched: Busy-place research 2026-11-15 (BP app watch-every-place 30) scored it 1 and 2 of 10, both 5 or below: Every page it has points to the campus portal's Library calendar and its Instagram, both already read.
 
 ## Coborn's
 ```yaml
@@ -1300,7 +1312,7 @@ sources:
     method: submission
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56811, -94.29717. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56811, -94.29717. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Unreviewed — tier `listed`, so it publishes nothing until promoted. Not watched: Busy-place research 2026-11-15 (BP app watch-every-place 30) scored it 1 and 2 of 10, both 5 or below: No events page on its website; its Facebook already brings its few store events.
 
 ## Coborn's Liquor
 ```yaml
@@ -1609,7 +1621,7 @@ at: [45.56791, -94.31921]
 venue_at:
   "kay's kitchen": [45.56791, -94.31921]
 ```
-Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56795, -94.31925. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56795, -94.31925. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Unreviewed — tier `listed`, so it publishes nothing until promoted. Not watched: Busy-place research 2026-11-15 (BP app watch-every-place 30) scored it 1 and 2 of 10, both 5 or below: No website; its Facebook is already read daily.
 
 ## Kensington Bank
 ```yaml
@@ -1809,8 +1821,9 @@ sources:
     kind: website
     method: fetch
     trust: official
+venue_only: true
 ```
-Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Unreviewed — tier `listed`, so it publishes nothing until promoted. Not watched: Busy-place research 2026-11-15 (BP app watch-every-place 30) scored it 1 and 2 of 10, both 5 or below: A City park whose page has hours only; its Events are the City's, already read.
 
 ## Minnesota Street Market
 ```yaml
@@ -2079,8 +2092,9 @@ sources:
     method: submission
     trust: official
 at: [45.56316, -94.31868]
+venue_only: true
 ```
-Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56313, -94.31892. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56313, -94.31892. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Unreviewed — tier `listed`, so it publishes nothing until promoted. Not watched: Busy-place research 2026-11-15 (BP app watch-every-place 30) scored it 1 and 2 of 10, both 5 or below: The monastery's chapel with no pages of its own; the monastery feeds and campus portal already carry it.
 
 ## Saint Joeseph Government Building
 ```yaml
@@ -2446,7 +2460,7 @@ sources:
     method: submission
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56414, -94.32192. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56414, -94.32192. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Unreviewed — tier `listed`, so it publishes nothing until promoted. Not watched: Busy-place research 2026-11-15 (BP app watch-every-place 30) scored it 1 and 2 of 10, both 5 or below: A duplicate of the watched food-house-tap entry; all its pages are already read there.
 
 ## The House Food & Tap
 ```yaml
@@ -2467,16 +2481,16 @@ Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2
 ```yaml
 id: la-playette
 status: active
-tier: listed
+tier: watched
 added_by: agent:discover
 sources:
-  - url: https://laplayette.com/
+  - url: https://laplayette.com/api/trpc/events.list
     kind: website
     method: fetch
     trust: official
 at: [45.5652, -94.31805]
 ```
-Notes: Not watched (2026-10-15): its site sends bots to a Cloudflare check, so a polite fetch never reaches the page. Proposed by discovery on 2026-09-24 from www.joetown.org. Unreviewed — tier `listed`, so it publishes nothing until promoted. Website moved 2026-10-19: http://laplayettebar.com no longer opens; https://laplayette.com/ is its site now (place-photos 07, Jesse's yes).
+Notes: Not watched from 2026-10-15: its site sent bots to a Cloudflare check; on 2026-11-15 the polite fetch read its event list. Proposed by discovery on 2026-09-24 from www.joetown.org. Website moved 2026-10-19: http://laplayettebar.com no longer opens; https://laplayette.com/ is its site now (place-photos 07, Jesse's yes). Watched since 2026-11-15: Busy-place research 2026-11-15 (BP app watch-every-place 30) scored it 9 and 9 of 10, both above 5 (Jesse's rule, 2026-11-15: "rank them 1-10 and every above 5 gets added"): The bar's own event list as small JSON (5.8 KB, checked 200 today): 18 items Oct 3 to Nov 28, about 9 a month, 6 upcoming not in the feed, free to read.
 
 ## The Middy
 ```yaml
@@ -3384,8 +3398,9 @@ sources:
     kind: website
     method: submission
     trust: official
+venue_only: true
 ```
-Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted. Not watched: Busy-place research 2026-11-15 (BP app watch-every-place 30) scored it 1 and 2 of 10, both 5 or below: A restaurant inside The House with no page of its own; its one Event is St. John's Prep's (and likely a duplicate).
 
 ## BL Grafx
 ```yaml
@@ -5210,7 +5225,7 @@ at: [45.56805, -94.31388]
 venue_at:
   "heim-kins": [45.56805, -94.31388]
 ```
-Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted. Not watched: Busy-place research 2026-11-15 (BP app watch-every-place 30) scored it 1 and 2 of 10, both 5 or below: No website; its Facebook is already read weekly.
 
 ## Heinen Photography
 ```yaml
@@ -5814,7 +5829,7 @@ sources:
     method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-05: June 2026 Newsleaders story covers a show at Eidem Studio; studio at 235 E Cedar St #101 with posted hours.. Named by The Newsleaders story (June 2026); own website lacey-eidem.squarespace.com (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-05: June 2026 Newsleaders story covers a show at Eidem Studio; studio at 235 E Cedar St #101 with posted hours.. Named by The Newsleaders story (June 2026); own website lacey-eidem.squarespace.com (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted. Not watched: Busy-place research 2026-11-15 (BP app watch-every-place 30) scored it 4 and 5 of 10, both 5 or below: A single past workshop page with nothing upcoming; the next workshop may get a new page, and her Facebook is already read.
 
 ## Lake Country Land Egg
 ```yaml
@@ -6320,7 +6335,7 @@ sources:
     method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 2 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 2 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted. Not watched: Busy-place research 2026-11-15 (BP app watch-every-place 30) scored it 1 and 2 of 10, both 5 or below: No website; its Facebook is already read daily.
 
 ## MN HEAVY TOWING
 ```yaml
@@ -8439,7 +8454,7 @@ sources:
     method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-04: Overture lists it open (confidence 0.86). Unreviewed — tier `listed`, so it publishes nothing until promoted. Phone 320-248-7784 from KNSI (2026-03-19, Shelly Carlson); Minnesota Grown lists 320-363-7784. Open only for its late-March sugar-shack tours (knsiradio.com/?p=818065).
+Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-04: Overture lists it open (confidence 0.86). Unreviewed — tier `listed`, so it publishes nothing until promoted. Phone 320-248-7784 from KNSI (2026-03-19, Shelly Carlson); Minnesota Grown lists 320-363-7784. Open only for its late-March sugar-shack tours (knsiradio.com/?p=818065). Not watched: Busy-place research 2026-11-15 (BP app watch-every-place 30) scored it 1 and 2 of 10, both 5 or below: No website; its March tours come through its Facebook and Stearns County, both already read.
 
 ## Winston's Doggy Motel
 ```yaml
@@ -8643,7 +8658,7 @@ sources:
     trust: official
 at: [45.58365, -94.40224]
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted. Website moved 2026-10-19: https://stjohnthebaptistparish.org/ no longer opens; https://www.benedictinecatholiccommunities.org/saint-john-the-baptist is its site now (found by search; not opened from the Mac, whose network filter blocked it that day; the old domain's name servers stopped answering by 2026-10-16) (place-photos 07, Jesse's yes).
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted. Website moved 2026-10-19: https://stjohnthebaptistparish.org/ no longer opens; https://www.benedictinecatholiccommunities.org/saint-john-the-baptist is its site now (found by search; not opened from the Mac, whose network filter blocked it that day; the old domain's name servers stopped answering by 2026-10-16) (place-photos 07, Jesse's yes). Not watched: Busy-place research 2026-11-15 (BP app watch-every-place 30) scored it 1 and 2 of 10, both 5 or below: Its calendar page is an empty placeholder and its flyers are images; Church Center, the diocese paper and its Facebook already cover it.
 
 ## Greater Minnesota Mentoring Academy
 ```yaml
@@ -8786,8 +8801,9 @@ at: [45.56179, -94.31603]
 venue_at:
   "city hall": [45.56179, -94.31603]
   "75 callaway st": [45.56179, -94.31603]
+venue_only: true
 ```
-Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 4:30 PM). Named by its own website, https://www.stjosephmn.gov/ (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 4:30 PM). Named by its own website, https://www.stjosephmn.gov/ (ADR-016). Unreviewed — tier `listed`, so it publishes nothing until promoted. Not watched: Busy-place research 2026-11-15 (BP app watch-every-place 30) scored it 1 and 2 of 10, both 5 or below: City Hall's Events are all the City's own, already read through city-of-st-joseph.
 
 ## St. Joseph Maintenance Department
 ```yaml
@@ -9088,7 +9104,7 @@ at: [45.58516, -94.40087]
 venue_at:
   "14215 fruit farm": [45.58516, -94.40087]
 ```
-Notes: Proposed on 2026-10-18 for BP app place-photos 04 (a picture for every event place). Campus calendar events name only its address, "14215 Fruit Farm Road, Collegeville". Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-18 for BP app place-photos 04 (a picture for every event place). Campus calendar events name only its address, "14215 Fruit Farm Road, Collegeville". Unreviewed — tier `listed`, so it publishes nothing until promoted. Not watched: Busy-place research 2026-11-15 (BP app watch-every-place 30) scored it 4 and 5 of 10, both 5 or below: Its weekly sits already come from the portal; the JSON adds about one special a month but is 185 KB to 800 KB with dates in the address, so without a new reader the daily model read costs too much (with a reader it would score 6).
 
 ## St. Cloud Area School District 742
 ```yaml
@@ -9113,7 +9129,7 @@ venue_at:
   "North Junior High School": [45.57383, -94.19159]
   "north junior high school": [45.57383, -94.19159]
 ```
-Notes: Proposed on 2026-10-18 for BP app place-photos 04 (a picture for every event place). Kennedy Community School's school board meetings are held at its District Administration Office in Waite Park. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-18 for BP app place-photos 04 (a picture for every event place). Kennedy Community School's school board meetings are held at its District Administration Office in Waite Park. Unreviewed — tier `listed`, so it publishes nothing until promoted. Not watched: Busy-place research 2026-11-15 (BP app watch-every-place 30) scored it 1 and 2 of 10, both 5 or below: A Waite Park office; its board meetings already arrive through Kennedy's calendar.
 
 ## Scheels Athletic Complex
 ```yaml
@@ -9176,7 +9192,7 @@ sources:
     trust: official
 at: [45.67194, -94.66934]
 ```
-Notes: Proposed on 2026-10-18 for BP app place-photos 04 (a picture for every event place). In Freeport; a City of St. Joseph outing went here. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-18 for BP app place-photos 04 (a picture for every event place). In Freeport; a City of St. Joseph outing went here. Unreviewed — tier `listed`, so it publishes nothing until promoted. Not watched: Busy-place research 2026-11-15 (BP app watch-every-place 30) scored it 5 and 4 of 10, both 5 or below: Its own events page is free but lists about 8 events a year, mostly May to October, 20 miles away in Freeport, and its Facebook already brings some.
 
 ## Sheryl Matters Massage
 ```yaml

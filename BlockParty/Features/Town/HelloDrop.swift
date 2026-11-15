@@ -71,18 +71,20 @@ enum HelloDrop {
     /// Plain hellos only, never a phrase like "Good to see you" (Jesse, 2026-10-29).
     private static let anyTime = ["Hi", "Hey", "Hello"]
 
-    /// Always a name: the first name, else "neighbor" for someone who hasn't given one (Jesse,
-    /// 2026-10-29: "make sure to add names for everyone"). A special day beats the time of day,
+    /// Always the first name, never "neighbor"; someone who hasn't given one gets the hello alone (Jesse,
+    /// 2026-11-15: "never use neighbor always use name"). A special day beats the time of day
+    /// (a holiday, then `gameDay`: a team you follow plays today, hello-drop 09),
     /// which beats the any-time ones; those stand in when the time of day's would repeat
     /// yesterday's. `lastSeen` is nil on the very first open; `yesterday` is the last hello's key.
-    static func hello(name: String?, now: Date, lastSeen: Date?, yesterday: String?) -> Hello {
+    static func hello(name: String?, now: Date, lastSeen: Date?, yesterday: String?, gameDay: Bool = false) -> Hello {
         let calendar = Town.calendar
         func said(_ words: String, _ key: String? = nil) -> Hello {
-            Hello(text: "\(words), \(name ?? "neighbor")", key: key ?? words)
+            Hello(text: name.map { "\(words), \($0)" } ?? words, key: key ?? words)
         }
         guard let lastSeen else { return said("Welcome to Block Party") }
         if now.timeIntervalSince(lastSeen) >= 3 * 86_400 { return said("Welcome back") }
         if let holiday = holiday(now, calendar: calendar) { return said(holiday) }
+        if gameDay, yesterday != "Happy game day" { return said("Happy game day") }
         let weekday = calendar.component(.weekday, from: now)
         if weekday == 6 || weekday == 7 || weekday == 1 {
             return said("Happy \(Town.format(now, "EEEE"))")
@@ -112,7 +114,7 @@ enum HelloDrop {
     }
 
     /// The first true one, top down: your event today, your group meets today, friends going
-    /// today, your event tomorrow, the news waiting in the pill's memory that comes after your own
+    /// today, a team you follow plays today, something else you follow has an Event today, your event tomorrow, the news waiting in the pill's memory that comes after your own
     /// day (a contact who joined, what you follow added: `HelloItem.waitsForYourDay`), new since
     /// your last open, then today's, the weekend's (Thu to Sun) and the week's count. A count that
     /// would say `yesterday`'s words gives way to the next one down (hello-drop 08). nil when the
@@ -147,6 +149,20 @@ enum HelloDrop {
             let who = others == 0 ? "\(friends[0].name) is"
                 : "\(friends[0].name) and \(others) friend\(others == 1 ? "" : "s") are"
             return Message(text: "\(who) going \(when(event.starts))", target: .event(event.item))
+        }
+        // What you follow, today (hello-drop 09): a team's game first, then anything else of yours.
+        let followed = todays.filter { $0.item.followed != nil }.sorted { $0.starts < $1.starts }
+        func at(_ event: DailyEvent) -> String {
+            " \(when(event.starts))" + (event.timed && !event.isOn(now) ? " at \(clock(event.starts))" : "")
+        }
+        if let (event, (mine, other)) = followed.lazy.compactMap({ event in
+            Self.sides(event).map { (event, $0) } }).first {
+            return Message(text: "\(mine.called) vs \(other.called)\(at(event))", target: .event(event.item), logo: mine.logo)
+        }
+        if let event = followed.first(where: { Self.sides($0) == nil }) {
+            let picture = HelloItem.Added.picture(event.item)
+            return Message(text: "\(event.item.title)\(at(event))", target: .event(event.item), logo: picture?.url,
+                           photo: picture?.photo ?? false)
         }
         if let event = mine.filter({ Town.day($0.starts) == tomorrow }).min(by: { $0.starts < $1.starts }) {
             return Message(text: "\(event.item.title) is tomorrow", target: .event(event.item))
@@ -188,6 +204,16 @@ enum HelloDrop {
         }
         count(upcoming.filter { week.contains(Town.day($0.starts)) }) { "\($0) event\($0 == 1 ? "" : "s") this week" }
         return counts.map(\.message).first { $0.text != yesterday }
+    }
+
+    /// A team you follow plays today and hasn't finished: the hello says "Happy game day" (hello-drop 09).
+    static func gameDay(now: Date, town: [DailyEvent]) -> Bool {
+        town.contains { sides($0) != nil && !$0.item.cancelled && Town.day($0.starts) == Town.day(now) && $0.ends > now }
+    }
+
+    /// A game of a team you follow: your side and theirs; nil for any other card.
+    private static func sides(_ event: DailyEvent) -> (mine: Game.Team, other: Game.Team)? {
+        event.item.game?.sides(followed: event.item.followed)
     }
 
     /// "4", "7:30": the hour alone, as the board words it ("Rocktoberfest is today at 4").

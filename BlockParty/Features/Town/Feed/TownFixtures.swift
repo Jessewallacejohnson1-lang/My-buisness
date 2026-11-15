@@ -102,7 +102,7 @@ enum TownFixtures {
     /// with no end time does.
     static func townEntries(now: Date = Date()) -> [TownFeedEntry] {
         let games = LaunchFlags.has(.townGames) ? gameSamples(now: now) : []
-        var events = games + sampleEvents(now: now).sorted { $0.leavesAt < $1.leavesAt }
+        var events = followedToday(games + sampleEvents(now: now).sorted { $0.leavesAt < $1.leavesAt }, now: now)
         // `-town-posts`: two neighbours' posts among the events (town-feed 29), a photo one second.
         if LaunchFlags.has(.townPosts) { events.insert(contentsOf: postSamples(now: now), at: min(1, events.count)) }
         guard LaunchFlags.has(.townNews) else { return events }
@@ -110,6 +110,22 @@ enum TownFixtures {
         // shares your interests among the events, the rest after the last one. Logos read from Storage.
         let news = newsSamples(now: now)
         return Array(events.prefix(2)) + news.prefix(1) + events.dropFirst(2) + news.dropFirst()
+    }
+
+    /// `-hello-follows game|place` (BP app hello-drop 09): the first game (its first team followed), or the park concert with no friends
+    /// Going, two hours from now today and of something you follow, for the morning pill's lines 4 and 5.
+    private static func followedToday(_ entries: [TownFeedEntry], now: Date) -> [TownFeedEntry] {
+        guard let pick = LaunchFlags.value(.helloFollows) else { return entries }
+        let start = now.addingTimeInterval(2 * 3600)
+        return entries.map { entry in
+            guard var card = entry.card, pick == "game" ? card.game != nil && card.id == entries.first?.card?.id
+                    : card.id == "e1" else { return entry }
+            card.eventDate = townClock("yyyy-MM-dd", start)
+            card.startTime = townClock("h:00 a", start)
+            card.followed = card.game?.teams.first?.short ?? card.hostName
+            card.friendsGoing = []
+            return TownFeedEntry(card: card, leavesAt: start.addingTimeInterval(3 * 3600))
+        }
     }
 
     /// Two invented neighbours' posts (town-feed 29): a photo with words, and words alone, tagged. The Block

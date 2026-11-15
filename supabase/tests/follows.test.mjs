@@ -231,6 +231,17 @@ test("an Event made with another business names its host, then that business, an
   await db.exec('reset role');
 });
 
+// A host with a photo and a logo shows its logo on the Event page, as its Town card does (BP app inside-cards 31).
+test("an Event page's host shows the logo its Town card shows, even when the place has a photo", async () => {
+  await reset();
+  await db.exec(`insert into public.place_photos (entry_id, url, source_url, kind, status, position) values
+    ('krewe', 'https://pic/krewe-room', 'https://krewemn.com/', 'photo', 'live', 1)`);
+  const [row] = await as(ANA, 'select picture, picture_kind from public.event_host($1)', [AT_KREWE]);
+  assert.deepEqual(row, { picture: 'https://pic/krewe', picture_kind: 'logo' });
+  const [{ card }] = await db.query(`select private.host_picture('Krewe', 'krewe') as card`).then((r) => r.rows);
+  assert.equal(card.url, row.picture, 'the card and the page show one picture');
+});
+
 test("the Following list draws a person's photo only from their own folder of our avatars bucket", async () => {
   await reset();
   const own = `https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/avatars/${BEN}/face.jpg`;

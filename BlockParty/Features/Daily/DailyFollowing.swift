@@ -117,6 +117,14 @@ enum DailyFollowingCard: Identifiable {
         }
     }
 
+    /// Its post's or story's own id, as the Town feed's entry has it.
+    var entryID: String {
+        switch self {
+        case .post(let post): post.id
+        case .news(let news): news.id
+        }
+    }
+
     /// When it went up: a post's own time; News's, when Block Party found it.
     var when: Date {
         switch self {
