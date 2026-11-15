@@ -18,6 +18,21 @@ enum RefreshStart { case pull, tab }
 final class RefreshPull {
     var points: CGFloat = 0
     var reading: RefreshStart?
+
+    /// Where the feed's content sits in its scroll view, and the scroll's top inset.
+    struct Scroll: Equatable {
+        var top: CGFloat
+        var inset: CGFloat
+    }
+
+    /// The top inset with no read adding to it: the least seen, as a read only ever adds.
+    @ObservationIgnored private var restInset = CGFloat.infinity
+
+    func scrolled(_ scroll: Scroll) {
+        restInset = min(restInset, scroll.inset)
+        let pulled = max(0, scroll.top - restInset)
+        if pulled != points { points = pulled }
+    }
 }
 
 /// The loop's numbers and motion, from mock round 3 (https://claude.ai/artifact/SN3prfQQhsD43FkVaC8pjX).
@@ -34,8 +49,8 @@ enum LoopRide {
     /// before frames 503–510).
     static let triggerPoints: CGFloat = 160
     static let fade: Double = 0.3
-    /// The gap a Town tab tap opens: the one `.refreshable` holds during a pull's read.
-    static let tabGap: CGFloat = 64
+    /// The gap held open above the first card while the loop rides (mock round 3, guessed).
+    static let heldGap: CGFloat = 64
 
     /// Gravity: speed² = bottom speed² − 2g·height, with the bottom speed 1 and the radius 1.
     private static let gravity = (1 - topSpeedShare * topSpeedShare) / 4
@@ -103,7 +118,7 @@ enum LoopRide {
     }
 
     /// How far above the first card the loop's centre sits, for a gap of `gap` points over it.
-    static func rise(gap: CGFloat) -> CGFloat { -(gap - min(gap, tabGap) / 2) }
+    static func rise(gap: CGFloat) -> CGFloat { -(gap - min(gap, heldGap) / 2) }
 
     /// What is left of the one lap the line always rides, after a read took `seconds`.
     static func rest(afterReading seconds: Double) -> Double { max(0, lap - seconds) }
@@ -112,8 +127,8 @@ enum LoopRide {
 /// The loop itself, centred in the gap above the feed's first card.
 struct RefreshLoop: View {
     var pull: RefreshPull
-    /// The gap a Town tab tap opens, which no pull measures.
-    var tabGap: CGFloat
+    /// The gap the feed holds open while the loop rides, under any pull.
+    var held: CGFloat
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private struct Ride: Equatable {
@@ -145,7 +160,7 @@ struct RefreshLoop: View {
         .frame(width: side, height: side)
         // Centred in the gap until the gap passes the one a read holds open, then pinned under the
         // bar there, as Apple's swirl is.
-        .offset(y: LoopRide.rise(gap: max(pull.points, tabGap)))
+        .offset(y: LoopRide.rise(gap: pull.points + held))
         .background(SwirlHider(pulling: pull.points > 0))
         .frame(height: 0)
         // Kept in the tree, as a paused timeline keeps its last frame (swift-traps.md).

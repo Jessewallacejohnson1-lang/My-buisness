@@ -52,9 +52,22 @@ final class RefreshLoopTests: XCTestCase {
 
     func testTheLoopSitsMidGapThenPinsUnderTheBar() {
         XCTAssertEqual(LoopRide.rise(gap: 40), -20)
-        XCTAssertEqual(LoopRide.rise(gap: LoopRide.tabGap), -LoopRide.tabGap / 2)
+        XCTAssertEqual(LoopRide.rise(gap: LoopRide.heldGap), -LoopRide.heldGap / 2)
         // Pulled further, it stays half a held gap under the bar.
-        XCTAssertEqual(LoopRide.rise(gap: 160), -(160 - LoopRide.tabGap / 2))
+        XCTAssertEqual(LoopRide.rise(gap: 160), -(160 - LoopRide.heldGap / 2))
+    }
+
+    func testThePullIsMeasuredFromTheRestingInset() {
+        let pull = RefreshPull()
+        pull.scrolled(.init(top: 120, inset: 120))
+        XCTAssertEqual(pull.points, 0)
+        pull.scrolled(.init(top: 200, inset: 120))
+        XCTAssertEqual(pull.points, 80)
+        // A read adds to the inset under the finger; the content hasn't moved, so neither does the pull.
+        pull.scrolled(.init(top: 200, inset: 160))
+        XCTAssertEqual(pull.points, 80)
+        pull.scrolled(.init(top: -300, inset: 120))
+        XCTAssertEqual(pull.points, 0)
     }
 
     func testAtLeastOneLap() {
