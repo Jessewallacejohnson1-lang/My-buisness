@@ -405,13 +405,16 @@ final class NewPostModel {
         let kept = Dictionary(photos.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         // Only new picks show grey: taking one out reloads nothing.
         loading = items.filter { kept[$0.itemIdentifier ?? ""] == nil }.count
-        let tasks = items.map { item in
-            let key = item.itemIdentifier ?? UUID().uuidString
-            if let photo = kept[key] { return Task<PickedPhoto?, Never> { photo } }
-            return Task { await Self.photo(item, id: key) }
-        }
+        // Three at a time, as they go up (the review): each holds its whole original while it's shrunk.
         var loaded: [PickedPhoto] = []
-        for task in tasks { if let photo = await task.value { loaded.append(photo) } }
+        for start in stride(from: 0, to: items.count, by: 3) {
+            let batch = items[start..<min(start + 3, items.count)].map { item in
+                let key = item.itemIdentifier ?? UUID().uuidString
+                if let photo = kept[key] { return Task<PickedPhoto?, Never> { photo } }
+                return Task { await Self.photo(item, id: key) }
+            }
+            for task in batch { if let photo = await task.value { loaded.append(photo) } }
+        }
         guard items == picks else { return }
         loading = 0
         set(loaded)
@@ -1125,7 +1128,8 @@ struct NewPostSheet: View {
     private var photosView: some View {
         let shown = model.event ? Array(model.photos.prefix(1)) : model.photos
         return Group {
-            if model.loading > 0 {
+            // Grey only while the first picks load: photos already there stay while more come in.
+            if shown.isEmpty {
                 SkeletonBlock(cornerRadius: 0)
                     .shimmering()
                     .aspectRatio(CGFloat(model.aspect), contentMode: .fit)
@@ -1156,7 +1160,11 @@ struct NewPostSheet: View {
             .overlay(alignment: .topTrailing) {
                 Button {
                     let on = model.event ? 0 : min(photoPage ?? 0, max(model.photos.count - 1, 0))
-                    withAnimation(reduceMotion ? nil : Motion.smooth) { model.remove(at: on) }
+                    withAnimation(reduceMotion ? nil : Motion.smooth) {
+                        model.remove(at: on)
+                        // The pager rests on the photo that took its place, or the new last one.
+                        photoPage = min(on, max(model.photos.count - 1, 0))
+                    }
                 } label: {
                     Image(systemName: "trash")
                         .font(.glyph(17, weight: .semibold))

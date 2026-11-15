@@ -32,19 +32,18 @@ struct PhotoPager: View {
     var flyerTop: CGFloat = 0
     /// What shows while a photo loads, under the shimmer or, with none, alone: a post's paper grey (town-feed 46).
     var loadingFill: Color = Hue.ink
-    /// A post's up to 10 photos load as they come near, not all as its card shows (town-feed 46). The pages that
-    /// already swiped a few photos keep their plain row, laid out exactly as before.
-    var lazy = false
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            if lazy {
-                LazyHStack(spacing: 0) { pages }
-                    .scrollTargetLayout()
-            } else {
-                HStack(spacing: 0) { pages }
-                    .scrollTargetLayout()
+            // Lazy: a post's 10 photos load as they come near, not all as its card shows (town-feed 46).
+            LazyHStack(spacing: 0) {
+                ForEach(Array(urls.enumerated()), id: \.offset) { index, url in
+                    photo(url)
+                        .containerRelativeFrame(.horizontal)
+                        .id(index)
+                }
             }
+            .scrollTargetLayout()
         }
         .scrollTargetBehavior(.paging)
         .scrollPosition(id: $page)
@@ -60,14 +59,6 @@ struct PhotoPager: View {
         }
         // One photo has nothing to adjust.
         .accessibilityHidden(urls.count < 2)
-    }
-
-    private var pages: some View {
-        ForEach(Array(urls.enumerated()), id: \.offset) { index, url in
-            photo(url)
-                .containerRelativeFrame(.horizontal)
-                .id(index)
-        }
     }
 
     private func photo(_ url: URL) -> some View {
