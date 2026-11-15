@@ -1136,7 +1136,8 @@ struct NewPostSheet: View {
                     .frame(maxWidth: .infinity)
                     .accessibilityLabel("Loading your photos")
             } else {
-                PostPhotos(urls: shown.map(\.file), aspect: model.aspect, page: $photoPage, counter: false,
+                // How many you picked, where the trash isn't: the dots can sit under the Post bar (Check-in 2).
+                PostPhotos(urls: shown.map(\.file), aspect: model.aspect, page: $photoPage, counterAt: .bottomTrailing,
                            label: shown.count > 1 ? "Your photos" : "Your photo")
             }
         }

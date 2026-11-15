@@ -291,8 +291,10 @@ struct PostPhotos: View {
     /// The first photo's shape, width over height.
     let aspect: Double
     @Binding var page: Int?
-    /// The "2/4" pill; New post's trash sits in its corner.
+    /// The "2/4" pill: Instagram's top right on a post; New post's at the bottom right, its trash in the top corner
+    /// (Jesse at Check-in 2, 2026-11-14: "i agree").
     var counter = true
+    var counterAt: Alignment = .topTrailing
     /// Two fingers lift it where it sits (BP app photo-zoom), as a post's one photo does.
     var zooms = false
     var label = "Photos"
@@ -314,7 +316,7 @@ struct PostPhotos: View {
             pager(urls, on: on)
                 .aspectRatio(CGFloat(aspect), contentMode: .fit)
                 .frame(maxWidth: .infinity)
-                .overlay(alignment: .topTrailing) {
+                .overlay(alignment: counterAt) {
                     if counter && urls.count > 1 {
                         PhotoCounter(text: "\(on + 1)/\(urls.count)")
                             .padding(Metric.counterInset)
