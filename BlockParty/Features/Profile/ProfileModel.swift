@@ -27,6 +27,11 @@ final class ProfileModel {
     var bio = ""
     var coverUrl: String?
     var extras: ProfileExtras?
+    /// `get_profile` has answered, or failed, for this account: till then a real account's Profile
+    /// holds the counts' place with a skeleton (`countsLoading`), and never after a failure.
+    private(set) var extrasAnswered = false
+    /// The counts' read is out: a real account (the quiet one never asks), nothing answered yet.
+    var countsLoading: Bool { canDescribe && extras == nil && !extrasAnswered }
     /// "Show my plans to friends" (town-feed 28): nil until the server row says. Till then the
     /// switch shows the default, On, greyed, and can't be changed.
     var plansToFriends: Bool?
@@ -159,10 +164,21 @@ final class ProfileModel {
 
     /// You's visit: your row, then the counts and groups only a real account has.
     func load() async {
+        #if DEBUG
+        // `-town-samples` and `-town-offline` read no `get_profile`: the sample counts, at once.
+        if LaunchFlags.backend != .live {
+            extras = .sample
+            await read()
+            return
+        }
+        #endif
         await read()
-        guard canDescribe, let uid = auth.userId, let read = try? await profiles.getProfile(uid),
-              auth.userId == uid else { return }
-        extras = read
+        guard canDescribe, let uid = auth.userId else { return }
+        let read = try? await profiles.getProfile(uid)
+        // Another account came while it was out: that one's own visit reads it.
+        guard auth.userId == uid else { return }
+        if let read { extras = read }
+        extrasAnswered = true
     }
 
     /// Another account, or none (`AppSession`): nothing of the last one's stays on the page. The
@@ -183,6 +199,7 @@ final class ProfileModel {
         bio = ""
         coverUrl = nil
         extras = nil
+        extrasAnswered = false
         loaded = false
         if writePlans == nil { plansToFriends = nil }
         if writeSuggest == nil { suggestMe = nil }

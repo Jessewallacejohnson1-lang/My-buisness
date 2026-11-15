@@ -163,7 +163,8 @@ struct YouPage: View {
                     Button { pick(date, from: day) } label: {
                         YouDay(date: date, month: YouCalendar.month(on: date, first: days.first),
                                events: events, isToday: date == today,
-                               isPast: date < today, isPicked: date == day, ring: ring)
+                               isPast: date < today, isPicked: date == day, ring: ring,
+                               gapColor: Hue.onboardingCanvas, dayFill: Hue.onboardingField)
                     }
                     .buttonStyle(.press(.squish))
                     .accessibilityLabel(Self.spoken(date, plans: events.count, today: date == today))
@@ -280,6 +281,13 @@ struct YouDay: View {
     let isPicked: Bool
     let ring: Namespace.ID
     var disc = false
+    /// The gap inside the picked day's ring and the rim round the plans count: the colour of the
+    /// page under the Calendar, the Profile's grey on You (profile-middle), paper on Search's.
+    var gapColor: Color = Hue.paper
+    /// A plan's disc with no photo, and any day's while its photo loads. On You's grey (onboarding's
+    /// canvas, `Hue.onboardingCanvas`) it takes onboarding's field grey, the one set on that same
+    /// canvas, since `Hue.fill` all but vanishes there; Search's keeps `Hue.fill`.
+    var dayFill: Color = Hue.fill
 
     var body: some View {
         // The first Event with a photo, so a day whose first has none still shows one (the plan's review).
@@ -290,7 +298,7 @@ struct YouDay: View {
         ZStack {
             if !events.isEmpty {
                 if let photo {
-                    FeedCardURLPhoto(url: photo, loadingFill: Hue.fill)
+                    FeedCardURLPhoto(url: photo, loadingFill: dayFill)
                 } else if let group {
                     // Faded under an ink number: the logo's own letters fought a white one (review).
                     YouGroupPicture(group: group, logoSide: YouMetric.dayLogo)
@@ -299,7 +307,7 @@ struct YouDay: View {
                     // White on the Event calendar's grey fade, as an empty day, its number in ink (the run's review).
                     Circle().fill(Hue.surface).overlay { Circle().strokeBorder(Hue.hairline, lineWidth: 0.5) }
                 } else {
-                    Hue.fill
+                    dayFill
                 }
             } else if isToday {
                 Hue.ink
@@ -326,7 +334,7 @@ struct YouDay: View {
         .overlay {
             if isPicked {
                 Circle()
-                    .strokeBorder(Hue.paper, lineWidth: YouMetric.ring + YouMetric.ringGap)
+                    .strokeBorder(gapColor, lineWidth: YouMetric.ring + YouMetric.ringGap)
                     .overlay { Circle().strokeBorder(Hue.ink, lineWidth: YouMetric.ring) }
                     .matchedGeometryEffect(id: "ring", in: ring)
             }
@@ -349,7 +357,7 @@ struct YouDay: View {
                     .frame(minWidth: YouMetric.count, minHeight: YouMetric.count)
                     .background(Capsule().fill(Hue.ink))
                     .padding(YouMetric.countEdge)
-                    .background(Capsule().fill(Hue.paper))
+                    .background(Capsule().fill(gapColor))
                     .offset(YouMetric.countOffset)
             }
         }

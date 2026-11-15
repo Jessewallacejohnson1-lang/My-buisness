@@ -1,10 +1,11 @@
 //
 //  ProfileView.swift
 //  Block Party — the You tab: your Profile (five-tabs 03), the profile page (`ProfilePage`, BP app
-//  references/profile-remake) with your full Calendar and Agenda under "Going" (`YouPage`), where a
-//  neighbour's page has its Going rows; only you see them. Edit profile and Settings sit in white
-//  circles on the cover; your settings, Liked among them, push from ☰ on the shell's stack, over
-//  the tab bar, as an Event page does.
+//  references/profile-remake, profile-middle) with your full Calendar and Agenda under "Going"
+//  (`YouPage`), where a neighbour's page has its Going rows; only you see them. On the cover, share
+//  (Your code) in white glass and the gear in dark glass; your settings, Liked among them, push from
+//  the gear on the shell's stack, over the tab bar, as an Event page does. Under your name, Edit
+//  profile and Map.
 //
 //  Motion: the house SpringReveal cascade on Settings; press-scale on every control.
 //
@@ -17,7 +18,11 @@ struct ProfileView: View {
     let model: ProfileModel
     /// You's Liked list, kept in the shell so a second visit shows the last list at once.
     let likes: YouModel
+    /// The town map, full screen, as the Town bar's yellow disc opens it (`RootView`).
+    let openMap: () -> Void
     @EnvironmentObject private var auth: AuthStore
+    /// Pushes a neighbour found by Your code's Scan a code onto the shell's stack.
+    @Environment(\.hostOpener) private var opener
     @Environment(CalendarSync.self) private var calendarSync
     /// For Muted and Following: a page pushed on the shell's stack reads the stack's environment,
     /// not this page's, so each link hands these on (`RootView` gives them to the You tab).
@@ -36,6 +41,7 @@ struct ProfileView: View {
     @State private var showModeration = ProfileView.debugModeration()
     @State private var confirmSignOut = false
     @State private var confirmDelete = false
+    @State private var showingCode = false
     @State private var pushedEvent: FeedCardItem?
     @State private var pushedGroup: TownGroup?
 
@@ -54,69 +60,60 @@ struct ProfileView: View {
     }
 
     var body: some View {
-        TimelineView(.everyMinute) { context in
-            ProfilePage(face: face(now: context.date), calendar: YouPage(model: you, open: { pushedEvent = $0 }, openGroup: { pushedGroup = $0 })) {
-                HStack(spacing: 0) {
-                    Spacer(minLength: 0)
-                    EventPage.circleButton(glyph: Image(systemName: "pencil"), label: "Edit profile") {
+        ProfilePage(face: face, calendar: YouPage(model: you, open: { pushedEvent = $0 }, openGroup: { pushedGroup = $0 })) {
+            HStack(spacing: ProfileMetric.glassBoxGap) {
+                Spacer(minLength: 0)
+                // Your code: only a real account can be found, so the quiet one's would lead nowhere.
+                if friendsBook.hasAccount() {
+                    ProfileGlassButton(glyph: Image(systemName: "square.and.arrow.up"), label: "Share your profile") {
                         Haptics.selection()
-                        editing = true
-                    }
-                    EventPage.circleButton(glyph: Image(systemName: "line.3.horizontal"),
-                                           label: "Settings") {
-                        Haptics.selection()
-                        settings = true
+                        showingCode = true
                     }
                 }
-            } bar: {
-                // Room for the tab bar under your Groups, as every tab leaves.
-                Color.clear.frame(height: DailyMetric.tabBarClearance - EventPage.Metric.contentBottom)
-            } addBio: {
-                Haptics.selection()
-                editing = true
-            } openEvent: { pushedEvent = $0 } openGroup: { pushedGroup = $0 }
-        }
+                ProfileGlassButton(glyph: Image(systemName: "gearshape"), label: "Settings", dark: true) {
+                    Haptics.selection()
+                    settings = true
+                }
+            }
+        } bar: {
+            // Room for the tab bar under your Groups, as every tab leaves.
+            Color.clear.frame(height: DailyMetric.tabBarClearance - EventPage.Metric.contentBottom)
+        } edit: {
+            Haptics.selection()
+            editing = true
+        } openMap: {
+            openMap()
+        } openEvent: { pushedEvent = $0 } openGroup: { pushedGroup = $0 }
         // On every visit, and for another account while You is open (`AppSession` has cleared the last one's).
         .task(id: auth.accountKey) { await model.load() }
         .navigationDestination(isPresented: $settings) { settingsPage }
         .navigationDestination(item: $pushedEvent) { EventPage(item: $0) }
         .navigationDestination(item: $pushedGroup) { GroupPage(group: $0) }
         .sheet(isPresented: $editing) { EditProfileView(model: model) }
+        // As the Friends tab's Your code opens it (`FriendsWaysCard`).
+        .sheet(isPresented: $showingCode) { YourCodeSheet { opener?.push($0) } }
     }
 
-    /// Your page: how many plans in the three weeks (the Calendar shows them, `YouPage`), the groups
-    /// you're in (this session's joins laid over the read), your bio or "+ Add bio".
-    private func face(now: Date) -> ProfileFace {
-        let first = YouCalendar.firstDay(of: now)
-        let going = you.going.map {
-            YouCalendar.going(read: $0, tapped: Array(actions.goingTapped.values),
-                              isGoing: { actions.going($0).isGoing }, first: first)
-        }
-        let plans = going.map { ProfileFace.nextPlans($0, now: now) }
+    /// Your page: your counts, the groups you're in (this session's joins laid over the read), your
+    /// bio or "+ Add bio".
+    private var face: ProfileFace {
         let bio = model.bio.trimmingCharacters(in: .whitespacesAndNewlines)
         return ProfileFace(
             name: model.displayName.isEmpty ? "Add your name" : model.displayName,
             avatarUrl: model.avatarUrl,
             coverUrl: model.coverUrl,
             bio: bio.isEmpty ? nil : bio,
-            line: subLine,
             friends: model.extras?.friends,
+            following: model.extras?.following,
+            countsLoading: model.countsLoading,
             groups: (you.groups ?? []).filter { actions.member($0).isMember },
-            goingCount: plans?.count,
             addsBio: bio.isEmpty && model.canDescribe,
-            coverKnown: model.loaded,
-            now: now)
-    }
-
-    private var subLine: String {
-        var parts = [Town.everyday]
-        if let s = model.sinceLabel { parts.append("Neighbor since \(s)") }
-        return parts.joined(separator: " · ")
+            coverKnown: model.loaded)
     }
 
     // MARK: - Settings
 
-    /// Today's rows, pushed from ☰ under Liked's top (`LikedPage`), on the shell's stack.
+    /// Today's rows, pushed from the gear under Liked's top (`LikedPage`), on the shell's stack.
     private var settingsPage: some View {
         ScrollViewReader { proxy in
             ScrollView(showsIndicators: false) {

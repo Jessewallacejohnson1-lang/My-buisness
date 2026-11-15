@@ -765,7 +765,8 @@ struct MainTabsView: View {
                                 .task { if townFeed.entries == nil { await townFeed.refresh() } }
                         // Your Profile, with your full Calendar and Agenda (five-tabs 03).
                         case .you:
-                            ProfileView(model: session.profile, likes: likes)
+                            // Its Map button opens the map as the Town bar's yellow disc does.
+                            ProfileView(model: session.profile, likes: likes, openMap: { showMap = true })
                                 // Settings' Calendar switch, and what Muted and Following read.
                                 .environment(calendarSync)
                                 .environment(townFeed)
