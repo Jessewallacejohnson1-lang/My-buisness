@@ -747,7 +747,8 @@ def post_pages(kind, rows, by_url):
     caption needs its pictures carries their addresses under `pictures`, for add_pictures; one
     with no caption but a picture is a page too, since its words may all be on the picture. A post that is
     the place's own (an Instagram one owned by a watched page, else any) keeps its caption under `words`,
-    for its News page (BP app town-feed 65): someone else's post on the page (MIAC's on CSB's) keeps none."""
+    for its News page (BP app town-feed 65): someone else's post on the page (MIAC's on CSB's) keeps none. A
+    Facebook event keeps its About there too, saved with its Events' mentions for the time-slot step (event-schedule 01)."""
     pages, hidden = [], []
     for r in rows:
         src = src_of(r)
@@ -762,6 +763,7 @@ def post_pages(kind, rows, by_url):
             continue
         if kind in ("events", "search"):
             text = r.get("description") or ""
+            words = text.strip()[:WORDS_MAX]  # the host's About, read again Mondays and Saturdays (rereads)
             loc = r.get("location") if isinstance(r.get("location"), dict) else {}
             where = loc.get("name") if loc else r.get("location")
             # An Event read again (rereads) is its host's listing, as a tab's is; one found by the search is named for
@@ -813,7 +815,7 @@ def post_pages(kind, rows, by_url):
                       "url": url or page["url"], "entry_id": page["entry_id"],
                       "name": who if kind == "search" else page["name"], "category": page.get("category"), "trust": "official", "text": body,
                       **({"pictures": pics} if pics else {}), **({"collabs": made_with} if made_with else {}),
-                      **({"words": words} if kind in ("facebook", "instagram") and words else {}),
+                      **({"words": words} if words else {}),
                       **({"listing": listing(r)} if kind in ("events", "search") else {})})
     return pages, hidden
 
@@ -1144,6 +1146,7 @@ def selftest():
     check(len(got) == 1 and got[0]["file"] == "events-1107906461871802" and got[0]["name"] == "Sunny Mary Meadow"
           and got[0]["text"].startswith("Sunny Mary Meadow lists this event on its Facebook page.") and got[0]["listing"],
           "an Event read again is its host's listing, judged once beside a tab's read of it")
+    check(got[0]["words"] == "Wreaths.", "a Facebook event read again keeps its About, the host's words for the time-slot step")
     got, _ = post_pages("search", [reread(isCanceled=True), reread(isPast=True, id="2")], tabbed)
     check(got == [{"file": "cancelled-1107906461871802", "cancelled": True, "name": "Sunny Mary Meadow",
                    "url": "https://www.facebook.com/events/1107906461871802/"}],

@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 """
-event_parts.py: the parts of a long Event at a time its host wrote: an artist talk, a reception, a speaker (BP app
-docs/plans/happening-now, ticket 03). An Event running 12 hours or longer (an exhibit, a festival, an all-day market)
-gets its own page and its host's read each morning; while a part is on, the app shows its Event as live (ticket 04).
+event_parts.py: the parts of an Event at a time its host wrote: an artist talk, a reception, Santa's arrival (BP app
+docs/plans/happening-now, ticket 03; event-schedule 01). Every Event, a festival evening as much as a week-long
+exhibit, gets its pages read each morning; while a part is on, the app shows its Event as live (happening-now 04).
 
-`prepare` takes the long Events still running or starting within LOOKAHEAD days, at most MAX, and reads each one's
-pages through the registry's polite fetch: its own page, the pages that mentioned it, and its host's watched pages.
-Facebook and Instagram are left out (Apify is paid; the morning's social reads already turn their posts into Events).
-A long page keeps only the passages naming the Event. They go on one batch for two helpers (sources/models/event-part.md),
-each on its own.
+`prepare` takes every approved Event (games aside) still running or starting within LOOKAHEAD days and reads each one's
+pages through the registry's polite fetch, each page once and never through Firecrawl (a paid read): its own page, the
+pages that mentioned it, and its host's watched pages. A Facebook or Instagram page is never fetched (Apify is paid): in
+its place come the host's own words the social read saved with its mention (event_mentions.host_words: a Facebook
+event's About, a post's text). A long page keeps only the passages naming the Event. The free check: only an Event
+whose passages state a clock time besides its own start and end goes on, at most MAX a morning, the soonest first, to
+one batch for two helpers (sources/models/event-part.md), each on its own. One line says how many were candidates,
+passed, were sent and were left by the cap; keep puts it in the morning report.
 
 `keep`, a step of `morning.py finish`, writes a part only where both helpers found it on the same day at the same start,
 each quoting the host's words with that time, inside the Event's days. Never a guess (Jesse, 2026-11-09: two separate
@@ -30,6 +33,7 @@ import sys
 import urllib.parse
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
+from time import monotonic
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import registry  # noqa: E402
@@ -94,28 +98,32 @@ def stated(answer, event):
     return day, start, end if end in said and end > start else None
 
 
-def same_as(event, starts, existing):
+def same_as(event, starts, existing, quote=""):
     """The id of an Event already listed on the part's day, at its start and place, else None: that Event stays, and
-    the part points at it rather than making a double (Jesse, 2026-11-05). No place on either side counts as the long
-    Event's own."""
-    here = words(event.get("location"), PLACE_STOP)
+    the part points at it rather than making a double (Jesse, 2026-11-05). No place on either side counts as the
+    Event's own. A festival's part is often somewhere else than the festival ("Downtown"), so the part's place is also
+    the one its host's words name: words naming most of the listed Event's title and its place count too ("Tree
+    Lighting at 7 pm on the Church of Saint Joseph lawn" is WinterWalk Tree Lighting there)."""
+    here, said = words(event.get("location"), PLACE_STOP), words(quote)
     for e in existing:
-        there = words(e.get("location"), PLACE_STOP)
+        there, named = words(e.get("location"), PLACE_STOP), words(e.get("title"))
         if (str(e.get("event_date"))[:10] == starts.date().isoformat() and parse_clock(e.get("start_time")) == starts.time()
                 and (not (here and there) or same_place(here, there)
-                     or bool(e.get("place_entry_id")) and e.get("place_entry_id") == event.get("place_entry_id"))):
+                     or bool(e.get("place_entry_id")) and e.get("place_entry_id") == event.get("place_entry_id")
+                     or bool(named) and len(named & said) / len(named) > 0.5 and same_place(there, said))):
             return e["id"]
     return None
 
 
 def judge(event, a, b, existing=()):
-    """(parts to write, report lines) for one long Event from its two helpers' answers. A part is kept only where both
-    helpers found it on the same day at the same start, each quoting the host's words with that time and that day."""
+    """(parts to write, report lines) for one Event from its two helpers' answers. A part is kept only where both
+    helpers found it on the same day at the same start, each quoting the host's words with that time and that day. Its
+    end when the other helper gave the same end at that start (a festival has several parts at 6 PM, each its own end)."""
     seen = {}
     for x in b:
         got = stated(x, event)
         if got:
-            seen.setdefault(got[:2], (x, got))
+            seen.setdefault(got[:2], set()).add(got[2])
     kept, left = [], []
     for x in a:
         got = stated(x, event)
@@ -126,91 +134,131 @@ def judge(event, a, b, existing=()):
             left.append(f"only one helper found {x.get('title')!r} on {got[0]} at {x.get('start')}")
             continue
         day, start, end = got
-        other_end = seen[got[:2]][1][2]
         starts = datetime.combine(day, start)
         if not event["starts"] <= starts < event["ends"]:
             left.append(f"{x.get('title')!r} on {day} at {x.get('start')} is outside the Event's days")
             continue
         kept.append({"event_id": event["id"], "title": str(x.get("title")).strip(),
                      "starts_at": starts.replace(tzinfo=LOCAL).isoformat(),
-                     "ends_at": datetime.combine(day, end).replace(tzinfo=LOCAL).isoformat() if end and end == other_end else None,
+                     "ends_at": datetime.combine(day, end).replace(tzinfo=LOCAL).isoformat() if end and end in seen[got[:2]] else None,
                      "source_url": x.get("page") or "", "source_line": str(x.get("quote")).strip(),
-                     "same_as": same_as(event, starts, existing)})
+                     "same_as": same_as(event, starts, existing, x.get("quote"))})
     return kept, left
 
 
 # --- Which Events, and their pages ------------------------------------------------------------------------------
 
-LONG = timedelta(hours=12)  # the spec's long Event
-LOOKAHEAD = 7               # days ahead a long Event starting soon is read
-MAX = 10                    # long Events read a morning, the soonest first
+LOOKAHEAD = 7               # days ahead an Event starting soon is read
+MAX = 25                    # Events sent to the helpers a morning, the soonest first; the rest wait for tomorrow
 PAGE_CHARS = 6000           # a page's words a helper gets
+FETCH_MINUTES = 6           # the morning stops a command at 10: pages not fetched by then wait, the soonest Events' first
 AROUND = 3                  # lines kept either side of one naming the Event, on a page longer than PAGE_CHARS
 READINGS = ("parts.jsonl", "parts-2.jsonl")  # the two helpers' answers
 SOCIAL = re.compile(r"(facebook|instagram)\.com/", re.I)
 
 
 def span(row):
-    """(start, end) of an Event as local naive datetimes; end None when it has none."""
+    """(start, end) of an Event as local naive datetimes; with no end, the end of its day."""
     day = date.fromisoformat(str(row["event_date"])[:10])
     at = None if row.get("all_day") else parse_clock(row.get("start_time"))
     end = row.get("end_at") and datetime.fromisoformat(str(row["end_at"]))
-    return datetime.combine(day, at or time(0)), end and end.astimezone(LOCAL).replace(tzinfo=None)
+    return (datetime.combine(day, at or time(0)),
+            end.astimezone(LOCAL).replace(tzinfo=None) if end else datetime.combine(day + timedelta(1), time(0)))
 
 
-def long_events(db, today):
-    """The approved long Events on today or within LOOKAHEAD days, soonest end first, at most MAX."""
+def candidates(db, today):
+    """Every approved Event running today or starting within LOOKAHEAD days, the soonest first. Games aside: two teams
+    playing have no parts, and their schedule pages are all other games' times."""
     rows = db.rest("GET", "club_events?select=id,title,event_date,start_time,end_at,all_day,location,place_entry_id,source_url"
-                          f"&status=eq.approved&cancelled_at=is.null&end_at=gte.{today}"
-                          f"&event_date=lte.{today + timedelta(LOOKAHEAD)}&order=end_at,id") or []
-    out = []
-    for r in rows:
-        starts, ends = span(r)
-        if ends and ends - starts >= LONG and ends.date() >= today:
-            out.append({**r, "starts": starts, "ends": ends})
-    return out[:MAX]
+                          f"&status=eq.approved&cancelled_at=is.null&sport=is.null"
+                          f"&or=(end_at.gte.{today},and(end_at.is.null,event_date.gte.{today}))"
+                          f"&event_date=lte.{today + timedelta(LOOKAHEAD)}&order=event_date,id") or []
+    out = [{**r, "starts": s, "ends": e} for r in rows for s, e in [span(r)] if e > datetime.combine(today, time(0))]
+    return sorted(out, key=lambda e: e["starts"])
 
 
-def passages(text, title):
-    """A short page whole; a long one only the lines naming the Event (two of its title's words) and AROUND either side."""
-    if len(text) <= PAGE_CHARS:
-        return text
+def more_times(event, pages):
+    """The free check, no model and no paid read: whether the Event's passages state a clock time besides its own start
+    and end. "4 – 8 PM" alone is the Event itself; "Santa arrives 4:30 PM" is a part to look for. Its own page (or the
+    host's words saved for it) counts whole; another page only near a line naming the Event, so a shop's hours or the
+    next Event on a host's calendar don't send it to the helpers (Jesse, 2026-11-15: 35 passes a morning became 21)."""
+    said = set()
+    for p in pages or []:
+        said |= times_in(p["text"] if p.get("url") == event.get("source_url") else naming(p["text"], event["title"]))
+    return bool(said - {event["starts"].time(), event["ends"].time()})
+
+
+def naming(text, title):
+    """Only the lines naming the Event (two of its title's words) and AROUND either side."""
     want = words(title)
     lines = text.splitlines()
     near = {j for i, ln in enumerate(lines) if len(want & words(ln)) >= min(2, len(want))
             for j in range(i - AROUND, i + AROUND + 1)}
-    return "\n".join(lines[i] for i in sorted(near) if 0 <= i < len(lines))[:PAGE_CHARS]
+    return "\n".join(lines[i] for i in sorted(near) if 0 <= i < len(lines))
+
+
+def passages(text, title):
+    """A short page whole; a long one only the lines naming the Event and AROUND either side."""
+    return text if len(text) <= PAGE_CHARS else naming(text, title)[:PAGE_CHARS]
+
+
+def no_firecrawl(url, fmt="markdown"):
+    raise RuntimeError("not read through Firecrawl: the step reads no paid page")
 
 
 def polite(url):
-    return run.read_page(url, "website")[1]
+    return run.read_page(url, "website", scrape=no_firecrawl)[1]
 
 
-def pages_of(db, events, read=polite):
-    """Each Event's pages to read, as [{url, text}]: its own, those that mentioned it, its host's watched ones."""
-    ids = ",".join(e["id"] for e in events)
-    mentioned = db.rest("GET", f"event_mentions?select=event_id,source_url&event_id=in.({ids})") or []
-    hosts = ",".join(sorted({e["place_entry_id"] for e in events if e.get("place_entry_id")})) or "none"
-    hosted = db.rest("GET", f"sources?select=entry_id,url&entry_id=in.({hosts})&status=eq.active") or []
-    out = {}
-    for e in events:
-        urls = [e.get("source_url")] + [m["source_url"] for m in mentioned if m["event_id"] == e["id"]] \
-            + [h["url"] for h in hosted if h["entry_id"] == e.get("place_entry_id")]
-        got = []
-        for u in dict.fromkeys(u for u in urls if u and not SOCIAL.search(u)):
-            try:
-                text = passages(read(u), e["title"])
-            except Exception as ex:  # a page that can't be read is one line, the Event's others are still read
-                print(f"[parts] {u}: {' '.join(str(ex).split())[:120]}")
-                continue
-            if text.strip():
-                got.append({"url": u, "text": text})
-        out[e["id"]] = got
+def mentions_of(db, ids):
+    """The Events' mentions: each link, and the host's words a social read saved with it. Before the words' column is
+    live (event-schedule 01's migration waits for Jesse's yes), the links alone."""
+    out = []
+    for i in range(0, len(ids), 50):  # a short enough address for each read
+        inside = ",".join(ids[i:i + 50])
+        try:
+            out += db.rest("GET", f"event_mentions?select=event_id,source_url,host_words&event_id=in.({inside})") or []
+        except DbError:
+            out += db.rest("GET", f"event_mentions?select=event_id,source_url&event_id=in.({inside})") or []
     return out
 
 
-def prepare(folder, db, today, read=polite):
-    """Lays out the helpers' batch and found.json (the Events read, by key)."""
+def pages_of(db, events, read=polite, minutes=FETCH_MINUTES):
+    """(each Event's pages to read as [{url, text}], how many pages time left unfetched): its own, those that mentioned
+    it, its host's watched ones. Each page is fetched once however many Events it serves, the soonest Events' first, for
+    `minutes` at most; a Facebook or Instagram page never is, its saved words stand in."""
+    stop, late = monotonic() + minutes * 60, set()
+    mentioned = mentions_of(db, [e["id"] for e in events])
+    hosts = ",".join(sorted({e["place_entry_id"] for e in events if e.get("place_entry_id")})) or "none"
+    hosted = db.rest("GET", f"sources?select=entry_id,url&entry_id=in.({hosts})&status=eq.active") or []
+    fetched, out = {}, {}
+    for e in events:
+        mine = [m for m in mentioned if m["event_id"] == e["id"]]
+        urls = [e.get("source_url")] + [m["source_url"] for m in mine] \
+            + [h["url"] for h in hosted if h["entry_id"] == e.get("place_entry_id")]
+        got = []
+        for u in dict.fromkeys(u for u in urls if u):
+            if SOCIAL.search(u):
+                text = next((m["host_words"] for m in mine if m["source_url"] == u and m.get("host_words")), "")
+            else:
+                if u not in fetched and monotonic() > stop:
+                    late.add(u)
+                elif u not in fetched:
+                    try:
+                        fetched[u] = read(u)
+                    except Exception as ex:  # a page that can't be read is one line, the Event's others are still read
+                        fetched[u] = ""
+                        print(f"[parts] {u}: {' '.join(str(ex).split())[:120]}")
+                text = fetched.get(u, "")
+            text = passages(text, e["title"]) if text else ""
+            if text.strip():
+                got.append({"url": u, "text": text})
+        out[e["id"]] = got
+    return out, len(late)
+
+
+def prepare(folder, db, today, read=polite, cap=MAX, minutes=FETCH_MINUTES):
+    """Lays out the helpers' batch and found.json (the Events sent, by key, and the step's line for the report)."""
     for name in READINGS:  # an earlier prepare's answers: their keys were other Events'
         (folder.parent / name).unlink(missing_ok=True)
     if folder.exists():
@@ -219,12 +267,16 @@ def prepare(folder, db, today, read=polite):
     folder.mkdir(parents=True, exist_ok=True)
     try:
         db.rest("GET", "event_parts?select=id&limit=1")  # not applied yet: the morning goes on without this step
-        events = long_events(db, today)
-        pages = pages_of(db, events, read) if events else {}
+        listed = candidates(db, today)
+        pages, late = pages_of(db, listed, read, minutes) if listed else ({}, 0)
     except DbError as e:
         print(f"[parts] skipped: {' '.join(str(e).split())[:150]}")
         return []
-    events = [e for e in events if pages.get(e["id"])]
+    passed = [e for e in listed if more_times(e, pages.get(e["id"]))]
+    events = passed[:cap]
+    said = (f"{len(listed)} Events running or within {LOOKAHEAD} days, {len(passed)} with a time besides their own start "
+            f"and end, {len(events)} sent to the helpers, {len(passed) - len(events)} left by the cap for tomorrow"
+            + (f"; {late} pages not fetched in {minutes} minutes, tried tomorrow" if late else ""))
     found = {}
     lines = []
     for i, e in enumerate(events, 1):
@@ -234,11 +286,12 @@ def prepare(folder, db, today, read=polite):
         lines.append(json.dumps({"event": key, "title": e["title"], "from": e["starts"].isoformat(),
                                  "to": e["ends"].isoformat(), "place": e.get("location") or "",
                                  "pages": pages[e["id"]]}, ensure_ascii=False))
-    (folder / "found.json.new").write_text(json.dumps({"today": str(today), "events": found}, indent=1, ensure_ascii=False))
+    (folder / "found.json.new").write_text(json.dumps({"today": str(today), "events": found, "line": f"- Parts: {said}"},
+                                                      indent=1, ensure_ascii=False))
     (folder / "found.json.new").replace(folder / "found.json")  # whole or not at all
     if lines:
         (folder / "batch.txt").write_text("\n".join(lines) + "\n")
-    print(f"[parts] {len(lines)} long Events to read for parts" + (f" ({folder / 'batch.txt'})" if lines else ""))
+    print(f"[parts] {said}" + (f" ({folder / 'batch.txt'})" if lines else ""))
     return events
 
 
@@ -266,7 +319,7 @@ def take_down(part):
 
 
 def keep(run_, dry_run=False):
-    """Each long Event both helpers answered for gets its parts replaced; one report line per part. Kept as the step's
+    """Each Event both helpers answered for gets its parts replaced; one report line per part, after prepare's line. Kept as the step's
     lines, so a finish run again neither writes nor reports twice. Anything that breaks is one line."""
     try:
         return kept_lines(run_, dry_run)
@@ -281,17 +334,18 @@ def kept_lines(run_, dry_run):
     done = run_.part(f"parts/kept{'-dry-run' if dry_run else ''}.json")
     if done.saved is not None:
         return done.saved
-    events = json.loads((folder / "found.json").read_text())["events"]
+    found = json.loads((folder / "found.json").read_text())
+    events, head = found["events"], [found["line"]] if found.get("line") else []
     files = [run_.folder / n for n in READINGS]
     if events and not all(f.exists() and f.read_text().strip() for f in files):
-        lines = ["- Parts of long Events: a helper gave no answers; tried again tomorrow"]
+        lines = head + ["- Parts of Events: a helper gave no answers; tried again tomorrow"]
         done.save(lines)
         return lines
     readings = [answers_in(f.read_text()) for f in files]
     put, left = [], []
     for key, e in events.items():
         e = {**e, "starts": datetime.fromisoformat(e["starts"]), "ends": datetime.fromisoformat(e["ends"])}
-        listed = run_.db.rest("GET", f"club_events?select=id,event_date,start_time,location,place_entry_id&status=eq.approved"
+        listed = run_.db.rest("GET", f"club_events?select=id,event_date,start_time,location,place_entry_id,title&status=eq.approved"
                                      f"&event_date=gte.{e['starts'].date()}&event_date=lte.{e['ends'].date()}"
                                      f"&id=neq.{e['id']}") or []
         a, b = readings[0].get(key, []), readings[1].get(key, [])
@@ -313,7 +367,7 @@ def kept_lines(run_, dry_run):
                        + f", from {p['source_url']}: \"{p['source_line']}\". Wrong? Take it down with a migration: {take_down(p)}"
                        + (" (dry run: nothing written)" if dry_run else ""))
         left += [f"- No part: {e['title']}: {w}" for w in why]
-    lines = ([f"- Parts of long Events: {len(put)}"] + put if put else []) + left
+    lines = head + ([f"- Parts of Events: {len(put)}"] + put if put else []) + left
     done.save(lines)
     return lines
 
@@ -342,6 +396,9 @@ def selftest():
     ranged = part("Reception", "2026-11-12", "5 PM", "Closing reception 5-7 p.m. Thursday, Nov. 12", end="7 PM")
     ok(judge(show, [ranged], [ranged])[0][0]["ends_at"] == "2026-11-12T19:00:00-06:00", "the host's end wins")
     ok(judge(show, [ranged], [dict(ranged, end="")])[0][0]["ends_at"] is None, "an end the helpers don't agree on is none")
+    talk_at_5 = part("Talk", "2026-11-12", "5 PM", "Talk at 5 PM, Thursday Nov. 12")
+    ok(judge(show, [ranged], [talk_at_5, ranged])[0][0]["ends_at"] == "2026-11-12T19:00:00-06:00",
+       "two parts at one start: each keeps the end both helpers gave it")
     ok(judge(show, [talk], [])[0] == [] and judge(show, [], [talk])[0] == [], "a part only one helper found is no part")
     late = part("Artist talk", "2026-12-20", "3 PM", "Artist talk Dec. 20 at 3 PM")
     ok(judge(show, [late], [late])[0] == [], "a part outside the Event's days is no part of it")
@@ -372,10 +429,25 @@ def selftest():
     ok(judge(show, [talk], [talk], [elsewhere])[0][0]["same_as"] is None, "an Event at another place is another thing")
     ok(judge(show, [talk], [talk], [dict(gallery_talk, start_time="7 PM")])[0][0]["same_as"] is None,
        "an Event at another start is another thing")
+    festival = dict(show, id="w1", title="JoeTown WinterWalk Festival", starts=datetime(2026, 12, 4, 16),
+                    ends=datetime(2026, 12, 4, 20), location="Downtown", place_entry_id=None)
+    lighting = part("Tree Lighting", "2026-12-04", "7 PM", "Tree Lighting at 7 pm on the Church of Saint Joseph lawn")
+    harp = part("Harp Ensemble", "2026-12-04", "7 PM",
+                "Harp Ensemble, 7 pm at Art & Heritage Place (Whitby Gift Shop), Saint Benedict's Monastery")
+    listed = [{"id": "t1", "title": "WinterWalk Tree Lighting", "event_date": "2026-12-04", "start_time": "7 PM",
+               "location": "Church of St. Joseph lawn", "place_entry_id": "church"},
+              {"id": "r1", "title": "Advent Centering Prayer Retreat", "event_date": "2026-12-04", "start_time": "7 PM",
+               "location": "Saint Benedict's Monastery", "place_entry_id": "sbm"}]
+    kept, _ = judge(festival, [lighting, harp], [lighting, harp], listed)
+    ok([(k["title"], k["same_as"]) for k in kept] == [("Tree Lighting", "t1"), ("Harp Ensemble", None)],
+       f"a festival's part the host's words name as an Event already listed, title and place, points at it, though the "
+       f"festival is 'Downtown'; one at the same start and another Event's place is still a part: {kept}")
 
     # prepare and keep, as the morning runs them
+    import io
     import json
     import tempfile
+    from contextlib import redirect_stdout
     from morning_run import FakeDb, Run
     from db import DbError
     today = date(2026, 11, 10)
@@ -404,7 +476,8 @@ def selftest():
         got = prepare(folder / "parts", r.db, today, read)
         batch = [json.loads(l) for l in (folder / "parts" / "batch.txt").read_text().splitlines()]
         ok([b["title"] for b in batch] == ["Emily Sheehan Drawings Exhibition", "Festival of Cultures"] and len(got) == 2,
-           f"only Events running 12 hours or longer are read (Reflection runs 11): {[b['title'] for b in batch]}")
+           f"only Events whose pages state a time besides their own are read (Reflection's page can't be read, its host's "
+           f"is Instagram with no saved words): {[b['title'] for b in batch]}")
         ok([p["url"] for p in batch[0]["pages"]] == ["https://www.csbsju.edu/fine-arts/sheehan"],
            f"the Event's own pages and its host's are read, Facebook and Instagram not: {batch[0]['pages']}")
         feed = next(p["text"] for p in batch[1]["pages"] if p["url"].endswith("feed"))
@@ -423,7 +496,8 @@ def selftest():
            and "event_id=eq.e1" in w[1][1] and "found_at=lt." in w[1][1] and "event_id=eq.e3" in w[2][1],
            f"each Event read gets its new parts written, then its old ones taken away (a failed write never empties "
            f"it), a found one pointing at the listed Event: {w}")
-        ok(lines[0] == "- Parts of long Events: 1" and any("Take it down" in l for l in lines), f"the report: {lines}")
+        ok(lines[0].startswith("- Parts: 3 Events running or within 7 days, 2 with a time") and lines[1] == "- Parts of Events: 1"
+           and any("Take it down" in l for l in lines), f"the report: {lines}")
         ok(keep(Run(folder, today, FakeDb(answers=answers))) == lines, "a finish run again neither writes nor reports twice")
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -444,6 +518,92 @@ def selftest():
         lines = keep(r)
         ok(not r.db.writes("event_parts") and any("left as they were" in l for l in lines),
            f"one helper names parts and the other none: that Event's parts are left as they were: {r.db.writes()} {lines}")
+
+    # Every Event, not only long ones (event-schedule 01): the free check, the host's saved social words, the cap.
+    walk = {"id": "w1", "title": "WinterWalk", "event_date": "2026-11-13", "start_time": "4 PM",
+            "end_at": "2026-11-14 02:00:00+00", "all_day": False, "location": "Downtown St. Joseph",
+            "place_entry_id": "joetown", "source_url": "https://www.facebook.com/events/1707823090962331/"}
+    concert = dict(walk, id="w2", title="Choir Concert", place_entry_id="church", source_url="https://church.example/concert")
+    fair = dict(walk, id="w3", title="Craft Fair", event_date="2026-11-12", end_at="2026-11-13 02:00:00+00",
+                place_entry_id="hall", source_url="https://hall.example/fair")
+    words = "WinterWalk is back downtown!\nSanta arrives 4:30 PM, tree lighting 7 PM"
+    said = [{"event_id": "w1", "source_url": walk["source_url"], "host_words": words}]
+    small = {"event_parts": [], "club_events?select=id,title": [walk, concert, fair], "club_events?select=id,event_date": [],
+             "event_mentions": said, "sources": [{"entry_id": "joetown", "url": "https://www.instagram.com/joetown/"},
+                                                 {"entry_id": "hall", "url": "https://hall.example/"}]}
+    sites = {"https://church.example/concert": "Choir Concert, Friday Nov. 13, 4 – 8 PM",
+             "https://hall.example/fair": "Craft Fair Nov. 12, 4-8 PM", "https://hall.example/": "Craft Fair Nov. 12, 4-8 PM\nBingo Nov. 12 at 6 PM"}
+    asked = []
+    fetch = lambda url: asked.append(url) or sites[url]
+    ok(more_times(dict(walk, starts=datetime(2026, 11, 13, 16), ends=datetime(2026, 11, 13, 20)),
+                  [{"url": walk["source_url"], "text": words}])
+       and not more_times(dict(walk, starts=datetime(2026, 11, 13, 16), ends=datetime(2026, 11, 13, 20)),
+                          [{"text": sites["https://church.example/concert"]}]),
+       "a 4-hour Event with 'Santa arrives 4:30 PM, tree lighting 7 PM' passes the check; '4 – 8 PM' alone does not")
+    late_walk = dict(walk, starts=datetime(2026, 11, 13, 16), ends=datetime(2026, 11, 13, 20))
+    shop = "Open 10 AM - 6 PM daily\n\n\n\n\n\nWinterWalk Friday 4 - 8 PM"
+    ok(not more_times(late_walk, [{"url": "https://shop.example/", "text": shop}])
+       and more_times(late_walk, [{"url": "https://shop.example/", "text": shop + "\nWinterWalk carolers 5:30 PM"}]),
+       "on another page only a time near the Event's name counts: the shop's hours don't, its carolers line does")
+    with tempfile.TemporaryDirectory() as tmp:
+        folder = Path(tmp) / "morning"
+        r = Run(folder, today, FakeDb(answers=small))
+        out = io.StringIO()
+        with redirect_stdout(out):
+            got = prepare(folder / "parts", r.db, today, fetch)
+        batch = [json.loads(l) for l in (folder / "parts" / "batch.txt").read_text().splitlines()]
+        ok([b["title"] for b in batch] == ["Craft Fair", "WinterWalk"] and [e["id"] for e in got] == ["w3", "w1"],
+           f"the Events with a time besides their own go, the soonest first; the concert's '4 – 8 PM' writes no batch: {batch}")
+        ok(batch[1]["pages"] == [{"url": walk["source_url"], "text": words}] and not any("facebook" in u for u in asked),
+           f"the host's saved Facebook words reach the batch, and Facebook is never fetched: {batch[1]['pages']} {asked}")
+        ok(len(asked) == len(set(asked)), f"each page is fetched once: {asked}")
+        ok("[parts] 3 Events running or within 7 days, 2 with a time besides their own start and end, 2 sent to the "
+           "helpers, 0 left by the cap for tomorrow" in out.getvalue(), f"the step's line: {out.getvalue()}")
+        santa = {"event": "p2", "title": "Santa arrives", "day": "2026-11-13", "start": "4:30 PM", "end": "",
+                 "page": walk["source_url"], "quote": "Santa arrives 4:30 PM, tree lighting 7 PM"}
+        tree = dict(santa, title="Tree lighting", start="7 PM")
+        bingo = {"event": "p1", "title": "Bingo", "day": "2026-11-12", "start": "6 PM", "end": "",
+                 "page": "https://hall.example/", "quote": "Bingo Nov. 12 at 6 PM"}
+        (folder / "parts.jsonl").write_text("\n".join(json.dumps(x) for x in (santa, tree, bingo)) + "\n")
+        (folder / "parts-2.jsonl").write_text("\n".join(json.dumps(x) for x in (santa, tree)) + "\n")
+        r.db.calls.clear()
+        lines = keep(r)
+        w = r.db.writes("event_parts")
+        ok([m for m, _, _ in w] == ["POST", "DELETE"] and [p["title"] for p in w[0][2]] == ["Santa arrives", "Tree lighting"]
+           and w[0][2][0]["starts_at"] == "2026-11-13T16:30:00-06:00" and "event_id=eq.w1" in w[1][1],
+           f"WinterWalk gets its parts from its host's Facebook words: {w}")
+        ok(not any("Bingo" in str(x) for x in w) and any("Craft Fair" in l and "left as they were" in l for l in lines),
+           f"another Event's time on the host's page makes no part: the helpers' agreement still rules: {lines}")
+        ok(lines[0].startswith("- Parts: 3 Events") and lines[1] == "- Parts of Events: 2", f"the report carries the line: {lines}")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        folder = Path(tmp) / "morning"
+        out = io.StringIO()
+        with redirect_stdout(out):
+            got = prepare(folder / "parts", FakeDb(answers=small), today, fetch, cap=1)
+        found = json.loads((folder / "parts" / "found.json").read_text())
+        ok([e["id"] for e in got] == ["w3"] and found["line"] == "- Parts: 3 Events running or within 7 days, 2 with a time "
+           "besides their own start and end, 1 sent to the helpers, 1 left by the cap for tomorrow",
+           f"the cap sends the soonest and reports the rest: {got} {found['line']}")
+
+    def no_column(method, path, body):
+        if "host_words" in path:
+            raise DbError("GET", path, 400, '{"code":"42703","message":"column event_mentions.host_words does not exist"}')
+        return [{"event_id": "w1", "source_url": walk["source_url"]}]
+    with tempfile.TemporaryDirectory() as tmp:
+        folder = Path(tmp) / "morning"
+        with redirect_stdout(io.StringIO()):
+            got = prepare(folder / "parts", FakeDb(answers=dict(small, event_mentions=no_column)), today, fetch)
+        ok([e["id"] for e in got] == ["w3"], f"before the words' column is live the step still runs, on the links alone: {got}")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        folder = Path(tmp) / "morning"
+        asked.clear()
+        with redirect_stdout(io.StringIO()):
+            got = prepare(folder / "parts", FakeDb(answers=small), today, fetch, minutes=0)
+        line = json.loads((folder / "parts" / "found.json").read_text())["line"]
+        ok([e["id"] for e in got] == ["w1"] and not asked and line.endswith("; 3 pages not fetched in 0 minutes, tried tomorrow"),
+           f"past its minutes the step fetches no more pages, says how many, and the saved words still count: {got} {line}")
 
     def broken(method, path, body):
         raise DbError("GET", path, 404, '{"message":"relation public.event_parts does not exist"}')

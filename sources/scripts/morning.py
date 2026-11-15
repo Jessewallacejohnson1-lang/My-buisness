@@ -655,7 +655,8 @@ def write(run, dry_run):
         if not dry_run:  # saved before the summary, so a slip in printing it never re-reads these pages tomorrow
             save_fingerprints(run)
         # A social check's summary leaves the games to the morning's.
-        lines = summary_lines(prep, result, written) + save_words(run, items, dry_run) + save_hours(run, hours, dry_run) \
+        lines = summary_lines(prep, result, written) + save_words(run, items, dry_run) \
+            + save_host_words(run, items, dry_run) + save_hours(run, hours, dry_run) \
             + ([] if prep.get("run") else waiting_lines(db)) + ([] if prep.get("run") else live_lines(db, today - timedelta(days=1)))
         print("\n".join(lines))
         return lines
@@ -686,6 +687,36 @@ def save_words(run, items, dry_run):
     except DbError as e:
         return [f"- The post's own words weren't kept ({kept} of {len(found)} News): {' '.join(str(e).split())[:160]}"]
     return [f"- Kept the post's own words for {kept} News"] if kept else []
+
+
+def save_host_words(run, items, dry_run):
+    """Each Event read from a social page keeps the host's own words on its mention (event_mentions.host_words; BP app
+    event-schedule 01): a Facebook event's About or a post's text, the page's `words` in pages.json (social.post_pages),
+    found by the Event's link, a Facebook event by its number. Newest words win, so the Monday and Saturday reads again
+    bring a schedule the host added later. The time-slot step (event_parts.py) reads them in place of the page it never
+    fetches. One line when any were kept, or when the database refused them (the column not live yet): the Events are
+    saved either way."""
+    path = run.folder / "pages.json"
+    pages = json.loads(path.read_text()) if path.exists() else []
+    said = [(p["url"], p["words"]) for p in pages if isinstance(p, dict) and p.get("url") and p.get("words")]
+    number = write_judged.facebook_event
+    found = {}
+    for it in items:
+        if isinstance(it, dict) and it.get("kind") == "event" and isinstance(it.get("source_url"), str):
+            url = it["source_url"].strip()  # as the mention keeps it (write_judged.mention)
+            w = next((w for u, w in said if number(url) and number(u) == number(url) or write_judged.same_link(u, url)), None)
+            if w:
+                found[url] = w
+    if not found or dry_run:
+        return [f"- Would keep the host's words with the mentions of {len(found)} Events"] if found else []
+    kept = 0
+    try:
+        for url, words in found.items():
+            kept += len(run.db.rest("PATCH", f"event_mentions?source_url=eq.{quote(url, safe='')}",
+                                    {"host_words": words}, prefer="return=representation") or [])
+    except DbError as e:
+        return [f"- The host's words weren't kept with the Events' mentions ({kept} kept): {' '.join(str(e).split())[:160]}"]
+    return [f"- Kept the host's words with {kept} mentions"] if kept else []
 
 
 def save_hours(run, items, dry_run):
@@ -1516,6 +1547,29 @@ def selftest():
                                              {"post_words": "PASTRIES\n-Morning bun"})],
                        "a News from its own post keeps that post's words once, found by its cleaned link; a place's page "
                        "link, a post with no words and an Event get none, and a dry run writes nothing (town-feed 65)"))
+        fb = "https://www.facebook.com/events/1707823090962331/"
+        (Path(tmp) / "pages.json").write_text(json.dumps([
+            {"file": "events-1707823090962331", "url": fb, "words": "Santa arrives 4:30 PM, tree lighting 7 PM"},
+            {"file": "facebook-1", "url": "https://m.facebook.com/flourandflowerbakery/posts/pfbid0?fbclid=x", "words": "Bingo 7 PM"}]))
+        items = [{"kind": "event", "source_url": "https://www.facebook.com/events/1707823090962331"},
+                 {"kind": "event", "source_url": post}, {"kind": "event", "source_url": "https://milkandhoneyciders.com/events"},
+                 {"kind": "news", "source_url": fb}]
+        mdb = FakeDb(answers={"event_mentions": [{"event_id": "e1"}]})
+        r = type("R", (), {"folder": Path(tmp), "db": mdb})()
+        dry, kept_lines = save_host_words(r, items, True), save_host_words(r, items, False)
+        checks.append((dry == ["- Would keep the host's words with the mentions of 2 Events"]
+                       and kept_lines == ["- Kept the host's words with 2 mentions"]
+                       and mdb.writes() == [("PATCH", f"event_mentions?source_url={'eq.' + quote(fb.rstrip('/'), safe='')}",
+                                             {"host_words": "Santa arrives 4:30 PM, tree lighting 7 PM"}),
+                                            ("PATCH", f"event_mentions?source_url=eq.{quote(post, safe='')}", {"host_words": "Bingo 7 PM"})],
+                       "an Event from a Facebook event or post keeps the host's words on its mention, by the link the "
+                       "mention keeps; a site's Event and a News get none (event-schedule 01)"))
+        refused = FakeDb(answers={"event_mentions": lambda m, path, body: (_ for _ in ()).throw(
+            DbError("PATCH", path, 400, '{"message":"Could not find the host_words column"}'))})
+        r = type("R", (), {"folder": Path(tmp), "db": refused})()
+        got = save_host_words(r, items, False)
+        checks.append((len(got) == 1 and got[0].startswith("- The host's words weren't kept"),
+                       f"before the column is live the save goes on and says so in one line: {got}"))
     with tempfile.TemporaryDirectory() as tmp:
         (Path(tmp) / "pages.json").write_text(json.dumps([{"file": "facebook-1", "url": "https://www.facebook.com/x/posts/1",
                                                             "entry_id": "mh", "name": "Milk & Honey Ciders"},
