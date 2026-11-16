@@ -202,19 +202,20 @@ test('photos, map spots and hours: the photo, social and accounts routines and t
     [id, 45.561, -94.321, false]);
   await asJob('accounts: places', 'select entry_id, name, address, links, hours from public.places where entry_id is not null');
   await asJob('accounts: Google hours', `update public.places set hours = $2 where entry_id = $1`, ['hayloft', { mon: '9-5' }]);
-  assert.deepEqual(await asJob('read back', `select e.lat, p.status, (select hours from public.places) as hours
+  assert.deepEqual(await asJob('read back', `select e.lat, p.status, (select hours from public.places where entry_id = 'hayloft') as hours
     from public.club_events e join public.place_photos p on p.event_id = e.id`),
     [{ lat: 45.561, status: 'live', hours: { mon: '9-5' } }]);
   // The finish's Apple Maps step (apple_maps.check): a place Apple calls closed for good is hidden and
   // its upcoming Events cancelled, and the app's public read no longer shows it.
   const open = await asJob('Apple Maps: open places', 'select id, entry_id, name, apple_place_id from public.places where closed_at is null');
-  await asJob('Apple Maps: hide a closed place', 'update public.places set closed_at = now() where id = $1', [open[0].id]);
+  await asJob('Apple Maps: hide a closed place', 'update public.places set closed_at = now() where id = $1', [open.find((p) => p.entry_id === 'hayloft').id]);
   const cancelled = await asJob('Apple Maps: its upcoming Events cancelled', `update public.club_events set cancelled_at = now()
     where place_entry_id = $1 and event_date >= $2 and cancelled_at is null returning id`, ['hayloft', day(0)]);
   assert.deepEqual(cancelled, [{ id }]);
   await db.exec(`set role anon; set request.jwt.claims = '{"role": "anon"}'`);
   try {
-    assert.deepEqual((await db.query('select name from public.places')).rows, [], 'the app no longer reads a closed place');
+    assert.deepEqual((await db.query("select name from public.places where entry_id = 'hayloft'")).rows, [],
+      'the app no longer reads a closed place');
   } finally {
     await db.exec('reset role; reset request.jwt.claims');
   }
