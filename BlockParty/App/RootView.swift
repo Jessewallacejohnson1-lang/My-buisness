@@ -420,7 +420,9 @@ struct MainTabsView: View {
             open: { row, picture in
                 switch row.targetType {
                 case .profile: path.append(FollowedPersonRoute(row: row))
-                case .team: path.append(Game.Team(followed: row))
+                // The school as Search has it, its own logo and colours from the first frame (inside-cards 33).
+                case .team: path.append(searchModel.schools.lazy.compactMap(\.team).first { $0.id == row.targetId }
+                                        ?? Game.Team(followed: row))
                 case .page: path.append(TownPageKind.of(row))
                 case .board:
                     path.append(TownBoardRoute(board: .init(id: row.targetId, name: row.name,
