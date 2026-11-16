@@ -20,7 +20,7 @@ or its `docs/rules/` file and leaves here.
 - 2026-11-03 — **A wrong Event or News comes out without asking** (Jesse, 2026-10-29; its push too,
   2026-11-03): junk, a double or a misleading one is hidden by a migration that is applied and
   pushed to `main` with no yes, an exception to `AGENTS.md` rule 7; tell Jesse after. How: the BP
-  app `source-registry` skill, "Report this morning's run".
+  app `morning-report` skill.
 - 2026-11-15 — **A bp-build run ships on Check-in 1's yes when its proof matches** (Jesse,
   2026-11-15): his yes to the mock or the plan covers the merge and the push to `main` with no
   "Merge?", an exception to `AGENTS.md` rule 7, while every line of the test holds. A glass or

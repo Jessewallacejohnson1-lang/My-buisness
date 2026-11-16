@@ -24,7 +24,7 @@ waiting is one saying why.
   python3 sources/scripts/team_logos.py --selftest
 """
 
-import argparse, hashlib, html as htmllib, io, json, re, sys, tempfile, time, urllib.parse, urllib.request
+import argparse, hashlib, html as htmllib, io, json, re, sys, tempfile, time, urllib.error, urllib.parse, urllib.request
 from collections import Counter
 from datetime import date, datetime
 from pathlib import Path
@@ -42,6 +42,8 @@ BOUND = "https://www.gobound.com/mn/schools/"
 BOUND_BRAND = "/brand/"  # Bound's own picture, on a page for a school it doesn't have
 WIKI = "https://en.wikipedia.org/w/api.php"
 WIKI_GAP = 4   # Wikipedia answered 429 after five quick lookups (find_wiki.py, 2026-10-20)
+WIKI_TRIES = 2    # a lookup Wikipedia tells to slow down is tried once more
+WIKI_BACKOFF = 15  # seconds to wait when its 429 names no Retry-After
 WIKI_LOGO = re.compile(r"logo|mascot|athletic|wordmark|emblem", re.I)
 # Words a school's name carries beside its own: "Becker High School" names Becker.
 GENERIC = {"high", "school", "schools", "secondary", "university", "college", "senior", "junior", "hs", "sr", "jr", "area", "public", "community",
@@ -162,12 +164,25 @@ def from_bound(school, read=lambda url: run.firecrawl(url, fmt="rawHtml")):
     return {"logo": htmllib.unescape(og.group(1)), "page": BOUND + slug}
 
 
-def wiki(params, opener=urllib.request.urlopen):
-    """Wikipedia's API, 4 s apart. Its robots.txt is for crawlers; the API is how it asks to be read."""
-    time.sleep(WIKI_GAP)
-    req = urllib.request.Request(f"{WIKI}?{urllib.parse.urlencode({**params, 'format': 'json'})}", headers={"User-Agent": run.UA})
-    with opener(req, timeout=30) as r:
-        return json.load(r)
+def wiki(params, opener=urllib.request.urlopen, sleep=time.sleep):
+    """Wikipedia's API, 4 s apart. Its robots.txt is for crawlers; the API is how it asks to be read. A "slow down"
+    (429 or 503) waits as long as it asks, up to a minute, then tries once more: from the cloud routine
+    every lookup was answered 429 and skipped, and no logo went live from 2026-11-15 (BP app game-card 30)."""
+    req = urllib.request.Request(f"{WIKI}?{urllib.parse.urlencode({**params, 'format': 'json', 'maxlag': 5})}",
+                                 headers={"User-Agent": run.UA})
+    for attempt in range(WIKI_TRIES):
+        sleep(WIKI_GAP)
+        try:
+            with opener(req, timeout=30) as r:
+                return json.load(r)
+        except urllib.error.HTTPError as e:
+            if e.code not in (429, 503) or attempt == WIKI_TRIES - 1:
+                raise
+            try:
+                wait = int(e.headers.get("Retry-After") or 0)
+            except (TypeError, ValueError):
+                wait = 0
+            sleep(min(max(wait, WIKI_BACKOFF * (attempt + 1)), 60))
 
 
 def from_wikipedia(team, ask=wiki):
@@ -493,6 +508,23 @@ def selftest():
         if params["action"] == "parse":
             return {"parse": {"images": ["Commons-logo.svg", "Shanley building.jpg", "Shanley Deacons logo.png"]}}
         return {"query": {"pages": {"1": {"imageinfo": [{"url": "u", "thumburl": "thumb"}]}}}}
+    class Slow:  # Wikipedia's 429, then its answer
+        def __init__(self, fails):
+            self.fails, self.slept = fails, []
+        def __call__(self, req, timeout):
+            if self.fails:
+                self.fails -= 1
+                raise urllib.error.HTTPError(req.full_url, 429, "Too Many Requests", {"Retry-After": "7"}, None)
+            return io.BytesIO(b'{"ok": 1}')
+    slow = Slow(1)
+    ok(wiki({}, slow, slow.slept.append) == {"ok": 1} and slow.slept == [WIKI_GAP, 15, WIKI_GAP],
+       "a 429 waits as long as it asks (at least the backoff) and tries again")
+    slow = Slow(2)
+    try:
+        wiki({}, slow, slow.slept.append)
+        ok(False, "a second 429 gives up")
+    except urllib.error.HTTPError as e:
+        ok(e.code == 429, "a second 429 gives up, and the team waits for another morning")
     w = from_wikipedia({"name": "Shanley"}, ask)
     ok(w and w["title"] == "Shanley High School" and w["logo"] == "thumb", "Wikipedia: the article whose title names it, its logo file")
 
