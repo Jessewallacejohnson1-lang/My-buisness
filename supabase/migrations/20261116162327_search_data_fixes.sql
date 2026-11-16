@@ -1,6 +1,7 @@
 -- Search trips on places filed under the wrong kind or none (BP app search-helpful 05, Jesse's yes at Check-in 1).
--- Each kind is one two separate research agents agreed on (BP app docs/plans/search-helpful/assets/05-data-fixes/
--- research.json and research2.json, with sources). Six they didn't agree on keep no kind: Consumer Directions,
+-- Each kind is one two separate checks agreed on (BP app docs/plans/search-helpful/assets/05-data-fixes/): two
+-- research agents (research.json, research2.json, with sources), or, for River of Life, District 742 and Tamarack Bog,
+-- town-verify's kind_check.py against the census and research2.json. Six they didn't agree on keep no kind: Consumer Directions,
 -- Beumer Outdoors, K & L Lawncare, Malibu Tan, Heymans Design, Steve's Landscape Service.
 -- `types` keeps the place type (business, church, school...) after the new kind. family is business for all:
 -- Kidstop was food only because of coffee_shop. Undo: each line's old kind is in its comment (none: no kind).
