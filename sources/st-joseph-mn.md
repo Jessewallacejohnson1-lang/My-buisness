@@ -1007,7 +1007,7 @@ Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com. No URL was 
 ## American Burger Bar
 ```yaml
 id: american-bar-burger
-status: active
+status: retired
 tier: listed
 category: amenity=restaurant
 added_by: agent:discover
@@ -1018,7 +1018,7 @@ sources:
     method: submission
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56394, -94.28999. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56394, -94.28999. Retired 2026-11-16: closed long ago (Jesse: "American Burger Bar is not a business, they closed many moons ago"); hidden in the app (`places.closed_at`). It had no Apple Maps id, so the morning's Apple check never saw it (BP app watch-every-place 32).
 
 ## American Legion Post 328
 ```yaml

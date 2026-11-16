@@ -40,6 +40,16 @@ final class TownSearchTests: XCTestCase {
                              TownSearch.score("market", name: "Curtis Marketing Group")!, "a whole word before a word's start")
     }
 
+    /// A kind typed whole ranks with a name; a name that says it as a whole word goes first ("gym" is not
+    /// Gymnastics; search-helpful 04).
+    func testKindTypedWhole() {
+        let says = TownSearch.score("coffee", name: "Caribou Coffee", aliases: ["coffee shop", "coffee"])!
+        let tagged = TownSearch.score("coffee", name: "Kidstop", aliases: ["coffee shop", "coffee"])!
+        XCTAssertGreaterThan(says, tagged)
+        XCTAssertEqual(TownSearch.score("gym", name: "Granite City Gymnastics", aliases: ["gym"]), tagged)
+        XCTAssertGreaterThan(tagged, TownSearch.score("coffee", name: "Coffee Corner Bakery")!, "the kind beats a name's start")
+    }
+
     /// One wrong letter up to 7 letters, two from 8; a typo's score sits under `typoCeiling`.
     func testTypoRule() {
         XCTAssertTrue(typo("cofee", "Coffee Shop"))

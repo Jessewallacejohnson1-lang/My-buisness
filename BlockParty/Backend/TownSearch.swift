@@ -32,21 +32,18 @@ enum TownSearch {
         if nn == q { return 1000 }
         let (cq, cn) = (compact(q), compact(nn))
         if cq.count >= 4 && cn == cq { return 990 }   // "kwiktrip" is Kwik Trip
-        if nn.hasPrefix(q) { return 900 - Double(min(nn.count, 60)) }   // shorter, tighter names first
-        if cq.count >= 4 && cn.hasPrefix(cq) { return 850 }
-        if aliasHit(q, nn) {   // word-boundary, so "art" ≠ "heart"
-            let words = tokenize(nn)
-            let whole = queryTokens(q).allSatisfy { singulars($0).contains { words.contains($0) } }
-            return whole ? 800 : 790   // "market" finds Meat Market before Curtis Marketing
-        }
-
         // Another name typed whole ("csb", "st bens") beats the start of a longer name; so does a kind typed whole
         // ("bar" finds the bars before The Barn).
         for a in aliases {
             let an = norm(a)
             if an.isEmpty { continue }
-            if singulars(q).contains(an) || (cq.count >= 4 && compact(an) == cq) { return 950 }
+            // The same kind typed whole: a name that says it too goes first ("coffee": Caribou Coffee).
+            if singulars(q).contains(an) || (cq.count >= 4 && compact(an) == cq) { return says(q, nn) ? 955 : 950 }
         }
+        if nn.hasPrefix(q) { return 900 - Double(min(nn.count, 60)) }   // shorter, tighter names first
+        if cq.count >= 4 && cn.hasPrefix(cq) { return 850 }
+        if aliasHit(q, nn) { return says(q, nn) ? 800 : 790 }   // word-boundary, so "art" ≠ "heart"; "market" finds Meat Market before Curtis Marketing
+
         for a in aliases {
             let an = norm(a)
             if !an.isEmpty && aliasHit(q, an) { return 720 }   // token-boundary, not mid-word substring
@@ -66,6 +63,12 @@ enum TownSearch {
             if best < typoMax + 1 { typo = true }
         }
         return (typo ? 200 : 400) + total / Double(qTokens.count)
+    }
+
+    /// Whether every word typed is a whole word of the name, plurals included.
+    private static func says(_ normedQuery: String, _ normedName: String) -> Bool {
+        let words = tokenize(normedName)
+        return queryTokens(normedQuery).allSatisfy { singulars($0).contains { words.contains($0) } }
     }
 
     /// The most a word found only with a typo scores (one wrong letter).

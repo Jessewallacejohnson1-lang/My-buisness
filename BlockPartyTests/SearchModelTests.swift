@@ -22,9 +22,9 @@ final class SearchModelTests: XCTestCase {
     }
 
     private func poi(_ placeId: String, _ name: String, _ family: PlaceFamily, _ type: String,
-                     logo: SearchLogo.Row? = nil, entry: String? = nil) -> POI {
+                     logo: SearchLogo.Row? = nil, entry: String? = nil, types: [String]? = nil) -> POI {
         POI(id: UUID().uuidString, placeId: placeId, name: name, lat: 45.56, lon: -94.32, family: family,
-            primaryType: type, types: [type], address: nil, logoUrl: nil, searchLogo: logo, entryId: entry)
+            primaryType: type, types: types ?? [type], address: nil, logoUrl: nil, searchLogo: logo, entryId: entry)
     }
 
     private func picture(_ name: String, site: String = "https://www.krewemn.com/", credit: String? = nil) -> PlacePicture {
@@ -425,6 +425,29 @@ final class SearchModelTests: XCTestCase {
         let hits = model.results(for: "bad habit", in: .all)
         XCTAssertEqual(hits.first?.items.map(\.name), ["Bad Habit Brewing"], "the place named first")
         XCTAssertEqual(Set(hits.dropFirst().flatMap(\.items).map(\.name)), ["Trivia Night", "Knitting Circle"])
+    }
+
+    // MARK: Words for needs (BP app search-helpful 04)
+
+    /// Plain words find a place by its kind: strongly by its main Google kind, weakly by its other kinds and the
+    /// need words its name says.
+    func testWordsForNeeds() {
+        let model = SearchModel(supabase: supabase, defaults: defaults)
+        model.show([poi("fuel", "Quick Stop", .business, "fuel"),
+                    poi("plumb", "Piper's Plumbing", .business, "home_service"),
+                    poi("plumber", "Ace Pipes", .business, "plumber"),
+                    poi("cafe", "Corner Cafe", .food, "cafe"),
+                    poi("coffee", "Caribou Coffee", .food, "coffee_shop"),
+                    poi("kids", "Kidstop", .food, "coffee_shop"),
+                    poi("flowers", "Flower Bar & Tea", .business, "flowers_and_gifts_store"),
+                    poi("tap", "The Tap House", .food, "restaurant", types: ["restaurant", "bar"])])
+        let names = { (words: String) in model.matches(for: words, in: .all).map(\.name) }
+        XCTAssertEqual(names("gas"), ["Quick Stop"])
+        XCTAssertEqual(names("plumber"), ["Ace Pipes", "Piper's Plumbing"], "its own kind before a name that says it")
+        XCTAssertTrue(names("breakfast").contains("Corner Cafe"))
+        XCTAssertEqual(names("coffee").first, "Caribou Coffee", "a name that says the kind goes first")
+        XCTAssertEqual(names("beer"), ["The Tap House"], "never a flower shop called a bar")
+        XCTAssertTrue(model.matches(for: "hiking", in: .all).contains { $0.group == "Trails" }, "trails answer to hiking")
     }
 
     // MARK: Never a dead end (BP app search-helpful 03)
