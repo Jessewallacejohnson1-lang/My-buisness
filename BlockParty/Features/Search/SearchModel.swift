@@ -648,9 +648,10 @@ final class SearchModel {
     /// The Town feed's Events as Search shows them (five-tabs 04): what's on or still to come, not
     /// called off, soonest first, each opening its Event page. Under the Events pill they sit in
     /// Today, This week and Later.
-    /// An Event row's time: another day's "Fri · 7 PM", else today's "7 PM", "In 20 min" or "Now".
+    /// An Event's time on Search: "Now" while it's on (a long Event's part on too, as its Town card), another day's
+    /// "Fri · 7 PM", else today's "7 PM", "In 20 min" (BP app happening-now 07) or "All day".
     static func eventLine(now: Date) -> (DailyEvent) -> String {
-        { $0.dayLine(now: now) ?? $0.startTime(now: now) }
+        { $0.item.isNow(at: now) ? "Now" : $0.dayLine(now: now) ?? $0.startTime(now: now) }
     }
 
     static func events(from cards: [FeedCardItem], now: Date) -> [SearchItem] {
@@ -701,8 +702,7 @@ final class SearchModel {
             guard item.card?.image.isPhoto == true, let when = item.card?.when, when.end > now, when.start < ends
             else { return nil }
             var item = item
-            item.sub = item.card?.isNow(at: now) == true ? "Now"
-                : item.card?.startsIn(at: now)?.text ?? (when.timed ? Town.clock(when.start) : "All day")
+            item.sub = item.line(now)
             return (item, when)
         }
         .sorted { a, b in
