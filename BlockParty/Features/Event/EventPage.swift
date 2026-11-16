@@ -486,7 +486,7 @@ struct EventPage: View {
                 EventFlyerHero(url: url, aspect: aspect, width: width, pale: pale, cancelled: item.cancelled,
                                ready: PhotoPager.isShown(url, in: shownPhotos), onReady: { shown(url) }, onFailure: { drop(url) })
             } else {
-                EventMeltHero(url: url, height: height, pale: pale, cancelled: item.cancelled,
+                EventMeltHero(url: url, width: width, height: height, pale: pale, cancelled: item.cancelled,
                               ready: PhotoPager.isShown(url, in: shownPhotos), onReady: { shown(url) }, onFailure: { drop(url) })
             }
         }

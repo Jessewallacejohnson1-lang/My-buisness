@@ -12,6 +12,7 @@
 
 import SwiftUI
 import MapboxMaps
+import CoreImage
 
 /// The page's sizes, on a 402 pt phone; the picture's scale with the width.
 enum EventLook {
@@ -306,6 +307,7 @@ enum EventLook {
 /// three times, so it costs one download and one decode (`FeedCardImageLoader`).
 struct EventMeltHero: View {
     let url: URL
+    let width: CGFloat
     let height: CGFloat
     /// A pale picture's melt ends sooner, so the white buttons under it stay readable.
     let pale: Bool
@@ -315,8 +317,49 @@ struct EventMeltHero: View {
     let ready: Bool
     let onReady: () -> Void
     let onFailure: () -> Void
+    @Environment(\.displayScale) private var displayScale
+    /// The photo and its melt drawn once into one picture (`EventMeltBitmap`), for what they were drawn at. Live,
+    /// the blur and the fade left a line across the photo's foot that jumped on a 16 px grid as the page moved
+    /// (Jesse, 2026-11-15: "the line between card and discription spasses out when page is move"); one plain
+    /// picture has no such line.
+    @State private var baked: (key: BakeKey, image: CGImage)?
+
+    private struct BakeKey: Equatable {
+        let url: URL, width: CGFloat, height: CGFloat, reach: CGFloat, scale: CGFloat
+    }
+
+    private var reach: CGFloat { pale ? EventLook.meltToPale : EventLook.meltTo }
+    private var key: BakeKey { BakeKey(url: url, width: width, height: height, reach: reach, scale: displayScale) }
 
     var body: some View {
+        let image = baked.flatMap { $0.key == key ? $0.image : nil }
+        Color.clear
+            .frame(height: height)
+            .overlay(alignment: .top) {
+                // Live until the picture is baked, then kept unseen: its photo still says when it's on screen or failed.
+                live.opacity(image == nil ? 1 : 0)
+            }
+            .overlay(alignment: .top) {
+                if let image {
+                    Image(decorative: image, scale: displayScale)
+                        .resizable()
+                        .frame(width: width, height: height + reach)
+                        .allowsHitTesting(false)
+                }
+            }
+            .grayscale(cancelled ? 1 : 0)
+            .task(id: ready ? key : nil) {
+                guard ready, baked?.key != key, let bitmap = FeedCardImageLoader.shared.largest(for: url) else { return }
+                let key = key
+                let look = EventMeltBitmap.Look(width: key.width, height: key.height, reach: key.reach, scale: key.scale,
+                                                focus: FeedCardImageLoader.shared.focus(for: url))
+                let made = await Task.detached(priority: .userInitiated) { EventMeltBitmap.make(bitmap, look) }.value
+                if let made { baked = (key, made) }
+            }
+    }
+
+    /// The same look drawn live, while the photo loads: sharp from the top, gone just above its foot, over its melt.
+    private var live: some View {
         Color.clear
             .frame(height: height)
             .background(alignment: .top) { EventMelt(url: url, height: height, pale: pale, ready: ready) }
@@ -332,7 +375,66 @@ struct EventMeltHero: View {
                                        startPoint: .top, endPoint: .bottom)
                     }
             }
-            .grayscale(cancelled ? 1 : 0)
+    }
+}
+
+/// `EventMeltHero`'s look as one bitmap, `width` x (`height` + `reach`) points at `scale`: the photo filling the
+/// top `height` as `FeedCardURLPhoto` fills it, sharp to `sharpFrom` above its foot and gone `sharpTo` above it, over
+/// a blurred, saturated copy of it and its mirror, whole to `meltFrom` above the foot and gone at the bottom.
+/// Blended in sRGB, as the screen blends the live layers.
+nonisolated enum EventMeltBitmap {
+    /// The sizes, from `EventLook`, in points.
+    struct Look: Sendable {
+        let width: CGFloat, height: CGFloat, reach: CGFloat, scale: CGFloat, focus: UnitPoint
+        var sharpFrom = EventLook.sharpFrom, sharpTo = EventLook.sharpTo, meltFrom = EventLook.meltFrom
+        var blur = EventLook.blur, saturation = EventLook.saturation
+    }
+
+    nonisolated(unsafe) private static let context = CIContext(options: [.workingColorSpace: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                                     .cacheIntermediates: false])
+
+    static func make(_ bitmap: CGImage, _ look: Look) -> CGImage? {
+        let scale = look.scale
+        let w = (look.width * scale).rounded(), h = (look.height * scale).rounded()
+        let total = ((look.height + look.reach) * scale).rounded()
+        guard w > 0, h > 0, bitmap.width > 0, bitmap.height > 0 else { return nil }
+        // Core Image's y runs up: the photo's box is the top `h` of the picture, from `total - h` to `total`.
+        let source = CIImage(cgImage: bitmap)
+        let size = source.extent.size
+        let fill = max(w / size.width, h / size.height)
+        let shift = FeedCardURLPhoto.offset(image: size, box: CGSize(width: w, height: h), focus: look.focus)
+        let box = CGRect(x: 0, y: total - h, width: w, height: h)
+        let photo = source
+            .transformed(by: CGAffineTransform(scaleX: fill, y: fill))
+            .transformed(by: CGAffineTransform(translationX: w / 2 + shift.width - size.width * fill / 2,
+                                               y: total - h / 2 - shift.height - size.height * fill / 2))
+            .cropped(to: box)
+        // Its mirror under its foot, as the melt draws it.
+        let mirror = photo
+            .transformed(by: CGAffineTransform(scaleX: 1, y: -1).translatedBy(x: 0, y: -2 * (total - h)))
+            .cropped(to: box.offsetBy(dx: 0, dy: -h))
+        let both = photo.composited(over: mirror)
+        let blurred = both
+            .applyingFilter("CIColorControls", parameters: [kCIInputSaturationKey: look.saturation])
+            .clampedToExtent()
+            .applyingGaussianBlur(sigma: look.blur * scale)
+            .cropped(to: CGRect(x: 0, y: 0, width: w, height: total))
+        let melt = fade(blurred, whole: total - (h - look.meltFrom * scale), gone: 0)
+        let sharp = fade(photo, whole: total - (h - look.sharpFrom * scale),
+                         gone: total - (h - look.sharpTo * scale))
+        let out = sharp.composited(over: melt)
+        return context.createCGImage(out, from: CGRect(x: 0, y: 0, width: w, height: total))
+    }
+
+    /// `image` whole down to y `whole` and gone by y `gone` (Core Image's y, so `gone` is the lower).
+    private static func fade(_ image: CIImage, whole: CGFloat, gone: CGFloat) -> CIImage {
+        let mask = CIFilter(name: "CILinearGradient", parameters: [
+            "inputPoint0": CIVector(x: 0, y: whole), "inputColor0": CIColor(red: 1, green: 1, blue: 1, alpha: 1),
+            "inputPoint1": CIVector(x: 0, y: gone), "inputColor1": CIColor(red: 1, green: 1, blue: 1, alpha: 0),
+        ])?.outputImage ?? CIImage.empty()
+        return image.applyingFilter("CIBlendWithAlphaMask", parameters: [
+            kCIInputBackgroundImageKey: CIImage.empty(), kCIInputMaskImageKey: mask,
+        ])
     }
 }
 
