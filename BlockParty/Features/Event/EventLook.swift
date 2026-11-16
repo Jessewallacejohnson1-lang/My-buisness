@@ -356,6 +356,8 @@ struct EventMeltHero: View {
                 let made = await Task.detached(priority: .userInitiated) { EventMeltBitmap.make(bitmap, look) }.value
                 if let made { baked = (key, made) }
             }
+            // Its few MB go with the page; coming back bakes it again in a few milliseconds.
+            .onDisappear { baked = nil }
     }
 
     /// The same look drawn live, while the photo loads: sharp from the top, gone just above its foot, over its melt.
@@ -429,8 +431,8 @@ nonisolated enum EventMeltBitmap {
     /// `image` whole down to y `whole` and gone by y `gone` (Core Image's y, so `gone` is the lower).
     private static func fade(_ image: CIImage, whole: CGFloat, gone: CGFloat) -> CIImage {
         let mask = CIFilter(name: "CILinearGradient", parameters: [
-            "inputPoint0": CIVector(x: 0, y: whole), "inputColor0": CIColor(red: 1, green: 1, blue: 1, alpha: 1),
-            "inputPoint1": CIVector(x: 0, y: gone), "inputColor1": CIColor(red: 1, green: 1, blue: 1, alpha: 0),
+            "inputPoint0": CIVector(x: 0, y: whole), "inputColor0": CIColor.white,
+            "inputPoint1": CIVector(x: 0, y: gone), "inputColor1": CIColor.clear,
         ])?.outputImage ?? CIImage.empty()
         return image.applyingFilter("CIBlendWithAlphaMask", parameters: [
             kCIInputBackgroundImageKey: CIImage.empty(), kCIInputMaskImageKey: mask,
