@@ -214,9 +214,10 @@ final class AppSessionTests: XCTestCase {
 
         let launch = Task { await session.launched(sendEvery: .milliseconds(10)) }
         // The bell's read brings the posts that name you with its changes (BP app town-feed 60); Search reads its
-        // activities' next days beside its schools (school-search 06).
+        // activities' next days beside its schools (school-search 06), and what only typing finds: the Event calendar and the
+        // Town's two pages (search-helpful 07).
         let jobs = ["places", "place_photos", "place_names", "get_groups", "teams", "team_activities", "activities_next",
-                    "friends_dot", "get_my_changes", "get_my_mentions"]
+                    "friends_dot", "get_my_changes", "get_my_mentions", "get_town_calendar", "town_page", "town_page"]
         try await waitWhile(!Set(self.functions(from: 0)).isSuperset(of: jobs) || !session.townFeed.views.unsent.isEmpty)
 
         XCTAssertEqual(functions(from: 0).sorted(), jobs.sorted(), "each read once, and nothing else")

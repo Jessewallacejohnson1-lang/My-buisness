@@ -16,9 +16,10 @@ import UIKit
 /// One thing Search can show: a neighbour, a school or one of its activities, a business, a food
 /// place, an event, a club or a park.
 struct SearchItem: Identifiable, Hashable {
-    /// Typed results break ties in this order under All (search-helpful 02; Schools first since school-search 01).
+    /// Typed results break ties in this order under All (search-helpful 02; Schools first since school-search 01). A Town
+    /// page or board, and News, are found only by typing (search-helpful 07).
     enum Kind: CaseIterable {
-        case person, school, business, restaurant, coffee, event, club, park
+        case person, page, school, business, restaurant, coffee, event, news, club, park
     }
 
     /// Where its photo comes from.
@@ -77,6 +78,11 @@ struct SearchItem: Identifiable, Hashable {
     /// An activity's next event, its day after the school's name (school-search 06): worked out as the row is
     /// drawn, so a Search left open overnight never says Today for yesterday.
     var next: EventWhen? = nil
+    /// The Town's own page or its City's, and a City board's: each pushes its page (search-helpful 07).
+    var page: TownPageKind? = nil
+    var board: TownBoardRoute? = nil
+    /// A Town feed News item: it opens as its Town card does (search-helpful 07).
+    var news: TownNews? = nil
 
     /// The line under its name: `sub`, then an activity's next day ("Kennedy · Tomorrow"). An Event's
     /// time is worked out at `now`, as `SearchModel.events` first wrote it, so "In 20 min" ticks down to Now
@@ -126,6 +132,8 @@ struct SearchItem: Identifiable, Hashable {
         case .restaurant: "fork.knife"
         case .club: "person.2"
         case .event: "calendar"
+        case .page: "building.columns"
+        case .news: "newspaper"
         default: "photo"
         }
     }
@@ -263,6 +271,14 @@ final class SearchModel {
     /// and whether the last read failed. Kept across tab switches, as the rest is.
     private(set) var calendar: [DailyEvent]?
     private(set) var calendarFailed = false
+    /// What typing finds beyond `items` (search-helpful 07): the Event calendar's Events the Town feed doesn't show,
+    /// the Town feed's News, and the Town's two pages with the City's boards.
+    private(set) var calendarOnly: [SearchItem] = []
+    private(set) var news: [SearchItem] = []
+    private(set) var pages: [SearchItem] = []
+    private var pagesLoaded = false
+    private var pagesTried = false
+    private var calendarTried = false
     @ObservationIgnored private var latestCalendar = 0
     /// What the tab was showing, kept across tab switches as Instagram keeps it.
     var chip = SearchChip.all
@@ -292,6 +308,8 @@ final class SearchModel {
     }
 
     var items: [SearchItem] { places + groups + events + schools + fixed }
+    /// Everything typing finds: the rows, and what only typing finds (search-helpful 07).
+    var searched: [SearchItem] { items + calendarOnly + news + pages }
 
     /// Reads the Town's places and the photos saved of them, together, so a card's photo never
     /// lands after its logo, and the Town's groups and schools beside them; tries again while the tab is open
@@ -307,7 +325,7 @@ final class SearchModel {
         do {
             let rows = try await readCalendar()
             guard mine == latestCalendar else { return }
-            calendar = EventCalendar.ordered(rows.compactMap(YouCalendar.event(from:)))
+            show(calendar: rows.compactMap(YouCalendar.event(from:)))
             calendarFailed = false
         } catch {
             // Leaving the pill mid-read cancels it; that says nothing about the network.
@@ -327,11 +345,17 @@ final class SearchModel {
         return try await api.getTownCalendar()
     }
 
+    /// Typing finds what loads here, so the Event calendar and the Town's pages are read with the rest, before the first
+    /// letter is typed, and tried again with it (search-helpful 07).
     func load() async {
         var wait = 2.0
-        while !(placesLoaded && photosLoaded && groupsLoaded && schoolsLoaded && nextLoaded) && !Task.isCancelled {
+        var done: Bool { placesLoaded && photosLoaded && groupsLoaded && schoolsLoaded && nextLoaded && pagesLoaded && calendar != nil }
+        while !done && !Task.isCancelled {
             let needPlaces = !placesLoaded, needPhotos = !photosLoaded, needGroups = !groupsLoaded
-            let needSchools = !schoolsLoaded, needNext = !nextLoaded
+            let needSchools = !schoolsLoaded, needNext = !nextLoaded, needPages = !pagesLoaded, needCalendar = calendar == nil
+            async let readCalendar: Void = needCalendar ? await loadCalendar() : ()
+            async let readTown = needPages ? try? await api.townPage(.town) : nil
+            async let readCity = needPages ? try? await api.townPage(.city) : nil
             async let readPlaces = needPlaces ? try? await api.getPlaces() : nil
             async let readPhotos = needPhotos ? try? await api.getPlacePhotos() : nil
             async let readGroups = needGroups ? try? await api.getGroups() : nil
@@ -345,9 +369,13 @@ final class SearchModel {
             if let newPhotos { savedPhotos = newPhotos }
             if newPlaces != nil || (newPhotos != nil && placesLoaded) { show(pois, photos: savedPhotos) }
             if let newGroups { show(newGroups) }
+            if needPages, case let (town?, city?) = await (readTown, readCity) { show(town: town, city: city) }
+            pagesTried = true
+            await readCalendar
+            calendarTried = true
             // Last, so nothing above waits for it.
             if let newNext = await readNext { show(next: newNext) }
-            if placesLoaded && photosLoaded && groupsLoaded && schoolsLoaded && nextLoaded { return }
+            if done { return }
             try? await Task.sleep(for: .seconds(wait))
             wait = min(wait * 2, 30)
         }
@@ -376,6 +404,51 @@ final class SearchModel {
         guard let cards else { return }
         events = Self.events(from: cards, now: now)
         eventsLoaded = true
+        findCalendar(now: now)
+    }
+
+    /// The Event calendar's year of public Events in its order (`loadCalendar`).
+    func show(calendar events: [DailyEvent], now: Date = .now) {
+        calendar = EventCalendar.ordered(events)
+        findCalendar(now: now)
+    }
+
+    /// The calendar's Events typing finds beside the Town feed's: one row per title and host, its soonest date (a
+    /// play's four nights, a weekly class), and none the Town feed already shows (search-helpful 07).
+    private func findCalendar(now: Date) {
+        func key(_ item: SearchItem) -> String { item.name.lowercased() + "|" + (item.card?.hostName ?? "") }
+        var seen = Set(events.map(key)), shown = Set(events.map(\.id))
+        calendarOnly = Self.events(from: calendar?.map(\.item) ?? [], now: now)
+            .filter { !shown.contains($0.id) && seen.insert(key($0)).inserted }
+    }
+
+    /// The Town feed's News (search-helpful 07), found by its headline and its place's name: its place's logo, else
+    /// what kind of thing it is.
+    func show(news: [TownNews]) {
+        self.news = news.map { news in
+            SearchItem(id: "n:\(news.id)", kind: .news, name: news.headline, sub: "News · \(news.place)",
+                       logo: news.picture.flatMap { $0.kind == .logo ? FeedCardImageSource.placeLogo($0).logo : nil },
+                       keywords: ["news"], news: news)
+        }
+    }
+
+    /// The Town's own page and its City's, then the City's boards (search-helpful 07). The City also answers the
+    /// words people use for City Hall.
+    func show(town: TownPageInfo, city: TownPageInfo) {
+        let cityLogo = city.pictureKind == "logo" ? city.picture.flatMap(URL.init(string:))
+            .flatMap { FeedCardImageSource.placeLogo(PlacePicture(url: $0, kind: .logo)).logo } : nil
+        pages = [
+            SearchItem(id: "t:town", kind: .page, name: town.name, sub: town.kind,
+                       photo: TownPageKind.town.photo.map { .bundled($0.name) },
+                       keywords: ["st joseph", "st joe", "saint joseph"], page: .town),
+            SearchItem(id: "t:city", kind: .page, name: city.name, sub: city.kind, logo: cityLogo,
+                       photo: cityLogo == nil ? TownPageKind.city.photo.map { .bundled($0.name) } : nil,
+                       keywords: ["city hall", "city government", "government", "city"], page: .city),
+        ] + city.boards.map { board in
+            SearchItem(id: "b:\(board.id)", kind: .page, name: board.name, sub: city.name,
+                       board: TownBoardRoute(board: board, city: city.name))
+        }
+        pagesLoaded = true
     }
 
     /// The Town's schools (`teams.local`) and the activities each lists: the row's crests in `Town.searchSchools`'
@@ -424,6 +497,12 @@ final class SearchModel {
     }
 
     /// Whether a kind's row is still waiting on Supabase.
+    /// What only typing finds under this pill is on its first read (search-helpful 07): No match waits for it, as for
+    /// the rows. Only the first: a failed read says No match while its retries go on, and never flickers.
+    func findsMoreSoon(in chip: SearchChip) -> Bool {
+        (!pagesTried && chip.resultKinds.contains(.page)) || (!calendarTried && chip.resultKinds.contains(.event))
+    }
+
     func isLoading(_ kind: SearchItem.Kind) -> Bool {
         (!placesLoaded && [.business, .restaurant, .coffee].contains(kind)) || (!groupsLoaded && kind == .club)
             || (!eventsLoaded && kind == .event) || (!schoolsLoaded && kind == .school)
@@ -519,7 +598,7 @@ final class SearchModel {
             : read.words.isEmpty ? [(true, [])] : [(true, [read.words]), (false, [q]), (false, [read.words])]
         var scored: [(hit: Hit, raw: Double)] = []
         for attempt in tries where scored.isEmpty {
-            for item in items where chip.resultKinds.contains(item.kind) {
+            for item in searched where chip.resultKinds.contains(item.kind) {
                 guard let item = attempt.pick ? pick(item) : item else { continue }
                 let found = [item.card?.hostName, item.card?.location, item.townGroup?.location].compactMap { $0 }
                 let extra = (item.activity == nil ? [item.sub ?? ""] : []) + found + item.alsoFinds
@@ -538,8 +617,11 @@ final class SearchModel {
                 .sorted { a, b in
                     let (x, y) = (a.item.activity != nil, b.item.activity != nil)
                     if x != y { return y }
-                    // Activities, and Events of one score, keep their row's order: Kennedy's first, the soonest first.
-                    if (x || kind == .event) && a.score == b.score { return a.item.rank < b.item.rank }
+                    // Activities of one score keep their row's order, Kennedy's first; Events of one score the soonest
+                    // first, the Town feed's and the calendar's together (search-helpful 06).
+                    if x && a.score == b.score { return a.item.rank < b.item.rank }
+                    if kind == .event && a.score == b.score, let s = a.item.card?.when?.start, let t = b.item.card?.when?.start,
+                       s != t { return s < t }
                     return a.score > b.score
                 }
             return hits.isEmpty ? nil : Section(kind: kind, hits: hits)
@@ -596,7 +678,7 @@ final class SearchModel {
     }
 
     var recents: [SearchRecent] {
-        let byID = Dictionary(items.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        let byID = Dictionary(searched.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
         return recentIDs.compactMap { id in
             if id.hasPrefix("q:") { return .query(String(id.dropFirst(2))) }
             return byID[id].map { .item($0) }
