@@ -19,6 +19,8 @@ nonisolated enum TimeWords {
         var hours: Range<Date>? = nil
         /// "open now": only the places open now.
         var openNow = false
+        /// Whether any word was taken out, so `words` differs from what was typed.
+        var took = false
     }
 
     /// Said before 5 PM, "night" starts at 5 PM; "tonight" runs to 5 the next morning.
@@ -35,9 +37,11 @@ nonisolated enum TimeWords {
         var words = " " + typed.lowercased().filter { !"'’`".contains($0) }
             .map { $0.isLetter || $0.isNumber || $0 == "&" ? $0 : " " }
             .split(separator: " ").joined(separator: " ") + " "
+        var took = false
         func take(_ phrase: String) -> Bool {
             guard words.contains(" \(phrase) ") else { return false }
             words = words.replacingOccurrences(of: " \(phrase) ", with: " ")
+            took = true
             return true
         }
         let today = calendar.startOfDay(for: now)
@@ -50,6 +54,8 @@ nonisolated enum TimeWords {
         let weekday = calendar.component(.weekday, from: now) - 1   // 0 is Sunday
 
         var read = Read(words: "")
+        // "things to do" alone is this week; with another time word, that time ("things to do tonight").
+        let todo = take("things to do") || take("stuff to do") || take("what to do")
         if take("open now") || take("open right now") {
             read.openNow = true
         } else if take("right now") || take("now") {
@@ -59,7 +65,7 @@ nonisolated enum TimeWords {
             read.hours = weekday == 6 || weekday == 0
                 ? from(now, to: at(weekday == 6 ? 2 : 1))
                 : from(at(friday, evening), to: at(friday + 3))
-        } else if take("this week") || take("things to do") || take("stuff to do") || take("what to do") {
+        } else if take("this week") {
             read.hours = from(now, to: at(7))
         } else if take("tonight") {
             read.hours = hourNow < morning ? from(now, to: at(0, morning)) : from(at(0, evening), to: at(1, morning))
@@ -79,18 +85,28 @@ nonisolated enum TimeWords {
                 break
             }
         }
+        if todo && read.hours == nil && !read.openNow { read.hours = from(now, to: at(7)) }
         for phrase in filler { while take(phrase) {} }
         read.words = words.trimmingCharacters(in: .whitespaces)
+        read.took = took
         return read
     }
 
     /// Whether an Event belongs in `hours` ("now" is the empty range at `now`): a timed one when it starts in them, or
-    /// when the hours start now and it's on; an all-day one when its day is in them. One running over days counts
-    /// only by its start, so a month-long exhibit isn't "tonight".
+    /// when the hours start now and it's on; an all-day one when its day is in them, a night's hours past midnight
+    /// left out ("tonight" isn't tomorrow's all-day fair); one over a few days when it's on in them (a weekend
+    /// festival is Saturday's). Longer ones count only by their start, so a month-long exhibit isn't "tonight".
     static func fits(start: Date, end: Date, timed: Bool, in hours: Range<Date>, now: Date, calendar: Calendar) -> Bool {
-        if hours.contains(start) { return true }
-        if end > (calendar.date(byAdding: .day, value: 1, to: start) ?? end) { return false }
-        if !timed { return !hours.isEmpty && start < hours.upperBound && end > hours.lowerBound }
-        return hours.lowerBound <= now && start <= now && end > now
+        let days = { (n: Int) in calendar.date(byAdding: .day, value: n, to: start) ?? start }
+        if end > days(1) {
+            return hours.contains(start)
+                || (end <= days(4) && (hours.isEmpty ? start <= now : start < hours.upperBound) && end > hours.lowerBound)
+        }
+        if !timed {
+            let night = calendar.component(.hour, from: hours.upperBound) == morning
+            let last = night ? calendar.startOfDay(for: hours.upperBound) : hours.upperBound
+            return !hours.isEmpty && start < last && end > hours.lowerBound
+        }
+        return hours.contains(start) || (hours.lowerBound <= now && start <= now && end > now)
     }
 }

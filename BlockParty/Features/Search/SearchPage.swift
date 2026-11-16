@@ -458,7 +458,7 @@ struct SearchPage: View {
             // A first visit is never a blank page: Nextdoor's Trending chips, under All only (search-helpful 03).
             if model.chip == .all {
                 SectionTitle(text: "Try")
-                WordChips(words: SearchModel.tryWords) { model.words = $0.lowercased() }
+                WordChips(words: model.trying()) { model.words = $0.lowercased() }
             }
             if !recents.isEmpty {
                 SectionTitle(text: "Recent")

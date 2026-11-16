@@ -519,6 +519,8 @@ final class SearchModelTests: XCTestCase {
         XCTAssertEqual(model.nearby(in: .all, now: at(3, 10)), ["Tonight", "Coffee", "Pizza"])
         XCTAssertEqual(model.nearby(in: .events, now: at(3, 10)), ["Tonight"])
         XCTAssertEqual(model.nearby(in: .events, now: at(5, 10)), [], "nothing tonight, no Tonight")
+        XCTAssertEqual(model.trying(now: at(3, 10)), ["Tonight", "Coffee", "Pizza", "Live music", "Kids"], "no Events this weekend")
+        XCTAssertEqual(model.trying(now: at(3, 22)), ["Coffee", "Pizza", "Live music", "Kids"], "after the night's last Event")
         XCTAssertEqual(model.thisWeek.map(\.name), ["Trivia Night"])
     }
 

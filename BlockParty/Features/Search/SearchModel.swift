@@ -515,7 +515,7 @@ final class SearchModel {
         // Each try in turn until one finds something: what the time words pick (every one, when no other words are
         // left), then the words as typed, then the words without their time ("live music" on another night). Filler
         // words out, a row keeps the better of the words as typed and the words left ("Best Western").
-        let tries: [(pick: Bool, words: [String])] = !picked ? [(false, [q, read.words].filter { !$0.isEmpty })]
+        let tries: [(pick: Bool, words: [String])] = !picked ? [(false, read.took && !read.words.isEmpty ? [q, read.words] : [q])]
             : read.words.isEmpty ? [(true, [])] : [(true, [read.words]), (false, [q]), (false, [read.words])]
         var scored: [(hit: Hit, raw: Double)] = []
         for attempt in tries where scored.isEmpty {
@@ -566,6 +566,15 @@ final class SearchModel {
     /// What the empty field offers above Recent under All, each typing its words (search-helpful 03; Nextdoor's
     /// Trending chips), the time words first (search-helpful 06).
     static let tryWords = ["Tonight", "This weekend", "Coffee", "Pizza", "Live music", "Kids"]
+
+    /// The Try words the empty field shows: a time word only while it finds something ("Tonight" after the night's
+    /// last Event would open a no-match page).
+    func trying(now: Date = .now) -> [String] {
+        Self.tryWords.filter { words in
+            TimeWords.read(words, now: now, calendar: Town.calendar).hours == nil
+                || !matches(for: words, in: .all, sticky: false, now: now).isEmpty
+        }
+    }
 
     /// The no-match page's chips: the Try words that find something on this pill, 3 at most.
     func nearby(in chip: SearchChip, now: Date = .now) -> [String] {
