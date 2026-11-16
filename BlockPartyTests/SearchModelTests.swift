@@ -473,6 +473,42 @@ final class SearchModelTests: XCTestCase {
         XCTAssertEqual(model.matches(for: "bing", in: .all).map(\.name), ["Bingo", "Bingo Lovers Society Club"])
     }
 
+    // MARK: Time and filler words (BP app search-helpful 06)
+
+    /// A time word shows only the Events in its hours, soonest first and all-day ones after; with other words, those
+    /// words in those hours, else on any day.
+    func testTimeWordsPickTheEvents() {
+        let model = SearchModel(supabase: supabase, defaults: defaults)
+        model.show([poi("stjoe-gary", "Gary's Pizza", .food, "pizza_restaurant")])
+        model.show(events: [card("Fair", allDay: true), card("Recital", time: "7 PM"), card("Bingo", time: "5:30 PM"),
+                            card("Meet", time: "3 PM"), card("Gig: Live Music", day: "2026-11-06", time: "8 PM"),
+                            card("Market", day: "2026-11-07", time: "9 AM")], now: at(3, 10))
+        let names = { (words: String, chip: SearchChip) in model.matches(for: words, in: chip, now: self.at(3, 10)).map(\.name) }
+        XCTAssertEqual(names("tonight", .all), ["Bingo", "Recital", "Fair"])
+        XCTAssertEqual(names("today", .all), ["Meet", "Bingo", "Recital", "Fair"])
+        XCTAssertEqual(names("friday night", .all), ["Gig: Live Music"])
+        XCTAssertEqual(names("this weekend", .events), ["Gig: Live Music", "Market"])
+        XCTAssertEqual(names("live music tonight", .all), ["Gig: Live Music"], "none tonight: the next one")
+        XCTAssertEqual(names("tonight", .businesses), [], "the Businesses pill has no Events")
+        XCTAssertEqual(names("pizza near me", .all), ["Gary's Pizza"])
+    }
+
+    /// "open now" shows the places open now, food first, each saying how long.
+    func testOpenNow() {
+        let model = SearchModel(supabase: supabase, defaults: defaults)
+        var shop = poi("shop", "Ace Hardware", .business, "hardware_store")
+        var deli = poi("deli", "Bo's Deli", .food, "deli")
+        var bar = poi("bar", "The Middy", .food, "bar")
+        shop.hours = PlaceHours(days: Array(repeating: [8 * 60 ..< 18 * 60], count: 7))
+        deli.hours = PlaceHours(days: Array(repeating: [7 * 60 ..< 14 * 60], count: 7))
+        bar.hours = PlaceHours(days: Array(repeating: [16 * 60 ..< 24 * 60], count: 7))
+        model.show([shop, deli, bar])
+        let open = model.matches(for: "open now", in: .all, now: at(3, 10))
+        XCTAssertEqual(open.map(\.name), ["Bo's Deli", "Ace Hardware"])
+        XCTAssertEqual(open.first?.sub, PlaceHours.words(.open(closes: 14 * 60)))
+        XCTAssertEqual(model.matches(for: "deli open now", in: .all, now: at(3, 10)).map(\.name), ["Bo's Deli"])
+    }
+
     /// No match offers the Try words that find something on the pill, 3 at most, and this week's Events.
     func testNoMatchOffersWhatThereIs() {
         let model = SearchModel(supabase: supabase, defaults: defaults)
@@ -480,8 +516,9 @@ final class SearchModelTests: XCTestCase {
                     poi("stjoe-blend", "The Local Blend", .food, "coffee_shop")])
         model.show(events: [card("Trivia Night", time: "7 PM"), card("Later", day: "2026-11-20", time: "7 PM")], now: at(3, 10))
         XCTAssertTrue(model.matches(for: "karaoke", in: .all).isEmpty)
-        XCTAssertEqual(model.nearby(in: .all), ["Coffee", "Pizza", "Trivia"])
-        XCTAssertEqual(model.nearby(in: .events), ["Trivia"])
+        XCTAssertEqual(model.nearby(in: .all, now: at(3, 10)), ["Tonight", "Coffee", "Pizza"])
+        XCTAssertEqual(model.nearby(in: .events, now: at(3, 10)), ["Tonight"])
+        XCTAssertEqual(model.nearby(in: .events, now: at(5, 10)), [], "nothing tonight, no Tonight")
         XCTAssertEqual(model.thisWeek.map(\.name), ["Trivia Night"])
     }
 

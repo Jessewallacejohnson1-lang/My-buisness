@@ -452,16 +452,16 @@ final class SearchModel {
     /// matched without one. An Event's host and place, and a Group's place, find it below anything named. A school's
     /// activity is found by its own name, never its school's, counts for less, and sits after the schools named
     /// (school-search 01), the closest match first, then its school's place in the row: Kennedy's first.
-    func results(for words: String, in chip: SearchChip) -> [(kind: SearchItem.Kind, items: [SearchItem])] {
-        ranked(words, in: chip).sections.map { ($0.kind, $0.hits.map(\.item)) }
+    func results(for words: String, in chip: SearchChip, now: Date = .now) -> [(kind: SearchItem.Kind, items: [SearchItem])] {
+        ranked(words, in: chip, now: now).sections.map { ($0.kind, $0.hits.map(\.item)) }
     }
 
     /// Every match in one list, best first, as typed results show them (search-helpful 03): the sections' rows
     /// merged by score, the same score keeping `results`' order; a section that loaded after these words were
     /// typed stays at the end, so nothing jumps in above the finger. `sticky` false only asks, for the no-match
     /// page's chips, and leaves the remembered order alone.
-    func matches(for words: String, in chip: SearchChip, sticky: Bool = true) -> [SearchItem] {
-        let (sections, late) = ranked(words, in: chip, sticky: sticky)
+    func matches(for words: String, in chip: SearchChip, sticky: Bool = true, now: Date = .now) -> [SearchItem] {
+        let (sections, late) = ranked(words, in: chip, sticky: sticky, now: now)
         var settled: [(hit: Hit, section: Int, at: Int)] = []
         for (s, section) in sections.dropLast(late).enumerated() {
             for (at, hit) in section.hits.enumerated() { settled.append((hit, s, at)) }
@@ -486,15 +486,51 @@ final class SearchModel {
     }
 
     /// `results`' sections with each row's score, and how many at the end loaded after the words were typed.
-    private func ranked(_ words: String, in chip: SearchChip, sticky: Bool = true) -> (sections: [Section], late: Int) {
+    private func ranked(_ words: String, in chip: SearchChip, sticky: Bool = true,
+                        now: Date = .now) -> (sections: [Section], late: Int) {
         let q = words.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !q.isEmpty else { return ([], 0) }
+        // Time words on a pill that shows Events, "open now" on one that shows places (search-helpful 06).
+        let read = TimeWords.read(q, now: now, calendar: Town.calendar)
+        let hours = chip.resultKinds.contains(.event) ? read.hours : nil
+        let openNow = read.openNow && chip.resultKinds.contains(.business)
+        let picked = hours != nil || openNow
+        // Only what the time words pick: the Events in their hours, or the places open now, saying how long.
+        func pick(_ item: SearchItem) -> SearchItem? {
+            if let hours {
+                guard let when = item.card?.when, TimeWords.fits(start: when.start, end: when.end, timed: when.timed,
+                                                                 in: hours, now: now, calendar: Town.calendar)
+                else { return nil }
+                return item
+            }
+            guard let status = item.hours?.status(at: now) else { return nil }
+            switch status {
+            case .open, .closesSoon, .always:
+                var item = item
+                item.sub = PlaceHours.words(status)
+                return item
+            case .closed, .offSeason: return nil
+            }
+        }
+        // Each try in turn until one finds something: what the time words pick (every one, when no other words are
+        // left), then the words as typed, then the words without their time ("live music" on another night). Filler
+        // words out, a row keeps the better of the words as typed and the words left ("Best Western").
+        let tries: [(pick: Bool, words: [String])] = !picked ? [(false, [q, read.words].filter { !$0.isEmpty })]
+            : read.words.isEmpty ? [(true, [])] : [(true, [read.words]), (false, [q]), (false, [read.words])]
         var scored: [(hit: Hit, raw: Double)] = []
-        for item in items where chip.resultKinds.contains(item.kind) {
-            let found = [item.card?.hostName, item.card?.location, item.townGroup?.location].compactMap { $0 }
-            let extra = (item.activity == nil ? [item.sub ?? ""] : []) + found + item.alsoFinds
-            guard let raw = TownSearch.score(q, name: item.name, extra: extra, aliases: item.keywords) else { continue }
-            scored.append((Hit(item: item, score: item.activity == nil ? raw : raw - Self.activityDiscount), raw))
+        for attempt in tries where scored.isEmpty {
+            for item in items where chip.resultKinds.contains(item.kind) {
+                guard let item = attempt.pick ? pick(item) : item else { continue }
+                let found = [item.card?.hostName, item.card?.location, item.townGroup?.location].compactMap { $0 }
+                let extra = (item.activity == nil ? [item.sub ?? ""] : []) + found + item.alsoFinds
+                // Picked with nothing else typed: Events soonest, all-day ones after the timed (as the resting row
+                // has them), and food and coffee before other places.
+                let raw = attempt.words.isEmpty
+                    ? (item.kind == .business || item.card?.when?.timed == false ? 500 : 501)
+                    : attempt.words.compactMap { TownSearch.score($0, name: item.name, extra: extra, aliases: item.keywords) }.max()
+                guard let raw else { continue }
+                scored.append((Hit(item: item, score: item.activity == nil ? raw : raw - Self.activityDiscount), raw))
+            }
         }
         if scored.contains(where: { $0.raw >= TownSearch.typoCeiling }) { scored.removeAll { $0.raw < TownSearch.typoCeiling } }
         var sections: [Section] = chip.resultKinds.compactMap { kind in
@@ -502,7 +538,8 @@ final class SearchModel {
                 .sorted { a, b in
                     let (x, y) = (a.item.activity != nil, b.item.activity != nil)
                     if x != y { return y }
-                    if x && a.score == b.score { return a.item.rank < b.item.rank }
+                    // Activities, and Events of one score, keep their row's order: Kennedy's first, the soonest first.
+                    if (x || kind == .event) && a.score == b.score { return a.item.rank < b.item.rank }
                     return a.score > b.score
                 }
             return hits.isEmpty ? nil : Section(kind: kind, hits: hits)
@@ -527,12 +564,12 @@ final class SearchModel {
     }
 
     /// What the empty field offers above Recent under All, each typing its words (search-helpful 03; Nextdoor's
-    /// Trending chips). Tonight and This weekend wait for the time words of fix 5.
-    static let tryWords = ["Coffee", "Pizza", "Live music", "Trivia", "Parks", "Kids"]
+    /// Trending chips), the time words first (search-helpful 06).
+    static let tryWords = ["Tonight", "This weekend", "Coffee", "Pizza", "Live music", "Kids"]
 
     /// The no-match page's chips: the Try words that find something on this pill, 3 at most.
-    func nearby(in chip: SearchChip) -> [String] {
-        Array(Self.tryWords.filter { !matches(for: $0, in: chip, sticky: false).isEmpty }.prefix(3))
+    func nearby(in chip: SearchChip, now: Date = .now) -> [String] {
+        Array(Self.tryWords.filter { !matches(for: $0, in: chip, sticky: false, now: now).isEmpty }.prefix(3))
     }
 
     /// The no-match page's shelf: the Events of the next seven days, soonest first.

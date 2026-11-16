@@ -35,7 +35,7 @@ enum NeedWords {
                                                        "beer_store"],
              names: ["tap", "tavern", "pub", "brewing", "brewery", "liquor"]),
         Need(words: ["wine"], types: ["liquor_store", "wine_bar", "winery", "wine_store"], names: ["liquor", "wine"]),
-        Need(words: ["cocktails", "cocktail"], types: ["bar", "cocktail_bar", "distillery", "pub", "bar_and_grill"],
+        Need(words: ["cocktails", "cocktail", "happy hour"], types: ["bar", "cocktail_bar", "distillery", "pub", "bar_and_grill"],
              names: ["distilling", "distillery", "tavern"]),
         Need(words: ["coffee"], types: ["coffee_shop", "cafe"]),
         Need(words: ["ice cream"], types: ["ice_cream_shop"]),
