@@ -93,6 +93,59 @@ struct SearchItem: Identifiable, Hashable {
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
+    /// A result row's line, saying why it is there (search-helpful 08, Jesse's yes to the mock): an Event's when
+    /// ("Tonight 7 PM") and its best reason, friends going ("Sam and Maria going"), else "12 Going" from
+    /// `goingShown`, else its place; a place's kind and its hours ("Pizza · Opens 3:30 PM"); anything else `line`.
+    func rowLine(_ now: Date) -> String? {
+        guard kind == .event, let card else {
+            let parts = [sub, hours?.status(at: now).map(Self.hoursWords), next.flatMap { Self.day($0, now: now) }]
+                .compactMap { $0 }
+            return parts.isEmpty ? nil : parts.joined(separator: " · ")
+        }
+        let friends = card.friendsGoing.map(\.name)
+        let reason = RSVPWords.friendsLine(friends, bar: true).map { $0 + " going" }
+            ?? (card.goingCount >= Self.goingShown ? "\(card.goingCount) Going" : SearchModel.street(card.location))
+        let parts = [Self.when(card, now: now), reason].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    /// Fewer Going than this says nothing on a row: "1 Going" is no reason to look (picked).
+    static let goingShown = 3
+
+    /// An Event's when on its row: "Now", "In 20 min", "Today 10 AM", "Tonight 7 PM", "Tomorrow 6:30 PM",
+    /// "Thu 6:30 PM", "Nov 28, 7 PM"; the day alone when it has no time.
+    static func when(_ card: FeedCardItem, now: Date) -> String? {
+        guard let when = card.when else { return nil }
+        if card.isNow(at: now) || (when.isOn(now) && Town.days(from: now, to: when.start) < 0) { return "Now" }
+        if let soon = card.startsIn(at: now) { return soon.text }
+        guard let day = day(when, now: now) else { return nil }
+        guard when.timed else { return day }
+        return day + (day.contains(where: \.isNumber) ? ", " : " ") + Town.clock(when.start)
+    }
+
+    /// A place's hours on its row, Google Maps' words: "Open till 11 AM", "Closes soon · 9 PM", "Open 24 hours",
+    /// and while it's shut when it opens next, "Opens 3:30 PM", "Opens Tue 4 PM", "Opens May 8".
+    nonisolated static func hoursWords(_ status: PlaceHours.Status) -> String {
+        switch status {
+        case .closed(let opens, let weekday):
+            "Opens " + (weekday.map { PlaceHours.shortDays[$0 - 1] + " " } ?? "") + PlaceHours.clock(opens)
+        case .offSeason(let opens): "Opens " + PlaceHours.date(opens)
+        case .open, .closesSoon, .always: PlaceHours.words(status)
+        }
+    }
+
+    /// Open at `now`: its row's "Open" is green, never red when shut (Jesse's yes to the mock).
+    func isOpen(_ now: Date) -> Bool {
+        switch hours?.status(at: now) {
+        case .open, .always: true
+        default: false
+        }
+    }
+
+    /// The photo its row shows: its own, else the first Block Party saved of the place. Credited photos too, their
+    /// credit on the page they open (Jesse's yes, search-helpful 08).
+    var rowPhoto: Photo? { photo ?? photos.first.map { .saved($0) } }
+
     /// An event's day from `now`, as the mock says it: "Today" ("Tonight" from 5 PM), "Tomorrow", the weekday within
     /// the week ("Fri"), else the date ("Nov 20"); nil once it's past.
     static func day(_ when: EventWhen, now: Date) -> String? {
@@ -195,7 +248,7 @@ struct SearchLogo: Hashable {
 /// Groups and people moved to the Friends tab, and the Parks pill went (BP app search-titles 01): typing still finds
 /// all three under All.
 enum SearchChip: CaseIterable, Hashable {
-    case all, calendar, businesses, sports, events
+    case all, calendar, businesses, sports, schools, events
 
     var title: String {
         switch self {
@@ -203,15 +256,19 @@ enum SearchChip: CaseIterable, Hashable {
         case .calendar: "Event calendar"
         case .businesses: "Businesses"
         case .sports: "Sports"
+        case .schools: "Schools"
         case .events: "Events"
         }
     }
+
+    /// Sports and Schools wear the app's dark colours (school-search 04 and 10); every other pill the light ones.
+    var isDark: Bool { self == .sports || self == .schools }
 
     var kind: SearchItem.Kind? {
         switch self {
         case .all, .calendar: nil
         case .businesses: .business
-        case .sports: .school
+        case .sports, .schools: .school
         case .events: .event
         }
     }
@@ -265,8 +322,10 @@ final class SearchModel {
     /// Each activity's next event by its id, read on its own so Search never waits for it.
     private var next: [String: EventWhen] = [:]
     private var nextLoaded = false
-    /// The same schools as the Sports chip's discs show them, colleges first (school-search 04).
+    /// The same schools as the Schools chip's discs show them, colleges first (school-search 04, 10).
     private(set) var schoolDiscs: [SearchItem] = []
+    /// The Sports chip's sports, this season's first, each with its teams from high school up (school-search 10).
+    private(set) var sports: [SportShelf] = []
     /// The Event calendar's year of public Events in its order (BP app five-tabs 10), nil until the first read lands,
     /// and whether the last read failed. Kept across tab switches, as the rest is.
     private(set) var calendar: [DailyEvent]?
@@ -453,9 +512,11 @@ final class SearchModel {
 
     /// The Town's schools (`teams.local`) and the activities each lists: the row's crests in `Town.searchSchools`'
     /// order, Kennedy first, and each activity after them under its school's place, in the school's own order.
-    func show(schools: [LocalSchool], activities: [SchoolActivity]) {
+    func show(schools: [LocalSchool], activities: [SchoolActivity], now: Date = .now) {
         self.schools = Self.schools(schools, activities: activities).map(withNext)
         schoolDiscs = Self.schoolDiscs(schools, rows: self.schools)
+        let levels = Dictionary(schools.map { ($0.uuid, Self.level($0)) }, uniquingKeysWith: { a, _ in a })
+        sports = LocalSports.shelves(self.schools, level: { levels[$0] }, now: now)
         schoolsLoaded = true
         POILogoCache.shared.prefetch(schools.compactMap(\.crest?.url))
     }
@@ -668,10 +729,10 @@ final class SearchModel {
 
     // MARK: Recents
 
-    /// The recents a tap on the empty field shows under a pill: on Sports only the schools and activities opened
-    /// there or under All (the run's review), on every other pill all of them.
+    /// The recents a tap on the empty field shows under a pill: on Sports and Schools only the schools and activities
+    /// opened there or under All (the run's review), on every other pill all of them.
     func recents(in chip: SearchChip) -> [SearchRecent] {
-        guard chip == .sports else { return recents }
+        guard chip.kind == .school else { return recents }
         return recents.filter {
             if case .item(let item) = $0 { item.kind == .school } else { false }
         }
@@ -821,14 +882,16 @@ final class SearchModel {
         return rows + found
     }
 
-    /// The Sports chip's discs (school-search 04, Jesse 2026-11-11: "college first then highschools"): the Schools
-    /// row's schools, the colleges, then the high schools, then the rest (Kennedy, K-8), each A to Z by the short
-    /// name under its disc. Each is its school's row, so it opens the school's page and remembers as one.
+    /// A school's level: college, high school, or the rest (Kennedy, K-8).
+    static func level(_ school: LocalSchool) -> DiscLevel {
+        let types = Town.schoolTypes.filter { $0.schools.contains { $0.key == school.id } }
+        return types.contains(where: \.isCollege) ? .college : types.contains(where: \.isHighSchool) ? .highSchool : .other
+    }
+
+    /// The Schools chip's discs (school-search 04 and 10, Jesse 2026-11-11: "college first then highschools"): the
+    /// Schools row's schools, the colleges, then the high schools, then the rest (Kennedy, K-8), each A to Z by the
+    /// short name under its disc. Each is its school's row, so it opens the school's page and remembers as one.
     static func schoolDiscs(_ schools: [LocalSchool], rows: [SearchItem]) -> [SearchItem] {
-        func level(_ school: LocalSchool) -> DiscLevel {
-            let types = Town.schoolTypes.filter { $0.schools.contains { $0.key == school.id } }
-            return types.contains(where: \.isCollege) ? .college : types.contains(where: \.isHighSchool) ? .highSchool : .other
-        }
         func short(_ school: LocalSchool) -> String { school.shortName ?? school.name }
         return schools
             .sorted { a, b in
@@ -838,7 +901,7 @@ final class SearchModel {
             .compactMap { school in rows.first { $0.id == SearchItem.schoolID(school.uuid) } }
     }
 
-    /// The Sports chip's levels, in the order their discs come.
+    /// The schools' levels, in the order their discs come.
     enum DiscLevel: Int, Comparable {
         case college, highSchool, other
 

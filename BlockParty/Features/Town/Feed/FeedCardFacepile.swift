@@ -102,11 +102,14 @@ struct FriendFaces: View {
     /// by them (you-tab 07).
     static let side: CGFloat = 24
     static let overlap: CGFloat = 8
+    /// Smaller on a Search row (search-helpful 08).
+    var size: CGFloat = Self.side
+    var tuck: CGFloat = Self.overlap
 
     var body: some View {
-        HStack(spacing: -Self.overlap) {
+        HStack(spacing: -tuck) {
             ForEach(Array(friends.prefix(3).enumerated()), id: \.offset) { index, friend in
-                Avatar(friend.photo, size: Self.side)
+                Avatar(friend.photo, size: size)
                     .overlay(Circle().strokeBorder(ring, lineWidth: 1.5))
                     .zIndex(Double(3 - index))
             }

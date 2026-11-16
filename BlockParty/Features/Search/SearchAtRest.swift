@@ -62,14 +62,14 @@ struct SearchAtRest: View {
     }
 
     /// The Schools row: each school's crest bare as a business logo, Kennedy first, on the first screen
-    /// (the mock Jesse picked, look A). "Schools ›" opens the Sports chip, the one page of every school
-    /// (Jesse, 2026-11-11, school-search 04).
+    /// (the mock Jesse picked, look A). "Schools ›" opens the Schools chip, the one page of every school
+    /// (Jesse, 2026-11-16, school-search 10: "schools will have thier own tab in search").
     @ViewBuilder
     private var schools: some View {
         let crests = model.row(.school)
         if model.isLoading(.school) || !crests.isEmpty {
             ShelfTitle(title: SearchPage.sectionTitle(.school), shelf: nil) {
-                SearchPage.pick(.sports, in: model, reduceMotion: reduceMotion)
+                SearchPage.pick(.schools, in: model, reduceMotion: reduceMotion)
             }
             Group {
                 if model.isLoading(.school) {
