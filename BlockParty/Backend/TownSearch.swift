@@ -24,6 +24,7 @@ enum TownSearch {
     /// name prefix, the start of the name typed without spaces, every word in the name, every word in
     /// another name, every word found somewhere (AND semantics), then the same with a typo.
     static func score(_ query: String, name: String, extra: [String] = [], aliases: [String] = []) -> Double? {
+        guard query.contains(where: { $0.isLetter || $0.isNumber }) else { return nil }   // "&" alone finds nothing
         let q = norm(query)
         guard !q.isEmpty else { return nil }
 
@@ -35,7 +36,8 @@ enum TownSearch {
         if cq.count >= 4 && cn.hasPrefix(cq) { return 850 }
         if aliasHit(q, nn) { return 800 }   // word-boundary, so "art" ≠ "heart"
 
-        // Another name typed whole ("csb", "st bens") beats the start of a longer name.
+        // Another name typed whole ("csb", "st bens") beats the start of a longer name; so does a kind typed whole
+        // ("bar" finds the bars before The Barn).
         for a in aliases {
             let an = norm(a)
             if an.isEmpty { continue }
@@ -94,12 +96,21 @@ enum TownSearch {
     /// Lowercased, diacritic-folded, apostrophes out, "&" as "and", trimmed — the canonical form
     /// everything compares in ("Café" == "cafe", "Sal's" == "sals", "Milk & Honey" == "milk and honey").
     private static func norm(_ s: String) -> String {
-        s.folding(options: [.diacriticInsensitive], locale: nil)
+        if let hit = normed[s] { return hit }
+        let out = s.folding(options: [.diacriticInsensitive], locale: nil)
             .lowercased()
             .replacingOccurrences(of: "&", with: " and ")
             .filter { !apostrophes.contains($0) }
             .split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        normed[s] = out
+        return out
     }
+
+    // Search scores ~1,000 rows on every letter typed and folding a string is the slow part, so each string is
+    // folded once. ponytail: grows with every name and word typed this launch (a few thousand short strings);
+    // clear it on a memory warning if that ever matters.
+    private static var normed: [String: String] = [:]
+    private static var tokens: [String: [String]] = [:]
 
     private static let apostrophes: Set<Character> = ["'", "’", "`"]
 
@@ -111,6 +122,7 @@ enum TownSearch {
     /// A row's words: each word with its apostrophe dropped ("sals"), and its parts too ("sal", "s"),
     /// so a name is found typed either way.
     private static func tokenize(_ s: String) -> [String] {
+        if let hit = tokens[s] { return hit }
         let folded = s.folding(options: [.diacriticInsensitive], locale: nil).lowercased()
             .replacingOccurrences(of: "&", with: " and ")
         var out: [String] = []
@@ -120,6 +132,7 @@ enum TownSearch {
             let parts = word.split(whereSeparator: { apostrophes.contains($0) })
             if parts.count > 1 { out += parts.map(String.init) }
         }
+        tokens[s] = out
         return out
     }
 

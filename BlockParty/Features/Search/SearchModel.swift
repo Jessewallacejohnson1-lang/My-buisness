@@ -474,7 +474,7 @@ final class SearchModel {
         var kinds = sections.enumerated().sorted { ($1.element.best, $0.offset) < ($0.element.best, $1.offset) }.map(\.element.kind)
         let key = "\(chip)|\(q)"
         if sectionOrder.key == key {
-            let kept = sectionOrder.kinds.filter(kinds.contains)
+            let kept = sectionOrder.kinds.filter { kinds.contains($0) }
             kinds = kept + kinds.filter { !kept.contains($0) }
         }
         sectionOrder = (key, kinds)

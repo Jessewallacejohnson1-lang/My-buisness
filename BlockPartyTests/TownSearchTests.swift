@@ -7,6 +7,7 @@
 import XCTest
 @testable import BlockParty
 
+@MainActor
 final class TownSearchTests: XCTestCase {
     private func finds(_ words: String, _ name: String, aliases: [String] = []) -> Bool {
         TownSearch.score(words, name: name, aliases: aliases) != nil
@@ -44,6 +45,7 @@ final class TownSearchTests: XCTestCase {
         XCTAssertFalse(finds("hiking", "Diving Club"), "two wrong letters at 6")
         XCTAssertFalse(finds("realtor", "Realty Plus"), "two wrong letters at 7")
         XCTAssertFalse(finds("bnk", "Band"), "no typo under 4 letters")
+        XCTAssertFalse(finds("&", "Andy's Garage"), "\"&\" alone finds nothing")
         XCTAssertFalse(typo("bank", "Bank of Saint Joseph"), "found without a typo")
     }
 }
