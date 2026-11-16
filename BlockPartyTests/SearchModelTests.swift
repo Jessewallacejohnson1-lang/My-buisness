@@ -457,9 +457,8 @@ final class SearchModelTests: XCTestCase {
                     poi("stjoe-blend", "The Local Blend", .food, "coffee_shop")])
         model.show(events: [card("Trivia Night", time: "7 PM"), card("Later", day: "2026-11-20", time: "7 PM")], now: at(3, 10))
         XCTAssertTrue(model.matches(for: "karaoke", in: .all).isEmpty)
-        XCTAssertEqual(model.nearby("karaoke", in: .all), ["Coffee", "Pizza", "Trivia"])
-        XCTAssertEqual(model.nearby("pizza", in: .all), ["Coffee", "Trivia", "Parks"], "never the words typed")
-        XCTAssertEqual(model.nearby("karaoke", in: .events), ["Trivia"])
+        XCTAssertEqual(model.nearby(in: .all), ["Coffee", "Pizza", "Trivia"])
+        XCTAssertEqual(model.nearby(in: .events), ["Trivia"])
         XCTAssertEqual(model.thisWeek.map(\.name), ["Trivia Night"])
     }
 

@@ -528,10 +528,8 @@ final class SearchModel {
     static let tryWords = ["Coffee", "Pizza", "Live music", "Trivia", "Parks", "Kids"]
 
     /// The no-match page's chips: the Try words that find something on this pill, 3 at most.
-    func nearby(_ words: String, in chip: SearchChip) -> [String] {
-        let typed = words.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return Array(Self.tryWords.filter { $0.lowercased() != typed && !matches(for: $0, in: chip, sticky: false).isEmpty }
-            .prefix(3))
+    func nearby(in chip: SearchChip) -> [String] {
+        Array(Self.tryWords.filter { !matches(for: $0, in: chip, sticky: false).isEmpty }.prefix(3))
     }
 
     /// The no-match page's shelf: the Events of the next seven days, soonest first.

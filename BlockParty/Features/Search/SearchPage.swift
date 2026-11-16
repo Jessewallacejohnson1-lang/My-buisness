@@ -476,10 +476,10 @@ struct SearchPage: View {
             // Less anyone you just blocked (ticket 04).
             let people = book.visible(chip == .all ? model.people.state : .idle)
             if matches.isEmpty && !people.hasRows {
-                // Nothing here yet: wait for the neighbours' answer before saying so.
-                if people != .loading {
+                // Nothing here yet: wait for the neighbours' answer and the pill's rows before saying so.
+                if people != .loading && !chip.resultKinds.contains(where: model.isLoading) {
                     NoMatch(words: model.words.trimmingCharacters(in: .whitespacesAndNewlines),
-                            chips: model.nearby(model.words, in: chip),
+                            chips: model.nearby(in: chip),
                             week: chip == .all || chip == .events ? model.thisWeek : []) { model.words = $0.lowercased() }
                 }
             } else {
@@ -490,7 +490,7 @@ struct SearchPage: View {
                              removable: false) { submit() }
                 }
                 ForEach(matches) { ItemRow(item: $0) }
-                PeopleResults(state: people, titled: false)
+                PeopleResults(state: people)
             }
         }
     }
@@ -887,12 +887,11 @@ struct PhotoCard: View {
 /// Neighbours for the words typed, after the places, so the rows above stay put when they
 /// arrive (BP app docs/plans/friends, ticket 02).
 /// Never saved to Recent: a neighbour's name and photo stay off the phone.
+/// Neighbours for the typed words, untitled after the one list (search-helpful 03).
 private struct PeopleResults: View {
     let state: NeighborSearch.State
-    let titled: Bool
 
     var body: some View {
-        if state.hasRows, titled { SectionTitle(text: SearchPage.sectionTitle(.person)) }
         switch state {
         case .found(let people):
             // Facebook's result with its button under the name, in Search's smaller sizes.
@@ -1087,6 +1086,7 @@ private struct QueryRow: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.press(.row))
+            .accessibilityLabel(glyph == "magnifyingglass" ? "Search \(words)" : words)
             if removable {
                 RemoveButton(name: words) {
                     withAnimation(.spring(response: 0.3, dampingFraction: 1)) { model.forget(SearchModel.queryID(words)) }
