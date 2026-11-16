@@ -198,6 +198,42 @@ test("an Event page names the host its card names, not the venue it is held at",
     delete from public.host_entries where name in ('Test Poster', 'Unknown Club')`);
 });
 
+// A school's own Event names its school's page, with its card's picture (BP app inside-cards 33).
+test("a school's own Event names its school, with its card's logo, before the venue", async () => {
+  await reset();
+  await db.exec(`delete from public.teams where id in ('test-high', 'test-away');
+    delete from public.places where entry_id = 'test-venue';
+    delete from public.host_entries where entry_id = 'test-high-school';
+    delete from public.place_photos where entry_id = 'test-high-school';
+    insert into public.teams (id, name, short_name, local, school_name, logo_url, aliases) values
+      ('test-high', 'Test High', 'Test', true, 'Test High School', 'https://pic/team-logo', '{Test Athletics}'),
+      ('test-away', 'Away', 'Away', false, 'Away High School', 'https://pic/away', '{}');
+    insert into public.places (id, name, lat, lon, family, primary_type, entry_id) values
+      ('00000000-0000-0000-0000-000000000901', 'The Field', 45.5, -94.3, 'food', 'bar', 'test-venue');`);
+  const at = async (source, venue = false) => {
+    const id = await event('Fall concert', source, 2);
+    if (venue) await db.query(`update public.club_events set place_entry_id = 'test-venue' where id = $1`, [id]);
+    return (await as(CAL, 'select target_type, name, picture, picture_kind from public.event_host($1)', [id]))[0];
+  };
+  const school = { target_type: 'team', name: 'Test High School', picture: 'https://pic/team-logo', picture_kind: 'logo' };
+  assert.deepEqual(await at('Test High School'), school, 'no logo of its own on the card: the team logo');
+  assert.deepEqual(await at('test athletics'), school, 'another of its names, any case');
+  assert.deepEqual(await at('Test High School', true), school, 'before the venue');
+  assert.equal(await at('Away High School'), undefined, 'a school from out of town has no page');
+  assert.equal((await at('Away High School', true)).name, 'The Field', 'so its venue, as before');
+  await db.exec(`insert into public.host_entries (name, entry_id) values ('Test High School', 'test-high-school');
+    insert into public.place_photos (entry_id, url, source_url, kind, status, position) values
+      ('test-high-school', 'https://pic/card-logo', 'https://test.example/', 'logo', 'live', 1)`);
+  assert.equal((await at('Test High School')).picture, 'https://pic/card-logo', "the card's logo when it has one");
+  const [{ uuid }] = (await db.query(`select uuid from public.teams where id = 'test-high'`)).rows;
+  const [{ target_id }] = await as(CAL, 'select target_id from public.event_host($1)', [await event('Game', 'Test High School', 3)]);
+  assert.equal(target_id, uuid, 'the team a follow keys by');
+  await db.exec(`delete from public.teams where id in ('test-high', 'test-away');
+    delete from public.places where entry_id = 'test-venue';
+    delete from public.host_entries where entry_id = 'test-high-school';
+    delete from public.place_photos where entry_id = 'test-high-school';`);
+});
+
 // Every door to the Event page carries its card (BP app inside-cards 27): a Town page's Events and a board's meetings
 // each send the Event card, so a page opened from one shows your heart and its count before any other read, even for
 // an Event outside the Town feed's window. The row's own keys stay for apps from before it.
