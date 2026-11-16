@@ -505,7 +505,6 @@ final class SearchModelTests: XCTestCase {
         model.show([shop, deli, bar])
         let open = model.matches(for: "open now", in: .all, now: at(3, 10))
         XCTAssertEqual(open.map(\.name), ["Bo's Deli", "Ace Hardware"])
-        XCTAssertEqual(open.first?.sub, PlaceHours.words(.open(closes: 14 * 60)))
         XCTAssertEqual(model.matches(for: "deli open now", in: .all, now: at(3, 10)).map(\.name), ["Bo's Deli"])
     }
 

@@ -635,7 +635,7 @@ final class SearchModel {
         let hours = chip.resultKinds.contains(.event) ? read.hours : nil
         let openNow = read.openNow && chip.resultKinds.contains(.business)
         let picked = hours != nil || openNow
-        // Only what the time words pick: the Events in their hours, or the places open now, saying how long.
+        // Only what the time words pick: the Events in their hours, or the places open now.
         func pick(_ item: SearchItem) -> SearchItem? {
             if let hours {
                 guard let when = item.card?.when, TimeWords.fits(start: when.start, end: when.end, timed: when.timed,
@@ -644,11 +644,9 @@ final class SearchModel {
                 return item
             }
             guard let status = item.hours?.status(at: now) else { return nil }
+            // Its row already says how long it's open (search-helpful 08).
             switch status {
-            case .open, .closesSoon, .always:
-                var item = item
-                item.sub = PlaceHours.words(status)
-                return item
+            case .open, .closesSoon, .always: return item
             case .closed, .offSeason: return nil
             }
         }
