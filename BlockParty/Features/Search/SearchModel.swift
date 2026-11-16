@@ -50,6 +50,9 @@ struct SearchItem: Identifiable, Hashable {
     /// The heading it sits under on its filter: Parks or Trails, Festivals or Markets.
     var group: String? = nil
     var keywords: [String] = []
+    /// Words that find it below anything named (search-helpful 04): a place's other Google kinds and the need words
+    /// its name says ("plumber" for Piper's Plumbing), a park's features.
+    var alsoFinds: [String] = []
     /// Its place on its row: the mockup's order first, then by name.
     var rank = Int.max
     /// What its business page shows (`BusinessPage`, like the Event page: Jesse, 2026-10-17):
@@ -489,7 +492,7 @@ final class SearchModel {
         var scored: [(hit: Hit, raw: Double)] = []
         for item in items where chip.resultKinds.contains(item.kind) {
             let found = [item.card?.hostName, item.card?.location, item.townGroup?.location].compactMap { $0 }
-            let extra = (item.activity == nil ? [item.sub ?? ""] : []) + found
+            let extra = (item.activity == nil ? [item.sub ?? ""] : []) + found + item.alsoFinds
             guard let raw = TownSearch.score(q, name: item.name, extra: extra, aliases: item.keywords) else { continue }
             scored.append((Hit(item: item, score: item.activity == nil ? raw : raw - Self.activityDiscount), raw))
         }
@@ -598,7 +601,10 @@ final class SearchModel {
             return SearchItem(id: "p:\(key)", kind: kind, name: shown(poi.name), sub: label(type), logo: logo,
                               photo: kind == .business ? nil : saved.first.map { .saved($0) },
                               // Someone looking for a brewery wants a cidery too.
-                              keywords: [type.replacingOccurrences(of: "_", with: " ")] + (type == "cidery" ? ["brewery"] : []),
+                              // What people type for what it is ("gas" for a fuel station, search-helpful 04).
+                              keywords: [type.replacingOccurrences(of: "_", with: " ")] + (type == "cidery" ? ["brewery"] : [])
+                                  + NeedWords.typed([type]),
+                              alsoFinds: NeedWords.typed(poi.types) + NeedWords.named(poi.name),
                               rank: logo?.rank ?? .max, photos: saved, street: street(poi.address),
                               about: nonempty(poi.about), links: poi.links ?? [],
                               hours: poi.hours.flatMap { $0.days.allSatisfy(\.isEmpty) ? nil : $0 }, placeID: poi.id,
@@ -641,12 +647,13 @@ final class SearchModel {
             let photo: SearchItem.Photo? = photos[park.id]?.first.map { .saved($0) }
                 ?? KnownLocalPhoto.name(forTitle: park.title).map { .bundled($0) }
             return SearchItem(id: "k:\(park.id)", kind: .park, name: park.title, sub: "Park", photo: photo,
-                              group: "Parks", keywords: ["park"] + park.features)
+                              group: "Parks", keywords: ["park"] + park.features,
+                              alsoFinds: NeedWords.named(park.features.joined(separator: " ")))
         }
         let trails = Town.trails
             .map { name, photo in
                 SearchItem(id: "k:\(name)", kind: .park, name: name, sub: "Trail", photo: .bundled(photo),
-                           group: "Trails", keywords: ["trail", "walk", "hike"])
+                           group: "Trails", keywords: ["trail", "walk", "hike", "hiking"])
             }
         return ranked(parks + trails)
     }
