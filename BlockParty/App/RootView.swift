@@ -875,6 +875,9 @@ struct MainTabsView: View {
     /// (`TabBarMetric.travel`); Reduce Motion swaps both for a short crossfade.
     /// Shared, so a route-driven change feels exactly like a tapped one.
     private func switchTab(to newTab: Tab) {
+        #if DEBUG
+        if FrameGapLog.enabled { print("[DEBUG-tablag] switch \(tab) -> \(newTab)") }
+        #endif
         slideForward = newTab.rawValue > tab.rawValue
         withAnimation(reduceMotion
             ? .easeInOut(duration: 0.2)
