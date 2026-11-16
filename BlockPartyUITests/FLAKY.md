@@ -62,6 +62,11 @@ flake moves to Fixed, dated, and stays there.
   to `sources/` and `DECISIONS.md` only (BP app event-photos 19): "Leave lands after Join, never before" got `[true]`
   where `[true, false]` was expected, and its mirror `[false, true]` for `[true]` · the rerun passed · cause not
   found: two taps' writes land out of order on a slow runner · no fix yet
+- 2026-11-15 · `RealLifeActionsTests.testAHeartAndAJoinShakeOnlyWhereTheirControlIs` · red at 9488448 (run
+  43799992618, attempt 1), a change to Search's matching only (BP app search-helpful 02): "the card's RSVP shakes
+  and buzzes as Join does" got 0 shakes where 1 was expected · passed on the Mac (1,061 tests) and on the rerun ·
+  it sleeps a fixed `(hold + flip) * 3` before reading, as the 2026-10-30 RealLifeActions flakes did · no fix yet:
+  wait on the count, as its heart half already does
 - 2026-11-14 · `OnboardingNextBarTests.testNextBarHoldsStillOnEveryStep` · red once on the Mac in a full run on
   feat/splash-wordmark (the launch only; UI tests skip the launch) at load 100 to 150, just after a macOS update:
   "Failed to get list of active applications: Timed out while fetching attributes
