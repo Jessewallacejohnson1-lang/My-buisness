@@ -170,6 +170,8 @@ struct SearchPage: View {
     @Bindable var model: SearchModel
     /// The Town feed's cards once it has read them, nil before: Search's Events (five-tabs 04).
     let cards: [FeedCardItem]?
+    /// The Town feed's News, which typing finds (search-helpful 07).
+    var news: [TownNews] = []
     /// Around town's shuffle: a new one each visit, since the shell builds the tab again on every
     /// switch, and the same one back from an Event page, so the grid never moves under the thumb.
     @State private var seed = UInt64.random(in: 0 ... .max)
@@ -251,6 +253,7 @@ struct SearchPage: View {
         // Which activities this account follows, for the stars on typed activities (school-search 01).
         .task(id: auth.accountKey) { await model.readStars() }
         .onChange(of: cards, initial: true) { model.show(events: cards) }
+        .onChange(of: news, initial: true) { model.show(news: news) }
         // People rows carry the friend button; a failed tap shakes only while Search is open.
         .onAppear { book.screenOpened() }
         .onDisappear { book.screenClosed() }
@@ -516,6 +519,8 @@ struct SearchPage: View {
         case .restaurant: "Restaurants"
         case .coffee: "Coffee"
         case .event: "Events"
+        case .page: "Pages"
+        case .news: "News"
         case .club: "Groups"
         case .park: "Parks"
         }
@@ -934,6 +939,7 @@ struct OpenButton<Label: View>: View {
     let tap: () -> Void
     @ViewBuilder let label: () -> Label
     @Environment(SearchModel.self) private var model
+    @Environment(\.openNews) private var openNews
 
     var body: some View {
         if let group = item.townGroup {
@@ -948,6 +954,20 @@ struct OpenButton<Label: View>: View {
             NavigationLink(value: team, label: label)
                 .buttonStyle(.press(press))
                 .simultaneousGesture(TapGesture().onEnded { model.remember(item.id) })
+        } else if let page = item.page {
+            NavigationLink(value: page, label: label)
+                .buttonStyle(.press(press))
+                .simultaneousGesture(TapGesture().onEnded { model.remember(item.id) })
+        } else if let board = item.board {
+            NavigationLink(value: board, label: label)
+                .buttonStyle(.press(press))
+                .simultaneousGesture(TapGesture().onEnded { model.remember(item.id) })
+        } else if let news = item.news {
+            Button {
+                model.remember(item.id)
+                openNews?(news)
+            } label: { label() }
+                .buttonStyle(.press(press))
         } else {
             Button(action: tap, label: label)
                 .buttonStyle(.press(press))
@@ -1309,4 +1329,10 @@ extension View {
     func trackFrame(_ box: FrameBox) -> some View {
         onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { box.rect = $0 }
     }
+}
+
+extension EnvironmentValues {
+    /// Opens a News item as its Town card does (the shell's own, from the hello pill): a Search row's tap
+    /// (search-helpful 07).
+    @Entry var openNews: ((TownNews) -> Void)? = nil
 }

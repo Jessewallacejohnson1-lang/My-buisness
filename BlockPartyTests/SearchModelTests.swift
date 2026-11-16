@@ -747,6 +747,61 @@ final class SearchModelTests: XCTestCase {
         XCTAssertFalse(model.items.contains { $0.id == "e:Rocktoberfest" })
     }
 
+    // MARK: Search everything (BP app search-helpful 07)
+
+    /// Typing finds the Event calendar's Events beside the Town feed's: one row per title and host, its soonest date,
+    /// and none the Town feed already shows. The Events pill keeps only the Town feed's.
+    func testTypingFindsTheEventCalendar() {
+        let model = SearchModel(supabase: supabase, defaults: defaults)
+        let now = at(3, 10)
+        model.show(events: [card("Bingo Night", time: "6:30 PM")], now: now)
+        let calendar = [card("Bingo Night", day: "2026-11-10", time: "6:30 PM"),
+                        card("Mamma Mia!", day: "2026-11-07", time: "7 PM"), card("Mamma Mia!", day: "2026-11-06", time: "7 PM"),
+                        card("Basketball vs Sartell", day: "2026-12-01", time: "7 PM")]
+        model.show(calendar: calendar.compactMap(YouCalendar.event(from:)), now: now)
+        XCTAssertEqual(model.matches(for: "mamma", in: .all).map(\.sub), ["Fri · 7 PM"], "one row, its soonest night")
+        XCTAssertEqual(model.matches(for: "bingo", in: .all).count, 1, "the Town feed's, once")
+        XCTAssertEqual(model.matches(for: "basketball", in: .all).first?.card?.title, "Basketball vs Sartell")
+        XCTAssertEqual(model.matches(for: "basketball", in: .calendar).count, 1, "the calendar pill's typing finds it too")
+        XCTAssertEqual(model.row(.event).map(\.name), ["Bingo Night"], "the Events pill stays the Town feed's")
+    }
+
+    /// The Town feed's News is found by its headline and its place, says it is News, and opens as its card does.
+    func testTypingFindsNews() {
+        let model = SearchModel(supabase: supabase, defaults: defaults)
+        let logo = PlacePicture(url: URL(string: "https://x/sju.webp")!, kind: .logo, hue: 335)
+        model.show(news: [TownNews(id: "n1", place: "SJU Athletic Activities", words: "Now 4-0",
+                                   post: URL(string: "https://x/post")!, picture: logo, leavesAt: at(20, 0),
+                                   title: "Johnnies basketball win")])
+        let hit = model.matches(for: "johnnies", in: .all).first
+        XCTAssertEqual(hit?.kind, .news)
+        XCTAssertEqual(hit?.line(at(3, 10)), "News · SJU Athletic Activities")
+        XCTAssertEqual(hit?.news?.id, "n1")
+        XCTAssertNotNil(hit?.logo, "its place's logo")
+        XCTAssertEqual(model.matches(for: "sju athletic", in: .all).first?.id, "n:n1")
+        XCTAssertTrue(model.matches(for: "johnnies", in: .events).isEmpty, "only under All")
+    }
+
+    /// The Town's own page and its City's, and the City's boards, each found by name; the City by "city hall" too.
+    func testTypingFindsTheTownsPages() {
+        let model = SearchModel(supabase: supabase, defaults: defaults)
+        let council = TownPageInfo.Board(id: "cc", name: "City Council", following: false, next: nil)
+        model.show(town: TownPageInfo(id: "t", name: "Joetown", kind: "St. Joseph's events", picture: nil, pictureKind: "town",
+                                      events: [], boards: []),
+                   city: TownPageInfo(id: "c", name: "City of St. Joseph", kind: "City government",
+                                      picture: "https://x/city.png", pictureKind: "logo", events: [], boards: [council]))
+        model.show([poi("jb", "Joetown Burgers", .food, "restaurant")])
+        XCTAssertEqual(model.matches(for: "joetown", in: .all).map(\.name), ["Joetown", "Joetown Burgers"])
+        XCTAssertEqual(model.matches(for: "joetown", in: .all).first?.page, .town)
+        XCTAssertEqual(model.matches(for: "city hall", in: .all).first?.page, .city)
+        XCTAssertNotNil(model.matches(for: "city hall", in: .all).first?.logo, "the City's logo")
+        let board = model.matches(for: "city council", in: .all).first
+        XCTAssertEqual(board?.board, TownBoardRoute(board: council, city: "City of St. Joseph"))
+        XCTAssertEqual(board?.glyph, "building.columns")
+        model.remember("b:cc")
+        XCTAssertEqual(model.recents.first?.id, "b:cc", "a board opened is a recent")
+    }
+
     /// The first row's name and how long it lasts: morning from 5 to noon, afternoon to 5 PM, then
     /// tonight until 5 the next morning.
     func testPartOfTheDay() {

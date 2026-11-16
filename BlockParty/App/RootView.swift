@@ -515,6 +515,7 @@ struct MainTabsView: View {
         }
         // A host's name on a card or an Event page opens its own page (follows 08).
         .environment(\.hostOpener, hostOpener)
+        .environment(\.openNews) { openHello(.news($0)) }
         .environment(\.viewOnMap, mapOpener)
         // The map is a destination, not a tab: full screen, with its own close, and its card opens the Event page on
         // the map's own stack (BP app references/map-reset). Out here, not on the stack's root, so it rises over a
@@ -759,7 +760,8 @@ struct MainTabsView: View {
                         case .search:
                             // A failed read with nothing kept is no Events, not a shimmer for good.
                             SearchPage(model: searchModel,
-                                       cards: townFeed.entries == nil ? (townFeed.failed ? [] : nil) : townFeed.cards)
+                                       cards: townFeed.entries == nil ? (townFeed.failed ? [] : nil) : townFeed.cards,
+                                       news: townFeed.news)
                                 // The Town tab reads the feed; a launch straight onto Search reads it here.
                                 .task { if townFeed.entries == nil { await townFeed.refresh() } }
                         // Your Profile, with your full Calendar and Agenda (five-tabs 03).
