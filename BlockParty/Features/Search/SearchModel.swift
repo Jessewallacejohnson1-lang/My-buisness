@@ -604,7 +604,7 @@ final class SearchModel {
                               // What people type for what it is ("gas" for a fuel station, search-helpful 04).
                               keywords: [type.replacingOccurrences(of: "_", with: " ")] + (type == "cidery" ? ["brewery"] : [])
                                   + NeedWords.typed([type]),
-                              alsoFinds: NeedWords.typed(poi.types) + NeedWords.named(poi.name),
+                              alsoFinds: NeedWords.typed(poi.types.filter { $0 != type }) + NeedWords.named(poi.name),
                               rank: logo?.rank ?? .max, photos: saved, street: street(poi.address),
                               about: nonempty(poi.about), links: poi.links ?? [],
                               hours: poi.hours.flatMap { $0.days.allSatisfy(\.isEmpty) ? nil : $0 }, placeID: poi.id,
