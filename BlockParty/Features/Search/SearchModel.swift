@@ -277,6 +277,8 @@ final class SearchModel {
     private(set) var news: [SearchItem] = []
     private(set) var pages: [SearchItem] = []
     private var pagesLoaded = false
+    private var pagesTried = false
+    private var calendarTried = false
     @ObservationIgnored private var latestCalendar = 0
     /// What the tab was showing, kept across tab switches as Instagram keeps it.
     var chip = SearchChip.all
@@ -368,7 +370,9 @@ final class SearchModel {
             if newPlaces != nil || (newPhotos != nil && placesLoaded) { show(pois, photos: savedPhotos) }
             if let newGroups { show(newGroups) }
             if needPages, case let (town?, city?) = await (readTown, readCity) { show(town: town, city: city) }
+            pagesTried = true
             await readCalendar
+            calendarTried = true
             // Last, so nothing above waits for it.
             if let newNext = await readNext { show(next: newNext) }
             if done { return }
@@ -493,8 +497,11 @@ final class SearchModel {
     }
 
     /// Whether a kind's row is still waiting on Supabase.
-    /// What only typing finds is still on its way (search-helpful 07): No match waits for it, as for the rows.
-    var typingFindsMoreSoon: Bool { !pagesLoaded || (calendar == nil && !calendarFailed) }
+    /// What only typing finds under this pill is on its first read (search-helpful 07): No match waits for it, as for
+    /// the rows. Only the first: a failed read says No match while its retries go on, and never flickers.
+    func findsMoreSoon(in chip: SearchChip) -> Bool {
+        (!pagesTried && chip.resultKinds.contains(.page)) || (!calendarTried && chip.resultKinds.contains(.event))
+    }
 
     func isLoading(_ kind: SearchItem.Kind) -> Bool {
         (!placesLoaded && [.business, .restaurant, .coffee].contains(kind)) || (!groupsLoaded && kind == .club)
