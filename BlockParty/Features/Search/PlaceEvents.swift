@@ -72,6 +72,8 @@ enum PlaceEventsMetric {
     static let rowVertical: CGFloat = 7
     static let rowTrail: CGFloat = 0
     static let bottom: CGFloat = 8
+    /// The heart's circle on the grey row: ink at 6%, the mock's.
+    static let heartWash: Double = 0.06
 }
 
 /// The row itself. Its Events come from Search's calendar read; it asks for the place's ids once.
@@ -116,8 +118,11 @@ struct PlaceEventsPill: View {
                 .background(Hue.fill)
                 .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                 .padding(.top, SearchMetric.bizLinkGap)
+                // Its read lands after the page opens: it fades in and the rows under it ease down, never a jump.
+                .transition(.opacity)
             }
         }
+        .animation(reduceMotion ? nil : Motion.bentoExpand, value: model?.placeEventIDs[entryId] != nil)
         .task(id: entryId) { await model?.loadPlaceEvents(entryId) }
     }
 
@@ -183,7 +188,8 @@ struct PlaceEventsPill: View {
             VStack(spacing: 0) {
                 ForEach(byDay[day] ?? []) {
                     CalendarRow(event: $0, now: now, photo: Size.rowPhoto, photoGap: Size.rowPhotoGap,
-                                lead: Metric.pillInset, vertical: Size.rowVertical, trail: Size.rowTrail)
+                                lead: Metric.pillInset, vertical: Size.rowVertical, trail: Size.rowTrail,
+                                heartFill: Hue.ink.opacity(Size.heartWash))
                 }
             }
         }
@@ -214,10 +220,8 @@ struct PlaceEventsPill: View {
     }
 
     private var weekdays: some View {
-        let week = EventCalendar.grid(EventCalendar.month(of: Date())).compactMap { $0 }.prefix(7)
-            .sorted { PlaceEvents.calendar.component(.weekday, from: $0) < PlaceEvents.calendar.component(.weekday, from: $1) }
-        return HStack(spacing: 0) {
-            ForEach(week, id: \.self) { weekday in
+        HStack(spacing: 0) {
+            ForEach(EventCalendar.week, id: \.self) { weekday in
                 Text(Town.format(weekday, "EEE"))
                     .font(.sansMedium(12))
                     .foregroundStyle(Hue.inkSecondary)
@@ -241,13 +245,16 @@ struct PlaceEventsPill: View {
                         YouDay(date: date, month: nil, events: events, isToday: date == today, isPast: date < today,
                                isPicked: date == day, ring: ring, disc: true, gapColor: Hue.fill,
                                side: Size.day, number: Size.dayNumber)
+                            // The whole column, 44 pt tall, takes the tap: the 40 pt disc alone is under the minimum.
+                            .frame(maxWidth: .infinity, minHeight: PageMetric.tapMin)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.press(.squish))
                     .disabled(events.isEmpty)
                     .accessibilityLabel(EventCalendar.spoken(date, events: events.count, today: date == today))
                     .accessibilityAddTraits(date == day ? .isSelected : [])
                 } else {
-                    Color.clear.frame(height: Size.day).accessibilityHidden(true)
+                    Color.clear.frame(height: PageMetric.tapMin).accessibilityHidden(true)
                 }
             }
         }

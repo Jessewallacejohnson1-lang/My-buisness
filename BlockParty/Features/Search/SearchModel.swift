@@ -343,6 +343,8 @@ final class SearchModel {
     private var pagesLoaded = false
     private var pagesTried = false
     private var calendarTried = false
+    /// A calendar read is in flight: a place's page waits on it rather than start another (place-pages 05).
+    @ObservationIgnored private var calendarReading = false
     @ObservationIgnored private var latestCalendar = 0
     /// What the tab was showing, kept across tab switches as Instagram keeps it.
     var chip = SearchChip.all
@@ -383,6 +385,8 @@ final class SearchModel {
     /// the Town feed shows on the next visit. The list on screen stays through a read and a failed one. Under DEBUG
     /// `-town-samples` it is You's invented Events, and `-town-offline` fails.
     func loadCalendar() async {
+        calendarReading = true
+        defer { calendarReading = false }
         latestCalendar += 1
         let mine = latestCalendar
         if calendar == nil { calendarFailed = false }
@@ -401,16 +405,21 @@ final class SearchModel {
     /// A place's page's Events (place-pages 05): the Event calendar, read here when Search hasn't yet, and the
     /// place's Event ids.
     func loadPlaceEvents(_ entry: String) async {
-        if calendar == nil { await loadCalendar() }
-        guard placeEventIDs[entry] == nil else { return }
+        // Both at once. Never a second calendar read over Search's own: a newer read drops the one in flight.
+        let needsCalendar = calendar == nil && !calendarReading
+        async let calendarRead: Void = needsCalendar ? loadCalendar() : ()
+        guard placeEventIDs[entry] == nil else { return await calendarRead }
         #if DEBUG
         if LaunchFlags.backend == .samples {
+            await calendarRead
             placeEventIDs[entry] = Set((calendar ?? []).prefix(6).map(\.id))
             return
         }
         #endif
         let first = Town.day(EventCalendar.month(of: Date()))
-        if let ids = try? await api.getPlaceEventIDs(entry, from: first) { placeEventIDs[entry] = ids }
+        let ids = try? await api.getPlaceEventIDs(entry, from: first)
+        await calendarRead
+        if let ids { placeEventIDs[entry] = ids }
     }
 
     private func readCalendar() async throws -> [UpcomingEvent] {

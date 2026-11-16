@@ -71,6 +71,12 @@ enum EventCalendar {
         return Array(repeating: nil, count: (lead + 7) % 7) + days
     }
 
+    /// A week of days, Sunday first: the weekday names over a grid ("Sun" … "Sat").
+    static var week: [Date] {
+        grid(month(of: Date())).compactMap { $0 }.prefix(7)
+            .sorted { calendar.component(.weekday, from: $0) < calendar.component(.weekday, from: $1) }
+    }
+
     /// Every day of the months, in order.
     static func days(_ months: [Date]) -> [Date] {
         months.flatMap { grid($0).compactMap { $0 } }
@@ -225,10 +231,8 @@ struct EventCalendarView: View {
     }
 
     private var weekdays: some View {
-        let week = EventCalendar.grid(EventCalendar.month(of: Date())).compactMap { $0 }.prefix(7)
-            .sorted { EventCalendar.calendar.component(.weekday, from: $0) < EventCalendar.calendar.component(.weekday, from: $1) }
-        return HStack(spacing: 0) {
-            ForEach(week, id: \.self) { weekday in
+        HStack(spacing: 0) {
+            ForEach(EventCalendar.week, id: \.self) { weekday in
                 Text(Town.format(weekday, "EEE"))
                     .font(.sansMedium(13))
                     .foregroundStyle(Hue.inkSecondary)
@@ -395,6 +399,8 @@ struct CalendarRow: View {
     var lead: CGFloat = CalendarMetric.rowLead
     var vertical: CGFloat = CalendarMetric.rowVertical
     var trail: CGFloat = CalendarMetric.rowTrail
+    /// The heart's circle: Search's grey on its white card; a darker wash where the row sits on that grey (place-pages 05).
+    var heartFill: Color = Hue.fill
     /// Set where the row sits outside a navigation stack (a place's page opened over the whole app): the tap
     /// goes here instead of pushing.
     @Environment(\.openEvent) private var openEvent
@@ -458,7 +464,7 @@ struct CalendarRow: View {
                     glyph.scaleEffect(reduceMotion ? 1 : scale)
                 } animation: { _ in .spring(response: 0.3, dampingFraction: 0.5) }
                 .frame(width: CalendarMetric.heartCircle, height: CalendarMetric.heartCircle)
-                .background(Circle().fill(Hue.fill))
+                .background(Circle().fill(heartFill))
                 .frame(width: PageMetric.tapMin, height: PageMetric.tapMin)
                 .contentShape(Rectangle())
         }
