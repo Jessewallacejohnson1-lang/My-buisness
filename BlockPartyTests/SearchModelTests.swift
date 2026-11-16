@@ -578,6 +578,56 @@ final class SearchModelTests: XCTestCase {
         XCTAssertTrue(model.chips.contains(.sports))
     }
 
+    /// The Sports chip (school-search 10): the sports the schools play, this season's first, each with its teams from
+    /// high school up, colleges first, then the high schools A to Z, Boys before Girls; Kennedy's teams stay out.
+    func testSportsListsSportsThenTheirTeams() {
+        let model = SearchModel(supabase: supabase, defaults: defaults)
+        let november = Town.calendar.date(from: DateComponents(year: 2026, month: 11, day: 16))!
+        model.show(schools: [school("kennedy", "Kennedy", "Kennedy Community School"), school("rocori", "ROCORI"),
+                             school("saint-johns", "Saint John's"), school("apollo", "Apollo")],
+                   activities: [SchoolActivity(id: "r1", teamId: "rocori", name: "Basketball - Girls"),
+                                SchoolActivity(id: "r2", teamId: "rocori", name: "Basketball - Boys"),
+                                SchoolActivity(id: "a1", teamId: "apollo", name: "Volleyball (girls)"),
+                                SchoolActivity(id: "a2", teamId: "apollo", name: "Boys Alpine Ski"),
+                                SchoolActivity(id: "a3", teamId: "apollo", name: "Band"),
+                                SchoolActivity(id: "j1", teamId: "saint-johns", name: "Basketball"),
+                                SchoolActivity(id: "j2", teamId: "saint-johns", name: "SJU Club Hockey"),
+                                SchoolActivity(id: "k1", teamId: "kennedy", name: "Boys Basketball 6-8"),
+                                SchoolActivity(id: "k2", teamId: "kennedy", name: "Girls Soccer 7-8")],
+                   now: november)
+        XCTAssertEqual(model.sports.map(\.name), ["Basketball", "Hockey", "Skiing", "Volleyball"],
+                       "winter first in November; a sport with no team from high school up is left out")
+        let basketball = model.sports[0]
+        XCTAssertEqual(basketball.symbol, "figure.basketball")
+        XCTAssertEqual(basketball.teams.map(\.school), ["Saint John's", "ROCORI", "ROCORI"], "the college first")
+        XCTAssertEqual(basketball.teams.map(\.variant), ["", "Boys", "Girls"])
+        XCTAssertEqual(basketball.teams[1].item.team?.id, "u-rocori", "a team opens its school's page")
+        XCTAssertEqual(basketball.teams[1].item.activity, FollowTarget(type: .activity, id: "r2"))
+        XCTAssertEqual(model.sports[1].teams.map(\.variant), ["Club"])
+        XCTAssertEqual(model.sports[2].teams.map(\.variant), ["Boys Alpine"])
+        let may = Town.calendar.date(from: DateComponents(year: 2027, month: 5, day: 1))!
+        XCTAssertEqual(LocalSports.ordered(now: may).prefix(2).map(\.name), ["Baseball", "Softball"], "spring first in May")
+    }
+
+    /// What tells a school's teams of one sport apart, read off the names the schools write.
+    func testSportTeamVariants() {
+        func variant(_ name: String) -> String? {
+            LocalSports.sport(of: name).map { LocalSports.variant(of: name, sport: $0) }
+        }
+        XCTAssertEqual(variant("Alpine Skiing - Boys"), "Boys Alpine")
+        XCTAssertEqual(variant("Swimming & Diving - Girls"), "Girls")
+        XCTAssertEqual(variant("Track and Field (boys)"), "Boys")
+        XCTAssertEqual(variant("Cross Country (girls)"), "Girls")
+        XCTAssertEqual(variant("Adapted Hockey (Adapted Floor Hockey)"), "Adapted Floor")
+        XCTAssertEqual(variant("Adapted Sports: Softball"), "Adapted")
+        XCTAssertEqual(variant("Softball (Fastpitch)"), "")
+        XCTAssertEqual(variant("Girls Flag Football"), "Girls Flag")
+        XCTAssertEqual(LocalSports.sport(of: "Nordic Ski Racing - Boys")?.name, "Skiing")
+        XCTAssertNil(variant("Band"))
+        XCTAssertNil(variant("Spartan Strength Training"))
+        XCTAssertNil(LocalSports.sport(of: "Skills USA"), "a sport word counts whole, never a word's start")
+    }
+
     /// Typing on the Sports chip finds what All finds of the schools, by the same match (school-search 01), and
     /// nothing else: a business named alike stays under All.
     func testSearchInsideSportsFindsSchoolsAndActivities() {
@@ -702,11 +752,12 @@ final class SearchModelTests: XCTestCase {
     private static let game = try? JSONDecoder().decode(
         Game.Lenient.self, from: Data(#"{"sport":"Soccer","teams":[{"name":"CSB"},{"name":"Hamline"}]}"#.utf8)).value
 
-    /// The pills are All, Businesses, Sports and Events: Groups and people left for Friends, Sports beside
-    /// Businesses as the mock draws it (school-search 04), the Event calendar right after All (BP app five-tabs 10),
-    /// and no Parks pill (BP app search-titles 01).
-    func testFivePills() {
-        XCTAssertEqual(SearchChip.allCases.map(\.title), ["All", "Event calendar", "Businesses", "Sports", "Events"])
+    /// The pills are All, Businesses, Sports, Schools and Events: Groups and people left for Friends, Sports beside
+    /// Businesses as the mock draws it (school-search 04), Schools after it (school-search 10), the Event calendar
+    /// right after All (BP app five-tabs 10), and no Parks pill (BP app search-titles 01).
+    func testSixPills() {
+        XCTAssertEqual(SearchChip.allCases.map(\.title),
+                       ["All", "Event calendar", "Businesses", "Sports", "Schools", "Events"])
     }
 
     /// With the Parks pill gone, a park is still found by typing its name under All (search-titles 01).
@@ -716,12 +767,15 @@ final class SearchModelTests: XCTestCase {
                        "Centennial Park")
     }
 
-    /// Every pill wears "BlockParty." and its word over its prompt in a glass field, Sports alone dark (search-titles 02).
+    /// Every pill wears "BlockParty." and its word over its prompt in a glass field, Sports and Schools dark
+    /// (search-titles 02, school-search 10).
     func testEveryPillTitled() {
         let heads = SearchChip.allCases.map { SearchHead.of($0) }
-        XCTAssertEqual(heads.map(\.word), ["Search", "Calendar", "Businesses", "Sports", "Events"])
-        XCTAssertEqual(heads.map(\.prompt), ["Search", "Events", "Businesses", "Schools and teams", "Events"])
-        XCTAssertEqual(heads.map { $0.chipWordsOn == Hue.paper }, [false, false, false, true, false], "only Sports is dark")
+        XCTAssertEqual(heads.map(\.word), ["Search", "Calendar", "Businesses", "Sports", "Schools", "Events"])
+        XCTAssertEqual(heads.map(\.prompt),
+                       ["Search", "Events", "Businesses", "Sports and teams", "Schools and teams", "Events"])
+        XCTAssertEqual(heads.map { $0.chipWordsOn == Hue.paper }, [false, false, false, true, true, false],
+                       "Sports and Schools are dark")
     }
 
     /// Search's Events are the Town feed's: shimmering until it's read, then what's on or still to come
