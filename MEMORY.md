@@ -21,6 +21,12 @@ or its `docs/rules/` file and leaves here.
   2026-11-03): junk, a double or a misleading one is hidden by a migration that is applied and
   pushed to `main` with no yes, an exception to `AGENTS.md` rule 7; tell Jesse after. How: the BP
   app `source-registry` skill, "Report this morning's run".
+- 2026-11-15 — **A bp-build run ships on Check-in 1's yes when its proof matches** (Jesse,
+  2026-11-15): his yes to the mock or the plan covers the merge and the push to `main` with no
+  "Merge?", an exception to `AGENTS.md` rule 7, while every line of the test holds. A glass or
+  chrome change, a live database change that was not on Check-in 1's list, a value picked after
+  his yes or any guessed value, and a `/implement-spec` run still ask. Tell Jesse after, with the
+  proof page. The test: the BP app `bp-build` skill, step 6.
 
 ## What this product is
 
