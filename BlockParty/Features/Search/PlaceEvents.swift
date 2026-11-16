@@ -64,7 +64,8 @@ enum PlaceEventsMetric {
     static let gridSide: CGFloat = 10
     static let gridTop: CGFloat = 8
     static let gridBottom: CGFloat = 4
-    static let rowGap: CGFloat = 8
+    /// 4 between 44 pt tap rows keeps the mock's 48 pt pitch of 40 pt discs 8 apart.
+    static let rowGap: CGFloat = 4
     static let dayTitleTop: CGFloat = 10
     static let dayTitleBottom: CGFloat = 2
     static let rowPhoto: CGFloat = 48
