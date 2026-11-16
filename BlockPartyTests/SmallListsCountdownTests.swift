@@ -75,7 +75,7 @@ final class SmallListsCountdownTests: XCTestCase {
         XCTAssertEqual(today.spoken, "Starts in 20 minutes")
         XCTAssertEqual(AgendaCards.when(music, now: at(18, 40), withDay: true, pill: nil).text, "In 20 min", "Liked")
         XCTAssertEqual(AgendaCards.when(music, now: at(19), withDay: true, pill: nil).text, "Now")
-        XCTAssertEqual(plain(AgendaCards.when(music, now: at(12), withDay: true, pill: nil).text), "Today · 7 PM")
+        XCTAssertEqual(plain(AgendaCards.when(music, now: at(12), withDay: true, pill: nil).text), "Tonight · 7 PM")
         XCTAssertNotEqual(AgendaCards.when(music, now: at(18, 40), withDay: true, pill: "Soon").text, "In 20 min",
                           "beside the next plan's pill, which already says how far off")
     }
