@@ -2006,7 +2006,7 @@ Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2
 id: church-life-of-river
 status: active
 tier: listed
-category: nonprofits-charities
+category: church
 added_by: agent:discover
 address: "1300 Jade Rd"
 sources:
@@ -2278,7 +2278,8 @@ id: church-jospehs-st
 aka: ["St. Joseph Catholic Church", "Saint Joseph Catholic Church", "St. Joseph Parish"]
 status: active
 tier: watched
-category: amenity=place_of_worship
+category: catholic_church
+place_type: "Church"
 added_by: agent:discover
 address: "12 W Minnesota St"
 phone: "+13203637505"
@@ -8685,7 +8686,7 @@ Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submi
 id: kidstop
 status: active
 tier: watched
-category: "coffee_shop"
+category: "day_care_center"
 place_type: "School / college"
 address: "1300 Jade Rd"
 phone: "(320) 363-4737"
@@ -9021,7 +9022,7 @@ Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists
 id: st-wendel-tamarack-bog-scientific-natura
 status: proposed
 tier: listed
-category: "political_organization"
+category: "park"
 place_type: "Park / historic"
 address: "County Road 4"
 phone: "6512595800"
