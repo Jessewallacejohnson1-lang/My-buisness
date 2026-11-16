@@ -450,39 +450,92 @@ final class SearchModel {
     /// activity is found by its own name, never its school's, counts for less, and sits after the schools named
     /// (school-search 01), the closest match first, then its school's place in the row: Kennedy's first.
     func results(for words: String, in chip: SearchChip) -> [(kind: SearchItem.Kind, items: [SearchItem])] {
+        ranked(words, in: chip).sections.map { ($0.kind, $0.hits.map(\.item)) }
+    }
+
+    /// Every match in one list, best first, as typed results show them (search-helpful 03): the sections' rows
+    /// merged by score, the same score keeping `results`' order; a section that loaded after these words were
+    /// typed stays at the end, so nothing jumps in above the finger. `sticky` false only asks, for the no-match
+    /// page's chips, and leaves the remembered order alone.
+    func matches(for words: String, in chip: SearchChip, sticky: Bool = true) -> [SearchItem] {
+        let (sections, late) = ranked(words, in: chip, sticky: sticky)
+        var settled: [(hit: Hit, section: Int, at: Int)] = []
+        for (s, section) in sections.dropLast(late).enumerated() {
+            for (at, hit) in section.hits.enumerated() { settled.append((hit, s, at)) }
+        }
+        settled.sort { a, b in
+            a.hit.score != b.hit.score ? a.hit.score > b.hit.score : (a.section, a.at) < (b.section, b.at)
+        }
+        return settled.map(\.hit.item) + sections.suffix(late).flatMap { $0.hits.map(\.item) }
+    }
+
+    /// A row found by the words, with what it scored.
+    private struct Hit {
+        let item: SearchItem
+        let score: Double
+    }
+
+    /// The rows of one kind, best first.
+    private struct Section {
+        let kind: SearchItem.Kind
+        var hits: [Hit]
+        var best: Double { hits.map(\.score).max() ?? 0 }
+    }
+
+    /// `results`' sections with each row's score, and how many at the end loaded after the words were typed.
+    private func ranked(_ words: String, in chip: SearchChip, sticky: Bool = true) -> (sections: [Section], late: Int) {
         let q = words.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !q.isEmpty else { return [] }
-        var scored = items.filter { chip.resultKinds.contains($0.kind) }.compactMap { item in
+        guard !q.isEmpty else { return ([], 0) }
+        var scored: [(hit: Hit, raw: Double)] = []
+        for item in items where chip.resultKinds.contains(item.kind) {
             let found = [item.card?.hostName, item.card?.location, item.townGroup?.location].compactMap { $0 }
-            return TownSearch.score(q, name: item.name, extra: (item.activity == nil ? [item.sub ?? ""] : []) + found,
-                                    aliases: item.keywords)
-                .map { (item: item, score: item.activity == nil ? $0 : $0 - Self.activityDiscount, raw: $0) }
+            let extra = (item.activity == nil ? [item.sub ?? ""] : []) + found
+            guard let raw = TownSearch.score(q, name: item.name, extra: extra, aliases: item.keywords) else { continue }
+            scored.append((Hit(item: item, score: item.activity == nil ? raw : raw - Self.activityDiscount), raw))
         }
         if scored.contains(where: { $0.raw >= TownSearch.typoCeiling }) { scored.removeAll { $0.raw < TownSearch.typoCeiling } }
-        var sections = chip.resultKinds.compactMap { kind -> (kind: SearchItem.Kind, items: [SearchItem], best: Double)? in
-            let hits = scored.filter { $0.item.kind == kind }
+        var sections: [Section] = chip.resultKinds.compactMap { kind in
+            let hits = scored.map(\.hit).filter { $0.item.kind == kind }
                 .sorted { a, b in
                     let (x, y) = (a.item.activity != nil, b.item.activity != nil)
                     if x != y { return y }
                     if x && a.score == b.score { return a.item.rank < b.item.rank }
                     return a.score > b.score
                 }
-            return hits.first.map { _ in (kind, hits.map(\.item), hits.map(\.score).max()!) }
+            return hits.isEmpty ? nil : Section(kind: kind, hits: hits)
         }
         if sections.contains(where: { $0.kind != .school }), let i = sections.firstIndex(where: { $0.kind == .school }) {
-            let hits = sections[i].items
-            sections[i].items = hits.filter { $0.activity == nil } + hits.filter { $0.activity != nil }.prefix(Self.activitiesMax)
+            let hits = sections[i].hits
+            sections[i].hits = hits.filter { $0.item.activity == nil } + hits.filter { $0.item.activity != nil }.prefix(Self.activitiesMax)
         }
         // Stable: ties keep the mockup's order, which `sections` is already in.
-        var kinds = sections.enumerated().sorted { ($1.element.best, $0.offset) < ($0.element.best, $1.offset) }.map(\.element.kind)
+        var kinds = sections.enumerated().sorted { a, b in
+            a.element.best != b.element.best ? a.element.best > b.element.best : a.offset < b.offset
+        }.map(\.element.kind)
         let key = "\(chip)|\(q)"
+        var late = 0
         if sectionOrder.key == key {
             let kept = sectionOrder.kinds.filter { kinds.contains($0) }
+            late = kinds.count - kept.count
             kinds = kept + kinds.filter { !kept.contains($0) }
         }
-        sectionOrder = (key, kinds)
-        return kinds.compactMap { kind in sections.first { $0.kind == kind }.map { ($0.kind, $0.items) } }
+        if sticky { sectionOrder = (key, kinds) }
+        return (kinds.compactMap { kind in sections.first { $0.kind == kind } }, late)
     }
+
+    /// What the empty field offers above Recent under All, each typing its words (search-helpful 03; Nextdoor's
+    /// Trending chips). Tonight and This weekend wait for the time words of fix 5.
+    static let tryWords = ["Coffee", "Pizza", "Live music", "Trivia", "Parks", "Kids"]
+
+    /// The no-match page's chips: the Try words that find something on this pill, 3 at most.
+    func nearby(_ words: String, in chip: SearchChip) -> [String] {
+        let typed = words.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return Array(Self.tryWords.filter { $0.lowercased() != typed && !matches(for: $0, in: chip, sticky: false).isEmpty }
+            .prefix(3))
+    }
+
+    /// The no-match page's shelf: the Events of the next seven days, soonest first.
+    var thisWeek: [SearchItem] { row(.event).filter { $0.group != "Later" } }
 
     // MARK: Recents
 

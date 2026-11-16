@@ -427,6 +427,42 @@ final class SearchModelTests: XCTestCase {
         XCTAssertEqual(Set(hits.dropFirst().flatMap(\.items).map(\.name)), ["Trivia Night", "Knitting Circle"])
     }
 
+    // MARK: Never a dead end (BP app search-helpful 03)
+
+    /// Typed results are one list, best first across kinds; the same score keeps the sections' order.
+    func testOneListBestFirst() {
+        let model = SearchModel(supabase: supabase, defaults: defaults)
+        model.show([TownGroup(id: "b", name: "Bingo"), TownGroup(id: "l", name: "Bingo Lovers Society Club")])
+        model.show(events: [card("Bingo Night", time: "6:30 PM")], now: at(3, 10))
+        XCTAssertEqual(model.results(for: "bingo", in: .all).flatMap(\.items).map(\.name),
+                       ["Bingo", "Bingo Lovers Society Club", "Bingo Night"], "sections keep their rows together")
+        XCTAssertEqual(model.matches(for: "bingo", in: .all).map(\.name),
+                       ["Bingo", "Bingo Night", "Bingo Lovers Society Club"], "one list: the Event's closer name comes second")
+    }
+
+    /// Rows that load after the words were typed join the one list at its end.
+    func testLateRowsJoinTheEnd() {
+        let model = SearchModel(supabase: supabase, defaults: defaults)
+        model.show([TownGroup(id: "l", name: "Bingo Lovers Society Club")])
+        XCTAssertEqual(model.matches(for: "bingo", in: .all).map(\.name), ["Bingo Lovers Society Club"])
+        model.show(events: [card("Bingo", time: "6:30 PM")], now: at(3, 10))
+        XCTAssertEqual(model.matches(for: "bingo", in: .all).map(\.name), ["Bingo Lovers Society Club", "Bingo"])
+        XCTAssertEqual(model.matches(for: "bing", in: .all).map(\.name), ["Bingo", "Bingo Lovers Society Club"])
+    }
+
+    /// No match offers the Try words that find something on the pill, 3 at most, and this week's Events.
+    func testNoMatchOffersWhatThereIs() {
+        let model = SearchModel(supabase: supabase, defaults: defaults)
+        model.show([poi("stjoe-gary", "Gary's Pizza", .food, "pizza_restaurant"),
+                    poi("stjoe-blend", "The Local Blend", .food, "coffee_shop")])
+        model.show(events: [card("Trivia Night", time: "7 PM"), card("Later", day: "2026-11-20", time: "7 PM")], now: at(3, 10))
+        XCTAssertTrue(model.matches(for: "karaoke", in: .all).isEmpty)
+        XCTAssertEqual(model.nearby("karaoke", in: .all), ["Coffee", "Pizza", "Trivia"])
+        XCTAssertEqual(model.nearby("pizza", in: .all), ["Coffee", "Trivia", "Parks"], "never the words typed")
+        XCTAssertEqual(model.nearby("karaoke", in: .events), ["Trivia"])
+        XCTAssertEqual(model.thisWeek.map(\.name), ["Trivia Night"])
+    }
+
     /// The section order stays put while the words don't change: a section that loads late joins at the end.
     func testSectionOrderStaysPutWhileTheWordsDo() {
         let model = SearchModel(supabase: supabase, defaults: defaults)

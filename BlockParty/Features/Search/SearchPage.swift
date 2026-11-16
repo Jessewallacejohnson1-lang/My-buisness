@@ -92,6 +92,11 @@ nonisolated enum SearchMetric {
     static let sectionTop: CGFloat = 14
     static let sectionBottom: CGFloat = 6
     static let noneTop: CGFloat = 90
+    /// The no-match line and the word chips, from the never-a-dead-end mock (search-helpful 03).
+    static let noMatchTop: CGFloat = 18
+    static let noMatchBottom: CGFloat = 8
+    static let wordChipsTop: CGFloat = 4
+    static let wordChipsBottom: CGFloat = 6
     /// A typed activity's star before its school's crest, and its › (school-search 01): the mock's 26 pt box,
     /// its 19 pt star and its 6 by 10 pt ›, measured.
     static let star: CGFloat = 26
@@ -450,6 +455,11 @@ struct SearchPage: View {
             }
         case .recents:
             let recents = model.recents(in: model.chip)
+            // A first visit is never a blank page: Nextdoor's Trending chips, under All only (search-helpful 03).
+            if model.chip == .all {
+                SectionTitle(text: "Try")
+                WordChips(words: SearchModel.tryWords) { model.words = $0.lowercased() }
+            }
             if !recents.isEmpty {
                 SectionTitle(text: "Recent")
                 ForEach(recents) { recent in
@@ -461,18 +471,26 @@ struct SearchPage: View {
                 .transition(.opacity)
             }
         case .results(let chip):
-            let sections = model.results(for: model.words, in: chip)
+            // One list, best first, no section titles (search-helpful 03, Instagram's typed results).
+            let matches = model.matches(for: model.words, in: chip)
             // Less anyone you just blocked (ticket 04).
             let people = book.visible(chip == .all ? model.people.state : .idle)
-            if sections.isEmpty && !people.hasRows {
+            if matches.isEmpty && !people.hasRows {
                 // Nothing here yet: wait for the neighbours' answer before saying so.
-                if people != .loading { NothingFound() }
-            } else {
-                ForEach(sections, id: \.kind) { section in
-                    if chip.resultKinds.count > 1 { SectionTitle(text: SearchPage.sectionTitle(section.kind)) }
-                    ForEach(section.items) { ItemRow(item: $0) }
+                if people != .loading {
+                    NoMatch(words: model.words.trimmingCharacters(in: .whitespacesAndNewlines),
+                            chips: model.nearby(model.words, in: chip),
+                            week: chip == .all || chip == .events ? model.thisWeek : []) { model.words = $0.lowercased() }
                 }
-                PeopleResults(state: people, titled: chip.resultKinds.count > 1)
+            } else {
+                // While typing, the words are row 1: a tap, like the keyboard's Search key, puts the keyboard
+                // away on the results (Instagram's words row).
+                if fieldFocused {
+                    QueryRow(words: model.words.trimmingCharacters(in: .whitespacesAndNewlines), glyph: "magnifyingglass",
+                             removable: false) { submit() }
+                }
+                ForEach(matches) { ItemRow(item: $0) }
+                PeopleResults(state: people, titled: false)
             }
         }
     }
@@ -1043,6 +1061,9 @@ struct ItemRow: View {
 /// Words searched before: tapping one types them again.
 private struct QueryRow: View {
     let words: String
+    /// Recent's clock, or the typed words' magnifier (search-helpful 03).
+    var glyph = "clock"
+    var removable = true
     let onTap: () -> Void
     @Environment(SearchModel.self) private var model
 
@@ -1050,7 +1071,7 @@ private struct QueryRow: View {
         ZStack(alignment: .trailing) {
             Button(action: onTap) {
                 HStack(spacing: SearchMetric.rowGap) {
-                    Image(systemName: "clock")
+                    Image(systemName: glyph)
                         .font(.glyph(18, weight: .light))
                         .foregroundStyle(Hue.ink)
                         .frame(width: SearchMetric.avatar, height: SearchMetric.avatar)
@@ -1066,9 +1087,62 @@ private struct QueryRow: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.press(.row))
-            RemoveButton(name: words) {
-                withAnimation(.spring(response: 0.3, dampingFraction: 1)) { model.forget(SearchModel.queryID(words)) }
+            if removable {
+                RemoveButton(name: words) {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 1)) { model.forget(SearchModel.queryID(words)) }
+                }
             }
+        }
+    }
+}
+
+/// Words to search, as outlined pills like the unpicked Search pills, wrapping: Try above Recent, and the
+/// no-match page's nearest things (search-helpful 03, Nextdoor's Trending). A tap types the words.
+private struct WordChips: View {
+    let words: [String]
+    let pick: (String) -> Void
+
+    var body: some View {
+        FlowLayout(spacing: SearchMetric.chipGap) {
+            ForEach(words, id: \.self) { word in
+                Button { pick(word) } label: {
+                    Text(word)
+                        .font(.sansSemibold(14))
+                        .foregroundStyle(Hue.ink)
+                        .padding(.horizontal, SearchMetric.chipPad)
+                        .frame(height: SearchMetric.chipHeight)
+                        .background(Capsule().strokeBorder(Hue.searchChipEdge, lineWidth: 1))
+                        .contentShape(Rectangle().inset(by: (SearchMetric.chipHeight - PageMetric.tapMin) / 2))
+                }
+                .buttonStyle(.press(.squish))
+            }
+        }
+        .padding(.horizontal, SearchMetric.side)
+        .padding(.top, SearchMetric.wordChipsTop)
+        .padding(.bottom, SearchMetric.wordChipsBottom)
+    }
+}
+
+/// Nothing matched: one short line, then what Block Party does have, the nearest words and this week's Events,
+/// so Search never ends on a blank page (search-helpful 03, the mock Jesse passed).
+private struct NoMatch: View {
+    let words: String
+    let chips: [String]
+    let week: [SearchItem]
+    let pick: (String) -> Void
+
+    var body: some View {
+        Text("No match for \u{201C}\(words)\u{201D}")
+            .font(.sansSemibold(15))
+            .foregroundStyle(Hue.ink)
+            .lineLimit(2)
+            .padding(.horizontal, SearchMetric.side)
+            .padding(.top, SearchMetric.noMatchTop)
+            .padding(.bottom, SearchMetric.noMatchBottom)
+        if !chips.isEmpty { WordChips(words: chips, pick: pick) }
+        if !week.isEmpty {
+            ShelfTitle(title: "This week", shelf: SearchShelf(kind: .event, title: "This week", items: week))
+            Shelf(kind: .event, items: week)
         }
     }
 }
