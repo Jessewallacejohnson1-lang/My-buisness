@@ -764,6 +764,10 @@ final class SearchModelTests: XCTestCase {
         XCTAssertEqual(model.matches(for: "basketball", in: .all).first?.card?.title, "Basketball vs Sartell")
         XCTAssertEqual(model.matches(for: "basketball", in: .calendar).count, 1, "the calendar pill's typing finds it too")
         XCTAssertEqual(model.row(.event).map(\.name), ["Bingo Night"], "the Events pill stays the Town feed's")
+        var hosted = card("Bingo Night", time: "6:30 PM")
+        hosted.hostName = "Legion"
+        model.show(calendar: [hosted].compactMap(YouCalendar.event(from:)), now: now)
+        XCTAssertEqual(model.matches(for: "bingo", in: .all).count, 1, "the same Event, its host said only by the calendar")
     }
 
     /// The Town feed's News is found by its headline and its place, says it is News, and opens as its card does.

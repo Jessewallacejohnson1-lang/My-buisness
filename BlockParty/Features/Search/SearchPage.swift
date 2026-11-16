@@ -480,7 +480,7 @@ struct SearchPage: View {
             let people = book.visible(chip == .all ? model.people.state : .idle)
             if matches.isEmpty && !people.hasRows {
                 // Nothing here yet: wait for the neighbours' answer and the pill's rows before saying so.
-                if people != .loading && !chip.resultKinds.contains(where: model.isLoading) {
+                if people != .loading && !chip.resultKinds.contains(where: model.isLoading) && !model.typingFindsMoreSoon {
                     NoMatch(words: model.words.trimmingCharacters(in: .whitespacesAndNewlines),
                             chips: model.nearby(in: chip),
                             week: chip == .all || chip == .events ? model.thisWeek : []) { model.words = $0.lowercased() }

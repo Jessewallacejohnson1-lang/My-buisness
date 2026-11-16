@@ -413,8 +413,9 @@ final class SearchModel {
     /// play's four nights, a weekly class), and none the Town feed already shows (search-helpful 07).
     private func findCalendar(now: Date) {
         func key(_ item: SearchItem) -> String { item.name.lowercased() + "|" + (item.card?.hostName ?? "") }
-        var seen = Set(events.map(key))
-        calendarOnly = Self.events(from: calendar?.map(\.item) ?? [], now: now).filter { seen.insert(key($0)).inserted }
+        var seen = Set(events.map(key)), shown = Set(events.map(\.id))
+        calendarOnly = Self.events(from: calendar?.map(\.item) ?? [], now: now)
+            .filter { !shown.contains($0.id) && seen.insert(key($0)).inserted }
     }
 
     /// The Town feed's News (search-helpful 07), found by its headline and its place's name: its place's logo, else
@@ -492,6 +493,9 @@ final class SearchModel {
     }
 
     /// Whether a kind's row is still waiting on Supabase.
+    /// What only typing finds is still on its way (search-helpful 07): No match waits for it, as for the rows.
+    var typingFindsMoreSoon: Bool { !pagesLoaded || (calendar == nil && !calendarFailed) }
+
     func isLoading(_ kind: SearchItem.Kind) -> Bool {
         (!placesLoaded && [.business, .restaurant, .coffee].contains(kind)) || (!groupsLoaded && kind == .club)
             || (!eventsLoaded && kind == .event) || (!schoolsLoaded && kind == .school)
