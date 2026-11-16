@@ -225,6 +225,10 @@ test("a school's own Event names its school, with its card's logo, before the ve
     insert into public.place_photos (entry_id, url, source_url, kind, status, position) values
       ('test-high-school', 'https://pic/card-logo', 'https://test.example/', 'logo', 'live', 1)`);
   assert.equal((await at('Test High School')).picture, 'https://pic/card-logo', "the card's logo when it has one");
+  await db.query(`insert into public.places (id, name, lat, lon, family, primary_type, entry_id) values
+                  ('00000000-0000-0000-0000-000000000902', 'Test High Place', 45.5, -94.3, 'food', 'cafe', 'test-high-school')`);
+  assert.equal((await at('Test High School', true)).name, 'Test High Place', 'a place of its own still comes first');
+  await db.exec(`delete from public.places where entry_id = 'test-high-school'`);
   const [{ uuid }] = (await db.query(`select uuid from public.teams where id = 'test-high'`)).rows;
   const [{ target_id }] = await as(CAL, 'select target_id from public.event_host($1)', [await event('Game', 'Test High School', 3)]);
   assert.equal(target_id, uuid, 'the team a follow keys by');
