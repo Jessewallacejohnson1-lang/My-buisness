@@ -419,7 +419,9 @@ final class SearchModelTests: XCTestCase {
         trivia.location = "Bad Habit taproom"
         model.show(events: [trivia], now: at(3, 10))
         model.show([poi("stjoe-bad-habit", "Bad Habit Brewing", .food, "brewery")])
-        model.show([TownGroup(id: "k", name: "Knitting Circle", location: "Bad Habit taproom")])
+        var knitting = TownGroup(id: "k", name: "Knitting Circle")
+        knitting.location = "Bad Habit taproom"
+        model.show([knitting])
         let hits = model.results(for: "bad habit", in: .all)
         XCTAssertEqual(hits.first?.items.map(\.name), ["Bad Habit Brewing"], "the place named first")
         XCTAssertEqual(Set(hits.dropFirst().flatMap(\.items).map(\.name)), ["Trivia Night", "Knitting Circle"])
@@ -491,7 +493,8 @@ final class SearchModelTests: XCTestCase {
                        "every word matched, the closer first")
         XCTAssertNil(schools("kennedy")[0].activity, "a school has no star: its page has Follow")
         XCTAssertEqual(schools("apollo band").map(\.name), [], "an activity is found by its own name")
-        XCTAssertEqual(model.results(for: "volleyball", in: .all).map(\.kind), [.school])
+        XCTAssertEqual(model.results(for: "volleyball", in: .all).map(\.kind), [.park, .school],
+                       "a park's volleyball court above teams whose names only start with the word (search-helpful 02)")
         XCTAssertTrue(model.results(for: "volleyball", in: .businesses).isEmpty)
     }
 
