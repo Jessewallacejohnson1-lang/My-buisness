@@ -16,7 +16,7 @@ final class SearchRowLineTests: XCTestCase {
 
     private func event(day: String, time: String?, going: Int = 0, friends: [String] = [],
                        location: String? = "The House Food & Tap, St. Joseph, MN") -> SearchItem {
-        let card = FeedCardItem(id: "e", title: "Trivia Night", dateChip: "", metaLine: "", image: .fallback,
+        let card = FeedCardItem(id: "e", title: "Trivia Night", dateChip: "", metaLine: "", image: .fallback, recurrence: nil,
                                 goingCount: going, goingAvatars: [],
                                 friendsGoing: friends.map { FeedFriend(name: $0, photo: nil) },
                                 likeCount: 0, isLiked: false, isJoined: false, eventDate: day, startTime: time,
@@ -27,9 +27,10 @@ final class SearchRowLineTests: XCTestCase {
     func testAnEventSaysWhenThenItsPlace() {
         let monday = at(16, 10, 40)
         XCTAssertEqual(event(day: "2026-11-16", time: "7 PM").rowLine(monday), "Tonight 7 PM · The House Food & Tap")
-        XCTAssertEqual(event(day: "2026-11-16", time: "11 AM").rowLine(monday), "Today 11 AM · The House Food & Tap")
+        XCTAssertEqual(event(day: "2026-11-16", time: "1 PM").rowLine(monday), "Today 1 PM · The House Food & Tap")
         XCTAssertEqual(event(day: "2026-11-17", time: "6:30 PM").rowLine(monday), "Tomorrow 6:30 PM · The House Food & Tap")
         XCTAssertEqual(event(day: "2026-11-19", time: "6:30 PM").rowLine(monday), "Thu 6:30 PM · The House Food & Tap")
+        XCTAssertEqual(event(day: "2026-11-16", time: "11 AM").rowLine(monday), "In 20 min · The House Food & Tap")
         XCTAssertEqual(event(day: "2026-11-28", time: "7 PM").rowLine(monday), "Nov 28, 7 PM · The House Food & Tap")
         XCTAssertEqual(event(day: "2026-11-19", time: nil, location: nil).rowLine(monday), "Thu", "no time, no place")
     }
