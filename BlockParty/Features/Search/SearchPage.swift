@@ -186,7 +186,7 @@ struct SearchPage: View {
     @Environment(FriendsBook.self) private var book
 
     private enum Mode: Hashable {
-        case rest, wall, sports, calendar, groups(SearchItem.Kind), recents, results(SearchChip)
+        case rest, wall, sports, schools, calendar, groups(SearchItem.Kind), recents, results(SearchChip)
     }
 
     private var mode: Mode {
@@ -196,14 +196,18 @@ struct SearchPage: View {
         case .all: return .rest
         case .businesses: return .wall
         case .sports: return .sports
+        case .schools: return .schools
         case .calendar: return .calendar
         case .events: return .groups(.event)
         }
     }
 
-    /// The Sports chip turns the page to the app's dark colours, searching and typed results included
+    /// The Sports and Schools chips turn the page to the app's dark colours, searching and typed results included
     /// (school-search 04): the mock Jesse picked.
-    private var sports: Bool { model.chip == .sports }
+    private var sports: Bool { model.chip.isDark }
+
+    /// The grids that carry the header away with their scroll, as the mock's field and pills scroll with the discs.
+    private var carries: Bool { mode == .sports || mode == .schools }
 
     private var head: SearchHead { .of(model.chip) }
 
@@ -222,6 +226,9 @@ struct SearchPage: View {
         .following(tilt)
         .navigationDestination(for: SearchShelf.self) { shelf in
             SearchShelfPage(shelf: shelf).environment(model)
+        }
+        .navigationDestination(for: SportShelf.self) { sport in
+            SportPage(sport: sport).environment(model)
         }
         .task {
             await model.load()
@@ -275,7 +282,7 @@ struct SearchPage: View {
         // (Instagram's top edge): drawn from the screen's top, so on Sports it is the same slice of the fade. None
         // while the Sports grid carries the header: nothing ever passes under it.
         .background(alignment: .top) {
-            if mode != .sports {
+            if !carries {
                 ground
                     .mask {
                         VStack(spacing: 0) {
@@ -424,7 +431,7 @@ struct SearchPage: View {
             .scrollDismissesKeyboard(.immediately)
             // The Sports grid carries the header with it; every other view keeps it pinned.
             .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y + $0.contentInsets.top } action: { _, y in
-                travel.points = mode == .sports ? y : 0
+                travel.points = carries ? y : 0
             }
             .id(mode)
             .transition(.asymmetric(insertion: .opacity.combined(with: .offset(y: SearchMetric.enterRise)),
@@ -444,6 +451,8 @@ struct SearchPage: View {
             LogoWall(items: model.row(.business))
         case .sports:
             SportsGrid()
+        case .schools:
+            SchoolsGrid()
         case .calendar:
             EventCalendarView()
         case .groups(let kind):
@@ -523,14 +532,14 @@ struct SearchPage: View {
 
     // MARK: Actions
 
-    /// A pill's tap, and "Schools ›" on the Schools row, which opens the Sports chip (school-search 04).
-    /// Into or out of Sports the page turns at once, as Instagram's dark Reels tab does: the whole page changes
+    /// A pill's tap, and "Schools ›" on the Schools row, which opens the Schools chip (school-search 10).
+    /// Into or out of Sports or Schools the page turns at once, as Instagram's dark Reels tab does: the whole page changes
     /// colour, glass draws where it lands rather than where it travels (swift-traps), and the ticket asks for no
     /// wait the reader can see. Between the other pills the selection slides as before.
     static func pick(_ c: SearchChip, in model: SearchModel, reduceMotion: Bool) {
         guard c != model.chip else { return }
         Haptics.selection()
-        if c == .sports || model.chip == .sports {
+        if c.isDark != model.chip.isDark {
             var turn = Transaction(animation: nil)
             turn.disablesAnimations = true
             withTransaction(turn) { model.chip = c }

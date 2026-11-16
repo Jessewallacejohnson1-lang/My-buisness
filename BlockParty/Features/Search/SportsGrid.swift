@@ -1,10 +1,11 @@
 //
 //  SportsGrid.swift
-//  Block Party — Search's Sports chip (BP app school-search 04): "BlockParty. Sports" where Apple Sports has its logo
-//  and "Sports", on the app's dark colours, over every local school's logo in Apple's discs, three to a row, colleges
-//  first, then high schools, then Kennedy. A disc opens the school's page (`TeamPage`). The header's sizes for this
-//  chip are `SearchHead.sports`; with nothing typed the field and pills ride the grid's scroll away, as the mock's do.
-//  Mock: `references/school-search/sports-bp-mock-2.html` (version 8).
+//  Block Party — Search's Sports and Schools chips (BP app school-search 04, 10): "BlockParty. Sports" where Apple
+//  Sports has its logo and "Sports", on the app's dark colours. Sports holds the sports in Apple's discs, three to a
+//  row, this season's first; a sport opens its page of teams (`SportPage`). Schools holds every local school's logo in
+//  the same discs, colleges first, then high schools, then Kennedy; a disc opens the school's page (`TeamPage`). With
+//  nothing typed the field and pills ride the grid's scroll away, as the mock's do.
+//  Mocks: `references/school-search/sports-bp-mock-2.html` (version 8), `references/sports-first/mock.html`.
 //
 
 import SwiftUI
@@ -48,6 +49,8 @@ nonisolated extension SearchMetric {
     static let discRowGap: CGFloat = 22
     static let discNameGap: CGFloat = 8
     static let discSkeletonName: CGFloat = 12
+    /// A team's second line under its school (Boys, Girls): the mock's fainter grey, the secondary ink at 62%.
+    static let discDetailInk: Double = 0.62
     /// A pressed disc sinks to the mock's 90%, its name holding still.
     static let discSink: CGFloat = 0.9
     /// Everything above every pill's content, from the safe area's top (search-titles 02).
@@ -75,6 +78,7 @@ struct SearchHead {
         case .calendar: light(word: "Calendar", prompt: "Events")
         case .businesses: light(word: "Businesses", prompt: "Businesses")
         case .sports: sports
+        case .schools: schools
         case .events: light(word: "Events", prompt: "Events")
         }
     }
@@ -82,8 +86,13 @@ struct SearchHead {
     /// Apple Sports' on the app's dark colours: a capsule of glass for the field, every pill glass, the prompt and
     /// magnifier in the dark ramp's grey.
     static let sports = SearchHead(
-        word: "Sports", prompt: "Schools and teams", faint: Hue.inkSecondary,
+        word: "Sports", prompt: "Sports and teams", faint: Hue.inkSecondary,
         chipGlass: .regular.tint(Hue.ink.opacity(SearchMetric.sportsChipGlass)), chipWordsOn: Hue.paper)
+
+    /// Sports' own, with its word (school-search 10).
+    static let schools = SearchHead(
+        word: "Schools", prompt: "Schools and teams", faint: sports.faint, chipGlass: sports.chipGlass,
+        chipWordsOn: sports.chipWordsOn)
 
     /// The Event calendar's (five-tabs 10), now every light pill's: the Sports header's shape, a round field and the
     /// pills in Search's own light colours (Jesse: "make it a lighter theme").
@@ -159,14 +168,79 @@ struct SportsFade: View {
     }
 }
 
-/// The Sports chip (school-search 04): every school's logo in Apple Sports' disc, three to a row, its short name
+/// The Schools chip (school-search 04, 10): every school's logo in Apple Sports' disc, three to a row, its short name
 /// under it, colleges first; a disc opens the school's page. Shimmering discs while the schools are read.
+struct SchoolsGrid: View {
+    @Environment(SearchModel.self) private var model
+
+    var body: some View {
+        DiscGrid(loading: model.isLoading(.school)) {
+            ForEach(model.schoolDiscs) { SchoolDisc(item: $0) }
+        }
+    }
+}
+
+/// The Sports chip (school-search 10, Jesse 2026-11-16: "i want sports on top then when you click into them you see
+/// teams"): each sport the schools play in Apple Sports' disc, its symbol in the logo's 45 pt box, its name under it,
+/// this season's first. A sport opens its page of teams. Shimmering discs while the schools are read.
 struct SportsGrid: View {
     @Environment(SearchModel.self) private var model
 
     var body: some View {
+        DiscGrid(loading: model.isLoading(.school)) {
+            ForEach(model.sports) { sport in
+                NavigationLink(value: sport) {
+                    DiscCell(name: sport.name) {
+                        SinkingDisc {
+                            Image(systemName: sport.symbol)
+                                .resizable()
+                                .scaledToFit()
+                                .foregroundStyle(Hue.ink)
+                                .frame(width: SearchMetric.discLogo, height: SearchMetric.discLogo)
+                        }
+                    }
+                }
+                .buttonStyle(DiscPress())
+                .accessibilityLabel(sport.name)
+            }
+        }
+    }
+}
+
+/// A sport's teams from high school up (school-search 10, Jesse 2026-11-16: "any teams highschool and up", "Circles,
+/// like sports"): its school's logo in the same disc, the school's short name under it and what tells its teams apart
+/// (Boys, Girls) under that, colleges first. A disc opens the school's page, as the activity's row does.
+struct SportPage: View {
+    let sport: SportShelf
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            SportsFade().ignoresSafeArea()
+            ScrollView {
+                DiscGrid(loading: false) {
+                    ForEach(sport.teams) { TeamDisc(team: $0) }
+                }
+                .padding(.top, PageMetric.bar)
+                .padding(.bottom, SearchMetric.tabBarClearance)
+            }
+            PageBar(title: sport.name) { dismiss() }
+                .background(alignment: .top) { SportsFade().ignoresSafeArea(edges: .top) }
+                .clipped()
+        }
+        .environment(\.colorScheme, .dark)
+        .toolbar(.hidden, for: .navigationBar)
+    }
+}
+
+/// Apple Sports' grid: three discs to a row, 24 pt under what's above, shimmering discs while it's read.
+private struct DiscGrid<Cells: View>: View {
+    let loading: Bool
+    @ViewBuilder let cells: Cells
+
+    var body: some View {
         Group {
-            if model.isLoading(.school) {
+            if loading {
                 grid {
                     ForEach(0..<9, id: \.self) { _ in
                         VStack(spacing: SearchMetric.discNameGap) {
@@ -182,12 +256,12 @@ struct SportsGrid: View {
                 .accessibilityLabel("Loading")
                 .transition(.opacity)
             } else {
-                grid { ForEach(model.schoolDiscs) { SchoolDisc(item: $0) } }
+                grid { cells }
                     .transition(.opacity)
             }
         }
-        // The shimmering discs cross-fade into the schools (design.md, Loading).
-        .animation(Motion.smooth, value: model.isLoading(.school))
+        // The shimmering discs cross-fade into the discs (design.md, Loading).
+        .animation(Motion.smooth, value: loading)
         // 24 pt from the chips' foot to the first disc.
         .padding(.top, SearchMetric.discTop - (SearchMetric.chipsHeight - SearchMetric.chipHeight) / 2
                  - SearchMetric.headBottom)
@@ -201,7 +275,54 @@ struct SportsGrid: View {
     }
 }
 
-/// One school on the Sports chip: its logo fitted in Apple's 45 pt box on an 80 pt disc of the fill, its short
+/// A disc and the words under it, in the grid's cell: the name in the secondary ink, and a fainter second line.
+private struct DiscCell<Disc: View>: View {
+    let name: String
+    var detail = ""
+    @ViewBuilder let disc: Disc
+
+    var body: some View {
+        VStack(spacing: SearchMetric.discNameGap) {
+            disc
+            VStack(spacing: 0) {
+                Text(name)
+                    .font(.sansSemibold(13))
+                    .foregroundStyle(Hue.inkSecondary)
+                if !detail.isEmpty {
+                    Text(detail)
+                        .font(.sansSemibold(13))
+                        .foregroundStyle(Hue.inkSecondary.opacity(SearchMetric.discDetailInk))
+                }
+            }
+            .multilineTextAlignment(.center)
+            .lineLimit(2)
+        }
+        .frame(maxWidth: .infinity, minHeight: SearchMetric.discCell, alignment: .top)
+        .contentShape(Rectangle())
+    }
+}
+
+/// One team on a sport's page: its school's logo in the disc, the school and what tells the team apart under it.
+private struct TeamDisc: View {
+    let team: SportTeam
+    @Environment(SearchModel.self) private var model
+
+    var body: some View {
+        if let opens = team.item.team {
+            NavigationLink(value: opens) {
+                DiscCell(name: team.school, detail: team.variant) {
+                    SinkingDisc { LogoInDisc(item: team.item) }
+                }
+            }
+            .buttonStyle(DiscPress())
+            .simultaneousGesture(TapGesture().onEnded { model.remember(team.item.id) })
+            .accessibilityLabel([team.school, team.item.name].joined(separator: ", "))
+        }
+    }
+}
+
+
+/// One school on the Schools chip: its logo fitted in Apple's 45 pt box on an 80 pt disc of the fill, its short
 /// name under it in the secondary ink. A press sinks the disc alone, as the mock's does.
 private struct SchoolDisc: View {
     let item: SearchItem
@@ -210,16 +331,9 @@ private struct SchoolDisc: View {
     var body: some View {
         if let team = item.team {
             NavigationLink(value: team) {
-                VStack(spacing: SearchMetric.discNameGap) {
-                    SinkingDisc(item: item)
-                    Text(team.short)
-                        .font(.sansSemibold(13))
-                        .foregroundStyle(Hue.inkSecondary)
-                        .multilineTextAlignment(.center)
-                        .lineLimit(2)
+                DiscCell(name: team.short) {
+                    SinkingDisc { LogoInDisc(item: item) }
                 }
-                .frame(maxWidth: .infinity, minHeight: SearchMetric.discCell, alignment: .top)
-                .contentShape(Rectangle())
             }
             .buttonStyle(DiscPress())
             .simultaneousGesture(TapGesture().onEnded { model.remember(item.id) })
@@ -228,16 +342,25 @@ private struct SchoolDisc: View {
     }
 }
 
-/// The disc under the finger: sinks on the app's press timing while the finger is down.
-private struct SinkingDisc: View {
+/// A school's logo fitted in Apple's 45 pt box.
+private struct LogoInDisc: View {
     let item: SearchItem
-    @Environment(\.discPressed) private var pressed
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         LogoDisc(logo: item.logo?.url, initial: item.initial, logoSide: SearchMetric.discLogo,
                  letter: .sansSemibold(20), disc: false)
             .frame(width: SearchMetric.discLogo, height: SearchMetric.discLogo)
+    }
+}
+
+/// The disc under the finger: sinks on the app's press timing while the finger is down.
+private struct SinkingDisc<Content: View>: View {
+    @ViewBuilder let content: Content
+    @Environment(\.discPressed) private var pressed
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        content
             .frame(width: SearchMetric.disc, height: SearchMetric.disc)
             .background(Hue.fill, in: Circle())
             .scaleEffect(pressed && !reduceMotion ? SearchMetric.discSink : 1)
