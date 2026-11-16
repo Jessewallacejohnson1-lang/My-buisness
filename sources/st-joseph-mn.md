@@ -2006,7 +2006,7 @@ Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2
 id: church-life-of-river
 status: active
 tier: listed
-category: nonprofits-charities
+category: church
 added_by: agent:discover
 address: "1300 Jade Rd"
 sources:
@@ -2278,7 +2278,8 @@ id: church-jospehs-st
 aka: ["St. Joseph Catholic Church", "Saint Joseph Catholic Church", "St. Joseph Parish"]
 status: active
 tier: watched
-category: amenity=place_of_worship
+category: catholic_church
+place_type: "Church"
 added_by: agent:discover
 address: "12 W Minnesota St"
 phone: "+13203637505"
@@ -4439,7 +4440,7 @@ Notes: Proposed on 2026-10-05 from lakesnwoods.com. No URL was found, so this is
 ## DSL Saint Joseph
 ```yaml
 id: dsl-st-joseph
-status: active
+status: retired
 tier: watched
 place_type: "Business"
 address: "21 College Ave N"
@@ -4452,6 +4453,7 @@ sources:
     trust: official
 ```
 Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.85). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
+2026-11-16: retired (Jesse's yes, BP app search-helpful 05): not a place, a page by Internet Service Partners that sells CenturyLink by phone; 21 College Ave N is not on it. Hidden from the app the same day.
 
 ## Ehlinger Lawn Service
 ```yaml
@@ -5462,7 +5464,7 @@ Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submi
 ## JR's Mobil & Radiator Repair
 ```yaml
 id: jrs-mobil-radiator-repair
-status: proposed
+status: retired
 tier: listed
 place_type: "Business"
 address: "13 2nd Ave NW, St. Joseph, MN 56374"
@@ -5476,6 +5478,7 @@ sources:
     trust: official
 ```
 Notes: Proposed on 2026-10-05 from lakesnwoods.com. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-02: Same address and 363-7500 phone now listed as JR's Mobil & Radiator Repair with weekday hours (Yelp updated Jan 2026).. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+2026-11-16: retired (Jesse's yes, BP app search-helpful 05): closed, the building torn down and the land sold (WJON, 2023-11-08, https://wjon.com/jr-mobile-site-st-joseph). Hidden from the app the same day.
 
 ## Jet Black
 ```yaml
@@ -8685,7 +8688,7 @@ Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submi
 id: kidstop
 status: active
 tier: watched
-category: "coffee_shop"
+category: "day_care_center"
 place_type: "School / college"
 address: "1300 Jade Rd"
 phone: "(320) 363-4737"
@@ -9021,7 +9024,7 @@ Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists
 id: st-wendel-tamarack-bog-scientific-natura
 status: proposed
 tier: listed
-category: "political_organization"
+category: "park"
 place_type: "Park / historic"
 address: "County Road 4"
 phone: "6512595800"
