@@ -156,7 +156,7 @@ private struct ExploreTile: View {
                 .contentShape(Rectangle())
                 .trackFrame(frame)
         }
-        .accessibilityLabel([item.name, item.sub].compactMap { $0 }.joined(separator: ", "))
+        .accessibilityLabel([item.name, item.line(.now)].compactMap { $0 }.joined(separator: ", "))
     }
 
     private func tap() {

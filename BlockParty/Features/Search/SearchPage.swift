@@ -840,18 +840,21 @@ struct PhotoCard: View {
                     .foregroundStyle(Hue.ink)
                     .lineLimit(1)
                     .padding(.top, SearchMetric.cardTextTop)
-                if let sub = item.sub {
-                    Text(sub)
-                        .font(.sans(14))
-                        .foregroundStyle(Hue.inkSecondary)
-                        .lineLimit(1)
+                // Each minute, so an Event's "In 20 min" counts down and turns Now (BP app happening-now 07).
+                TimelineView(.everyMinute) { context in
+                    if let line = item.line(context.date) {
+                        Text(line)
+                            .font(.sans(14))
+                            .foregroundStyle(Hue.inkSecondary)
+                            .lineLimit(1)
+                    }
                 }
             }
             .frame(width: width)
             .frame(maxWidth: width == nil ? .infinity : nil, alignment: .leading)
         }
         // New in St. Joseph's say so first; the tag itself is hidden from VoiceOver.
-        .accessibilityLabel([new ? "New" : nil, item.name, item.sub].compactMap { $0 }.joined(separator: ", "))
+        .accessibilityLabel([new ? "New" : nil, item.name, item.line(.now)].compactMap { $0 }.joined(separator: ", "))
     }
 
     /// A restaurant or coffee shop opens its page from the photo: the photo itself grows into the
@@ -957,16 +960,19 @@ struct ItemRow: View {
                     avatar
                         .frame(width: SearchMetric.avatar, height: SearchMetric.avatar)
                         .trackFrame(avatarFrame)
-                    VStack(alignment: .leading, spacing: 0) {
-                        Text(item.name)
-                            .font(.sansSemibold(14))
-                            .foregroundStyle(Hue.ink)
-                            .lineLimit(1)
-                        if let line = item.line(.now) {
-                            Text(line)
-                                .font(.sans(13))
-                                .foregroundStyle(Hue.inkSecondary)
+                    // Each minute, so an Event's "In 20 min" counts down and turns Now (BP app happening-now 07).
+                    TimelineView(.everyMinute) { context in
+                        VStack(alignment: .leading, spacing: 0) {
+                            Text(item.name)
+                                .font(.sansSemibold(14))
+                                .foregroundStyle(Hue.ink)
                                 .lineLimit(1)
+                            if let line = item.line(context.date) {
+                                Text(line)
+                                    .font(.sans(13))
+                                    .foregroundStyle(Hue.inkSecondary)
+                                    .lineLimit(1)
+                            }
                         }
                     }
                     Spacer(minLength: removable ? SearchMetric.removeSide : 0)

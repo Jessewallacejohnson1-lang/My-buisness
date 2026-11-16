@@ -718,7 +718,8 @@ final class SearchModelTests: XCTestCase {
                    now: at(3, 10))
         let row = model.happening(at: at(3, 10))
         XCTAssertEqual(row.map(\.name), ["Class", "Talk", "Vote", "The Local Blend"])
-        XCTAssertEqual(row.map(\.sub), ["Now", "11 AM", "All day", "Open till 2 PM"])
+        // The 11 AM talk is an hour off at 10, so it counts down (BP app happening-now 07).
+        XCTAssertEqual(row.map(\.sub), ["Now", "In 60 min", "All day", "Open till 2 PM"])
         XCTAssertEqual(row.last?.photo, .saved(picture("blend")))
         XCTAssertEqual(model.happening(at: at(3, 18)).map(\.name), ["Bingo", "Vote", "Bad Habit"],
                        "tonight: the evening's, and what's open then")

@@ -1909,10 +1909,10 @@ sources:
 ```
 Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56874, -94.30113. Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
 
-## Obbink Distillery
+## Obbink Distilling
 ```yaml
 id: distillery-obbink
-aka: ["Obbink Distilling"]
+aka: ["Obbink Distillery"]
 status: active
 tier: watched
 added_by: agent:discover
