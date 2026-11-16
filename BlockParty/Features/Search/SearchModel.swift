@@ -16,7 +16,7 @@ import UIKit
 /// One thing Search can show: a neighbour, a school or one of its activities, a business, a food
 /// place, an event, a club or a park.
 struct SearchItem: Identifiable, Hashable {
-    /// Typed results come in this order under All: Schools first, as the mock's typed results (school-search 01).
+    /// Typed results break ties in this order under All (search-helpful 02; Schools first since school-search 01).
     enum Kind: CaseIterable {
         case person, school, business, restaurant, coffee, event, club, park
     }
@@ -436,29 +436,52 @@ final class SearchModel {
 
     // MARK: Typed search
 
-    /// Results for typed words, section by section in the mockup's order, best match
-    /// first. Matching is the app's own reference-aware search: prefixes, word starts,
-    /// small typos. A school's activity is found by its own name, never its school's, and sits after
-    /// the schools named (school-search 01), the closest match first, then its school's place in the row:
-    /// Kennedy's first.
+    /// What a school's activity loses against a Place, Event or Group named the same (search-helpful 02).
+    static let activityDiscount = 250.0
+    /// Most activities shown when another section matched too; Sports, or activities alone, show every one.
+    static let activitiesMax = 3
+    /// The last words' section order, so a section that loads late joins at the end, never jumps in above.
+    @ObservationIgnored private var sectionOrder: (key: String, kinds: [SearchItem.Kind]) = ("", [])
+
+    /// Results for typed words, section by section, the section with the best match first (search-helpful 02);
+    /// the mockup's order only breaks ties, and People come after, as they arrive. Matching is the app's own
+    /// reference-aware search (`TownSearch`): a row found only with a typo shows only when nothing on the pill
+    /// matched without one. An Event's host and place, and a Group's place, find it below anything named. A school's
+    /// activity is found by its own name, never its school's, counts for less, and sits after the schools named
+    /// (school-search 01), the closest match first, then its school's place in the row: Kennedy's first.
     func results(for words: String, in chip: SearchChip) -> [(kind: SearchItem.Kind, items: [SearchItem])] {
         let q = words.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !q.isEmpty else { return [] }
-        return chip.resultKinds.compactMap { kind in
-            let hits = items.filter { $0.kind == kind }
-                .compactMap { item in
-                    TownSearch.score(q, name: item.name, extra: item.activity == nil ? [item.sub ?? ""] : [],
-                                     aliases: item.keywords).map { (item, $0) }
-                }
-                .sorted { a, b in
-                    let (x, y) = (a.0.activity != nil, b.0.activity != nil)
-                    if x != y { return y }
-                    if x && a.1 == b.1 { return a.0.rank < b.0.rank }
-                    return a.1 > b.1
-                }
-                .map(\.0)
-            return hits.isEmpty ? nil : (kind, hits)
+        var scored = items.filter { chip.resultKinds.contains($0.kind) }.compactMap { item in
+            let found = [item.card?.hostName, item.card?.location, item.townGroup?.location].compactMap { $0 }
+            return TownSearch.score(q, name: item.name, extra: (item.activity == nil ? [item.sub ?? ""] : []) + found,
+                                    aliases: item.keywords)
+                .map { (item: item, score: item.activity == nil ? $0 : $0 - Self.activityDiscount, raw: $0) }
         }
+        if scored.contains(where: { $0.raw >= TownSearch.typoCeiling }) { scored.removeAll { $0.raw < TownSearch.typoCeiling } }
+        var sections = chip.resultKinds.compactMap { kind -> (kind: SearchItem.Kind, items: [SearchItem], best: Double)? in
+            let hits = scored.filter { $0.item.kind == kind }
+                .sorted { a, b in
+                    let (x, y) = (a.item.activity != nil, b.item.activity != nil)
+                    if x != y { return y }
+                    if x && a.score == b.score { return a.item.rank < b.item.rank }
+                    return a.score > b.score
+                }
+            return hits.first.map { _ in (kind, hits.map(\.item), hits.map(\.score).max()!) }
+        }
+        if sections.contains(where: { $0.kind != .school }), let i = sections.firstIndex(where: { $0.kind == .school }) {
+            let hits = sections[i].items
+            sections[i].items = hits.filter { $0.activity == nil } + hits.filter { $0.activity != nil }.prefix(Self.activitiesMax)
+        }
+        // Stable: ties keep the mockup's order, which `sections` is already in.
+        var kinds = sections.enumerated().sorted { ($1.element.best, $0.offset) < ($0.element.best, $1.offset) }.map(\.element.kind)
+        let key = "\(chip)|\(q)"
+        if sectionOrder.key == key {
+            let kept = sectionOrder.kinds.filter { kinds.contains($0) }
+            kinds = kept + kinds.filter { !kept.contains($0) }
+        }
+        sectionOrder = (key, kinds)
+        return kinds.compactMap { kind in sections.first { $0.kind == kind }.map { ($0.kind, $0.items) } }
     }
 
     // MARK: Recents
@@ -584,7 +607,7 @@ final class SearchModel {
             SearchItem(id: "g:\(group.id)", kind: .club, name: group.name, sub: group.kind,
                        logo: group.photos.isEmpty ? group.logo.flatMap { FeedCardImageSource($0).logo } : nil,
                        photo: group.photos.first.map { .saved($0) },
-                       keywords: ["group"] + [group.kind, group.location].compactMap { $0 },
+                       keywords: ["group"] + [group.kind].compactMap { $0 },   // its place finds it lower (`results`)
                        townGroup: group)
         })
     }
@@ -665,7 +688,7 @@ final class SearchModel {
                               sub: eventLine(now: now)(event), logo: card.image.logo,
                               photo: card.image.isPhoto ? .card(card.image) : nil,
                               group: days <= 0 ? "Today" : days < 7 ? "This week" : "Later",
-                              keywords: ["event", card.what, card.hostName, card.location].compactMap { $0 },
+                              keywords: ["event", card.what].compactMap { $0 },   // its host and place find it lower (`results`)
                               card: card)
         })
     }

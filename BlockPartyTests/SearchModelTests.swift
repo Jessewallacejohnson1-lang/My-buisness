@@ -367,6 +367,77 @@ final class SearchModelTests: XCTestCase {
         XCTAssertTrue(model.results(for: "   ", in: .all).isEmpty)
     }
 
+    // MARK: Best match first (BP app search-helpful 02)
+
+    /// A row found only with a typo shows only when nothing matched without one: "bank" finds the bank, not Band.
+    func testTyposOnlyWhenNothingElseMatched() {
+        let model = SearchModel(supabase: supabase, defaults: defaults)
+        model.show([poi("stjoe-bank", "Bank of Saint Joseph", .business, "bank", logo: logo())])
+        model.show(schools: [school("apollo", "Apollo", "Apollo High School")],
+                   activities: [SchoolActivity(id: "a2", teamId: "apollo", name: "Band")])
+        let bank = model.results(for: "bank", in: .all)
+        XCTAssertEqual(bank.flatMap(\.items).map(\.name), ["Bank of Saint Joseph"])
+        XCTAssertEqual(model.results(for: "bamd", in: .all).flatMap(\.items).map(\.name), ["Band"],
+                       "nothing matched without a typo, so the typo shows")
+        XCTAssertEqual(model.results(for: "bank", in: .sports).flatMap(\.items).map(\.name), ["Band"],
+                       "a pill weighs only its own kinds")
+    }
+
+    /// Sections come in the order of their best match, not Schools first; the old order breaks ties.
+    func testSectionsInOrderOfTheirBestMatch() {
+        let model = SearchModel(supabase: supabase, defaults: defaults)
+        model.show([poi("stjoe-eagles-nest", "Eagles Nest", .business, "store", logo: logo())])
+        model.show(schools: [school("apollo", "Apollo", "Apollo High School", nickname: "Eagles")], activities: [])
+        XCTAssertEqual(model.results(for: "eagles nest", in: .all).map(\.kind), [.business])
+        XCTAssertEqual(model.results(for: "eagles", in: .all).map(\.kind), [.school, .business], "its other name, typed whole")
+        XCTAssertEqual(model.results(for: "eagles n", in: .all).map(\.kind), [.business])
+    }
+
+    /// A school's activities count for less than a Place or Event named the same, and show 3 at most when
+    /// something else matched too; alone, or on Sports, every one shows.
+    func testActivitiesCountForLess() {
+        let model = SearchModel(supabase: supabase, defaults: defaults)
+        model.show(schools: [school("apollo", "Apollo", "Apollo High School"),
+                             school("kennedy", "Kennedy", "Kennedy Community School")],
+                   activities: ["Football", "Football (JV)", "Football 9", "Football 7-8"].enumerated().map {
+                       SchoolActivity(id: "a\($0.offset)", teamId: "apollo", name: $0.element)
+                   } + [SchoolActivity(id: "k1", teamId: "kennedy", name: "Football 7-8")])
+        XCTAssertEqual(model.results(for: "football", in: .all).first?.items.count, 5, "football alone keeps every team")
+        _ = model.results(for: "f", in: .all)   // new words: the order is worked out again
+        model.show(events: [card("Football Watch Party", time: "7 PM")], now: at(3, 10))
+        let all = model.results(for: "football", in: .all)
+        XCTAssertEqual(all.map(\.kind), [.event, .school], "the Event's name starts with the words; an activity counts for less")
+        XCTAssertEqual(all.last?.items.map(\.name), ["Football", "Football 9", "Football 7-8"], "3 at most, the tighter names first")
+        XCTAssertEqual(model.results(for: "football", in: .sports).first?.items.count, 5, "Sports keeps every one")
+    }
+
+    /// An Event's host and place, and a Group's place, still find it, but below anything named.
+    func testHostAndPlaceFindBelowAName() {
+        let model = SearchModel(supabase: supabase, defaults: defaults)
+        var trivia = card("Trivia Night", time: "7 PM")
+        trivia.hostName = "Bad Habit Brewing"
+        trivia.location = "Bad Habit taproom"
+        model.show(events: [trivia], now: at(3, 10))
+        model.show([poi("stjoe-bad-habit", "Bad Habit Brewing", .food, "brewery")])
+        var knitting = TownGroup(id: "k", name: "Knitting Circle")
+        knitting.location = "Bad Habit taproom"
+        model.show([knitting])
+        let hits = model.results(for: "bad habit", in: .all)
+        XCTAssertEqual(hits.first?.items.map(\.name), ["Bad Habit Brewing"], "the place named first")
+        XCTAssertEqual(Set(hits.dropFirst().flatMap(\.items).map(\.name)), ["Trivia Night", "Knitting Circle"])
+    }
+
+    /// The section order stays put while the words don't change: a section that loads late joins at the end.
+    func testSectionOrderStaysPutWhileTheWordsDo() {
+        let model = SearchModel(supabase: supabase, defaults: defaults)
+        model.show(schools: [school("apollo", "Apollo", "Apollo High School")],
+                   activities: [SchoolActivity(id: "a1", teamId: "apollo", name: "Bingo Club")])
+        XCTAssertEqual(model.results(for: "bingo", in: .all).map(\.kind), [.school])
+        model.show(events: [card("Bingo", time: "6:30 PM")], now: at(3, 10))
+        XCTAssertEqual(model.results(for: "bingo", in: .all).map(\.kind), [.school, .event], "no jump under the finger")
+        XCTAssertEqual(model.results(for: "bing", in: .all).map(\.kind), [.event, .school], "new words, best first")
+    }
+
     // MARK: Schools (BP app school-search 01)
 
     private func school(_ id: String, _ short: String, _ full: String? = nil, nickname: String? = nil,
@@ -422,7 +493,8 @@ final class SearchModelTests: XCTestCase {
                        "every word matched, the closer first")
         XCTAssertNil(schools("kennedy")[0].activity, "a school has no star: its page has Follow")
         XCTAssertEqual(schools("apollo band").map(\.name), [], "an activity is found by its own name")
-        XCTAssertEqual(model.results(for: "volleyball", in: .all).first?.kind, .school, "Schools lead under All")
+        XCTAssertEqual(model.results(for: "volleyball", in: .all).map(\.kind), [.park, .school],
+                       "a park's volleyball court above teams whose names only start with the word (search-helpful 02)")
         XCTAssertTrue(model.results(for: "volleyball", in: .businesses).isEmpty)
     }
 
