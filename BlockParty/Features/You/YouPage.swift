@@ -460,6 +460,9 @@ struct YouDay: View {
     /// canvas, `Hue.onboardingCanvas`) it takes onboarding's field grey, the one set on that same
     /// canvas, since `Hue.fill` all but vanishes there; Search's keeps `Hue.fill`.
     var dayFill: Color = Hue.fill
+    /// Its circle and number: You's and Search's 48.3 and 20; a place's page draws 40 and 16 (place-pages 05).
+    var side: CGFloat = YouMetric.day
+    var number: CGFloat = 20
 
     var body: some View {
         // The first Event with a photo, so a day whose first has none still shows one (the plan's review).
@@ -494,12 +497,12 @@ struct YouDay: View {
                     Text(month).font(.sansBold(11))
                 }
                 Text(Town.format(date, "d"))
-                    .font(.sansSemibold(month == nil ? 20 : 17))
+                    .font(.sansSemibold(month == nil ? number : 17))
             }
             .foregroundStyle(numberInk(photo: photo != nil))
             .shadow(color: photo != nil ? .black.opacity(0.35) : .clear, radius: 2, y: 1)
         }
-        .frame(width: YouMetric.day, height: YouMetric.day)
+        .frame(width: side, height: side)
         .clipShape(Circle())
         // The whole circle takes the tap, not only the number of an empty day.
         .contentShape(Circle())
