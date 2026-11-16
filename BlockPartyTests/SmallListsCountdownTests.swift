@@ -43,6 +43,8 @@ final class SmallListsCountdownTests: XCTestCase {
         XCTAssertEqual(music.startTime(now: at(18, 59)), "In 1 min")
         XCTAssertEqual(music.startTime(now: at(19)), "Now", "the start minute")
         XCTAssertNil(music.dayLine(now: at(18, 40)), "today's card says the countdown, not a day")
+        XCTAssertEqual(music.startSpoken(now: at(18, 40)), "Starts in 20 minutes", "VoiceOver")
+        XCTAssertEqual(music.startSpoken(now: at(19)), "Now")
     }
 
     /// A sale, an open house or a meeting keeps its time, as on the Town card; so does an untimed Event.

@@ -179,7 +179,8 @@ struct DailyTownCard: View {
         }
         .buttonStyle(.press(.squish))
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel([event.item.title, when, line].compactMap { $0 }.joined(separator: ", "))
+        .accessibilityLabel([event.item.title, event.dayLine(now: now) ?? event.startSpoken(now: now), line]
+            .compactMap { $0 }.joined(separator: ", "))
         .accessibilityAddTraits(.isButton)
     }
 
