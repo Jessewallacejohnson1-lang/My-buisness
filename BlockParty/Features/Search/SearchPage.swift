@@ -268,8 +268,7 @@ struct SearchPage: View {
         .onChange(of: cards, initial: true) { model.show(events: cards) }
         .onChange(of: news, initial: true) { model.show(news: news) }
         // People rows carry the friend button; a failed tap shakes only while Search is open.
-        .onAppear { book.screenOpened() }
-        .onDisappear { book.screenClosed() }
+        .onScreen { book.screenOpened() } disappear: { book.screenClosed() }
     }
 
     // MARK: Header

@@ -48,12 +48,18 @@ enum DailyTopic {
     /// The interest's keywords as whole words, plural too: "park" finds "parks" but not "parking",
     /// "art" not "Party", where `Interests.matches` (any part of a word) would.
     static func matches(text: String, _ topic: String) -> Bool {
-        guard let interest = Interests.all.first(where: { $0.id == topic }) else { return false }
-        return interest.keywords.contains { keyword in
-            text.range(of: "\\b" + NSRegularExpression.escapedPattern(for: keyword) + "(s|es)?\\b",
-                       options: [.regularExpression, .caseInsensitive]) != nil
-        }
+        guard let pattern = patterns[topic] else { return false }
+        return pattern.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) != nil
     }
+
+    /// Each interest's keywords as one pattern, built once: building one per keyword on every
+    /// check froze the Block Party tab about half a second on each visit (tab-lag, 2026-11-16).
+    private static let patterns: [String: NSRegularExpression] = Dictionary(
+        uniqueKeysWithValues: Interests.all.compactMap { interest in
+            let words = interest.keywords.map(NSRegularExpression.escapedPattern(for:)).joined(separator: "|")
+            return (try? NSRegularExpression(pattern: "\\b(?:\(words))(s|es)?\\b", options: .caseInsensitive))
+                .map { (interest.id, $0) }
+        })
 
     /// Your own interests that have something that day, in your order; signed out or with none
     /// picked, the day's busiest interests. A topic with nothing that day isn't offered.
