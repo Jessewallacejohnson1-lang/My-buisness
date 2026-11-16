@@ -34,7 +34,11 @@ enum TownSearch {
         if cq.count >= 4 && cn == cq { return 990 }   // "kwiktrip" is Kwik Trip
         if nn.hasPrefix(q) { return 900 - Double(min(nn.count, 60)) }   // shorter, tighter names first
         if cq.count >= 4 && cn.hasPrefix(cq) { return 850 }
-        if aliasHit(q, nn) { return 800 }   // word-boundary, so "art" ≠ "heart"
+        if aliasHit(q, nn) {   // word-boundary, so "art" ≠ "heart"
+            let words = tokenize(nn)
+            let whole = queryTokens(q).allSatisfy { singulars($0).contains { words.contains($0) } }
+            return whole ? 800 : 790   // "market" finds Meat Market before Curtis Marketing
+        }
 
         // Another name typed whole ("csb", "st bens") beats the start of a longer name; so does a kind typed whole
         // ("bar" finds the bars before The Barn).

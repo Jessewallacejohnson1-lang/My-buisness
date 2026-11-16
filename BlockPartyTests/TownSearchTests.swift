@@ -36,6 +36,8 @@ final class TownSearchTests: XCTestCase {
         let start = TownSearch.score("csb", name: "CSB Bookstore Annex")!
         XCTAssertGreaterThan(csb, start)
         XCTAssertNotNil(TownSearch.score("st bens", name: "College of Saint Benedict", aliases: ["St Bens"]))
+        XCTAssertGreaterThan(TownSearch.score("market", name: "St Joseph Meat Market")!,
+                             TownSearch.score("market", name: "Curtis Marketing Group")!, "a whole word before a word's start")
     }
 
     /// One wrong letter up to 7 letters, two from 8; a typo's score sits under `typoCeiling`.
