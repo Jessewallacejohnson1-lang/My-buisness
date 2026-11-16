@@ -625,6 +625,7 @@ final class SearchModelTests: XCTestCase {
         XCTAssertEqual(LocalSports.sport(of: "Nordic Ski Racing - Boys")?.name, "Skiing")
         XCTAssertNil(variant("Band"))
         XCTAssertNil(variant("Spartan Strength Training"))
+        XCTAssertNil(LocalSports.sport(of: "Skills USA"), "a sport word counts whole, never a word's start")
     }
 
     /// Typing on the Sports chip finds what All finds of the schools, by the same match (school-search 01), and

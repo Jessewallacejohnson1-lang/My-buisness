@@ -44,7 +44,7 @@ enum LocalSports {
         let name: String
         let symbol: String
         let season: Season
-        /// What an activity's name holds to be this sport, matched from a word's start.
+        /// The words in an activity's name that make it this sport, each matched whole ("ski", never "Skills").
         let words: [String]
     }
 
@@ -52,10 +52,10 @@ enum LocalSports {
     static let all: [Sport] = [
         Sport(name: "Basketball", symbol: "figure.basketball", season: .winter, words: ["basketball"]),
         Sport(name: "Hockey", symbol: "figure.hockey", season: .winter, words: ["hockey"]),
-        Sport(name: "Wrestling", symbol: "figure.wrestling", season: .winter, words: ["wrestl"]),
-        Sport(name: "Swim & Dive", symbol: "figure.pool.swim", season: .winter, words: ["swim"]),
-        Sport(name: "Skiing", symbol: "figure.skiing.downhill", season: .winter, words: ["ski"]),
-        Sport(name: "Gymnastics", symbol: "figure.gymnastics", season: .winter, words: ["gymnast"]),
+        Sport(name: "Wrestling", symbol: "figure.wrestling", season: .winter, words: ["wrestling"]),
+        Sport(name: "Swim & Dive", symbol: "figure.pool.swim", season: .winter, words: ["swim", "swimming"]),
+        Sport(name: "Skiing", symbol: "figure.skiing.downhill", season: .winter, words: ["ski", "skiing"]),
+        Sport(name: "Gymnastics", symbol: "figure.gymnastics", season: .winter, words: ["gymnastics"]),
         Sport(name: "Football", symbol: "figure.american.football", season: .fall, words: ["football"]),
         Sport(name: "Volleyball", symbol: "figure.volleyball", season: .fall, words: ["volleyball"]),
         Sport(name: "Soccer", symbol: "figure.soccer", season: .fall, words: ["soccer"]),
@@ -78,13 +78,13 @@ enum LocalSports {
         }.map(\.element)
     }
 
-    /// The sport an activity's name is, if any: the first in `all` whose word starts a word of the name.
+    /// The sport an activity's name is, if any: the first in `all` with a word of the name, whole.
     static func sport(of activity: String) -> Sport? {
         let words = activity.lowercased().split { !$0.isLetter }.map(String.init)
         let joined = words.joined(separator: " ")
         return all.first { sport in
             sport.words.contains { word in
-                word.contains(" ") ? (" " + joined).contains(" " + word) : words.contains { $0.hasPrefix(word) }
+                word.contains(" ") ? (" " + joined + " ").contains(" " + word + " ") : words.contains(word)
             }
         }
     }
@@ -96,7 +96,7 @@ enum LocalSports {
         var seen = Set<String>()
         let kept = activity.split { !$0.isLetter }.map(String.init).filter { word in
             let low = word.lowercased()
-            guard !dropped.contains(low), !sport.words.contains(where: { low.hasPrefix($0.split(separator: " ")[0]) }),
+            guard !dropped.contains(low), !sport.words.flatMap({ $0.split(separator: " ").map(String.init) }).contains(low),
                   seen.insert(low).inserted else { return false }
             return true
         }
