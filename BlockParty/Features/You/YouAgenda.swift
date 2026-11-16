@@ -236,9 +236,6 @@ struct AgendaCards: View {
         }
     }
 
-    /// What VoiceOver reads for a card, the words page's `agenda-friends-vo`: "Trivia Night,
-    /// 7 PM, Anna and Ben are going", the Town card's friends line after the time, then what an
-    /// open card adds.
     /// A card's time: "Now" while it's on, "In 20 min" within the hour before (spoken "Starts in 20 minutes",
     /// BP app happening-now 07), else its time, or with `withDay` the Town card's when line from the organizer's
     /// own time ("Tonight · 7 PM"; an all-day Event shows only its day), and how VoiceOver reads it ("Saturday,
@@ -259,6 +256,9 @@ struct AgendaCards: View {
         return (time, time)
     }
 
+    /// What VoiceOver reads for a card, the words page's `agenda-friends-vo`: "Trivia Night,
+    /// 7 PM, Anna and Ben are going", the Town card's friends line after the time, then what an
+    /// open card adds.
     static func spoken(title: String, when: String, friends: [String], more: String) -> String {
         [title, when, RSVPWords.friendsLine(friends, bar: false), more]
             .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ", ")

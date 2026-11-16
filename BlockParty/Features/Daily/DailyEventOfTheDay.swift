@@ -41,6 +41,11 @@ struct DailyEvent: Identifiable {
         return timed ? Town.clock(starts) : item.startTime ?? "All day"
     }
 
+    /// `startTime` as VoiceOver reads it: "Starts in 20 minutes" for "In 20 min".
+    func startSpoken(now: Date) -> String {
+        isNow(now) ? "Now" : item.startsIn(at: now)?.spoken ?? startTime(now: now)
+    }
+
     /// Started and not yet over (`EventWhen.isOn`, the Town card's rule).
     func isOn(_ now: Date) -> Bool {
         (when ?? EventWhen(start: starts, end: ends, timed: timed)).isOn(now)

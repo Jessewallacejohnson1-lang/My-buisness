@@ -418,7 +418,7 @@ private struct CalendarRow: View {
             }
             .buttonStyle(.press(.row))
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("\(event.item.title), \(event.startTime(now: now))")
+            .accessibilityLabel("\(event.item.title), \(event.startSpoken(now: now))")
             heart
                 .padding(.trailing, CalendarMetric.rowTrail)
         }

@@ -262,7 +262,7 @@ private struct FollowingRow: View {
     var body: some View {
         NavigationLink(value: item.event.item) { face }
             .buttonStyle(.press(.squish))
-            .accessibilityLabel("\(item.name) \(item.what) \(item.time(now: now))")
+            .accessibilityLabel("\(item.name) \(item.what) \(item.event.startSpoken(now: now))")
     }
 
     private var face: some View {
