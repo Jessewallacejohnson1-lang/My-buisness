@@ -303,6 +303,9 @@ final class TownFeed {
     /// The events still on, in the database's order.
     var cards: [FeedCardItem] { shown.compactMap(\.card) }
 
+    /// The News still on, in the database's order: what Search's typing finds (search-helpful 07).
+    var news: [TownNews] { shown.compactMap(\.news) }
+
     /// The neighbours' posts still on, in the database's order, for the Block Party tab's Following
     /// (daily-tab 23).
     var posts: [TownPost] { shown.compactMap(\.post) }
