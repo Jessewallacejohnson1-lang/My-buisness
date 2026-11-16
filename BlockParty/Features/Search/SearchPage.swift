@@ -45,6 +45,12 @@ nonisolated enum SearchMetric {
     static let titleGap: CGFloat = 6
     /// Photoroom's logo squares; the logo fills 66 of 78, its centre 47% down.
     static let logoOnTile: CGFloat = 66
+    /// A result row's friends going, before its line (search-helpful 08's mock): 16 pt faces tucked 5 under, 5 from the words.
+    static let rowFace: CGFloat = 16
+    static let rowFaceTuck: CGFloat = 5
+    static let rowFacesGap: CGFloat = 5
+    /// A result row with no logo or photo: its kind's glyph, bare (the mock's 22 pt drawing).
+    static let rowGlyph: CGFloat = 20
     /// A sideways row's logos (the Schools row), bare on the page with no tile (Jesse, 2026-10-24): 15% under
     /// 01's 92, with the one in the middle growing as the row scrolls (BP app search-logo-size 02, 2026-11-13).
     static let logoOnRow: CGFloat = 78
@@ -895,7 +901,7 @@ private struct PeopleResults: View {
         switch state {
         case .found(let people):
             // Facebook's result with its button under the name, in Search's smaller sizes.
-            ForEach(people) { person in
+            ForEach(Neighbor.friendsFirst(people)) { person in
                 ResultRow(person: person, face: SearchMetric.avatar, nameFont: .sansSemibold(14))
             }
         case .failed:
@@ -984,11 +990,18 @@ struct ItemRow: View {
                                 .font(.sansSemibold(14))
                                 .foregroundStyle(Hue.ink)
                                 .lineLimit(1)
-                            if let line = item.line(context.date) {
-                                Text(line)
-                                    .font(.sans(13))
-                                    .foregroundStyle(Hue.inkSecondary)
-                                    .lineLimit(1)
+                            if let line = item.rowLine(context.date) {
+                                HStack(spacing: SearchMetric.rowFacesGap) {
+                                    // Friends going lead the line with their faces, as the Town card's do.
+                                    if let friends = item.card?.friendsGoing, !friends.isEmpty {
+                                        FriendFaces(friends: friends, size: SearchMetric.rowFace,
+                                                    tuck: SearchMetric.rowFaceTuck)
+                                    }
+                                    Text(Self.line(line, open: item.isOpen(context.date)))
+                                        .font(.sans(13))
+                                        .foregroundStyle(Hue.inkSecondary)
+                                        .lineLimit(1)
+                                }
                             }
                         }
                     }
@@ -1021,26 +1034,32 @@ struct ItemRow: View {
         scheme == .dark ? Hue.ink : ActivityStar.onPaper(item.team?.colors ?? []).map { Color(hex: $0) } ?? Hue.ink
     }
 
+    /// The line with a place's "Open" in green (Google Maps'); shut stays grey, never red (Jesse's yes to the mock).
+    static func line(_ text: String, open: Bool) -> AttributedString {
+        var line = AttributedString(text)
+        if open, let word = line.range(of: "Open", options: .backwards) { line[word].foregroundColor = Hue.open }
+        return line
+    }
+
+    /// A picture on every row (search-helpful 08): a person's face, a logo bare on the page, else its photo, credited
+    /// ones too with the credit on the page it opens (Jesse's yes), else what kind of thing it is, bare: Search has
+    /// no backdrops (taste, 2026-10-26).
     @ViewBuilder private var avatar: some View {
         if item.kind == .person {
             SearchPhoto(item: item).clipShape(Circle())
-        } else if item.logo != nil || item.opens {
+        } else if item.logo != nil {
             PlaceMark(item: item, side: SearchMetric.avatar)
                 .opacity(opener.isAway(item) ? 0 : 1)
                 .animation(nil, value: opener.isAway(item))
-        } else if item.photo?.credited ?? true {
-            // No logo, and a saved photo carries its credit, with no room for one at this
-            // size: what kind of place it is instead.
-            RoundedRectangle(cornerRadius: Radius.searchField, style: .continuous)
-                .fill(Hue.fill)
-                .overlay {
-                    Image(systemName: item.glyph)
-                        .font(.glyph(17))
-                        .foregroundStyle(Hue.inkSecondary)
-                }
-        } else {
-            SearchPhoto(item: item)
+        } else if let photo = item.rowPhoto {
+            SearchPhoto(item: item, photo: photo, credit: false)
                 .clipShape(RoundedRectangle(cornerRadius: Radius.searchField, style: .continuous))
+                .opacity(opener.isAway(item) ? 0 : 1)
+                .animation(nil, value: opener.isAway(item))
+        } else {
+            Image(systemName: item.glyph)
+                .font(.glyph(SearchMetric.rowGlyph))
+                .foregroundStyle(Hue.inkSecondary)
         }
     }
 
@@ -1049,7 +1068,14 @@ struct ItemRow: View {
         guard item.opens else { return }
         let box = avatarFrame.rect, size = SearchMetric.avatar
         let rect = CGRect(x: box.midX - size / 2, y: box.midY - size / 2, width: size, height: size)
-        opener.open(item, from: .init(logo: rect, box: rect, radius: 0, shadow: item.markShadow))
+        if item.logo == nil {
+            // Its photo grows into the page's (or its page fades in over the glyph), as a photo card's does.
+            var shown = item
+            shown.photo = item.rowPhoto
+            opener.open(item, from: .tile(shown, box: rect, radius: Radius.searchField))
+        } else {
+            opener.open(item, from: .init(logo: rect, box: rect, radius: 0, shadow: item.markShadow))
+        }
     }
 
     private func forget() {
@@ -1181,22 +1207,32 @@ struct NothingFound: View {
 /// One with none shows its logo bare on the page, else what kind of thing it is.
 struct SearchPhoto: View {
     let item: SearchItem
+    /// What it shows: its own photo, or a result row's (`SearchItem.rowPhoto`).
+    var photo: SearchItem.Photo?
+    /// A result row's 44 pt photo has no room for its credit: the page it opens shows it (search-helpful 08).
+    var credit = true
+
+    init(item: SearchItem, photo: SearchItem.Photo? = nil, credit: Bool = true) {
+        self.item = item
+        self.photo = photo ?? item.photo
+        self.credit = credit
+    }
 
     var body: some View {
         Rectangle()
-            .fill(item.photo == nil && item.logo != nil ? Color.clear : Hue.fill)
+            .fill(photo == nil && item.logo != nil ? Color.clear : Hue.fill)
             .overlay {
-                switch item.photo {
+                switch photo {
                 case .bundled(let name):
                     if let url = Bundle.main.url(forResource: name, withExtension: "jpg") { FeedCardURLPhoto(url: url, loadingFill: .clear) }
                 case .saved(let picture):
-                    SavedPhoto(item: item, picture: picture)
+                    SavedPhoto(item: item, picture: picture, credit: credit)
                 case .card(let source):
                     // Only a photo is an Event's `.card` (`SearchModel.events`): a logo is its `logo`. A flyer
                     // shows whole over its blur, so its words aren't cut (BP app event-photos 18).
                     if let url = source.url {
                         FeedCardURLPhoto(url: url, loadingFill: .clear, whole: item.card?.whole == true ? 0 : nil)
-                        if let credit = source.attribution {
+                        if credit, let credit = source.attribution {
                             PhotoCredit(names: [credit])
                                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
                         }
@@ -1215,6 +1251,7 @@ struct SearchPhoto: View {
 private struct SavedPhoto: View {
     let item: SearchItem
     let picture: PlacePicture
+    var credit = true
     @State private var shown = false
     @State private var failed = false
 
@@ -1228,7 +1265,7 @@ private struct SavedPhoto: View {
                 if !ready { Rectangle().fill(Hue.fill).shimmering() }
                 FeedCardURLPhoto(url: picture.url, onReady: { withAnimation(.easeOut(duration: 0.2)) { shown = true } },
                                  onFailure: { failed = true }, loadingFill: .clear)
-                if ready, let credit = picture.creditLine {
+                if ready, credit, let credit = picture.creditLine {
                     PhotoCredit(names: [credit])
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
                 }

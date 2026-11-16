@@ -46,6 +46,15 @@ struct Neighbor: Identifiable, Hashable, Codable {
     var suggestLine: String {
         mutualLine ?? sharedGroup.map { "Both in \($0)" } ?? "Suggested for you"
     }
+
+    /// Search's people (search-helpful 08): your friends first, then the most friends you share, else the server's
+    /// order (A to Z), as Instagram leads with the people you know.
+    static func friendsFirst(_ people: [Neighbor]) -> [Neighbor] {
+        people.enumerated().sorted { a, b in
+            let rank = { (n: Neighbor) in n.relation == .friends ? 0 : 1 }
+            return (rank(a.element), -a.element.mutualFriends, a.offset) < (rank(b.element), -b.element.mutualFriends, b.offset)
+        }.map(\.element)
+    }
 }
 
 @MainActor @Observable
