@@ -216,7 +216,8 @@ struct SportPage: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            SportsFade().ignoresSafeArea()
+            // The dark paper, flat: the bar's own ground over it meets it with no seam.
+            Hue.paper.ignoresSafeArea()
             ScrollView {
                 DiscGrid(loading: false) {
                     ForEach(sport.teams) { TeamDisc(team: $0) }
@@ -225,8 +226,6 @@ struct SportPage: View {
                 .padding(.bottom, SearchMetric.tabBarClearance)
             }
             PageBar(title: sport.name) { dismiss() }
-                .background(alignment: .top) { SportsFade().ignoresSafeArea(edges: .top) }
-                .clipped()
         }
         .environment(\.colorScheme, .dark)
         .toolbar(.hidden, for: .navigationBar)

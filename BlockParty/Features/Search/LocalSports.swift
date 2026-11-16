@@ -113,7 +113,7 @@ enum LocalSports {
     static func shelves(_ activities: [SearchItem], level: (String) -> SearchModel.DiscLevel?, now: Date) -> [SportShelf] {
         var teams: [String: [(level: SearchModel.DiscLevel, team: SportTeam)]] = [:]
         for item in activities where item.activity != nil {
-            guard let team = item.team, let at = level(team.id), at != .other, let sport = sport(of: item.name) else { continue }
+            guard let team = item.team, let id = team.id, let at = level(id), at != .other, let sport = sport(of: item.name) else { continue }
             teams[sport.name, default: []].append((at, SportTeam(item: item, school: team.short,
                                                                   variant: variant(of: item.name, sport: sport))))
         }
