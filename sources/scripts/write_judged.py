@@ -743,11 +743,20 @@ def parse_clock(text):
     return m and time(int(m[1]) % 12 + (12 if m[3].upper() == "P" else 0), int(m[2] or 0))
 
 
-def where(place, poster):
+def place_of(place, poster, town=None, home=HOME):
+    """(entry id, whether the place line named it): registry.place_for with the town the place is in, so
+    a line in another town never takes a home-town Place's photo (BP app nothing-scheduled 07). A town the
+    line itself ends with wins: it is what the card shows."""
+    line = f"{place or ''}, {town}" if town and not registry.town_part(place) else place
+    ids, found = registry.place_for(line, poster, names(), homes(home))
+    return (ids or [None])[0], found
+
+
+def where(place, poster, town=None, home=HOME):
     """The registry place an event is at. A listing with no place is at its poster's own: the
     sisters' calendar names none, the campus calendar says Saint Benedict's Monastery, one of
     their names (2026-10-21). A place the registry doesn't know gives None."""
-    entry, found = registry.place_for(place, poster, places())
+    entry, found = place_of(place, poster, town, home)
     return entry if found or not words(place, PLACE_STOP) else None
 
 
@@ -757,7 +766,7 @@ def listed_facts(row, home=HOME):
     poster = row.get("source_name") or ""
     place = meets_at(tidy_place(row.get("location"), home), poster, tidy_title(row["title"], poster), home)
     return {"day": day, "at": t and datetime.combine(day, t), "place": words(place, PLACE_STOP),
-            "entry": where(place, poster), "title": words(tidy_title(row["title"], poster)), **place_facts(place, poster),
+            "entry": where(place, poster, home=home), "title": words(tidy_title(row["title"], poster)), **place_facts(place, poster),
             "own_id": real_uid(row.get("source_uid")), "game": is_game(row), "poster": poster.strip(),
             "followers": row.get("followers_only") is True}
 
@@ -823,15 +832,31 @@ def local(stamp):
     return dt.astimezone(LOCAL)
 
 
-_NAMES = _PLACES = None
+_ENTRIES = _NAMES = _PLACES = None
+_HOMES = {}
+
+
+def entries():
+    global _ENTRIES
+    if _ENTRIES is None:
+        _ENTRIES = registry.load(Path(__file__).resolve().parents[2])[0]
+    return _ENTRIES
 
 
 def names():
     """The registry's place names, read once: each name -> every entry answering to it."""
     global _NAMES
     if _NAMES is None:
-        _NAMES = registry.names_index(registry.load(Path(__file__).resolve().parents[2])[0])
+        _NAMES = registry.names_index(entries())
     return _NAMES
+
+
+def homes(home):
+    """registry.home_of for the town labelled `home`, read once; None for a label no town file has."""
+    if home not in _HOMES:
+        town = next((t for t in TOWNS.values() if t["label"] == home), None)
+        _HOMES[home] = town and registry.home_of(entries(), town)
+    return _HOMES[home]
 
 
 def places():
@@ -885,7 +910,7 @@ def event_of(it, today, interests, home, notes, titles=None, teams=None, made=No
     # page moves an event to another day the moved one is added and the old one stays. Fix
     # by reading a whole page's events as a set when sources like that start moving dates.
     # The id comes from the title as the source wrote it, so rewording never orphans a row.
-    entry, found = registry.place_for(place, it["source_name"], places())
+    entry, found = place_of(place, it["source_name"], it.get("town"), home)
     if place and not found and not online:
         notes.append(f"place not in the registry: {place!r} ({it['source_name']}'s picture stands in)")
     uid = str(it.get("source_uid") or "").strip() or \
@@ -917,7 +942,7 @@ def event_of(it, today, interests, home, notes, titles=None, teams=None, made=No
         if all(found):
             row.update(sport=game["sport"], team_ids=[f[0] for f in found], team_names=[f[1] for f in found],
                        team_shorts=[team_short(f[1]) for f in found], occasion=game["occasion"])
-    facts = {"day": day, "at": at, "place": words(place, PLACE_STOP), "entry": where(place, it["source_name"]),
+    facts = {"day": day, "at": at, "place": words(place, PLACE_STOP), "entry": where(place, it["source_name"], it.get("town"), home),
              "title": words(title), **place_facts(place, it["source_name"]), "own_id": real_uid(uid),
              "game": bool(game) or is_game(row), "poster": it["source_name"].strip(),
              "followers": it.get("followers_only") is True}
@@ -2259,6 +2284,13 @@ def t_place_entry():
     assert [n for n in r["notes"] if "not in the registry" in n] == [
         "place not in the registry: 'Lakeside Bandshell' (City of St. Joseph's picture stands in)"], r["notes"]
     assert "place_entry_id = coalesce(excluded.place_entry_id" in writes().read_text(), "the database keeps it"
+    # A namesake in another town is not the home town's Place (nothing-scheduled 07): Waite Park has its own St. Joseph parish.
+    parish = dict(item(title="Breakfast", place="St. Joseph Parish", source_name="Knights of Columbus"), area="announced")
+    r = run([parish, dict(parish, town="Waite Park", start="2026-10-25T09:00:00-05:00"),
+             dict(parish, place="St. Joseph Parish, Waite Park", start="2026-10-26T09:00:00-05:00")])
+    ids = [(g["row"]["location"], g["row"]["place_entry_id"]) for g in r["events"]]
+    assert ids == [("St. Joseph Parish", "church-jospehs-st"), ("St. Joseph Parish, Waite Park", None),
+                   ("St. Joseph Parish, Waite Park", None)], ids
 
 
 def t_area():

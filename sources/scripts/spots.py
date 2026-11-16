@@ -39,6 +39,7 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import registry  # noqa: E402
 from find_spots import NOWHERE, is_nowhere  # noqa: E402
+from towns import DEFAULT, TOWNS  # noqa: E402
 
 LOCAL = ZoneInfo("America/Chicago")
 
@@ -80,7 +81,7 @@ def hand_spots(root):
 ANYONE_S = 16
 
 
-def spot_for(location, entry_id, venues, ats, names, hand=None):
+def spot_for(location, entry_id, venues, ats, names, hand=None, home=None):
     """[lat, lng] for an Event at `location` posted for Place `entry_id`, NOWHERE, or None when the registry
     doesn't know (rules 1 to 3 in the docstring)."""
     if line_key(location) in (hand or {}):
@@ -96,7 +97,7 @@ def spot_for(location, entry_id, venues, ats, names, hand=None):
         return venues[max(inside, key=len)][1]
     if not key:
         return ats.get(entry_id)
-    ids, found = registry.place_for(location, None, names)
+    ids, found = registry.place_for(location, None, names, home)
     return next((ats[i] for i in ids or [] if i in ats), None) if found else None
 
 
@@ -109,7 +110,7 @@ def fill(db, today, write, entries=None, maps=None, hand=None):
     entries = entries if entries is not None else registry.load(root)[0]
     hand = hand if hand is not None else hand_spots(root)
     venues, ats = spots_index(entries)
-    names = registry.names_index(entries)
+    names, home = registry.names_index(entries), registry.home_of(entries, TOWNS[DEFAULT])
     # Every spot the registry and hand file give: with no maps, a row at one of these lost it (its line changed),
     # and a row elsewhere was placed by the maps, so it stays.
     given = {tuple(at) for at in [*ats.values(), *(v[1] for v in venues.values()), *hand.values()] if at != NOWHERE}
@@ -124,7 +125,7 @@ def fill(db, today, write, entries=None, maps=None, hand=None):
             break
     changed, missing, nowhere, new = 0, [], 0, {}
     for r in rows:
-        at = spot_for(r["location"], r["place_entry_id"], venues, ats, names, hand)
+        at = spot_for(r["location"], r["place_entry_id"], venues, ats, names, hand, home)
         why = "the registry"
         if at is None and maps is not None:
             if r["location"] not in found:
@@ -170,6 +171,8 @@ def selftest():
          "_extra": {"at": [45.5810, -94.3926], "venue_at": {"Sexton Arena": [45.5798, -94.3962],
                                                             "Great Hall": [45.5809, -94.3920]}}},
         {"id": "bar-grill-sals", "_name": "Sal's Bar & Grill", "_extra": {"at": [45.56443, -94.32055]}},
+        {"id": "church-jospehs-st", "_name": "Church of Saint Joseph", "aka": ["St. Joseph Parish"],
+         "_extra": {"at": [45.56417, -94.31874]}},
         {"id": "activities-athletic-csb", "_name": "CSB Athletics", "_extra": {"at": [45.5600, -94.3200]}},
         {"id": "municipal-athletic-complex", "_name": "Municipal Athletic Complex",
          "_extra": {"venue_at": {"Municipal Athletic Center": [45.5731, -94.2276]}}},
@@ -177,7 +180,7 @@ def selftest():
          "_extra": {"venue_at": {"South Junior High School": [45.54686, -94.16724]}}},
     ]
     venues, ats = spots_index(entries)
-    names = registry.names_index(entries)
+    names, home = registry.names_index(entries), registry.home_of(entries, TOWNS[DEFAULT])
     hand = {line_key("Downtown St. Cloud"): [45.5604, -94.1590], line_key("Catholic Community Schools"): NOWHERE}
     cases = [
         ("Sexton Arena, Collegeville", "sju", [45.5798, -94.3962], "a named venue wins over its Place's door"),
@@ -198,10 +201,12 @@ def selftest():
         ("Downtown St. Cloud", "328-american-legion-post", [45.5604, -94.1590], "a hand spot, matched whole"),
         ("Downtown St. Cloud Library", "328-american-legion-post", None, "a hand spot isn't matched inside a line"),
         ("Catholic Community Schools", "st-joseph-catholic-school", NOWHERE, "a hand none: several schools"),
+        ("St. Joseph Parish", "knights", [45.56417, -94.31874], "a home-town Place's other name"),
+        ("St. Joseph Parish, Waite Park", "knights", None, "its namesake in another town is not it (nothing-scheduled 07)"),
     ]
     failed = 0
     for location, entry, want, why in cases:
-        got = spot_for(location, entry, venues, ats, names, hand)
+        got = spot_for(location, entry, venues, ats, names, hand, home)
         if got != want:
             failed += 1
             print(f"FAIL {why}: {location!r} -> {got}, want {want}")

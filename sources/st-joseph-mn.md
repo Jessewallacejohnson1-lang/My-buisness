@@ -2275,7 +2275,7 @@ Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56802, -94.313
 ## Church of Saint Joseph
 ```yaml
 id: church-jospehs-st
-aka: ["St. Joseph Catholic Church", "Saint Joseph Catholic Church"]
+aka: ["St. Joseph Catholic Church", "Saint Joseph Catholic Church", "St. Joseph Parish"]
 status: active
 tier: watched
 category: amenity=place_of_worship
@@ -2290,6 +2290,8 @@ sources:
 at: [45.56417, -94.31874]
 ```
 Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56410, -94.31887. Discovery found no URL, and town-verify's row "St. Joseph Catholic Church" (churchstjoseph.org) never matched this name, so it sat `listed` with a TODO; only its Facebook page was read (weekly). churchstjoseph.org now forwards to Benedictine Catholic Communities, the parish group it shares with St John the Baptist; its page is https://www.benedictinecatholiccommunities.org/saint-joseph. Its calendar is on Church Center (Planning Center), built by JavaScript, so it is read through Firecrawl (`run.py` `JS_HOSTS`): Masses, Adoration, groups, choirs, youth nights, socials. The group's own Calendar and Bulletin pages hold only the embed and a bulletin link, so they are not watched. Watched since 2026-11-15 (Jesse: "yes we want it because they host live masses and are connected to many things").
+2026-11-15: "St. Joseph Parish" is the diocesan paper's name for it (the Knights of Columbus breakfasts; BP app
+nothing-scheduled 02 and 07). A place line ending with another town never lands here (Waite Park has its own St. Joseph parish).
 
 ## St. Cloud Area Chamber of Commerce
 ```yaml

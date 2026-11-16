@@ -186,14 +186,34 @@ def names_index(entries):
     return index
 
 
-def place_for(place, poster, index):
-    """(entry id, True) for the place an event happens at: its place line matched whole, or the
-    longest known name inside it ("Centennial Park shelter"). Otherwise (the poster's id, False):
-    the entry that published the event stands in, so the card still gets a picture."""
+def town_part(line):
+    """The town a place line ends with, as a key ("St. Joseph Parish, Waite Park" -> "waitepark"), else None."""
+    parts = [place_key(re.sub(r"\b(?:MN|Minn|Minnesota)\b|\d{5}", " ", p, flags=re.I)) for p in (line or "").split(",")[1:]]
+    parts = [p for p in parts if p]
+    return parts[-1] if parts and parts[-1] in TOWN_KEYS else None
+
+
+def home_of(entries, town):
+    """(the town's key, the ids of the Places whose map point is inside its box): place_for's `home`."""
+    s, w, n, e = town["bbox"]
+    inside = {x["id"] for x in entries
+              if (at := (x.get("_extra") or x).get("at")) and s <= at[0] <= n and w <= at[1] <= e}
+    return town_part(f", {town['label']}"), inside
+
+
+def place_for(place, poster, index, home=None):
+    """(entry ids, True) for the place an event happens at: its place line matched whole, or the
+    longest known name inside it ("Centennial Park shelter"). Otherwise (the poster's ids, False):
+    the entry that published the event stands in, so the card still gets a picture.
+    `home` (home_of): a line ending with another town never lands on one of the home town's own Places,
+    only on a namesake there: Waite Park's "St. Joseph Parish" isn't the Church of Saint Joseph (BP app
+    nothing-scheduled 07). A Place with no map point still matches."""
+    away = home and town_part(place) not in (None, home[0])
+    ok = (lambda ids: [i for i in ids if i not in home[1]]) if away else (lambda ids: ids)
     key = place_key(place)
-    if key in index:
-        return index[key], True
-    inside = [k for k in index if len(k) >= 8 and k in key]
+    if key in index and ok(index[key]):
+        return ok(index[key]), True
+    inside = [k for k in index if len(k) >= 8 and k in key and ok(index[k])]
     if inside:
-        return index[max(inside, key=len)], True
+        return ok(index[max(inside, key=len)]), True
     return index.get(place_key(poster)), False

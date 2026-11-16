@@ -184,7 +184,8 @@ def prepare(folder, db, today, given=None):
         root = registry.find_root(Path(__file__).parent)
         entries = registry.load(root)[0]
         hand, (venues, ats), names = spots.hand_spots(root), spots.spots_index(entries), registry.names_index(entries)
-        given = lambda r: spots.spot_for(r["location"], r["place_entry_id"], venues, ats, names, hand) is not None
+        home = registry.home_of(entries, spots.TOWNS[spots.DEFAULT])
+        given = lambda r: spots.spot_for(r["location"], r["place_entry_id"], venues, ats, names, hand, home) is not None
     try:
         lookups, copies, later = todo(db, today, given)
     except DbError as e:  # club_events.spot_looked_at isn't applied yet: the morning goes on without this step
