@@ -1054,6 +1054,13 @@ struct ItemRow: View {
         scheme == .dark ? Hue.ink : ActivityStar.onPaper(item.team?.colors ?? []).map { Color(hex: $0) } ?? Hue.ink
     }
 
+    /// The item as its row draws it: with `SearchItem.rowPhoto`.
+    private var shown: SearchItem {
+        var shown = item
+        shown.photo = item.rowPhoto
+        return shown
+    }
+
     /// The line with a place's "Open" in green (Google Maps'); shut stays grey, never red (Jesse's yes to the mock).
     static func line(_ text: String, open: Bool) -> AttributedString {
         var line = AttributedString(text)
@@ -1071,8 +1078,8 @@ struct ItemRow: View {
             PlaceMark(item: item, side: SearchMetric.avatar)
                 .opacity(opener.isAway(item) ? 0 : 1)
                 .animation(nil, value: opener.isAway(item))
-        } else if let photo = item.rowPhoto {
-            SearchPhoto(item: item, photo: photo, credit: false)
+        } else if item.rowPhoto != nil {
+            SearchPhoto(item: shown, credit: false)
                 .clipShape(RoundedRectangle(cornerRadius: Radius.searchField, style: .continuous))
                 .opacity(opener.isAway(item) ? 0 : 1)
                 .animation(nil, value: opener.isAway(item))
@@ -1090,8 +1097,6 @@ struct ItemRow: View {
         let rect = CGRect(x: box.midX - size / 2, y: box.midY - size / 2, width: size, height: size)
         if item.logo == nil {
             // Its photo grows into the page's (or its page fades in over the glyph), as a photo card's does.
-            var shown = item
-            shown.photo = item.rowPhoto
             opener.open(item, from: .tile(shown, box: rect, radius: Radius.searchField))
         } else {
             opener.open(item, from: .init(logo: rect, box: rect, radius: 0, shadow: item.markShadow))
@@ -1227,16 +1232,9 @@ struct NothingFound: View {
 /// One with none shows its logo bare on the page, else what kind of thing it is.
 struct SearchPhoto: View {
     let item: SearchItem
-    /// What it shows: its own photo, or a result row's (`SearchItem.rowPhoto`).
-    var photo: SearchItem.Photo?
     /// A result row's 44 pt photo has no room for its credit: the page it opens shows it (search-helpful 08).
     var credit = true
-
-    init(item: SearchItem, photo: SearchItem.Photo? = nil, credit: Bool = true) {
-        self.item = item
-        self.photo = photo ?? item.photo
-        self.credit = credit
-    }
+    private var photo: SearchItem.Photo? { item.photo }
 
     var body: some View {
         Rectangle()
