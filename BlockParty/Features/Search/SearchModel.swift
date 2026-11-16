@@ -125,7 +125,7 @@ struct SearchItem: Identifiable, Hashable {
 
     /// A place's hours on its row, Google Maps' words: "Open till 11 AM", "Closes soon · 9 PM", "Open 24 hours",
     /// and while it's shut when it opens next, "Opens 3:30 PM", "Opens Tue 4 PM", "Opens May 8".
-    static func hoursWords(_ status: PlaceHours.Status) -> String {
+    nonisolated static func hoursWords(_ status: PlaceHours.Status) -> String {
         switch status {
         case .closed(let opens, let weekday):
             "Opens " + (weekday.map { PlaceHours.shortDays[$0 - 1] + " " } ?? "") + PlaceHours.clock(opens)
