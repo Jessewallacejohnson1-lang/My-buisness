@@ -278,7 +278,8 @@ struct MainTabsView: View {
     @MainActor
     private func openHello(_ target: HelloDrop.Target) {
         switch target {
-        case .event(let card): path.append(card)
+        // Your own Event's pill opens the card read for it (inside-cards 29); the feed's comes first.
+        case .event(let card): path.append(HelloInbox.shared.card(card.id, feed: townFeed.cards, or: card))
         case .group(let group): path.append(group)
         case .person(let person): path.append(person)
         case .town: if tab != .town { select(.town) }

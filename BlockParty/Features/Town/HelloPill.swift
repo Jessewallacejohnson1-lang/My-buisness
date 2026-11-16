@@ -168,6 +168,8 @@ final class HelloPill {
     func say(_ item: HelloItem) -> Say? {
         saying = item.id
         inbox.tell(item.id)
+        // Your own Event: its card is read while the pill is up, so a tap opens it whole (inside-cards 29).
+        if case .posted = item.what { Task { await inbox.freshen() } }
         if case .moment(let moment) = item.what { return .moment(moment) }
         return item.message.map(Say.line)
     }

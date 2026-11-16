@@ -366,8 +366,12 @@ enum YouCalendar {
         return live + rows.enumerated().compactMap { index, row in
             guard let date = day(row.0 == 0 && freeToday ? 2 : row.0) else { return nil }
             let photo = row.3.flatMap { Bundle.main.url(forResource: $0, withExtension: "jpg") }
-            var event = UpcomingEvent(id: "you-sample-\(index)", title: row.2, eventDate: Town.day(date),
-                                      startTime: row.1, location: row.4, goingCount: 3, createdAt: "",
+            // `-town-soon`: the coffee starts 20 minutes from launch, so the Agenda and the Event calendar count
+            // down, "In 20 min" (BP app happening-now 07).
+            let soon = index == 2 && LaunchFlags.has(.townSoon) ? now.addingTimeInterval(20 * 60) : nil
+            var event = UpcomingEvent(id: "you-sample-\(index)", title: row.2,
+                                      eventDate: soon.map(Town.day) ?? Town.day(date),
+                                      startTime: soon.map { TownFixtures.townClock("h:mm a", $0) } ?? row.1, location: row.4, goingCount: 3, createdAt: "",
                                       imageUrl: photo?.absoluteString, rsvpd: true, category: row.5,
                                       cancelled: index == 4 && cancelledSample)
             // The coffee and the book club: two of the sample friends (`Neighbor.samples`), and one

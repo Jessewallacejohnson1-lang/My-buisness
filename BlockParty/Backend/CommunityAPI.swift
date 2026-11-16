@@ -858,6 +858,13 @@ struct CommunityAPI {
         try Self.myGoingRows(from: await db.rpc("get_my_going", ["p_from": from, "p_to": to]))
     }
 
+    /// Your own just-posted Event's card (`get_event_card`, BP app inside-cards 29), for the bell's "Your event is
+    /// live" door: nil for any failure, and the door keeps the card New post made.
+    func eventCard(id: String) async -> FeedCardItem? {
+        guard let data = try? await db.rpc("get_event_card", ["p_event": id]) else { return nil }
+        return (try? Self.myGoingRows(from: data))?.first.map { FeedCardItem($0) }
+    }
+
     /// The Events the neighbour hearted from `from` on, a Town day as "yyyy-MM-dd", and any
     /// from before it still running: `get_my_likes`, You's Liked list (BP app inside-cards 16).
     /// Each card says it's hearted and whether they're Going. Then the stories they hearted that the

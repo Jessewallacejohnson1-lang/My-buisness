@@ -187,10 +187,16 @@ struct FeedCardItem: Identifiable, Hashable {
     /// invented one (no fake urgency).
     /// A long Event's part counts down the same way, by its name: "Artist talk in 20 min" (happening-now 04).
     func countdown(at now: Date) -> FeedWhenLine? {
-        guard !cancelled, game?.final == nil else { return nil }
-        if liveKind, let when, when.timed, let soon = FeedWhenLine.countdown(to: when.start, at: now) { return soon }
-        guard let part, part.live else { return nil }
+        if let soon = startsIn(at: now) { return soon }
+        guard !cancelled, game?.final == nil, let part, part.live else { return nil }
         return FeedWhenLine.countdown(to: part.start, at: now, named: part.title)
+    }
+
+    /// The countdown to its own start alone, never a part's: what the small lists say (the Block Party tab, You's
+    /// Agenda, Search, a Profile's Going rows), where a part's name has no room (Jesse at happening-now 07's Check-in 1).
+    func startsIn(at now: Date) -> FeedWhenLine? {
+        guard !cancelled, game?.final == nil, liveKind, let when, when.timed else { return nil }
+        return FeedWhenLine.countdown(to: when.start, at: now)
     }
 
     /// The Town card's time line at `now`: when, then who it's for by age when a source says it, like a LEGO box's

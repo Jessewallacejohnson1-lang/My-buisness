@@ -109,7 +109,8 @@ final class YouCalendarTests: XCTestCase {
     func testTheCardSaysNowOnlyWhileItsOn() {
         let event = YouCalendar.event(from: row("a", "2026-10-13", "7 PM"))!
         func plain(_ text: String) -> String { text.replacingOccurrences(of: "\u{202F}", with: " ") }
-        XCTAssertEqual(plain(event.startTime(now: town("2026-10-13 18:00"))), "7 PM")
+        XCTAssertEqual(plain(event.startTime(now: town("2026-10-13 17:00"))), "7 PM")
+        XCTAssertEqual(event.startTime(now: town("2026-10-13 18:00")), "In 60 min", "the hour before (happening-now 07)")
         XCTAssertEqual(event.startTime(now: town("2026-10-13 19:30")), "Now")
         XCTAssertEqual(plain(event.startTime(now: town("2026-10-14 12:00"))), "7 PM")
     }

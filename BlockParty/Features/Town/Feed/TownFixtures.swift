@@ -242,7 +242,7 @@ enum TownFixtures {
     }
 
     /// A date in St. Joseph's time, as the feed writes it ("2026-10-31", "1:05 PM").
-    private static func townClock(_ format: String, _ date: Date) -> String {
+    static func townClock(_ format: String, _ date: Date) -> String {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
         f.timeZone = Town.timeZone
