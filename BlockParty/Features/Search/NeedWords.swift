@@ -67,7 +67,7 @@ enum NeedWords {
         Need(words: ["gym", "workout", "fitness"], types: ["gym", "fitness_center", "yoga_studio"],
              names: ["fitness", "gym"]),
         Need(words: ["yoga"], types: ["yoga_studio"], names: ["yoga"]),
-        Need(words: ["church", "worship", "mass"], types: ["church", "place_of_worship", "christian_place_of_worship"],
+        Need(words: ["church", "worship"], types: ["church", "place_of_worship", "christian_place_of_worship"],
              names: ["church", "parish", "abbey", "monastery", "chapel"]),
         Need(words: ["catholic church", "catholic"], types: ["catholic_church"], names: ["parish", "abbey", "monastery"]),
         // Home and car
