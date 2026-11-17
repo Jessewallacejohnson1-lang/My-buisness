@@ -1678,6 +1678,38 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(town.cards.map(\.id), ["a"])
     }
 
+    /// Offline with no list, the feed reads again on its own (town-feed 47): that quiet read keeps the
+    /// retry on screen while it is out, where a tap on Try again shows the skeleton.
+    func testAQuietReadKeepsTheRetryOnScreen() async {
+        var failedDuringRead: [Bool] = []
+        var answers: [Result<[TownFeedEntry], Error>] = [
+            .failure(Offline()), .failure(Offline()), .success([TownFeed.entry(row("a"))]),
+        ]
+        var town: TownFeed?
+        town = TownFeed {
+            failedDuringRead.append(town?.failed ?? false)
+            return try answers.removeFirst().get()
+        }
+        await town?.reload(at: now)
+        await town?.refresh(at: now.addingTimeInterval(10))
+        XCTAssertEqual(failedDuringRead, [false, true], "the retry stays up while the quiet read is out")
+        XCTAssertEqual(town?.failed, true)
+        await town?.refresh(at: now.addingTimeInterval(20))
+        XCTAssertEqual(town?.failed, false)
+        XCTAssertEqual(town?.cards.map(\.id), ["a"])
+
+        failedDuringRead = []
+        var tap: TownFeed?
+        tap = TownFeed {
+            failedDuringRead.append(tap?.failed ?? false)
+            if failedDuringRead.count == 1 { throw Offline() }
+            return [TownFeed.entry(row("b"))]
+        }
+        await tap?.reload(at: now)
+        await tap?.reload(at: now.addingTimeInterval(10))
+        XCTAssertEqual(failedDuringRead, [false, false], "a tap on Try again shows the skeleton while it reads")
+    }
+
     // MARK: When the order changes (ticket 11)
 
     private func entries(_ ids: [String], going: Int = 0) -> [TownFeedEntry] {
