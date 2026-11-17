@@ -24,6 +24,8 @@ struct EditProfileView: View {
     @State private var heldFollows: [FollowTarget: Bool] = [:]
     @State private var pick: PhotosPickerItem?
     @State private var bio = ""
+    @FocusState private var focus: Field?
+    private enum Field { case name, bio }
     @State private var cover: UIImage?
     @State private var coverPick: PhotosPickerItem?
     @State private var showInterests = EditProfileView.debugOpenInterests()
@@ -235,9 +237,13 @@ struct EditProfileView: View {
                 .font(.sans(17)).foregroundStyle(Hue.ink)
                 .textInputAutocapitalization(.words)
                 .submitLabel(.done)
+                .focused($focus, equals: .name)
                 .padding(.horizontal, 14).padding(.vertical, 13)
                 .background(Hue.surface, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).stroke(Hue.hairline, lineWidth: 1))
+                // The whole box takes the tap, not only the text line.
+                .contentShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                .onTapGesture { focus = .name }
                 .onChange(of: name) { _, v in if v.count > 24 { name = String(v.prefix(24)) } }
         }
     }
@@ -274,9 +280,12 @@ struct EditProfileView: View {
             TextField("Tell your neighbors a little about yourself", text: $bio, axis: .vertical)
                 .font(.sans(17)).foregroundStyle(Hue.ink)
                 .lineLimit(3...5)
+                .focused($focus, equals: .bio)
                 .padding(.horizontal, 14).padding(.vertical, 13)
                 .background(Hue.surface, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).stroke(Hue.hairline, lineWidth: 1))
+                .contentShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                .onTapGesture { focus = .bio }
                 .onChange(of: bio) { _, v in
                     if ProfileModel.bioLength(v) > ProfileModel.bioLimit { bio = ProfileModel.clampBio(v) }
                 }
