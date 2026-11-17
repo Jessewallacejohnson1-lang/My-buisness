@@ -224,6 +224,46 @@ final class DailyPageTests: XCTestCase {
         XCTAssertEqual(following.first?.event.item.title, "Cathedral Volleyball vs Sartell", "a tap opens its Event page")
     }
 
+    /// A co-op's game names your side by `game.mine` (daily-tab 27): Cathedral swims as Apollo-Cathedral, so the
+    /// row says who it's against and shows the co-op's logo. A title that starts with the followed name drops it.
+    @MainActor
+    func testFollowingRowsNameACoopsGameAndDropARepeatedName() throws {
+        func row(_ n: Int, _ title: String, name: String, host: String = "Cathedral High School",
+                 game: Any = NSNull()) -> [String: Any] {
+            let id = "11111111-0000-0000-0000-00000000000\(n)"
+            return ["id": id, "recurrence": NSNull(), "leaves_at": "2026-10-02T03:00:00+00:00",
+                    "reason": "follow", "reason_name": name,
+                    "card": ["id": id, "title": title, "event_date": "2026-10-01", "start_time": "\(n) PM",
+                             "location": NSNull(), "image_url": NSNull(), "category": NSNull(), "club_name": NSNull(),
+                             "source_name": host, "end_at": NSNull(), "all_day": false,
+                             "created_at": "2026-10-01T12:00:00+00:00", "going_count": 0, "going": false,
+                             "game": game] as [String: Any]]
+        }
+        let teams = [["name": "Apollo-Cathedral", "short": "Apollo-Cathedral", "logo": "https://x/ac.png", "id": "u-ac"],
+                     ["name": "ROCORI", "short": "ROCORI", "logo": "https://x/rocori.png", "id": "u-rocori"]]
+        let rows = try CommunityAPI.townFeedRows(from: JSONSerialization.data(withJSONObject: [
+            row(1, "Apollo-Cathedral Girls Swim vs ROCORI", name: "Cathedral",
+                game: ["sport": "Girls Swim", "teams": teams, "mine": "u-ac"]),
+            row(2, "Apollo-Cathedral Girls Swim vs ROCORI", name: "Cathedral", game: ["sport": "Girls Swim", "teams": teams]),
+            row(3, "City Council Meeting", name: "City Council", host: Town.cityPage),
+            row(4, "City Council Work Session", name: "City Council", host: Town.cityPage),
+            row(5, "Planning Commission", name: "Planning Commission", host: Town.cityPage),
+            row(6, "Stitch and Sip", name: "Stitch and Sip", host: "Stitch and Sip"),
+            row(7, "Joetown Fall Fest", name: "Joe", host: "Joetown"),
+            row(8, "Bad Habit Brewing: Trivia night", name: "Bad Habit Brewing", host: "Bad Habit Brewing")]))
+        let following = DailyFollowing.today(from: rows.map(TownFeed.card), day: "2026-10-01", now: town(8))
+        XCTAssertEqual(following.map { "\($0.name) · \($0.what)" }, [
+            "Cathedral · vs ROCORI.",
+            "Cathedral · Apollo-Cathedral Girls Swim vs ROCORI.",
+            "City Council · Meeting.",
+            "City Council · Work Session.",
+            "Planning Commission · Meeting.",
+            "Stitch and Sip · Stitch and Sip.",
+            "Joe · Joetown Fall Fest.",
+            "Bad Habit Brewing · Trivia night."])
+        XCTAssertEqual(following.first?.avatar, URL(string: "https://x/ac.png"), "the co-op's logo")
+    }
+
     /// One row as `get_event_of_the_day` sends it (the Town feed's row: its card and the feed's own), read by
     /// the feed's decoder.
     private func eventOfTheDayRow(start: String?, allDay: Bool = false, endAt: String? = nil,

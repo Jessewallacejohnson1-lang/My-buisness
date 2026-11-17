@@ -30,6 +30,9 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
     private(set) var shots: [Int]?
     /// SIDEARM's scoring plays, oldest first (ticket 05): every play that changed the score, in its words.
     private(set) var plays: [Play] = []
+    /// The side you follow, as its team's uuid (`Team.id`), when the Town feed lifted it for a school or activity
+    /// you follow (BP app daily-tab 27); nil from any other read.
+    var mine: String? = nil
 
     /// How penalty kicks settled a tie, as `live_score.shootout` keeps it (`private.sidearm_shootout`).
     nonisolated struct Shootout: Decodable, Hashable, Sendable {
@@ -328,13 +331,14 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
         }
     }
 
-    private enum CodingKeys: String, CodingKey { case sport, occasion, teams, final, live, plays }
+    private enum CodingKeys: String, CodingKey { case sport, occasion, teams, final, live, plays, mine }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         sport = try c.decode(String.self, forKey: .sport)
         occasion = try c.decodeIfPresent(String.self, forKey: .occasion)
         teams = try c.decode([Team].self, forKey: .teams)
+        mine = try? c.decodeIfPresent(String.self, forKey: .mine)
         let final = (try? c.decodeIfPresent([Int].self, forKey: .final)) ?? nil
         setScores(final: final, live: (try? c.decodeIfPresent(Live.self, forKey: .live)) ?? nil,
                   plays: ((try? c.decodeIfPresent([LenientItem<Play>].self, forKey: .plays)) ?? nil)?.compactMap(\.value) ?? [])
@@ -420,11 +424,14 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
         return sets.count - 1
     }
 
-    /// Your side and theirs, by what you follow: a school or its activity starts with the team's short name
+    /// Your side and theirs, by what you follow: the side the Town feed says (`mine`: a co-op plays as
+    /// "St. Cloud" for a Cathedral fan, daily-tab 27), else the team's short name the followed name starts with
     /// ("Saint John's", "Cathedral Volleyball (girls)"). nil when what you follow is the place or page it's
     /// at, not a team in it (hello-drop 09).
     func sides(followed: String?) -> (mine: Team, other: Team)? {
-        guard teams.count == 2, let mine = teams.firstIndex(where: { followed?.hasPrefix($0.short) == true })
+        guard teams.count == 2, followed != nil,
+              let mine = teams.firstIndex(where: { $0.id != nil && $0.id == self.mine })
+                ?? teams.firstIndex(where: { followed?.hasPrefix($0.short) == true })
         else { return nil }
         return (teams[mine], teams[1 - mine])
     }
