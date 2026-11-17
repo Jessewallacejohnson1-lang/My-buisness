@@ -362,9 +362,21 @@ def game_card(e):
     return e.get('sport') is not None and len(e.get('team_ids') or []) == 2
 
 
+# A special game is looked at for a photo of its own when its card shows no logos (BP app event-photos 22; Jesse,
+# 2026-11-16: "we only show photos for special games season starters or playoffs ect. if we can find good ones"): the
+# SJU NCAA playoff's own trophy photo. The picker still says none when nothing good is found.
+SPECIAL = (r'playoff|post-?season|\bsections?\b|state (?:tourn|champ|meet|final|qualif)|champion|\bncaa\b|'
+           r'\b(?:semi-?|quarter-?)?finals?\b|opener|home ?coming|senior night')
+
+
+def is_special(e):
+    return re.search(SPECIAL, (e.get('title') or '').lower()) is not None
+
+
 def is_sport(e):
-    """No photo of its own: the morning's photo step (event_photos.py) and the skill's review page (check.py)."""
-    return game_card(e) or subject(e.get('title'), e.get('sport'), e.get('category')) in SPORTS
+    """No photo of its own: the morning's photo step (event_photos.py) and the skill's review page (check.py). A game
+    card never; a sport without logos unless it's special."""
+    return game_card(e) or (subject(e.get('title'), e.get('sport'), e.get('category')) in SPORTS and not is_special(e))
 
 
 def _q(s):
@@ -1066,13 +1078,18 @@ def selftest():
          GAME_CARD_RULE in made_by_migrations('private.event_game')
          and game_card({'sport': 'Girls Hockey', 'team_ids': ['sartell', 'buffalo']})
          and not game_card({'sport': None, 'team_ids': None}) and not game_card({'sport': 'Football', 'team_ids': ['a']})),
-        ("a game, a meet or a dance team has no photo of its own; a play, a concert or Knowledge Bowl from a school's "
+        ("a game card, a meet or a dance team has no photo of its own, a special game without logos does; a play, a concert or Knowledge Bowl from a school's "
          "activities page does, and so does a Skin tattoo shop",
          is_sport({'title': 'Brainerd Football vs Sartell', 'category': 'watch_sports'})
          and is_sport({'title': 'Nordic Skiing Invite', 'category': 'watch_sports'})
          and is_sport({'title': 'Varsity Jazz', 'category': 'art_theater'}) and is_sport({'title': 'Youth dodgeball',
                                                                                          'category': 'play_sports'})
          and is_sport({'title': 'Cathedral vs Foley', 'sport': 'Boys Tennis', 'team_ids': ['a', 'b']})
+         and is_sport({'title': 'Cathedral Football Playoff vs Foley', 'sport': 'Football', 'team_ids': ['a', 'b']})
+         and not is_sport({'title': 'SJU Football: NCAA Second Round', 'category': 'watch_sports', 'team_ids': None})
+         and not is_sport({'title': 'Boys Hockey Season Opener', 'category': 'watch_sports'})
+         and not is_sport({'title': 'Section 8AA Wrestling', 'category': 'watch_sports'})
+         and is_sport({'title': 'Albany Gymnastics Invite', 'category': 'watch_sports'})
          and not any(is_sport({'title': t, 'category': c}) for t, c in
                      [('The Little Mermaid', 'art_theater'), ('HS Fall Band Concert', 'live_music'),
                       ('Knowledge Bowl Meet', None), ('Fresh Skin Tattoos Fundraiser', None)])),

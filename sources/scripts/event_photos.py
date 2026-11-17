@@ -31,9 +31,10 @@ flyer from its own post or page (Jesse, 2026-11-02: Pizza night's flyer over the
 `keep` saves each pick the one way every picture is saved (place_photos.save_picture): to the places bucket as a
 place_photos row of kind 'event' for that Event ('flyer' for a flyer, which the card shows only when no scene fits)
 (one row per Event when one post names several), credited to its place (a post) or its site (a page). It marks
-every Event laid out as looked at (club_events.photo_checked_at), found or not, so none is looked at twice. A game,
-a meet or any sport has no photo of its own for now (place_photos.is_sport, the skill's review page's rule too), and a
-sport's card shows the scene pool (event-photos 07).
+every Event laid out as looked at (club_events.photo_checked_at), found or not, so none is looked at twice. A game
+card, a meet or any sport has no photo of its own (place_photos.is_sport, the skill's review page's rule too), and a
+sport's card shows the scene pool (event-photos 07); a special game without logos, an opener or a playoff, is looked at
+like any Event (event-photos 22).
 
 A News found in a Facebook or Instagram post gets the same look (BP app town-feed 53; Jesse, 2026-11-08: "yes" to News
 showing its post's own photo): its own post's pictures only, never its place's other posts, down to NEWS_MIN_WIDTH, a
@@ -1065,10 +1066,12 @@ def selftest():
           and post_key("https://www.instagram.com/p/DfFG3nHkVH3/") == "DfFG3nHkVH3"
           and post_key("https://www.facebook.com/events/2380009089072052") == "2380009089072052", "one post however it's written")
     listed = [{"title": "Boys Swim vs Brainerd · JV", "category": "watch_sports"},
-              {"title": "The Little Mermaid", "category": "art_theater", "source_url": "https://gobound.com/direct/x"}]
+              {"title": "The Little Mermaid", "category": "art_theater", "source_url": "https://gobound.com/direct/x"},
+              {"title": "SJU Football: NCAA Second Round", "category": "watch_sports", "sport": "Football", "team_ids": None,
+               "source_url": "https://gojohnnies.com/news/2026/11/16/football-johnnies-to-host-ncaa-second-round-game-nov-28"}]
     seen = type("Db", (), {"rest": lambda self, *a, **k: listed})()
-    check([r["title"] for r in todo(seen, datetime(2026, 11, 3, tzinfo=timezone.utc))] == ["The Little Mermaid"],
-          "a meet is left out, a school's play is looked at (place_photos.is_sport)")
+    check([r["title"] for r in todo(seen, datetime(2026, 11, 3, tzinfo=timezone.utc))] == ["The Little Mermaid", "SJU Football: NCAA Second Round"],
+          "a meet is left out, a school's play and a playoff without logos are looked at (place_photos.is_sport)")
 
     post = lambda url, owner_, pics, **more: {"_task": "bp-busy-facebook", "url": url, "pageName": owner_,
                                               "media": [{"__typename": "Photo", "image": {"uri": u}, "photo_image": {"uri": u},
