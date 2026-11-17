@@ -220,7 +220,7 @@ enum TownFixtures {
                               photo: false, hoursUntil: started ? -1 : g.hoursUntil, going: g.went, now: now)
             guard var card = entry.card else { return entry }
             card.eventDate = started ? today : g.day
-            card.startTime = started ? Self.townClock("h:mm a", now.addingTimeInterval(-3600)) : g.time
+            card.startTime = started ? Self.townClock("h:mm a", startedAnHourAgo(now: now)) : g.time
             card.location = g.place
             // A game replaying starts with no score: `-town-shootout`'s sample is its final.
             card.game = started ? g.game.with(final: nil, live: nil, plays: []) : g.game
@@ -239,6 +239,12 @@ enum TownFixtures {
                                   location: card.location, goingCount: card.goingCount, createdAt: "", rsvpd: true)
         event.game = card.game
         return event
+    }
+
+    /// An hour before `now`, but never before the Town's midnight, so a sample that "started an hour
+    /// ago" stays on today: from midnight to 1 AM it starts at 12:00 AM, not last night (agent-guardrails 10).
+    static func startedAnHourAgo(now: Date) -> Date {
+        max(now.addingTimeInterval(-3600), Town.gregorian.startOfDay(for: now))
     }
 
     /// A date in St. Joseph's time, as the feed writes it ("2026-10-31", "1:05 PM").
@@ -424,7 +430,7 @@ enum TownFixtures {
         // `-town-soon`: the same two start 20 minutes from launch, so both count down, "In 20 min" (BP app
         // happening-now 01).
         if ["e1", "e5"].contains(id), LaunchFlags.has(.townNow) || LaunchFlags.has(.townSoon) {
-            let start = now.addingTimeInterval(LaunchFlags.has(.townNow) ? -3600 : 20 * 60)
+            let start = LaunchFlags.has(.townNow) ? startedAnHourAgo(now: now) : now.addingTimeInterval(20 * 60)
             // Its place first: with a start time of its own the meta line no longer gives it.
             item.location = item.whereLine
             item.eventDate = townClock("yyyy-MM-dd", start)
