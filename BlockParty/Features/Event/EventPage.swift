@@ -436,7 +436,7 @@ struct EventPage: View {
         photos.isEmpty ? item.image.logo ?? item.place?.logo : nil
     }
 
-    private var hasHero: Bool { !photos.isEmpty || heroLogo != nil }
+    private var hasHero: Bool { !photos.isEmpty || heroLogo != nil || !heroPages.isEmpty }
 
     /// The picture, when it is a flyer (BP app event-photos 16): one that failed to load has left the list.
     private var flyer: URL? {
@@ -463,12 +463,11 @@ struct EventPage: View {
     /// bottom edge, as before (guessed, until Apple Invites' own motion is recorded). An Event with its own
     /// photo swipes through an exhibit's other pieces and its flyer (`heroPager`, event-photos 25, town-feed 59).
     @ViewBuilder private var lookHero: some View {
-        if let picture = photos.first, let url = picture.url {
-            if heroPages.count > 1 {
-                heroPager(heroPages)
-            } else {
-                heroPicture(url: url, picture: picture, isFlyer: flyer == url, aspect: flyerAspect)
-            }
+        let pages = heroPages
+        if !pages.isEmpty {
+            heroPager(pages)
+        } else if let picture = photos.first, let url = picture.url {
+            heroPicture(url: url, picture: picture, isFlyer: flyer == url, aspect: flyerAspect)
         } else if let heroLogo {
             EventLogoHero(logo: heroLogo) { takeColor(from: $0) }
                 .visualEffect { content, proxy in
@@ -487,8 +486,9 @@ struct EventPage: View {
     }
 
     /// One picture as the hero shows it, a photo melting into the page or a flyer whole, with its heart and credit.
+    /// In the pager (`chrome` false) the heart and credit sit over the set instead, still as the finger drags.
     private func heroPicture(url: URL, picture: FeedCardImageSource, isFlyer: Bool, aspect: CGFloat,
-                             pale: Bool? = nil) -> some View {
+                             pale: Bool? = nil, chrome: Bool = true) -> some View {
         let pale = pale ?? self.pale
         let height = isFlyer ? EventFlyerHero.height(aspect: aspect, width: width) : photoHeight
         let flyerSize = EventFlyerHero.size(aspect: aspect, width: width)
@@ -521,7 +521,7 @@ struct EventPage: View {
         .pinchToZoom(slot: wash.map { Color(hex: $0.top) } ?? Hue.gameNight, lifted: $heroLifted)
         // After the stretch, so they stay put, unscaled.
         .overlay(alignment: .bottomTrailing) {
-            if !reviewing {
+            if chrome, !reviewing {
                 TownCardHeart(item: item)
                     .padding(.trailing, isFlyer ? (width - flyerSize.width) / 2 + EventLook.heartFlyerInset : EventLook.heartInset)
                     .padding(.bottom, isFlyer ? EventLook.flyerBottom + EventLook.heartFlyerInset
@@ -529,7 +529,7 @@ struct EventPage: View {
             }
         }
         .overlay(alignment: .bottomLeading) {
-            if !isFlyer, let credit = picture.attribution, PhotoPager.isShown(url, in: shownPhotos) {
+            if chrome, !isFlyer, let credit = picture.attribution, PhotoPager.isShown(url, in: shownPhotos) {
                 PhotoCredit(names: [credit], report: picture.report(place: item.whereLine), spoken: false)
                     .padding(.leading, EventLook.heartInset - PhotoCredit.edgeInset)
                     .padding(.bottom, EventLook.creditAboveFoot - PhotoCredit.edgeInset)
@@ -543,8 +543,8 @@ struct EventPage: View {
     /// The pictures the hero swipes through: the Event's own photo while it is on show, an exhibit's other pieces, then
     /// its flyer, skipping any that failed. None when there is only one, so the page shows it alone.
     private var heroPages: [HeroPage] {
-        guard flyer == nil, let first = photos.first, first.url == item.image.url else { return [] }
-        return Self.heroPages(own: first, pieces: item.pieces, flyer: item.flyer, failed: failedPhotos)
+        guard !item.whole, item.image.url != nil, photos.first?.url == item.image.url || !item.pieces.isEmpty else { return [] }
+        return Self.heroPages(own: item.image, pieces: item.pieces, flyer: item.flyer, failed: failedPhotos)
     }
 
     /// The flyer the hero ends on, when it has one.
@@ -581,11 +581,20 @@ struct EventPage: View {
         let dot = dots[at.page] + (dots[at.page + 1] - dots[at.page]) * at.toward
         let swipe = min(max(heroSwipe, 0), CGFloat(pages.count - 1))
         let shown = Int(swipe.rounded())
+        // One heart and one credit over the set, as Instagram's post keeps its buttons still (the approved mock): the
+        // heart moves only toward a flyer's corner, and the credit fades to the name of the picture nearest the finger.
+        let flyerWidth = EventFlyerHero.size(aspect: swipeAspect, width: width).width
+        let hearts = pages.map { $0.flyer ? ((width - flyerWidth) / 2 + EventLook.heartFlyerInset, EventLook.flyerBottom + EventLook.heartFlyerInset)
+                                          : (EventLook.heartInset, EventLook.heartAboveFoot - TownCardHeart.side) }
+        let heart = (hearts[at.page].0 + (hearts[at.page + 1].0 - hearts[at.page].0) * at.toward,
+                     hearts[at.page].1 + (hearts[at.page + 1].1 - hearts[at.page].1) * at.toward)
+        let near = pages[shown]
+        let credit = near.flyer || !PhotoPager.isShown(near.url, in: shownPhotos) ? nil : near.picture.attribution
         return ScrollView(.horizontal) {
-            HStack(spacing: 0) {
+            LazyHStack(spacing: 0) {
                 ForEach(Array(pages.enumerated()), id: \.element.url) { index, page in
                     heroPicture(url: page.url, picture: page.picture, isFlyer: page.flyer, aspect: page.flyer ? swipeAspect : 1,
-                                pale: index == 0 ? nil : pagePales[page.url] ?? false)
+                                pale: index == 0 ? nil : pagePales[page.url] ?? false, chrome: false)
                         .frame(width: width, height: height, alignment: .top)
                         .accessibilityHidden(index != shown)
                         .id(index)
@@ -608,6 +617,22 @@ struct EventPage: View {
                     .offset(y: dot - EventPageDots.side / 2)
             }
         }
+        .overlay(alignment: .bottomTrailing) {
+            if !reviewing, !heroLifted {
+                TownCardHeart(item: item)
+                    .padding(.trailing, heart.0)
+                    .padding(.bottom, heart.1)
+            }
+        }
+        .overlay(alignment: .bottomLeading) {
+            if !heroLifted, let credit {
+                PhotoCredit(names: [credit], report: near.picture.report(place: item.whereLine), spoken: false)
+                    .padding(.leading, EventLook.heartInset - PhotoCredit.edgeInset)
+                    .padding(.bottom, EventLook.creditAboveFoot - PhotoCredit.edgeInset)
+                    .opacity(Double(max(0, 1 - abs(swipe - CGFloat(shown)) * 2)))
+                    .id(near.url)
+            }
+        }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(pages[shown].flyer ? "Flyer, \(shown + 1) of \(pages.count)" : "Photo \(shown + 1) of \(pages.count)")
         .accessibilityAdjustableAction { direction in
@@ -623,8 +648,12 @@ struct EventPage: View {
         // Each picture to swipe to keeps its own colour, which the page goes to as it comes in (town-feed 59).
         if heroPages.dropFirst().contains(where: { $0.url == url }) {
             let pixels = EventLook.pixels(of: image)
-            pagePales[url] = EventLook.brightness(pixels: pixels) > EventLook.pale
-            pageColors[url] = item.cancelled ? EventLook.grey : EventLook.dominant(pixels: pixels)
+            let pale = EventLook.brightness(pixels: pixels) > EventLook.pale
+            let color = item.cancelled ? EventLook.grey : EventLook.dominant(pixels: pixels)
+            withAnimation(reduceMotion ? nil : Motion.smooth) {
+                pagePales[url] = pale
+                pageColors[url] = color
+            }
         } else {
             takeColor(from: image)
         }
@@ -1074,22 +1103,25 @@ struct EventPage: View {
     }
 
     /// One picture of the hero's set: a photo, or the flyer it ends on.
-    struct HeroPage: Equatable {
+    struct HeroPage {
         let url: URL
         let picture: FeedCardImageSource
         let flyer: Bool
     }
 
     /// The hero's set (BP app event-photos 25, town-feed 59): the Event's own photo, an exhibit's other pieces in
-    /// order, then its flyer, each that `failed` left out. None without the own photo, or with one picture left.
+    /// order, then its flyer, each picture once, each that `failed` left out, so the next piece leads when the first
+    /// fails. None without an own photo, or with one picture left.
     static func heroPages(own: FeedCardImageSource?, pieces: [FeedCardImageSource], flyer: URL?,
                           failed: Set<URL>) -> [HeroPage] {
-        guard let own, let first = own.url, !failed.contains(first) else { return [] }
-        let rest = pieces.compactMap { piece in
-            piece.url.flatMap { failed.contains($0) ? nil : HeroPage(url: $0, picture: piece, flyer: false) }
+        guard let own, own.url != nil else { return [] }
+        var seen = failed
+        let photos = ([own] + pieces).compactMap { picture in
+            picture.url.flatMap { seen.insert($0).inserted ? HeroPage(url: $0, picture: picture, flyer: false) : nil }
         }
-        let last = flyer.flatMap { failed.contains($0) ? nil : HeroPage(url: $0, picture: .placePhoto($0, credit: nil), flyer: true) }
-        let pages = [HeroPage(url: first, picture: own, flyer: false)] + rest + (last.map { [$0] } ?? [])
+        guard !photos.isEmpty else { return [] }
+        let last = flyer.flatMap { seen.insert($0).inserted ? HeroPage(url: $0, picture: .placePhoto($0, credit: nil), flyer: true) : nil }
+        let pages = photos + (last.map { [$0] } ?? [])
         return pages.count > 1 ? pages : []
     }
 

@@ -185,7 +185,12 @@ final class EventPageTests: XCTestCase {
         XCTAssertEqual(pages(own, [], flyer, []).map(\.url), [own, flyer], "an own photo and its flyer, as before")
         XCTAssertEqual(pages(own, [], nil, []).count, 0, "one picture doesn't swipe")
         XCTAssertEqual(pages(own, pieces, flyer, [Self.url("coat"), Self.url("hands"), flyer]).count, 0)
-        XCTAssertEqual(pages(nil, pieces, flyer, []).count, 0, "with its own photo gone, the page shows the next picture alone")
+        XCTAssertEqual(pages(nil, pieces, flyer, []).count, 0, "no own photo: no set")
+        XCTAssertEqual(pages(own, pieces, flyer, [own]).map(\.url), [Self.url("coat"), Self.url("hands"), flyer],
+                       "its first piece fails: the next leads")
+        XCTAssertEqual(pages(own, pieces + [.eventPhoto(own)], nil, []).map(\.url), [own, Self.url("coat"), Self.url("hands")],
+                       "each picture once")
+        XCTAssertEqual(pages(own, [], flyer, [own]).count, 0, "only the flyer left: it shows alone")
     }
 
     /// Where the hero rests between two pages, for its height, its colour and its dots: the page on the left and how
