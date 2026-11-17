@@ -852,11 +852,11 @@ final class SearchModel {
     }
 
     /// The name on a card: the mockup drops what only repeats the kind of place.
-    /// A cut that would leave a name hanging ("Hudson & Company" to "Hudson &") is skipped.
+    /// "& Company" is part of a name ("Hudson & Company", "Hansen & Company Woodworks"): kept whole.
     static func shown(_ name: String) -> String {
         [" | Italian", " - \(Town.everyday)", " Company", " Restaurant"].reduce(name) { name, cut in
-            let left = name.replacingOccurrences(of: cut, with: "")
-            return left.hasSuffix("&") || left.hasSuffix(" and") ? name : left
+            cut == " Company" && (name.contains("& Company") || name.contains(" and Company"))
+                ? name : name.replacingOccurrences(of: cut, with: "")
         }
     }
 

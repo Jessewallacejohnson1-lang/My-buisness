@@ -27,6 +27,7 @@ final class SmallFixesTests: XCTestCase {
     func testShownKeepsAnAmpersandName() {
         XCTAssertEqual(SearchModel.shown("Hudson & Company"), "Hudson & Company")
         XCTAssertEqual(SearchModel.shown("Smith and Company"), "Smith and Company")
+        XCTAssertEqual(SearchModel.shown("Hansen & Company Woodworks"), "Hansen & Company Woodworks")
         XCTAssertEqual(SearchModel.shown("Bad Habit Brewing Company"), "Bad Habit Brewing")
         XCTAssertEqual(SearchModel.shown("Bello Cucina | Italian Restaurant"), "Bello Cucina")
     }
