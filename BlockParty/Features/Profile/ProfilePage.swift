@@ -157,6 +157,9 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
     /// A row's tap: the page that holds this one pushes the Event or the Group page.
     var openEvent: (FeedCardItem) -> Void = { _ in }
     var openGroup: (TownGroup) -> Void = { _ in }
+    /// Your own page: a tap on the friends or following count opens that list; nil leaves it plain.
+    var openFriends: (() -> Void)? = nil
+    var openFollowing: (() -> Void)? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Namespace private var zoom
@@ -345,13 +348,15 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
     }
 
     /// Each number over its word in an 81 pt column, the numbers in ink, the words grey, no card.
-    /// VoiceOver reads them as one line: "24 friends, 2 groups, 9 following". Each column is known by
-    /// its word, so a count that arrives and moves the others over slides them, never cross-fading one
-    /// number into its neighbour's place.
+    /// VoiceOver reads them as one line: "24 friends, 2 groups, 9 following", or, on your own page
+    /// where friends and following open their lists (Instagram's counts), one button each. Each
+    /// column is known by its word, so a count that arrives and moves the others over slides them,
+    /// never cross-fading one number into its neighbour's place.
     private func countsRow(_ counts: [(number: Int, word: String)]) -> some View {
-        HStack(spacing: 0) {
+        let tappable = counts.contains { opens($0.word) != nil }
+        return HStack(spacing: 0) {
             ForEach(counts, id: \.word) { part in
-                VStack(spacing: 0) {
+                let column = VStack(spacing: 0) {
                     Text("\(part.number)")
                         .font(.apple(17, weight: .semibold))
                         .monospacedDigit()
@@ -362,10 +367,27 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
                 }
                 .lineLimit(1)
                 .frame(width: ProfileMetric.countColumn)
+                if let open = opens(part.word) {
+                    Button(action: open) { column.contentShape(Rectangle()) }
+                        .buttonStyle(.press(.squish))
+                        .accessibilityLabel("\(part.number) \(part.word)")
+                } else {
+                    column.accessibilityElement(children: .combine)
+                }
             }
         }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(counts.map { "\($0.number) \($0.word)" }.joined(separator: ", "))
+        .accessibilityElement(children: tappable ? .contain : .ignore)
+        .accessibilityLabel(tappable ? "" : counts.map { "\($0.number) \($0.word)" }.joined(separator: ", "))
+    }
+
+    /// The list a count opens: your friends and your follows, on your own page only.
+    private func opens(_ word: String) -> (() -> Void)? {
+        switch word {
+        case "friend", "friends": openFriends
+        case "following": openFollowing
+        default: nil
+        }
+    }
     }
 
     /// The counts' place while their read is out: short blocks over shorter ones in the counts'
