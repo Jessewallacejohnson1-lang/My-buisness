@@ -388,7 +388,6 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
         default: nil
         }
     }
-    }
 
     /// The counts' place while their read is out: short blocks over shorter ones in the counts'
     /// columns, each line as tall as the text it stands in for (the text is there, hidden), so the
