@@ -134,14 +134,15 @@ final class LaunchMotionTests: XCTestCase {
         }
     }
 
-    /// Until the first hit the still's own picture shows and nothing of Bp does; from the hit on its
-    /// pieces draw the word, and once the ball is the dot they are all gone.
+    /// Until the first hit the still's own picture shows and nothing of Bp does (the pieces wait
+    /// under it, clear); from the hit on its pieces draw the word, and once the ball is the dot they
+    /// are all gone.
     func testTheStillsPictureShowsUntilTheFirstHit() {
         let m = motion
         for t in [0.0, 0.1, m.hitB - 0.001] {
             let f = m.frame(at: t)
             XCTAssertEqual(f.word, 1, "at \(t)")
-            XCTAssertTrue(f.pieces.isEmpty, "at \(t)")
+            XCTAssertEqual(f.pieces.map(\.opacity), Array(repeating: 0, count: 11), "the pieces wait, clear, at \(t)")
             XCTAssertFalse(f.bShown || f.pShown, "no Bp on the still, at \(t)")
             XCTAssertEqual(f.markOpacity, 1, "the ball shows as it drops in, at \(t)")
         }

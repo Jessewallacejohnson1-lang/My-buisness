@@ -672,8 +672,8 @@ nonisolated struct LaunchMotion {
         f.p = CGSize(width: kp * k / big * jump.width * (1 + bulge * dipP), height: kp * k / big * jump.height * (1 - dipP))
 
         // The still's own picture shows until the first hit, or a tap: nothing in the word has moved.
+        // The pieces wait under it, drawn clear, so their pictures are ready on the frame of the hit.
         f.word = t < min(hitB, skip ?? .infinity) ? 1 : 0
-        guard f.word == 0 else { return }
         var pieces = [Frame.Piece](repeating: Frame.Piece(), count: M.wordPieces.count)
         // The wordmark's own B and P until their hit lets go: they dip under the ball, like rubber.
         let line = M.smallFootB.y - M.wordBox.minY
@@ -696,7 +696,11 @@ nonisolated struct LaunchMotion {
                left: rightP - (rightP0 - M.wx(M.wordArty[0].0)) * (1 - c2),
                right: lerp(M.wx(M.wordArty[3].1) + party.width, M.endP + big * M.glyphP.width / 2, c2),
                belly: footP.y - M.bellyP * kp, drop: party.height, gone: t - letGoP >= M.gulpsFull)
-        f.pieces = pieces.contains { $0.opacity > 0 } ? pieces : []
+        if f.word == 1 {
+            f.pieces = pieces.map { Frame.Piece(opacity: 0, transform: $0.transform) }
+        } else {
+            f.pieces = pieces.contains { $0.opacity > 0 } ? pieces : []
+        }
     }
 
     /// How far a big letter has swelled `tau` s after its hit let go: the mean of four gulps.
