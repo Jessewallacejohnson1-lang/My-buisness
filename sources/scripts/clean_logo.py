@@ -6,7 +6,7 @@ Since BP app game-card 26 a team logo stands bare on a game's page and casts a s
 that is a white box shows its box. `team_logos.py keep` runs each logo it puts live through `clean` here. The recipe
 is game-card 25's (BP app docs/plans/game-card/assets/25-clean-logos/clean_team_logos.py), with the logo skill's
 cut, clean, enamel and thin_share (BP app .claude/skills/logo-3d/build.py), copied as the cloud can't see BP app.
-Only the part a new team takes is copied: no per-team exceptions, no Real-ESRGAN, no checks against a live file.
+Only the part a new team takes is copied: no per-team exceptions, no checks against a live file.
 
 - A white box is cut off, keeping every white the logo encloses (a badge's white fill, its white letters). When the
   cut takes nothing, a grey frame round the box may be holding the white in: 4 px are trimmed and the cut tried again.
@@ -14,8 +14,10 @@ Only the part a new team takes is copied: no per-team exceptions, no Real-ESRGAN
 - Then the pale fringe and stray specks go, any white or light grey band 3 px wide or more is put back (an outline
   the logo draws), it goes to 512 px on its long side, and it is lit like the Search logos unless it is mostly
   hairlines (lit, its shine would be wider than its strokes).
-- A file under 240 px on its long side goes live as found: the 4x that redraws it runs only on the Mac, so its
-  report line says to redraw it there.
+- A file under 240 px on its long side is drawn at 4x first (BP app game-card 29), by sharpen.py's Real-ESRGAN anime
+  model, the same model the Mac's recipe uses: a boxed file on white, then cut as above; a file already cut out has
+  its colour (bled under the see-through) and its alpha drawn at 4x apart and put together, with no cut. Without
+  onnxruntime (the morning's library only) it goes live as found, and its report line says to redraw it on the Mac.
 
   python3 sources/scripts/clean_logo.py --selftest
 """
@@ -25,7 +27,7 @@ import sys
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
 
-SMALL = 240  # 80 pt at 3x: a file under this on its long side needs game-card 25's 4x, which the cloud doesn't have
+SMALL = 240  # 80 pt at 3x: a file under this on its long side is drawn at 4x first (game-card 25's, 29)
 OUT = 512    # the long side a cleaned logo goes live at
 TRIM = 4     # a grey hairline frame that stops the cut: this many px trimmed
 THIN = 0.7   # over this share of its ink within 3 px of an edge, a logo ships as drawn, not lit
@@ -35,20 +37,26 @@ def clean(im):
     """The recipe on one logo: (the logo to put live, what was done, in words). Raises ValueError when the cut leaves
     nothing, so the team waits rather than taking a blank."""
     im = im.convert("RGBA")
-    if max(im.size) < SMALL:
-        return im, [f"under {SMALL} px ({max(im.size)}), so it went live as found: redraw it on the Mac "
-                    "(BP app game-card 25)"]
     done = []
     box = boxed(im)
+    k = 1
+    if max(im.size) < SMALL:
+        big = x4(on_white(im)) if box else x4_apart(im)
+        if big is None:
+            return im, [f"under {SMALL} px ({max(im.size)}), so it went live as found: redraw it on the Mac "
+                        "(BP app game-card 25)"]
+        done.append(f"under {SMALL} px ({max(im.size)}), drawn at 4x")
+        im, k = big, 4
     if box:
         out = cut(im)
         if not went(im, out):  # nothing went: a grey frame may hold the white in
-            inner = im.crop((TRIM, TRIM, im.width - TRIM, im.height - TRIM))
+            t = TRIM * k
+            inner = im.crop((t, t, im.width - t, im.height - t))
             cut_inner = cut(inner)
             if went(inner, cut_inner):
                 out = cut_inner
                 done.append("a grey frame trimmed")
-        if went(im, out):
+        if went(im, out) or k == 4 and cover(out) < 0.95:  # a 4x on white is all opaque, so any cut counts
             im = out
             done.append("cut off its white box")
         elif box == "white":
@@ -72,6 +80,46 @@ def clean(im):
 
 
 # --- game-card 25's recipe -----------------------------------------------------------------------------------------
+
+def x4(rgb):
+    """A picture (no see-through) drawn at 4x by sharpen.py's Real-ESRGAN anime model, as RGBA; None without
+    onnxruntime."""
+    try:
+        import onnxruntime  # noqa: F401  the morning's library only (ci-packages.txt "-")
+    except ImportError:
+        return None
+    from sharpen import upscale
+    out = upscale(np.asarray(rgb.convert("RGB"), np.float32) / 255)
+    return Image.fromarray((out * 255).round().astype(np.uint8), "RGB").convert("RGBA")
+
+
+def x4_apart(im):
+    """A small file already cut out, drawn at 4x without losing its silhouette: its colour (bled under the
+    see-through) and its alpha (as a grey picture) each drawn at 4x, then put together. No cut: on white then cut took
+    Lake Forest's white outlines and filled Minneapolis North's ring (game-card 25)."""
+    colour = x4(bleed(im))
+    if colour is None:
+        return None
+    grey = im.getchannel("A")
+    alpha = x4(Image.merge("RGB", (grey, grey, grey))).convert("L")
+    return Image.merge("RGBA", (*colour.split()[:3], alpha))
+
+
+def bleed(im):
+    """The colour under the see-through pixels: each takes the colour of the ink nearest it, widening until every
+    pixel has one, so a 4x of the colour draws no dark or white rim along the logo's edge."""
+    a = np.asarray(im.convert("RGBA"), np.float32) / 255
+    al, rgb = a[..., 3], a[..., :3].copy()
+    have = al > 0.02
+    for s in (1, 2, 4, 8, 16, 32, 64):
+        if have.all():
+            break
+        w = blur(al, s)
+        fill = np.stack([blur(a[..., c] * al, s) for c in range(3)], -1) / np.maximum(w, 1e-6)[..., None]
+        new = ~have & (w > 1e-4)
+        rgb[new], have = fill[new], have | new
+    return Image.fromarray((np.clip(rgb, 0, 1) * 255).round().astype(np.uint8), "RGB").convert("RGBA")
+
 
 def ring(im):
     """Share of the border's pixels that are opaque, and share that are white."""
@@ -321,10 +369,30 @@ def selftest():
     ImageDraw.Draw(hairline).ellipse([20, 20, 380, 380], outline=(20, 60, 160, 255), width=3)
     out, done = clean(hairline)
     ok(done == ["as drawn: mostly hairlines"], f"line art ships as drawn, not lit: {done}")
-    small = badge(side=200)
-    out, done = clean(small)
-    ok(out.tobytes() == small.tobytes() and done[0].startswith("under 240 px (200), so it went live as found"),
-       f"a file too small to clean without the 4x goes live as found, and says so: {done}")
+    global x4
+    real, small = x4, badge(side=100)
+    try:
+        x4 = lambda rgb: None  # no onnxruntime, as on GitHub
+        out, done = clean(small)
+        ok(out.tobytes() == small.tobytes() and done[0].startswith("under 240 px (100), so it went live as found"),
+           f"without onnxruntime a small file goes live as found, and says so: {done}")
+        x4 = lambda rgb: rgb.convert("RGBA").resize((rgb.width * 4, rgb.height * 4), Image.LANCZOS)  # the model's stand-in
+        out, done = clean(small)
+        a = np.asarray(out)
+        mid = a[a.shape[0] // 2, a.shape[1] // 4]
+        ok(max(out.size) == OUT and a[0, 0, 3] == 0 and mid[3] == 255 and mid[:3].min() > 230
+           and done[:2] == ["under 240 px (100), drawn at 4x", "cut off its white box"],
+           f"a small boxed logo is drawn at 4x, then cut off its box at {OUT} px, its white fill kept: {done}")
+        tiny = Image.new("RGBA", (100, 100), (0, 0, 0, 0))
+        ImageDraw.Draw(tiny).polygon([(50, 7), (93, 87), (7, 87)], fill=(20, 60, 160, 255))
+        out, done = clean(tiny)
+        ink_ = np.asarray(out.getchannel("A")) > 128
+        ok(done[0] == "under 240 px (100), drawn at 4x" and "cut off its white box" not in done
+           and abs(ink_.mean() - 0.5) < 0.04 and max(out.size) == OUT,
+           f"a small logo already cut out is drawn at 4x apart, keeps its shape, and isn't cut: {done}, "
+           f"{ink_.mean():.0%} inked")
+    finally:
+        x4 = real
     blank = Image.new("RGBA", (300, 300), (255, 255, 255, 255))
     ImageDraw.Draw(blank).rectangle([0, 0, 299, 299], outline=(150, 150, 150, 255))
     try:
