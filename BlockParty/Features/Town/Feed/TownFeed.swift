@@ -164,6 +164,15 @@ final class TownFeed {
         #if DEBUG
         switch LaunchFlags.backend {
         case .offline:
+            // `-town-offline-for <s>`: a first launch with no kept list, signal back after that many seconds.
+            if let seconds = LaunchFlags.value(.townOfflineFor).flatMap(Double.init) {
+                let back = Date().addingTimeInterval(seconds)
+                self.init(read: {
+                    guard Date() >= back else { throw URLError(.notConnectedToInternet) }
+                    return TownFixtures.townEntries()
+                }, actions: actions, live: live)
+                return
+            }
             self.init(read: { throw URLError(.notConnectedToInternet) },
                       kept: { TownFixtures.townEntries() }, actions: actions, live: live)
             return
