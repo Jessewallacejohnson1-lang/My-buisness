@@ -156,6 +156,9 @@ struct FriendsAllPage: View {
                         }
                     } else {
                         ForEach(book.friends) { PersonRow(person: $0, waiting: false) }
+                        if !book.loaded {
+                            ProgressView().frame(maxWidth: .infinity).padding(.top, FriendsMetric.sectionTop)
+                        }
                     }
                 }
                 .padding(.top, PageMetric.bar + FriendsMetric.resultsTop)
@@ -164,6 +167,6 @@ struct FriendsAllPage: View {
         }
         .toolbar(.hidden, for: .navigationBar)
         // Opened from your profile's friends count, the Friends tab may never have read them.
-        .task { if !groups { await book.refresh() } }
+        .task { if !groups, !book.loaded { await book.refresh() } }
     }
 }

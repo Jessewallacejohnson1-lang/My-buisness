@@ -368,7 +368,7 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
                 .lineLimit(1)
                 .frame(width: ProfileMetric.countColumn)
                 if let open = opens(part.word) {
-                    Button(action: open) { column.contentShape(Rectangle()) }
+                    Button(action: open) { column.contentShape(Rectangle().inset(by: -4)) }
                         .buttonStyle(.press(.squish))
                         .accessibilityLabel("\(part.number) \(part.word)")
                 } else {
