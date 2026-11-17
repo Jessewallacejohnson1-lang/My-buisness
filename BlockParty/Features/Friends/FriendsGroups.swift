@@ -163,5 +163,7 @@ struct FriendsAllPage: View {
             FriendsTitleBar(title: groups ? "Groups" : "Your friends", titleUnder: true).accessibilitySortPriority(1)
         }
         .toolbar(.hidden, for: .navigationBar)
+        // Opened from your profile's friends count, the Friends tab may never have read them.
+        .task { if !groups { await book.refresh() } }
     }
 }
