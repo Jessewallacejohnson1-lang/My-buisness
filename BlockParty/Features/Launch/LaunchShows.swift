@@ -1,14 +1,14 @@
 //
 //  LaunchShows.swift
-//  Block Party — which launch a cold start plays. The day's first two play the whole show (Jesse,
-//  2026-11-08: "yes, if you're saying the first few times a day", then "2"); the rest show the
-//  BlockParty. wordmark and fade into the app (Jesse, 2026-11-14). Kept on the phone as "yyyy-mm-dd n".
+//  Block Party — which launch a cold start plays. The day's first plays the whole show (Jesse,
+//  2026-11-17: "The first open of the day."; two since 2026-11-08); the rest show the BlockParty.
+//  wordmark and fade into the app (Jesse, 2026-11-14). Kept on the phone as "yyyy-mm-dd n".
 //
 
 import Foundation
 
 nonisolated enum LaunchShows {
-    static let fullShowsADay = 2
+    static let fullShowsADay = 1
     static let key = "launch.fullShows"
 
     /// The kind this start plays, counting it, and the record to keep.

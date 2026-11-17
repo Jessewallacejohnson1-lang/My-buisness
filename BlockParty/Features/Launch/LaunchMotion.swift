@@ -11,10 +11,12 @@
 //  dropped on 2026-11-02: "nvm do 1 speed"); the wordmark open plays at full speed.
 //
 //  Two kinds (Jesse, 2026-11-14; BP app references/splash-wordmark): the full show on the day's
-//  first two cold starts, starting from the still's BlockParty. wordmark, which gives way to Bp as
-//  the ball drops in; every other open (later ones, a link, Reduce Motion) shows the wordmark,
-//  which shoots out at you as the link's Bp! did while the yellow fades into the app (Reduce Motion:
-//  only the fade). The short cut and the link's own pop (2026-11-08) went with it.
+//  first cold start, starting from the still's BlockParty. wordmark, which the ball's hits squeeze
+//  into Bp! (Jesse, 2026-11-17; BP app references/launch-squeeze, mock round 3, whose
+//  mock.html#probe-<ms> writes the numbers LaunchMotionTests holds); every other open (later ones,
+//  a link, Reduce Motion) shows the wordmark, which shoots out at you as the link's Bp! did while
+//  the yellow fades into the app (Reduce Motion: only the fade). The short cut and the link's own
+//  pop (2026-11-08) went with it.
 //
 
 import SwiftUI
@@ -31,7 +33,8 @@ nonisolated struct LaunchMotion {
     private static let dropSpeed: CGFloat = 650
     /// Where the ball starts: above the screen, on the left.
     private static let start = CGPoint(x: 40, y: -40)
-    /// How high the two arcs rise above where they leave, each lower than the last.
+    /// How high the two arcs rose off B and p at their 90%, each lower than the last. The squeeze's
+    /// arcs leave the wordmark's smaller letters and take the same time (`init`).
     private static let arcB: CGFloat = 78
     private static let arcP: CGFloat = 40
     /// How long the ball touches a letter or the dot, and how far it squashes there.
@@ -45,8 +48,8 @@ nonisolated struct LaunchMotion {
     private static let dipB = 0.09
     private static let dipP = 0.08
     private static let bulge = 0.45
-    /// B and p start 10% small (Jesse, round 4). The ball's hits only dip them; they grow to full
-    /// size in the jump (Jesse, 2026-11-02: "what if the letters sync into place when the ! does").
+    /// B and p are 10% small once squeezed (Jesse, round 4). They grow to full size in the jump
+    /// (Jesse, 2026-11-02: "what if the letters sync into place when the ! does").
     static let startSize: CGFloat = 0.9
     private static let grow = Spring(response: 0.40, dampingRatio: 0.45)
     /// The landed ball's colours go black, then Bp! jumps.
@@ -57,9 +60,21 @@ nonisolated struct LaunchMotion {
     /// one beat with one firm buzz. The ending starts 0.63 in, once the landing has rebounded.
     static let jumpLands = 0.49
     private static let jumpEnds = 0.63
-    /// The still's BlockParty. gives way to Bp over the show's first 0.15 s, as the ball drops in
-    /// (Jesse, 2026-11-14: "yes" to the agent's pick).
+    /// A link that catches the full show fades what it had drawn back into BlockParty. in 0.15 s.
     static let wordSwap = 0.15
+    /// The squeeze (Jesse, 2026-11-17: "i like yours", then "a micro animation for attention to
+    /// detail", no letters that "fade out at a visible line point"). The ball hits the wordmark's own
+    /// B and P. Each hit swells its letter into Bp!'s in four gulps, `gulp` s apart, one for each
+    /// letter it takes in; the letter being taken fills what is left of its own room, so it shrinks
+    /// whole toward the big letter's widest point (`bellyB`, `bellyP`: canvas units above the line),
+    /// leaning `gulpLean` degrees, with no cut and no fade. The big B waits `squeezeGap` canvas units
+    /// from the small "Party." until the P swells.
+    private static let gulp = 0.045
+    private static let gulpSpring = Spring(response: 0.20, dampingRatio: 0.50)
+    private static let gulpLean = 6.0
+    private static let bellyB: CGFloat = 76
+    private static let bellyP: CGFloat = 115
+    private static let squeezeGap: CGFloat = 6
     /// Every other open: BlockParty. holds 0.2 s (guessed), then shoots out at you as the yellow fades
     /// (Jesse, 2026-11-14: "instead of the sheet going down, it just all fades", then "the blockparty.
     /// splash shoots the text like the one we made when you open a event in message").
@@ -118,18 +133,58 @@ nonisolated struct LaunchMotion {
     static let ball = dot * 1.15
     /// What B and p shrink toward at their 90%: the !'s dot on the baseline, so the word never
     /// splits (Jesse, 2026-11-08: "i dont like how the letters are separated", "together with the
-    /// !"; each about its own foot, the gaps had grown 9 and 7 pt). `footB` and `footP` are the
-    /// middles of their feet.
+    /// !"; each about its own foot, the gaps had grown 9 and 7 pt).
     static let letterAnchor = CGPoint(x: 781, y: 627)
-    static let footB = CGPoint(x: 294, y: 627)
-    static let footP = CGPoint(x: 581.5, y: 627)
-    /// The tops of B and p, and where along each the ball lands.
+    /// The tops of B and p, and where along each the ball landed before the squeeze: only the
+    /// show's times still come from them.
     private static let topB: CGFloat = 303.5
     private static let topP: CGFloat = 383.5
     private static let landB: CGFloat = 275
     private static let landP: CGFloat = 580
     /// The !'s dot.
     private static let dotCentre = CGPoint(x: 781, y: 582.75)
+
+    // MARK: The wordmark: the still's BlockParty., as wide as Bp!, in the screen's middle
+
+    /// The wordmark's pieces, each a picture the wordmark's size holding one letter (BP app
+    /// references/launch-squeeze/src), in the order `Frame.pieces` holds them.
+    static let wordPieces = ["B", "L", "O", "C", "K", "P", "A", "R", "T", "Y", "Dot"].map { "LaunchWord" + $0 }
+    private static let pieceB = 0, pieceL = 1, pieceP = 5, pieceA = 6, pieceDot = 10
+    /// The wordmark in its own pixels: its B and P, and each small letter's left and right edge.
+    private static let wordSize = CGSize(width: 1051, height: 216)
+    private static let wordB = CGRect(x: 0, y: 16, width: 150, height: 155)
+    private static let wordP = CGRect(x: 511, y: 9, width: 143, height: 160)
+    private static let wordLock: [(CGFloat, CGFloat)] = [(139, 208), (196, 309), (304, 407), (387, 519)]
+    private static let wordArty: [(CGFloat, CGFloat)] = [(634, 756), (746, 842), (839, 916), (900, 1031)]
+    /// Canvas units per wordmark pixel, and the wordmark's box on the canvas: the same on every
+    /// screen, since both sit in the screen's middle.
+    private static let wordUnit = canvas.width / wordSize.width
+    static let wordBox = CGRect(x: canvas.minX - centring.width / scale,
+                                y: canvas.midY - wordSize.height * wordUnit / 2 - centring.height / scale,
+                                width: wordSize.width * wordUnit, height: wordSize.height * wordUnit)
+    private static func wx(_ pixel: CGFloat) -> CGFloat { wordBox.minX + wordUnit * pixel }
+    private static func wy(_ pixel: CGFloat) -> CGFloat { wordBox.minY + wordUnit * pixel }
+    /// Bp!'s B and p on the canvas (measured off their pictures). The wordmark's B and P are the same
+    /// shapes at a third of the size, so each hands over to Bp!'s own as its hit lets go.
+    private static let glyphB = CGRect(x: 137, y: 302, width: 322.5, height: 335.5)
+    private static let glyphP = CGRect(x: 444, y: 385, width: 283.5, height: 339)
+    /// Bp!'s B and p at the wordmark's size: how small, and where the middle of each foot sits.
+    private static let smallB = wordUnit * wordB.height / glyphB.height
+    private static let smallP = wordUnit * wordP.height / glyphP.height
+    private static let smallFootB = CGPoint(x: wx(wordB.midX), y: wy(wordB.maxY) - smallB * (glyphB.maxY - letterAnchor.y))
+    private static let smallFootP = CGPoint(x: wx(wordP.midX), y: wy(wordP.maxY) - smallP * (glyphP.maxY - letterAnchor.y))
+    /// After B's hit the big B and the small "Party." sit side by side in the screen's middle, on
+    /// Bp!'s line: where B's foot is then, and how far "Party." moved to get there.
+    private static let besideB: CGFloat = {
+        let wide = startSize * glyphB.width, rest = wx(wordSize.width) - wx(wordP.minX)
+        let middle = canvas.minX + (markWidth / 2 - centring.width) / scale
+        return middle - (wide + squeezeGap + rest) / 2 + wide / 2
+    }()
+    private static let partyShift = CGSize(width: besideB + startSize * glyphB.width / 2 + squeezeGap - wx(wordP.minX),
+                                           height: letterAnchor.y - smallFootB.y)
+    /// B and p's feet at the still's 90%, shrunk toward the !.
+    private static let endB = letterAnchor.x + startSize * (glyphB.midX - letterAnchor.x)
+    private static let endP = letterAnchor.x + startSize * (glyphP.midX - letterAnchor.x)
 
     // MARK: Inputs
 
@@ -160,7 +215,8 @@ nonisolated struct LaunchMotion {
 
     /// The canvas's top left on screen: Bp! sits in the middle.
     let origin: CGPoint
-    private let base: CGFloat, capB: CGFloat, capP: CGFloat
+    /// The wordmark's B and P's heights on screen, and where the ball sits on each and on the dot.
+    private let tallB: CGFloat, tallP: CGFloat
     private let onB: CGPoint, onP: CGPoint, onDot: CGPoint
     private let drop: Flight, toP: Flight, toDot: Flight
     let hitB: Double, hitP: Double, landAt: Double, ballEnd: Double
@@ -179,14 +235,13 @@ nonisolated struct LaunchMotion {
         let u = { [origin] (x: CGFloat, y: CGFloat) in
             CGPoint(x: origin.x + (x - Self.canvas.minX) * s, y: origin.y + (y - Self.canvas.minY) * s)
         }
-        base = u(0, Self.footB.y).y
-        capB = (Self.footB.y - Self.topB) * s
-        capP = (Self.footP.y - Self.topP) * s
+        tallB = Self.wordB.height * Self.wordUnit * s
+        tallP = Self.wordP.height * Self.wordUnit * s
         let r0 = Self.ball / 2
-        // The ball lands on each letter's top at its starting size, the letters shrunk toward the !.
-        let k = Self.startSize, a = Self.letterAnchor.x
-        onB = CGPoint(x: u(a + k * (Self.landB - a), 0).x, y: base - k * capB - r0)
-        onP = CGPoint(x: u(a + k * (Self.landP - a), 0).x, y: base - k * capP - r0)
+        // The ball lands on the wordmark's B, then on its P, which B's hit has moved by then.
+        onB = CGPoint(x: u(Self.smallFootB.x, 0).x, y: u(0, Self.wy(Self.wordB.minY)).y - r0)
+        onP = CGPoint(x: u(Self.smallFootP.x + Self.partyShift.width, 0).x,
+                      y: u(0, Self.wy(Self.wordP.minY) + Self.partyShift.height).y - r0)
         onDot = u(Self.dotCentre.x, Self.dotCentre.y)
 
         let g = Self.gravity, v0 = Self.dropSpeed
@@ -197,8 +252,17 @@ nonisolated struct LaunchMotion {
             let dropTime = fall(start, to: onB)
             drop = Flight(from: start, time: Double(dropTime), vy: v0,
                           vx: (onB.x - start.x) / dropTime, spin: (-120, 0), shrinks: false)
-            toP = Flight.arc(from: onB, to: onP, height: Self.arcB, spin: (0, 360))
-            toDot = Flight.arc(from: onP, to: onDot, height: Self.arcP, spin: (360, 720), shrinks: true)
+            // The small letters sit lower than B and p at their 90% did, so the drop is longer and
+            // the hops lower: each is as high as lands the ball on p and on the dot when it did
+            // before the squeeze (the show is no longer).
+            let k = Self.startSize, a = Self.letterAnchor.x, base = u(0, Self.letterAnchor.y).y
+            let wasB = CGPoint(x: u(a + k * (Self.landB - a), 0).x, y: base - k * (Self.letterAnchor.y - Self.topB) * s - r0)
+            let wasP = CGPoint(x: u(a + k * (Self.landP - a), 0).x, y: base - k * (Self.letterAnchor.y - Self.topP) * s - r0)
+            let late = Double(dropTime - fall(start, to: wasB))
+            toP = Flight.arc(from: onB, to: onP, spin: (0, 360),
+                             taking: Flight.arc(from: wasB, to: wasP, height: Self.arcB, spin: (0, 0)).time - late)
+            toDot = Flight.arc(from: onP, to: onDot, spin: (360, 720), shrinks: true,
+                               taking: Flight.arc(from: wasP, to: onDot, height: Self.arcP, spin: (0, 0)).time)
             hitB = drop.time
             hitP = hitB + Self.contact + toP.time
             landAt = hitP + Self.contact + toDot.time
@@ -230,6 +294,17 @@ nonisolated struct LaunchMotion {
             return Flight(from: from, time: Double(up + down), vy: -g * up, vx: (to.x - from.x) / (up + down),
                           spin: spin, shrinks: shrinks)
         }
+
+        /// The arc from `from` onto `to` that takes `time`: a higher arc takes longer, so halve the
+        /// range of heights till it fits.
+        static func arc(from: CGPoint, to: CGPoint, spin: (CGFloat, CGFloat), shrinks: Bool = false, taking time: Double) -> Flight {
+            var low = max(0, from.y - to.y) + 0.01, high: CGFloat = 600
+            for _ in 0..<40 {
+                let height = (low + high) / 2
+                if arc(from: from, to: to, height: height, spin: spin).time < time { low = height } else { high = height }
+            }
+            return arc(from: from, to: to, height: (low + high) / 2, spin: spin, shrinks: shrinks)
+        }
     }
 
     // MARK: The ball
@@ -245,9 +320,9 @@ nonisolated struct LaunchMotion {
         let r0 = Self.ball / 2, rf = Self.dot / 2
         if kind == .word || t >= ballEnd { return Ball(x: onDot.x, y: onDot.y, r: rf, roll: 720) }
         if t < hitB { return fly(drop, t, r0) }
-        if t < hitB + Self.contact { return hit(t - hitB, at: onB, r: r0, roll: 0, squash: Self.squash, letter: (hitB, capB, Self.dipB)) }
+        if t < hitB + Self.contact { return hit(t - hitB, at: onB, r: r0, roll: 0, squash: Self.squash, letter: (tallB, Self.dipB)) }
         if t < hitP { return fly(toP, t - hitB - Self.contact, r0) }
-        if t < hitP + Self.contact { return hit(t - hitP, at: onP, r: r0, roll: 360, squash: Self.squash, letter: (hitP, capP, Self.dipP)) }
+        if t < hitP + Self.contact { return hit(t - hitP, at: onP, r: r0, roll: 360, squash: Self.squash, letter: (tallP, Self.dipP)) }
         if t < landAt { return fly(toDot, t - hitP - Self.contact, r0) }
         return hit(t - landAt, at: onDot, r: rf, roll: 720, squash: Self.squashDot, letter: nil)
     }
@@ -262,16 +337,13 @@ nonisolated struct LaunchMotion {
                     heading: atan2(vy, f.vx) * 180 / .pi)
     }
 
-    /// Squashed on a letter or the dot; on a letter it rides the letter's top as it dips and grows.
+    /// Squashed on a letter or the dot; on a letter (its height and dip) it rides the top as it dips.
     private func hit(_ tt: Double, at p: CGPoint, r: CGFloat, roll: CGFloat, squash: CGFloat,
-                     letter: (at: Double, cap: CGFloat, dip: Double)?) -> Ball {
+                     letter: (tall: CGFloat, dip: Double)?) -> Ball {
         let q = sin(.pi * clamp01(CGFloat(tt / Self.contact)))
         let sy = 1 - squash * q, sx = 1 + squash * 1.15 * q
         var y = p.y + r * (1 - sy)
-        if let letter {
-            let t = letter.at + tt
-            y = base - Self.startSize * (1 - CGFloat(Self.kick(t - letter.at, letter.dip))) * letter.cap - r * sy
-        }
+        if let letter { y += CGFloat(Self.kick(tt, letter.dip)) * letter.tall }
         return Ball(x: p.x, y: y, r: r, roll: roll, sx: sx, sy: sy)
     }
 
@@ -343,14 +415,23 @@ nonisolated struct LaunchMotion {
         /// has become the real dot.
         var ballBlack: Double = 0
         var ballOpacity = 1.0
-        /// B and p's scale about their feet, and how strongly they show.
+        /// B and p's scale about `letterAnchor`, and how strongly they show.
         var b = CGSize(width: Self.small, height: Self.small)
         var p = CGSize(width: Self.small, height: Self.small)
         var letters = 1.0
+        /// The squeeze: how far B and p sit from their place in Bp!, in canvas units, and whether
+        /// they show yet (the wordmark's own B and P do until their hit lets go).
+        var bShift = CGSize.zero
+        var pShift = CGSize.zero
+        var bShown = true
+        var pShown = true
+        /// The wordmark's pieces in `wordPieces` order, each moved about its box's top left in
+        /// canvas units; none while the still's picture shows, or once Bp has taken them all in.
+        var pieces: [Piece] = []
         var dotShown = false
         var lineOpacity = 0.0
-        /// The still's BlockParty. wordmark, on the yellow: all there on the still, giving way to Bp
-        /// on the full show, and staying till the fade on every other open.
+        /// The still's BlockParty. picture, on the yellow: there until the full show's first hit,
+        /// when its pieces take over, and staying till the fade on every other open.
         var word = 0.0
         /// The jump: how far up everything is, in the tab bar's points, and the !'s line and dot's
         /// squash and stretch about their feet.
@@ -395,6 +476,11 @@ nonisolated struct LaunchMotion {
         var takesTaps: Bool { yellow > 0.25 }
 
         private static let small = LaunchMotion.startSize
+
+        struct Piece: Equatable {
+            var opacity = 0.0
+            var transform = CGAffineTransform.identity
+        }
     }
 
     /// The buzzes in order: the full show's five. The wordmark open has none.
@@ -427,10 +513,6 @@ nonisolated struct LaunchMotion {
         }
 
         var f = Frame(ball: ball(at: t), markOrigin: origin)
-        // The still's BlockParty. gives way to Bp as the ball drops in.
-        let shown = clamp01(t / Self.wordSwap)
-        f.word = 1 - shown
-        f.markOpacity = shown
         f.ballBlack = clamp01(Self.ease((t - landAt) / Self.blacken))
         if let early {
             let from = ball(at: min(early, ballEnd))
@@ -462,8 +544,9 @@ nonisolated struct LaunchMotion {
         }
         let jumpWidth = jump(Self.jumpWidth, 1), jumpHeight = jump(Self.jumpHeight, 1)
 
-        // B and p dip and bulge on their hit and stay at 90%, then grow to full size on the jump's
-        // way up. A tap grows them as the ! appears, and a letter the ball never reached doesn't dip.
+        // B and p dip and bulge on their hit, swell to 90% as it lets go, then grow to full size on
+        // the jump's way up. A tap grows them as the ! appears, and a letter the ball never reached
+        // doesn't dip.
         var k = Self.startSize
         if early != nil {
             k = size(t, hit: swapAt)
@@ -471,13 +554,11 @@ nonisolated struct LaunchMotion {
             let up = h < 0.07 ? 0 : CGFloat(Self.lift.value(at: min(1, (h - 0.07) / 0.16)))
             k = 1 - (1 - Self.startSize) * (1 - up) * CGFloat(settle)
         }
-        func letter(hit: Double, dip: Double) -> CGSize {
-            let reached = early.map { hit <= $0 } ?? true
-            let d = reached ? CGFloat(Self.kick(t - hit, dip)) : 0
-            return CGSize(width: k * jumpWidth * (1 + CGFloat(Self.bulge) * d), height: k * jumpHeight * (1 - d))
+        func dip(hit: Double, _ amp: Double) -> CGFloat {
+            (early.map { hit <= $0 } ?? true) ? CGFloat(Self.kick(t - hit, amp)) : 0
         }
-        f.b = letter(hit: hitB, dip: Self.dipB)
-        f.p = letter(hit: hitP, dip: Self.dipP)
+        squeeze(&f, at: t, skip: skip, size: k, jump: CGSize(width: jumpWidth, height: jumpHeight),
+                dipB: dip(hit: hitB, Self.dipB), dipP: dip(hit: hitP, Self.dipP), swapped: swapped)
 
         // The ! : after a tap it simply appears; otherwise it jumps with B and p, its line growing
         // out of the dot during the crouch and fading in over its first 40 ms. It grows on a plain
@@ -564,7 +645,90 @@ nonisolated struct LaunchMotion {
         return f
     }
 
-    /// Every open but the day's first two (Jesse, 2026-11-14; BP app references/splash-wordmark): no
+    /// The squeeze at one moment (the mock's `squeeze`, its round 3 fold). Each hit lets go as the
+    /// ball leaves its letter, and a tap lets go of whatever the ball never reached. B swells from
+    /// the wordmark's B to the still's 90% B beside the small "Party.", taking in l, o, c, k; then p
+    /// swells from the wordmark's P, its foot sinking below the line, taking in a, r, t, y, while B
+    /// moves over to its place in Bp!. The full stop waits where the ball lands. Once both have let
+    /// go and settled, B and p sit exactly as they did before the squeeze, so the jump is unchanged.
+    private func squeeze(_ f: inout Frame, at t: Double, skip: Double?, size k: CGFloat, jump: CGSize,
+                         dipB: CGFloat, dipP: CGFloat, swapped: Bool) {
+        typealias M = LaunchMotion
+        let letGoB = min(hitB + M.contact, skip ?? .infinity), letGoP = min(hitP + M.contact, skip ?? .infinity)
+        func gulps(_ tau: Double) -> CGFloat {
+            CGFloat((0..<4).reduce(0.0) { sum, i in
+                let since = tau - Double(i) * M.gulp
+                return sum + (since > 0 ? M.gulpSpring.value(target: 1.0, time: since) : 0)
+            } / 4)
+        }
+        let s1 = gulps(t - letGoB), s2 = gulps(t - letGoP), c1 = clamp01(s1), c2 = clamp01(s2)
+        let a = M.letterAnchor, big = M.startSize, bulge = CGFloat(M.bulge)
+        let party = CGSize(width: M.partyShift.width * s1, height: M.partyShift.height * s1)
+
+        let kb = lerp(M.smallB, big, s1)
+        let footB = CGPoint(x: lerp(M.smallFootB.x, M.besideB, s1) + (M.endB - M.besideB) * s2, y: lerp(M.smallFootB.y, a.y, s1))
+        f.bShown = t >= letGoB
+        f.bShift = CGSize(width: footB.x - a.x - kb * (M.glyphB.midX - a.x), height: footB.y - a.y)
+        f.b = CGSize(width: kb * k / big * jump.width * (1 + bulge * dipB), height: kb * k / big * jump.height * (1 - dipB))
+
+        let kp = lerp(M.smallP, big, s2)
+        let footP = CGPoint(x: lerp(M.smallFootP.x + party.width, M.endP, s2), y: lerp(M.smallFootP.y + party.height, a.y, s2))
+        f.pShown = t >= letGoP
+        f.pShift = CGSize(width: footP.x - a.x - kp * (M.glyphP.midX - a.x), height: footP.y - a.y)
+        f.p = CGSize(width: kp * k / big * jump.width * (1 + bulge * dipP), height: kp * k / big * jump.height * (1 - dipP))
+
+        // The still's own picture shows until the first hit, or a tap: nothing in the word has moved.
+        f.word = t < min(hitB, skip ?? .infinity) ? 1 : 0
+        guard f.word == 0 else { return }
+        var pieces = [Frame.Piece](repeating: Frame.Piece(), count: M.wordPieces.count)
+        // The wordmark's own B and P until their hit lets go: they dip under the ball, like rubber.
+        let line = M.smallFootB.y - M.wordBox.minY
+        pieces[M.pieceB] = Frame.Piece(opacity: f.bShown ? 0 : 1, transform: M.about(
+            CGPoint(x: M.wordB.midX * M.wordUnit, y: line), CGAffineTransform(scaleX: 1 + bulge * dipB, y: 1 - dipB)))
+        pieces[M.pieceP] = Frame.Piece(opacity: f.pShown ? 0 : 1, transform: M.about(
+            CGPoint(x: M.wordP.midX * M.wordUnit, y: line), CGAffineTransform(scaleX: 1 + bulge * dipP, y: 1 - dipP), shift: party))
+        pieces[M.pieceDot] = Frame.Piece(opacity: swapped || (skip == nil && t >= landAt + 0.02) ? 0 : 1,
+                                         transform: CGAffineTransform(translationX: party.width, y: party.height))
+        // "lock" has the room between B's right edge and P's left edge, "arty" the room p's right
+        // edge leaves as it swells.
+        let rightB = footB.x + kb * M.glyphB.width / 2, rightB0 = M.smallFootB.x + M.smallB * M.glyphB.width / 2
+        let lock0 = M.wx(M.wordLock[0].0), lock1 = M.wx(M.wordLock[3].1), leftP0 = M.wx(M.wordP.minX)
+        M.take(M.wordLock, into: &pieces, from: M.pieceL,
+               left: rightB - (rightB0 - lock0) * (1 - c1),
+               right: leftP0 + party.width + (lock1 - leftP0) * (1 - c1) - M.squeezeGap * c1,
+               belly: footB.y - M.bellyB * kb, drop: party.height)
+        let rightP = footP.x + kp * M.glyphP.width / 2, rightP0 = M.smallFootP.x + M.smallP * M.glyphP.width / 2
+        M.take(M.wordArty, into: &pieces, from: M.pieceA,
+               left: rightP - (rightP0 - M.wx(M.wordArty[0].0)) * (1 - c2),
+               right: lerp(M.wx(M.wordArty[3].1) + party.width, M.endP + big * M.glyphP.width / 2, c2),
+               belly: footP.y - M.bellyP * kp, drop: party.height)
+        f.pieces = pieces.contains { $0.opacity > 0 } ? pieces : []
+    }
+
+    /// A row of letters between the big letter's edge (`left`) and what follows them (`right`): as
+    /// the room closes they are taken one at a time from the left. The one being taken fills what is
+    /// left of its own room, so it shrinks whole, never stretched, toward `belly`, the big letter's
+    /// widest point; the rest ride with what follows them.
+    private static func take(_ row: [(CGFloat, CGFloat)], into pieces: inout [Frame.Piece], from first: Int,
+                             left: CGFloat, right: CGFloat, belly: CGFloat, drop: CGFloat) {
+        let start = wx(row[0].0), whole = wx(row[row.count - 1].1) - start, taken = whole - max(0, right - left)
+        for (i, letter) in row.enumerated() {
+            let before = wx(letter.0) - start, wide = wx(letter.1) - wx(letter.0), u = clamp01((taken - before) / wide)
+            let lean = CGAffineTransform(a: 1, b: 0, c: tan(-gulpLean * sin(.pi * Double(u)) * .pi / 180), d: 1, tx: 0, ty: 0)
+            pieces[first + i] = Frame.Piece(opacity: u > 0.995 ? 0 : 1, transform: about(
+                CGPoint(x: letter.1 * wordUnit, y: belly - drop - wordBox.minY),
+                lean.concatenating(CGAffineTransform(scaleX: 1 - u, y: 1 - u)),
+                shift: CGSize(width: right - (whole - before - wide) - wx(letter.1), height: drop)))
+        }
+    }
+
+    /// `transform` about the point `origin`, then moved by `shift`.
+    private static func about(_ origin: CGPoint, _ transform: CGAffineTransform, shift: CGSize = .zero) -> CGAffineTransform {
+        CGAffineTransform(translationX: -origin.x, y: -origin.y).concatenating(transform)
+            .concatenating(CGAffineTransform(translationX: origin.x + shift.width, y: origin.y + shift.height))
+    }
+
+    /// Every open but the day's first (Jesse, 2026-11-14 and 2026-11-17; BP app references/splash-wordmark): no
     /// ball and no Bp. The still's BlockParty. holds, then shoots out at you as the 2026-11-08 link
     /// open's Bp! did (the zoom to 6x on the fast spring, gone by 60% of the way), the yellow and the
     /// signature fading in 0.18 s and the app settling from 105%. Reduce Motion: no zoom, everything

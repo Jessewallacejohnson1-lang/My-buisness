@@ -1,12 +1,14 @@
 //
 //  LaunchBall.swift
 //  Block Party — the launch (Jesse, 2026-11-01; BP app references/launch-ball, taste.md's
-//  launch lines). On a fresh start the Town's round logo drops onto Bp, bounces off B and p,
-//  lands as the !'s dot, the ! hops as the Daily tab's does, and Bp! lands on the tab bar's own
-//  Bp!, or zooms through when Welcome is up. It plays over the app, which loads underneath and
-//  never waits on it. A tap skips it. Only the day's first two cold starts play it; every other
-//  open, a link's and Reduce Motion's too, shows the still's BlockParty. wordmark and fades into the
-//  app (Jesse, 2026-11-14; `LaunchMotion.Kind`, BP app references/splash-wordmark).
+//  launch lines). On a fresh start the Town's round logo drops onto the still's BlockParty.,
+//  bounces off its B and P, squeezing the word into Bp (Jesse, 2026-11-17; BP app
+//  references/launch-squeeze), lands on the full stop as the !'s dot, the ! hops as the Daily
+//  tab's does, and Bp! lands on the tab bar's own Bp!, or zooms through when Welcome is up. It
+//  plays over the app, which loads underneath and never waits on it. A tap skips it. Only the
+//  day's first cold start plays it; every other open, a link's and Reduce Motion's too, shows the
+//  still's BlockParty. wordmark and fades into the app (Jesse, 2026-11-14; `LaunchMotion.Kind`,
+//  BP app references/splash-wordmark).
 //
 //  `LaunchMotion` holds the numbers; this file draws them, one frame at a time, from a
 //  `TimelineView`, so a tap can redirect it at any instant. No `phaseAnimator`: the splash
@@ -40,7 +42,7 @@ import SwiftUI
     private(set) var landed: Bool
     /// Welcome's logo and headline may rise: the zoom through is half done.
     private(set) var headerUp: Bool
-    /// Which launch this start plays: the full show on the day's first two cold starts, the
+    /// Which launch this start plays: the full show on the day's first cold start, the
     /// wordmark after them and with Reduce Motion (`LaunchShows`), DEBUG `-launch-kind` naming one;
     /// a link opened while signed in turns the full show into the wordmark as the URL arrives
     /// (`openedLink`).
@@ -377,15 +379,21 @@ private struct LaunchMark: View {
                 .opacity(frame.word)
                 .accessibilityHidden(true)
             ZStack(alignment: .topLeading) {
+                // The wordmark's letters, under B and p, which take them in (Jesse, 2026-11-17).
+                ForEach(Array(frame.pieces.enumerated()), id: \.offset) { index, piece in
+                    wordPiece(LaunchMotion.wordPieces[index], piece)
+                }
                 // Both shrink toward the !, so Bp! never splits (Jesse, 2026-11-08).
                 piece("LaunchMarkB")
                     .scaleEffect(x: frame.b.width, y: frame.b.height, anchor: Self.unit(LaunchMotion.letterAnchor))
-                    .offset(y: frame.lift * Self.hopPoints * k)
-                    .opacity(frame.letters)
+                    .offset(x: frame.bShift.width * frame.markScale,
+                            y: frame.bShift.height * frame.markScale + frame.lift * Self.hopPoints * k)
+                    .opacity(frame.bShown ? frame.letters : 0)
                 piece("LaunchMarkP")
                     .scaleEffect(x: frame.p.width, y: frame.p.height, anchor: Self.unit(LaunchMotion.letterAnchor))
-                    .offset(y: frame.lift * Self.hopPoints * k)
-                    .opacity(frame.letters)
+                    .offset(x: frame.pShift.width * frame.markScale,
+                            y: frame.pShift.height * frame.markScale + frame.lift * Self.hopPoints * k)
+                    .opacity(frame.pShown ? frame.letters : 0)
                 bang
                 ballShade
                 ball
@@ -452,6 +460,19 @@ private struct LaunchMark: View {
 
     private func piece(_ name: String) -> some View {
         Image(name).resizable().frame(width: box.width, height: box.height)
+    }
+
+    /// One of the wordmark's pieces, where the still's wordmark sits, moved as the squeeze has it.
+    private func wordPiece(_ name: String, _ piece: LaunchMotion.Frame.Piece) -> some View {
+        let s = frame.markScale, word = LaunchMotion.wordBox, canvas = LaunchMotion.canvas
+        var move = piece.transform
+        move.tx *= s
+        move.ty *= s
+        return Image(name).resizable()
+            .frame(width: word.width * s, height: word.height * s)
+            .transformEffect(move)
+            .offset(x: (word.minX - canvas.minX) * s, y: (word.minY - canvas.minY) * s)
+            .opacity(piece.opacity)
     }
 
     /// A canvas point as a point of the canvas's box.

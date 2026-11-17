@@ -3,8 +3,10 @@
 //  Block Party — the launch moves as the approved mock does (BP app references/launch-ball,
 //  round 5; references/launch-short since 2026-11-08: Bp! 320 pt, B and p shrinking toward the !,
 //  the curtain; references/splash-wordmark since 2026-11-14: the BlockParty. still, the wordmark
-//  open and its fade). Every expected number here was read off the mock's
-//  own script (its frozen frames write `data-probe`), on its 402 x 874 phone, so a drift in the
+//  open and its fade; references/launch-squeeze since 2026-11-17: the ball's hits squeeze
+//  BlockParty. into Bp!). Every expected number here was read off the mock's
+//  own script (its frozen frames write `data-probe`; the squeeze's come from
+//  `mock.html#probe-<ms>,<ms>[-skip<ms>]`), on its 402 x 874 phone, so a drift in the
 //  port fails here before anyone has to see it.
 //
 
@@ -19,9 +21,10 @@ final class LaunchMotionTests: XCTestCase {
     private var motion: LaunchMotion { LaunchMotion(screen: phone) }
 
     /// The drop, the two arcs and the landing take the mock's times, and Bp! its 320 pt with Bp
-    /// in the screen's middle.
+    /// in the screen's middle. The wordmark's B sits lower than Bp's did, so the ball reaches it
+    /// 0.02 s later; p's hit and the landing come when they did before the squeeze.
     func testBeatsLandWhenTheMocksDo() {
-        XCTAssertEqual(motion.hitB, 0.240763, accuracy: 1e-5)
+        XCTAssertEqual(motion.hitB, 0.261240, accuracy: 1e-5)
         XCTAssertEqual(motion.hitP, 0.603148, accuracy: 1e-5)
         XCTAssertEqual(motion.landAt, 0.947188, accuracy: 1e-5)
         XCTAssertEqual(motion.ballEnd, 0.997188, accuracy: 1e-5)
@@ -34,11 +37,17 @@ final class LaunchMotionTests: XCTestCase {
         XCTAssertEqual(LaunchMotion.dot, 43.035936, accuracy: 1e-4)
     }
 
-    /// B and p shrink toward the !'s dot, so the ball lands on their tops where the mock's does.
-    func testLettersShrinkTowardTheBang() {
+    /// The ball lands on the wordmark's B, then on its P, which B's hit has moved by then; the
+    /// wordmark is as wide as Bp!, in the screen's middle.
+    func testTheBallLandsOnTheWordmarksBAndP() {
         XCTAssertEqual(LaunchMotion.letterAnchor, CGPoint(x: 781, y: 627))
-        XCTAssertEqual(motion.ball(at: motion.hitB).x, 141.655148, accuracy: 1e-4)
-        XCTAssertEqual(motion.ball(at: motion.hitP).x, 258.619154, accuracy: 1e-4)
+        XCTAssertEqual(motion.ball(at: motion.hitB).x, 63.835395, accuracy: 1e-4)
+        XCTAssertEqual(motion.ball(at: motion.hitP).x, 203.678144, accuracy: 1e-4)
+        let word = LaunchMotion.wordBox, s = LaunchMotion.scale
+        XCTAssertEqual(word.width * s, 320, accuracy: 1e-9)
+        XCTAssertEqual(motion.origin.x + (word.midX - LaunchMotion.canvas.minX) * s, 201, accuracy: 1e-6)
+        XCTAssertEqual(motion.origin.y + (word.midY - LaunchMotion.canvas.minY) * s, 437, accuracy: 1e-6)
+        XCTAssertEqual(LaunchMotion.wordPieces.count, 11)
     }
 
     /// The ball flies, squashes and rides the letters where the mock's does: in the air, on B,
@@ -46,13 +55,13 @@ final class LaunchMotionTests: XCTestCase {
     func testBallFollowsTheMock() {
         // t, x, y, r, roll, sx, sy, heading
         let mock: [(Double, CGFloat, CGFloat, CGFloat, CGFloat, CGFloat, CGFloat, CGFloat)] = [
-            // launch-short's mock: Bp! 320 pt, the ball riding B and p at their 90%, shrunk toward the !
-            (0.05, 77.189647, -2.900131, 24.745663, -95.079275, 1.088693, 0.918533, 71.835777),
-            (0.2, 127.879781, 237.099869, 24.745663, -20.317099, 1.179685, 0.847684, 81.148424),
-            (0.261, 141.655148, 345.114331, 24.745663, 0, 1.395595, 0.656004, 0),
-            (0.45, 201.276964, 254.839603, 24.745663, 183.508197, 1.032203, 0.968801, 17.956767),
-            (0.633, 258.619154, 375.42974, 24.745663, 360, 1.394911, 0.656599, 0),
-            (0.8, 297.115678, 329.991942, 23.134584, 539.794156, 1.034889, 0.966287, 52.066146),
+            // launch-squeeze's mock: the ball riding the wordmark's B and P as they dip
+            (0.05, 60.970943, -2.900131, 24.745663, -97.032646, 1.084280, 0.922271, 89.245733),
+            (0.2, 63.004966, 237.099869, 24.745663, -28.130584, 1.177549, 0.849222, 89.641968),
+            (0.281, 63.835395, 394.435352, 24.745663, 0, 1.391760, 0.659339, 0),
+            (0.45, 130.310249, 314.821928, 24.745663, 171.127553, 1.039258, 0.962225, 3.224559),
+            (0.633, 203.678144, 418.865751, 24.745663, 360, 1.394911, 0.656599, 0),
+            (0.8, 269.613759, 352.783972, 23.134584, 539.794156, 1.039623, 0.961887, 22.008255),
             (0.972, 335.700351, 468.7055, 21.517968, 720, 1.367974, 0.680022, 0),
             (1.097, 335.700351, 461.820231, 21.517968, 720, 1, 1, 0),
         ]
@@ -68,21 +77,99 @@ final class LaunchMotionTests: XCTestCase {
         }
     }
 
-    /// B and p start at 90% and dip and bulge on their hit as the mock's springs do (here Apple's
-    /// `Spring`), staying at 90% till the jump.
-    func testLettersDipOnTheirHitsAndStaySmall() {
-        let m = motion
-        XCTAssertEqual(m.frame(at: 0.1).b.width, 0.9, accuracy: 1e-9)
-        // after the hit, B's dip and p's dip (the mock's springs, which don't move with the geometry)
-        for (t, dB, dP) in [(m.hitB + 0.05, 0.075598, 0.0), (m.hitB + 0.2, 0.007894, 0.0), (m.hitP + 0.1, nil, 0.07775)] {
-            let f = m.frame(at: t)
-            if let dB {
-                XCTAssertEqual(f.b.height, 0.9 * (1 - dB), accuracy: 1e-5, "B at \(t)")
-                XCTAssertEqual(f.b.width, 0.9 * (1 + 0.45 * dB), accuracy: 1e-5, "B at \(t)")
+    /// The mock's squeeze at set moments (`mock.html#probe-300,360,450,700,850` and
+    /// `#probe-150,250-skip100`), rounded to 4 places. B and P: whether Bp!'s own letter shows, its
+    /// width and height against full size, and where its top left corner's scaling leaves it, in
+    /// canvas units from the canvas's top left. Each piece (B, l, o, c, k, P, a, r, t, y, the full
+    /// stop): whether it shows, then its matrix about its box's top left.
+    private struct Probe: Decodable {
+        var t: Double
+        var B: [CGFloat]
+        var P: [CGFloat]
+        var pieces: [[CGFloat]]
+    }
+    private static let mockShow = """
+    [{"t":0.3,"B":[0,0.3397,0.3089,-53.409,163.6505],"P":[0,0.3373,0.3373,217.2624,123.7668],"pieces":[[1,1.0289,0,0,0.9358,-1.5488,7.6239],[1,1,0,0,1,0,0],[1,1,0,0,1,0,0],[1,1,0,0,1,0,0],[1,1,0,0,1,0,0],[1,1,0,0,1,0,0],[1,1,0,0,1,0,0],[1,1,0,0,1,0,0],[1,1,0,0,1,0,0],[1,1,0,0,1,0,0],[1,1,0,0,1,0,0]]},{"t":0.36,"B":[1,0.437,0.3835,-52.5673,149.0734],"P":[0,0.3373,0.3373,211.8044,133.4248],"pieces":[[0,1.0395,0,0,0.9122,-2.1185,10.4295],[1,0.1273,0,-0.0052,0.1273,122.8417,85.3817],[1,0.9715,0,-0.0091,0.9715,-0.2438,12.1272],[1,1,0,0,1,-7.3147,9.6581],[1,1,0,0,1,-7.3147,9.6581],[1,1,0,0,1,-5.4581,9.6581],[1,1,0,0,1,-5.4581,9.6581],[1,1,0,0,1,-5.4581,9.6581],[1,1,0,0,1,-5.4581,9.6581],[1,1,0,0,1,-5.4581,9.6581],[1,1,0,0,1,-5.4581,9.6581]]},{"t":0.45,"B":[1,0.7464,0.7273,-26.5374,71.5611],"P":[0,0.3373,0.3373,192.4594,167.6555],"pieces":[[0,1.008,0,0,0.9822,-0.4287,2.111],[0,0,0,0,0,115.3881,106.335],[0,0,0,0,0,187.5581,106.335],[0,0,0,0,0,257.5851,106.335],[1,0.8058,0,-0.0484,0.8058,41.7991,56.0151],[1,1,0,0,1,-24.8031,43.8887],[1,1,0,0,1,-24.8031,43.8887],[1,1,0,0,1,-24.8031,43.8887],[1,1,0,0,1,-24.8031,43.8887],[1,1,0,0,1,-24.8031,43.8887],[1,1,0,0,1,-24.8031,43.8887]]},{"t":0.7,"B":[1,0.8996,0.8929,-3.0728,34.5345],"P":[1,0.4362,0.3882,155.6721,172.513],"pieces":[[0,1.0023,0,0,0.9949,-0.1233,0.6061],[0,0,0,0,0,102.6696,111.1949],[0,0,0,0,0,174.8396,111.1949],[0,0,0,0,0,244.8666,111.1949],[0,0,0,0,0,324.8966,111.1949],[0,1.0353,0,0,0.9214,-49.0071,70.0079],[1,0.5141,0,-0.054,0.5141,221.8015,82.1697],[1,1,0,0,1,-43.0951,60.6817],[1,1,0,0,1,-43.0951,60.6817],[1,1,0,0,1,-43.0951,60.6817],[1,1,0,0,1,-34.2934,60.6817]]},{"t":0.85,"B":[1,0.902,0.8955,64.4685,33.9549],"P":[1,0.9014,0.9287,67.7591,23.7187],"pieces":[[0,1.0022,0,0,0.995,-0.12,0.5897],[0,0,0,0,0,102.4678,111.2719],[0,0,0,0,0,174.6378,111.2719],[0,0,0,0,0,244.6648,111.2719],[0,0,0,0,0,324.6948,111.2719],[0,0.9907,0,0,1.0206,-30.578,58.4977],[0,0,0,0,0,446.972,75.5735],[0,0,0,0,0,508.424,75.5735],[0,0,0,0,0,561.301,75.5735],[0,0,0,0,0,643.475,75.5735],[1,1,0,0,1,-34.4439,60.9481]]}]
+    """
+    private static let mockTapped = """
+    [{"t":0.15,"B":[1,0.424,0.424,-28.8684,136.2883],"P":[1,0.43,0.43,187.338,117.1175],"pieces":[[0,1,0,0,1,0,0],[0,0,0,0,0,141.0228,96.5398],[1,0.7921,0,-0.0505,0.7921,42.6683,28.026],[1,1,0,0,1,-7.6052,10.0417],[1,1,0,0,1,-7.6052,10.0417],[0,1,0,0,1,-5.6749,10.0417],[1,0.4639,0,-0.0484,0.4639,272.0397,37.9426],[1,1,0,0,1,-20.1007,10.0417],[1,1,0,0,1,-20.1007,10.0417],[1,1,0,0,1,-20.1007,10.0417],[1,1,0,0,1,-5.6749,10.0417]]},{"t":0.25,"B":[1,0.7784,0.7784,40.5761,59.0112],"P":[1,0.7799,0.7799,91.2325,62.2012],"pieces":[[0,1,0,0,1,0,0],[0,0,0,0,0,112.3156,107.509],[0,0,0,0,0,184.4856,107.509],[0,0,0,0,0,254.5126,107.509],[0,0,0,0,0,334.5426,107.509],[0,1,0,0,1,-27.0957,47.9455],[0,0,0,0,0,461.0828,80.6602],[0,0,0,0,0,522.5348,80.6602],[0,0,0,0,0,575.4118,80.6602],[1,0.6466,0,-0.0608,0.6466,183.2413,59.5078],[1,1,0,0,1,-27.0957,47.9455]]}]
+    """
+
+    private func assertSqueezes(_ m: LaunchMotion, as json: String, file: StaticString = #filePath, line: UInt = #line) throws {
+        let canvas = LaunchMotion.canvas, anchor = LaunchMotion.letterAnchor
+        for probe in try JSONDecoder().decode([Probe].self, from: Data(json.utf8)) {
+            let f = m.frame(at: probe.t), at = "at \(probe.t)"
+            XCTAssertEqual(f.word, 0, "the still's picture has handed over \(at)", file: file, line: line)
+            for (name, mock, shown, size, shift) in [("B", probe.B, f.bShown, f.b, f.bShift), ("p", probe.P, f.pShown, f.p, f.pShift)] {
+                XCTAssertEqual(shown, mock[0] == 1, "\(name) shows \(at)", file: file, line: line)
+                XCTAssertEqual(size.width, mock[1], accuracy: 1e-3, "\(name)'s width \(at)", file: file, line: line)
+                XCTAssertEqual(size.height, mock[2], accuracy: 1e-3, "\(name)'s height \(at)", file: file, line: line)
+                XCTAssertEqual((anchor.x - canvas.minX) * (1 - size.width) + shift.width, mock[3], accuracy: 0.01, "\(name)'s x \(at)", file: file, line: line)
+                XCTAssertEqual((anchor.y - canvas.minY) * (1 - size.height) + shift.height, mock[4], accuracy: 0.01, "\(name)'s y \(at)", file: file, line: line)
             }
-            XCTAssertEqual(f.p.height, 0.9 * (1 - dP), accuracy: 1e-5, "p at \(t)")
+            XCTAssertEqual(f.pieces.count, 11, at, file: file, line: line)
+            for (i, mock) in probe.pieces.enumerated() where f.pieces.indices.contains(i) {
+                let piece = f.pieces[i], t = piece.transform, name = "\(LaunchMotion.wordPieces[i]) \(at)"
+                XCTAssertEqual(piece.opacity, Double(mock[0]), name, file: file, line: line)
+                for (mine, theirs, close) in [(t.a, mock[1], 1e-3), (t.b, mock[2], 1e-3), (t.c, mock[3], 1e-3), (t.d, mock[4], 1e-3),
+                                              (t.tx, mock[5], 0.01), (t.ty, mock[6], 0.01)] {
+                    XCTAssertEqual(mine, theirs, accuracy: close, name, file: file, line: line)
+                }
+            }
         }
-        XCTAssertEqual(m.frame(at: m.landAt + 0.11).b.width, 0.9, accuracy: 0.002, "still 90% as the ball lands")
+    }
+
+    /// The ball's hits squeeze BlockParty. into Bp as the mock does (Jesse, 2026-11-17): on B's hit
+    /// the wordmark's B dips, then Bp!'s B swells in its place and takes in l, o, c, k one at a
+    /// time, each shrinking whole and leaning; on P's hit the p does the same with a, r, t, y while
+    /// B moves over; the full stop waits for the ball.
+    func testTheHitsSqueezeTheWordIntoBp() throws {
+        try assertSqueezes(motion, as: Self.mockShow)
+        // No letter is ever cut or faded: each shows whole or not at all, and only shrinks.
+        for t in stride(from: 0.0, through: 1.2, by: 1.0 / 240) {
+            for piece in motion.frame(at: t).pieces {
+                XCTAssertTrue(piece.opacity == 0 || piece.opacity == 1, "at \(t)")
+                XCTAssertLessThanOrEqual(piece.transform.a, 1.05, "at \(t)")
+            }
+        }
+    }
+
+    /// Until the first hit the still's own picture shows and nothing of Bp does; from the hit on its
+    /// pieces draw the word, and once the ball is the dot they are all gone.
+    func testTheStillsPictureShowsUntilTheFirstHit() {
+        let m = motion
+        for t in [0.0, 0.1, m.hitB - 0.001] {
+            let f = m.frame(at: t)
+            XCTAssertEqual(f.word, 1, "at \(t)")
+            XCTAssertTrue(f.pieces.isEmpty, "at \(t)")
+            XCTAssertFalse(f.bShown || f.pShown, "no Bp on the still, at \(t)")
+            XCTAssertEqual(f.markOpacity, 1, "the ball shows as it drops in, at \(t)")
+        }
+        let hit = m.frame(at: m.hitB)
+        XCTAssertEqual(hit.word, 0)
+        XCTAssertEqual(hit.pieces.map(\.opacity), Array(repeating: 1, count: 11), "the whole word, in pieces")
+        XCTAssertFalse(hit.bShown, "the wordmark's own B dips under the ball")
+        XCTAssertTrue(m.frame(at: m.hitB + 0.05).bShown, "Bp!'s B swells as the ball leaves")
+        XCTAssertFalse(m.frame(at: m.hitP + 0.049).pShown)
+        XCTAssertTrue(m.frame(at: m.hitP + 0.05).pShown)
+        XCTAssertEqual(m.frame(at: m.landAt + 0.01).pieces.last?.opacity, 1, "the full stop waits for the ball")
+        XCTAssertTrue(m.frame(at: m.landAt + 0.02).pieces.isEmpty, "the ball is the dot now")
+        XCTAssertEqual(m.frame(at: 2).word, 0)
+    }
+
+    /// Squeezed, B and p sit at the still's 90% exactly where they did before the squeeze, so the
+    /// jump, the leap and the tab bar's catch are unchanged.
+    func testSqueezedBpIsTheOldBp() {
+        let f = motion.frame(at: motion.landAt + 0.11)
+        XCTAssertEqual(f.b.width, 0.9, accuracy: 0.002, "still 90% as the ball lands")
+        XCTAssertEqual(f.p.width, 0.9, accuracy: 0.004)
+        for shift in [f.bShift, f.pShift] {
+            XCTAssertEqual(shift.width, 0, accuracy: 0.5)
+            XCTAssertEqual(shift.height, 0, accuracy: 0.5)
+        }
+        let late = motion.frame(at: 2)
+        XCTAssertEqual(late.bShift.width, 0, accuracy: 1e-6)
+        XCTAssertEqual(late.pShift.height, 0, accuracy: 1e-6)
     }
 
     /// As the ball becomes the dot, Bp! jumps as one on the mock's keyframes: it crouches while
@@ -196,20 +283,6 @@ final class LaunchMotionTests: XCTestCase {
         }
     }
 
-    /// The launch screen's still is the BlockParty. wordmark: the full show starts on it, and it
-    /// gives way to Bp over the show's first 0.15 s as the ball drops in (Jesse, 2026-11-14).
-    func testTheFullShowStartsFromTheWordmark() {
-        let m = motion
-        XCTAssertEqual(m.frame(at: 0).word, 1)
-        XCTAssertEqual(m.frame(at: 0).markOpacity, 0, "no Bp on the still")
-        XCTAssertEqual(m.frame(at: 0.075).word, 0.5, accuracy: 1e-9)
-        XCTAssertEqual(m.frame(at: 0.075).markOpacity, 0.5, accuracy: 1e-9)
-        XCTAssertEqual(m.frame(at: LaunchMotion.wordSwap).word, 0)
-        XCTAssertEqual(m.frame(at: LaunchMotion.wordSwap).markOpacity, 1)
-        XCTAssertLessThan(LaunchMotion.wordSwap, m.hitB, "Bp is all there before the ball hits B")
-        XCTAssertEqual(m.frame(at: 2).word, 0)
-    }
-
     /// Every other open: no ball and no Bp. BlockParty. holds 0.2 s, then shoots out at you as the
     /// 2026-11-08 link open's Bp! did, the yellow and the signature fading in 0.18 s, nothing falling
     /// and the app settling from 105% (Jesse, 2026-11-14: "it just all fades into the app", then "the
@@ -276,7 +349,7 @@ final class LaunchMotionTests: XCTestCase {
     }
 
     /// A link that arrives while the ball show is on its way turns it into the wordmark open: what
-    /// the show had drawn (here Bp and the ball in mid-air) fades back into BlockParty. over
+    /// the show had drawn (here the half-squeezed word and the ball in mid-air) fades back into BlockParty. over
     /// 0.15 s, then it holds and fades as any wordmark open does.
     func testALinkFadesTheShowBackIntoTheWordmark() {
         let show = LaunchMotion(screen: phone, ending: .tab(tab))
@@ -287,6 +360,7 @@ final class LaunchMotionTests: XCTestCase {
         let start = m.frame(at: 0)
         XCTAssertEqual(start.ball, caught.ball, "the ball where it was")
         XCTAssertEqual(start.b, caught.b)
+        XCTAssertEqual(start.pieces, caught.pieces)
         XCTAssertEqual(start.markOpacity, 1)
         XCTAssertEqual(start.word, 0)
         let mid = m.frame(at: 0.075)
@@ -296,9 +370,10 @@ final class LaunchMotionTests: XCTestCase {
         XCTAssertEqual(m.frame(at: 0.15).word, 1)
         XCTAssertEqual(m.frame(at: 0.15 + 0.2 - 0.001).yellow, 1, "then it holds")
         XCTAssertLessThan(m.frame(at: 0.15 + 0.2 + 0.1).yellow, 1)
-        // Caught part way into the still's hand-over: the wordmark comes back from where it was.
+        // Caught before the first hit: the still's picture never left, and only the ball fades.
         let early = LaunchMotion(screen: phone, kind: .word, before: show.frame(at: 0.05))
-        XCTAssertEqual(early.frame(at: 0).word, 1 - 0.05 / 0.15, accuracy: 1e-9)
+        XCTAssertEqual(early.frame(at: 0).word, 1)
+        XCTAssertEqual(early.frame(at: 0.075).markOpacity, 0.5, accuracy: 1e-9)
         XCTAssertEqual(early.frame(at: 0.15).word, 1)
     }
 
@@ -334,10 +409,13 @@ final class LaunchMotionTests: XCTestCase {
         XCTAssertGreaterThan(half.zoom, 3)
     }
 
-    /// A tap sends the ball into the dot in 0.16 s, grows the letters the ball never reached
-    /// without a dip, drops the jump and the buzzes after it, and ends on the fast spring.
-    func testATapSkipsToTheDot() {
+    /// A tap sends the ball into the dot in 0.16 s, squeezes the word at once (the letters the
+    /// ball never reached swell without a dip), drops the jump and the buzzes after it, and ends on
+    /// the fast spring.
+    func testATapSkipsToTheDot() throws {
         let m = LaunchMotion(screen: phone, skip: 0.1)
+        XCTAssertEqual(m.frame(at: 0.099).word, 1)
+        try assertSqueezes(m, as: Self.mockTapped)
         let midway = m.frame(at: 0.18)
         XCTAssertEqual(midway.ballOpacity, 1)
         XCTAssertGreaterThan(midway.ball.x, m.ball(at: 0.1).x)

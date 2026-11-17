@@ -972,6 +972,24 @@ time, 0.2 s on screen) as the ball drops in. The signature reads "Made by Jesse"
 ending, fades the show's last frame back into the wordmark over `wordSwap`; after that the show
 finishes over the page.
 
+## Decided 2026-11-17 — the ball's hits squeeze BlockParty. into Bp!, once a day (BP app backlog 33)
+
+Only the day's first cold start plays the ball show now (`LaunchShows.fullShowsADay` 1; Jesse:
+"The first open of the day."; two since 2026-11-14). The show no longer fades the still's
+BlockParty. into Bp over `wordSwap`: the ball's hits squeeze it (`LaunchMotion.squeeze`, the
+approved mock's round 3, BP app references/launch-squeeze). The still's own picture (`LaunchStill`)
+shows until the first hit, when eleven pieces of the same wordmark (`LaunchWordB` … `LaunchWordDot`,
+each a picture the wordmark's size holding one letter) take its place. The hit on B swells Bp!'s B
+out of the wordmark's B (the same shape at a third of the size) in four gulps (`gulp` 0.045 s apart,
+`gulpSpring` response 0.20 damping 0.50), one for each of l, o, c, k, which shrink whole toward the
+B's widest point (`bellyB` 76 canvas units above the line) leaning `gulpLean` 6°, never cut and
+never faded (Jesse: "i dont like how the letters just fade out at a visible line point"). The hit on
+P does the same with a, r, t, y (`bellyP` 115) while B moves over, and the ball lands on the full
+stop as the !'s dot. The gulps, the lean, the bellies and `squeezeGap` (6) are guessed. The ball
+reaches the wordmark's lower B 0.02 s later than it reached Bp's; its two hops are solved
+(`Flight.arc(…taking:)`) so p's hit and the landing come when they did, and from the jump on the
+show is unchanged, 3.80 s in all. `wordSwap` stays for a link that catches the show.
+
 ## Open — should the server decide which posts go live?
 
 Today the app decides: a post Claude clears is saved as `approved`, and nothing on the
