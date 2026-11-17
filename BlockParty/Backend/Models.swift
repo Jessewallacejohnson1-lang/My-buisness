@@ -853,10 +853,12 @@ struct ProfileExtras: Decodable, Equatable {
     /// references/profile-middle). Nil from a `get_profile` without it: a plain number would make
     /// that whole answer fail to read, bio, cover and friends with it.
     var following: Int? = nil
+    /// People following them whom you may find (BP app backlog 34). Nil from a `get_profile` without it.
+    var followers: Int? = nil
 
     #if DEBUG
     /// INVENTED, for `-town-samples`: your counts, with no `get_profile` read. No bio or cover.
-    static let sample = ProfileExtras(friends: 24, following: 9)
+    static let sample = ProfileExtras(friends: 24, following: 9, followers: 3)
 
     /// INVENTED, for `-town-samples`: a neighbour's page with every part showing: a bio, counts, two
     /// groups (the first two the run loaded: they are the Town's live groups, with no fixed ids) and,
@@ -865,7 +867,7 @@ struct ProfileExtras: Decodable, Equatable {
     static func sampleNeighbor(groups: [TownGroup], friend: Bool) -> ProfileExtras {
         ProfileExtras(bio: "Dad of two. Coach at the rink in winter.", friends: 12,
                       groupIds: groups.prefix(2).map(\.id),
-                      bothGoing: friend ? ["you-sample-6", "you-sample-7"] : [], following: 6)
+                      bothGoing: friend ? ["you-sample-6", "you-sample-7"] : [], following: 6, followers: 4)
     }
     #endif
 }

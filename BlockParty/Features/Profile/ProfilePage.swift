@@ -28,6 +28,8 @@ struct ProfileFace {
     var friends: Int?
     /// How many they follow (`get_profile`); nil until read, or from a server without the count.
     var following: Int?
+    /// How many follow them (`get_profile`); nil until read, or from a server without the count.
+    var followers: Int?
     /// The counts' read is out (a real account, no answer yet): their place holds a skeleton.
     var countsLoading = false
     var groups: [TownGroup] = []
@@ -35,22 +37,20 @@ struct ProfileFace {
     var going: [DailyEvent]?
     /// Your own page with no bio: "+ Add bio" where the bio would be.
     var addsBio = false
-    /// A neighbour's friends you share: "2 mutual" in the counts.
-    var mutual = 0
     /// False until the read that says whether they picked a cover has come back: the plain fill
     /// until then, never the town photo first and theirs after.
     var coverKnown = true
     /// The time the Going rows' "Now" and start times are read at.
     var now = Date()
 
-    /// The counts' parts, "24 friends", "1 group", "9 following": a zero or an unknown is left
-    /// out, never said.
-    static func counts(friends: Int?, mutual: Int = 0, groups: Int, following: Int?) -> [(number: Int, word: String)] {
+    /// The counts' parts, "24 friends", "9 following", "3 followers": three numbers at most, the
+    /// same on every Profile (Jesse, 2026-11-17, BP app references/followers-count). A zero or an
+    /// unknown is left out, never said.
+    static func counts(friends: Int?, following: Int?, followers: Int?) -> [(number: Int, word: String)] {
         var parts: [(number: Int, word: String)] = []
         if let friends, friends > 0 { parts.append((friends, friends == 1 ? "friend" : "friends")) }
-        if mutual > 0 { parts.append((mutual, "mutual")) }
-        if groups > 0 { parts.append((groups, groups == 1 ? "group" : "groups")) }
         if let following, following > 0 { parts.append((following, "following")) }
+        if let followers, followers > 0 { parts.append((followers, followers == 1 ? "follower" : "followers")) }
         return parts
     }
 
@@ -157,9 +157,10 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
     /// A row's tap: the page that holds this one pushes the Event or the Group page.
     var openEvent: (FeedCardItem) -> Void = { _ in }
     var openGroup: (TownGroup) -> Void = { _ in }
-    /// Your own page: a tap on the friends or following count opens that list; nil leaves it plain.
+    /// Your own page: a tap on a count opens that list; nil leaves it plain.
     var openFriends: (() -> Void)? = nil
     var openFollowing: (() -> Void)? = nil
+    var openFollowers: (() -> Void)? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Namespace private var zoom
@@ -302,8 +303,8 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
                 .padding(.top, ProfileMetric.addBioTop)
             }
 
-            let counts = ProfileFace.counts(friends: face.friends, mutual: face.mutual, groups: face.groups.count,
-                                            following: face.following)
+            let counts = ProfileFace.counts(friends: face.friends, following: face.following,
+                                            followers: face.followers)
             // The counts, or their skeleton while the read is out, in one place, cross-fading, so the
             // buttons and lists under them never move when the counts land (docs/rules/design.md,
             // "Loading"). No counts, a failed read or the quiet account: no row and no gap.
@@ -380,11 +381,12 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
         .accessibilityLabel(tappable ? "" : counts.map { "\($0.number) \($0.word)" }.joined(separator: ", "))
     }
 
-    /// The list a count opens: your friends and your follows, on your own page only.
+    /// The list a count opens: your friends, your follows and your followers, on your own page only.
     private func opens(_ word: String) -> (() -> Void)? {
         switch word {
         case "friend", "friends": openFriends
         case "following": openFollowing
+        case "follower", "followers": openFollowers
         default: nil
         }
     }
