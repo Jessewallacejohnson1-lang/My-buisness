@@ -3,6 +3,7 @@
 //  Block Party — the Town tab body: the top bar over the Town feed.
 //
 
+import Network
 import SwiftUI
 
 struct TownView: View {
@@ -360,6 +361,15 @@ struct TownView: View {
             try? await Task.sleep(for: .seconds(max(0, next.timeIntervalSinceNow) + 1))
             guard !Task.isCancelled else { return }
             await townFeed.refresh()
+        }
+        // Signal back while the Offline pill shows: read again at once, so the pill goes without a pull
+        // (town-feed 47). A read that failed with signal (the server) waits for the next read, as before.
+        .task(id: offline) {
+            guard offline else { return }
+            var lost = false
+            for await path in NWPathMonitor() {
+                if path.status != .satisfied { lost = true } else if lost { await townFeed.refresh(); return }
+            }
         }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
