@@ -247,11 +247,17 @@ nonisolated struct PlacePicture: Decodable, Hashable, Sendable {
     var flyerBox: Box? = nil
     /// That flyer also lists an Event with another title: the Event is part of its host's lineup (town-feed 59).
     var lineup: Bool? = nil
+    /// The Event's other own photos after this one, in order: an exhibit's other pieces of its show, which its page
+    /// swipes through (BP app event-photos 25). nil on every other picture.
+    var morePieces: [Lenient]? = nil
 
     private enum CodingKeys: String, CodingKey {
         case url, kind, credit, site, hue, cover, whole, lineup
-        case width = "w", height = "h", others = "more", flyerBox = "flyer"
+        case width = "w", height = "h", others = "more", flyerBox = "flyer", morePieces = "pieces"
     }
+
+    /// The Event's other pieces, in order, the ones that decode.
+    var pieces: [PlacePicture] { morePieces?.compactMap(\.value) ?? [] }
 
     /// The flyer to swipe to, when it decodes.
     var flyer: PlacePicture? { flyerBox?.value }
@@ -853,10 +859,12 @@ struct ProfileExtras: Decodable, Equatable {
     /// references/profile-middle). Nil from a `get_profile` without it: a plain number would make
     /// that whole answer fail to read, bio, cover and friends with it.
     var following: Int? = nil
+    /// People following them whom you may find (BP app backlog 34). Nil from a `get_profile` without it.
+    var followers: Int? = nil
 
     #if DEBUG
     /// INVENTED, for `-town-samples`: your counts, with no `get_profile` read. No bio or cover.
-    static let sample = ProfileExtras(friends: 24, following: 9)
+    static let sample = ProfileExtras(friends: 24, following: 9, followers: 3)
 
     /// INVENTED, for `-town-samples`: a neighbour's page with every part showing: a bio, counts, two
     /// groups (the first two the run loaded: they are the Town's live groups, with no fixed ids) and,
@@ -865,7 +873,7 @@ struct ProfileExtras: Decodable, Equatable {
     static func sampleNeighbor(groups: [TownGroup], friend: Bool) -> ProfileExtras {
         ProfileExtras(bio: "Dad of two. Coach at the rink in winter.", friends: 12,
                       groupIds: groups.prefix(2).map(\.id),
-                      bothGoing: friend ? ["you-sample-6", "you-sample-7"] : [], following: 6)
+                      bothGoing: friend ? ["you-sample-6", "you-sample-7"] : [], following: 6, followers: 4)
     }
     #endif
 }

@@ -838,6 +838,11 @@ struct CommunityAPI {
         try Supabase.decode(await db.rpc("my_team_finals", ["p_since": DateHelpers.timestampString(since)]))
     }
 
+    /// The people following you, newest first: your Profile's followers list (BP app backlog 34).
+    func myFollowers() async throws -> [Neighbor] {
+        try Supabase.decode(await db.rpc("my_followers"))
+    }
+
     /// Everyone and everything you follow, A to Z: Profile's Following list.
     func myFollows() async throws -> [FollowRow] {
         try Supabase.decode(await db.rpc("my_follows"))

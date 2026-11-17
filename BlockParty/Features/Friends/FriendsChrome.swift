@@ -26,6 +26,8 @@ enum FriendsRoute: Hashable {
     case contacts
     /// See all on the Friends tab (five-tabs 02): every friend, or every Group with its Join.
     case allFriends, groups
+    /// Your Profile's followers count: the people who follow you (BP app backlog 34).
+    case followers
 }
 
 /// A pushed Friends page's own top: Search's back chevron, and the small title once the large

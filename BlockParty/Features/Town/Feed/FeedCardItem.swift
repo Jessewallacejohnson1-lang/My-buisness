@@ -70,6 +70,9 @@ struct FeedCardItem: Identifiable, Hashable {
     /// `image` is a flyer: the Event page and the Block Party tab's cards show it whole, over a blurred copy
     /// of itself (Jesse, 2026-11-05, BP app event-photos 16).
     var whole = false
+    /// The Event's other own photos after `image`, in order: an exhibit's other pieces of its show, which its page swipes
+    /// through before the flyer (Jesse, 2026-11-17, BP app event-photos 25). Empty otherwise.
+    var pieces: [FeedCardImageSource] = []
     /// The Event's flyer when `image` is its own photo: its page swipes from the photo to the whole flyer (Jesse,
     /// 2026-11-10, BP app town-feed 59). nil otherwise.
     var flyer: URL? = nil
@@ -225,6 +228,12 @@ struct FeedCardItem: Identifiable, Hashable {
     func photos(failed: Set<URL> = []) -> [FeedCardImageSource] {
         EventPage.photoList(event: image, venue: venue, failed: failed)
     }
+
+    /// Its page's picture: none when it is only its place's cover, which isn't a photo of the Event, so the page shows
+    /// the place's logo or the yellow, as its Town card goes white (BP app town-feed 72). The map keeps `photos`.
+    func pagePhotos(failed: Set<URL> = []) -> [FeedCardImageSource] {
+        coverOnly ? [] : photos(failed: failed)
+    }
 }
 
 /// When an event is, as the card prints it ("Tonight · 7 PM", "Fri, Jul 24 · 11 AM")
@@ -330,8 +339,8 @@ struct FeedCardActionState: Equatable {
 enum FeedCardImageSource: Hashable {
     case eventPhoto(URL)
     /// A place's photo, the chip that credits it (a site, or an author and licence), and its
-    /// shape (width over height) when the database knows it.
-    case placePhoto(URL, credit: String?, aspect: Double? = nil)
+    /// shape (width over height) and height in pixels when the database knows them.
+    case placePhoto(URL, credit: String?, aspect: Double? = nil, height: Int? = nil)
     /// A place we have no photo of: its logo on its Search backdrop (Jesse, 2026-10-16),
     /// drawn as `logo`.
     case placeLogo(PlacePicture)
@@ -339,7 +348,7 @@ enum FeedCardImageSource: Hashable {
 
     nonisolated init(_ picture: PlacePicture) {
         switch picture.kind {
-        case .photo: self = .placePhoto(picture.url, credit: picture.creditLine, aspect: picture.aspect)
+        case .photo: self = .placePhoto(picture.url, credit: picture.creditLine, aspect: picture.aspect, height: picture.height)
         case .logo: self = .placeLogo(picture)
         }
     }

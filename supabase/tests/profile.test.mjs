@@ -145,3 +145,33 @@ test('a neighbour reads the count as they may see it, and counts themselves when
   assert.equal((await profile(BEN, BEN)).following, 3);
   assert.equal((await profile(ANA, ANA)).following, 0);
 });
+
+test('followers counts the people following a profile whom the reader may find (BP app backlog 34)', async () => {
+  await reset();
+  await one(ANA, 'block_neighbor', DEE);
+  // Written after the block on purpose, as the following story: the count doesn't lean on a block ending follows.
+  await follows(BEN, [['profile', ANA]]);
+  await follows(CAL, [['profile', ANA]]);
+  await follows(DEE, [['profile', ANA]]);
+  await follows(ANA, [['place', KREWE], ['profile', BEN]]);
+  assert.equal((await profile(ANA, ANA)).followers, 2, 'Dee is blocked, so not counted');
+  assert.equal((await profile(CAL, ANA)).followers, 3, 'Cal may find all three');
+  assert.equal((await profile(BEN, BEN)).followers, 1);
+  assert.equal((await profile(CAL, CAL)).followers, 0);
+});
+
+test('my_followers lists only your own followers, newest first, as the count counts them', async () => {
+  await reset();
+  await one(ANA, 'block_neighbor', DEE);
+  await follows(BEN, [['profile', ANA]]);
+  await db.query(`insert into public.town_follows (follower_id, target_type, target_id, created_at)
+    values ($1, 'profile', $2, now() + interval '1 minute'), ($3, 'profile', $2, now())`, [CAL, ANA, DEE]);
+  await follows(ANA, [['profile', BEN]]);
+  await makeFriends(ANA, CAL);
+  const rows = await as(ANA, 'select * from public.my_followers()');
+  assert.deepEqual(rows.map((r) => r.display_name), ['Cal Ruiz', 'Ben Ortiz']);
+  assert.equal(rows[0].relation, 'friends');
+  assert.equal(rows.length, (await profile(ANA, ANA)).followers, 'the list and the number agree');
+  assert.deepEqual((await as(BEN, 'select * from public.my_followers()')).map((r) => r.display_name), ['Ana Lee']);
+  await assert.rejects(as(ANON, 'select * from public.my_followers()', [], { anonymous: true }));
+});

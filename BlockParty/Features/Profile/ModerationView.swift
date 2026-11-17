@@ -84,7 +84,7 @@ struct ReviewCard: Hashable {
     @MainActor var picture: URL? {
         guard let event else { return imageUrl.flatMap(URL.init(string:)) }
         switch FeedCardItem(event).image {
-        case .eventPhoto(let url), .placePhoto(let url, _, _): return url
+        case .eventPhoto(let url), .placePhoto(let url, _, _, _): return url
         case .placeLogo(let picture): return picture.url
         case .fallback: return nil
         }

@@ -526,10 +526,35 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertFalse(cards[0].whole, "its own photo is the picture, not the flyer")
     }
 
-    /// A place's cover isn't a photo of the Event (BP app town-feed 40): its Town card goes white,
-    /// while its page keeps the cover, alone (BP app inside-cards 15), and `image` stays for every
-    /// other screen. The Event's own photo still wins over the cover.
-    func testAPlacesCoverMakesTheWhiteCardAndStaysOnTheEventPage() throws {
+    /// An exhibit's other pieces come with its own photo, in order, for its page to swipe through (BP app event-photos
+    /// 25). A piece that doesn't decode is none, and a card whose picture isn't the Event's own carries none.
+    func testAnExhibitsPiecesComeWithItsOwnPhoto() throws {
+        let row = { (id: String, image: String, extra: String) in """
+        {"id":"\(id)","recurrence":null,"leaves_at":"2026-12-18T17:00:00+00:00",
+         "card":{"id":"\(id)","title":"Bréagán","event_date":"2026-11-03","start_time":"2 PM",
+         "location":"Alice R. Rogers and Target Galleries","image_url":\(image),"category":null,"club_name":null,
+         "source_name":"CSB SJU Campus Events","end_at":null,"all_day":false,"created_at":"2026-10-06T16:08:20+00:00",
+         "going_count":0,"going":false,
+         "place_picture":{"url":"https://x/horse.webp","kind":"photo","w":1600,"h":898\(extra)}}}
+        """ }
+        let pieces = #","pieces":[{"url":"https://x/coat.webp","kind":"photo","credit":"Chloe Briggs","w":1600,"h":1067},"#
+            + #"{"url":7},{"url":"https://x/hands.webp","kind":"photo"}]"#
+        let json = "[" + row("show", "null", pieces) + "," + row("own", #""https://x/own.jpg""#, pieces) + ","
+            + row("one", "null", "") + "]"
+        let cards = try CommunityAPI.townFeedRows(from: Data(json.utf8)).map { TownFeed.card($0) }
+
+        XCTAssertEqual(cards[0].image.url, URL(string: "https://x/horse.webp"), "the first piece leads the card")
+        XCTAssertEqual(cards[0].pieces.compactMap(\.url), ["coat", "hands"].map { URL(string: "https://x/\($0).webp") },
+                       "the rest follow in order; one that doesn't decode is dropped")
+        XCTAssertEqual(cards[0].pieces.first?.attribution, "Chloe Briggs", "each piece keeps its artist's credit")
+        XCTAssertEqual(cards[1].pieces, [], "a picture of the card's own isn't the Event's set")
+        XCTAssertEqual(cards[2].pieces, [], "an Event with one picture has no more")
+    }
+
+    /// A place's cover isn't a photo of the Event (BP app town-feed 40): its Town card goes white, and
+    /// its page shows no picture (town-feed 72), while the map and `image` keep it for every other
+    /// screen. The Event's own photo still wins over the cover.
+    func testAPlacesCoverMakesTheWhiteCardAndLeavesTheEventPage() throws {
         let row = { (id: String, image: String) in """
         {"id":"\(id)","recurrence":null,"leaves_at":"2026-10-31T17:00:00+00:00",
          "card":{"id":"\(id)","title":"Fall Craft Day","event_date":"2026-10-31","start_time":"10 AM",
@@ -544,7 +569,10 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(cards.map(\.coverOnly), [true, false])
         XCTAssertEqual(cards.map(\.isPhotoless), [true, false], "its place's cover: white; its own photo: a photo card")
         XCTAssertEqual(cards[0].photos().compactMap { $0.url?.lastPathComponent }, ["hall.webp"],
-                       "its page keeps the place's cover")
+                       "the map keeps the place's cover")
+        XCTAssertEqual(cards[0].pagePhotos(), [], "its page drops the cover")
+        XCTAssertEqual(cards[1].pagePhotos().compactMap { $0.url?.lastPathComponent }, ["own.jpg"],
+                       "its own photo stays on its page")
         XCTAssertEqual(cards[0].image.url?.lastPathComponent, "hall.webp", "other screens keep what they show")
     }
 

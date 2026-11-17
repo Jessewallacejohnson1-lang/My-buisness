@@ -132,6 +132,9 @@ THE RULES
     sharing only a word, are named for Jesse ("kept apart", the morning report's "Maybe the same"), and both stay.
   One Facebook event (one_facebook_event): the same host's same event number on the same day, at agreeing times, is one
     Event whatever its titles.
+  One show (same_show, BP app loopholes 21): two runs over days that overlap, at one place, one name inside the other,
+    neither a game, are one Event whoever lists it and whatever day its id carries. A read joined that way is only a
+    Mention: the listed Event keeps its first day, words and status, so a show's copy taken out stays out.
   Which copy is kept: an event already listed stays the Event and every new copy is its Mention.
     Among new copies, the official one, then its place's own host's (not a town calendar's), then
     a timed one, then one with a place; kept all day, it takes the time another copy gives that day.
@@ -303,6 +306,19 @@ def listed_twice(a, b):
     "Mora Invite" (boys, Welia Center) and "Mora Invitational" (girls, main gym)."""
     return a["poster"] == b["poster"] and a["at"] is not None and a["at"] == b["at"] \
         and not (a["game"] or b["game"] or a["followers"] or b["followers"]) and same_event(a, b)
+
+
+def same_show(a, b):
+    """One show open for days, whoever lists it and whatever day it is read (BP app loopholes 21): two runs over days
+    that overlap, at one place (a registry place both name, or the place line), one name inside the other, neither a
+    game. The College of Saint Benedict's page lists "Bréagán Art Exhibition" from the day it is read, so each read had
+    a new id, and the copy taken out on Nov 13 came back on Nov 16 beside the campus calendar's "Bréagán" (Nov 3 to
+    Dec 18). A one-night reception named for the show is no run, so it stays its own Event.
+    ponytail: a registry place is a whole campus, so two shows there with one name inside the other ("Senior
+    Exhibition", "Senior Thesis Exhibition") would be one; compare the place line too if that ever happens."""
+    return a["last"] > a["day"] and b["last"] > b["day"] and a["day"] <= b["last"] and b["day"] <= a["last"] \
+        and not (a["game"] or b["game"]) and same_title(a["title"], b["title"]) \
+        and (bool(a["entry"]) and a["entry"] == b["entry"] or same_place(a["place"], b["place"]))
 
 
 def two_hosts(a, b):
@@ -765,7 +781,7 @@ def listed_facts(row, home=HOME):
     t = None if row.get("all_day") else parse_clock(row.get("start_time"))
     poster = row.get("source_name") or ""
     place = meets_at(tidy_place(row.get("location"), home), poster, tidy_title(row["title"], poster), home)
-    return {"day": day, "at": t and datetime.combine(day, t), "place": words(place, PLACE_STOP),
+    return {"day": day, "last": event_days(row)[1], "at": t and datetime.combine(day, t), "place": words(place, PLACE_STOP),
             "entry": where(place, poster, home=home), "title": words(tidy_title(row["title"], poster)), **place_facts(place, poster),
             "own_id": real_uid(row.get("source_uid")), "game": is_game(row), "poster": poster.strip(),
             "followers": row.get("followers_only") is True}
@@ -942,7 +958,7 @@ def event_of(it, today, interests, home, notes, titles=None, teams=None, made=No
         if all(found):
             row.update(sport=game["sport"], team_ids=[f[0] for f in found], team_names=[f[1] for f in found],
                        team_shorts=[team_short(f[1]) for f in found], occasion=game["occasion"])
-    facts = {"day": day, "at": at, "place": words(place, PLACE_STOP), "entry": where(place, it["source_name"], it.get("town"), home),
+    facts = {"day": day, "last": end.date() if end else day, "at": at, "place": words(place, PLACE_STOP), "entry": where(place, it["source_name"], it.get("town"), home),
              "title": words(title), **place_facts(place, it["source_name"]), "own_id": real_uid(uid),
              "game": bool(game) or is_game(row), "poster": it["source_name"].strip(),
              "followers": it.get("followers_only") is True}
@@ -1379,7 +1395,8 @@ def plan(items, existing, today, interests, town=TOWNS[DEFAULT], titles=None, te
             # weeks ago, outside the listed days, and a day's old copy must not take it (town-feed 62).
             run = key[1].startswith("run:")
             g = by_uid.get(key) or (None if run else min((g for g in groups if (joins(g, ev["facts"])
-                                                              or one_facebook_event(g, ev["row"], ev["facts"]))
+                                                              or one_facebook_event(g, ev["row"], ev["facts"])
+                                                              or same_show(g["facts"], ev["facts"]))
                                         and not own_ids_differ(g, *key, ev["facts"])),
                                        key=lambda g: ((g["old"] or {}).get("status") == "rejected",
                                                       g["facts"]["at"] is None), default=None))
@@ -1396,6 +1413,9 @@ def plan(items, existing, today, interests, town=TOWNS[DEFAULT], titles=None, te
                 g = group(facts=ev["facts"])
                 groups.append(g)
             by_uid[key] = g
+            # A listed show read under another id (its page dates it the day it is read): a Mention only, so the Event
+            # keeps its first day, its words and its status, and a copy taken out stays out (loopholes 21).
+            ev["show"] = g["old"] is not None and g["old"].get("source_uid") != key[1] and same_show(g["facts"], ev["facts"])
             g["items"].append((i, ev))
             m = mention(it, key[1])
             g["mentions"] = [x for x in g["mentions"]
@@ -1418,7 +1438,7 @@ def plan(items, existing, today, interests, town=TOWNS[DEFAULT], titles=None, te
             # Bound lists a meet under one id on every school in it, and read_events.one_each keeps the venue school's
             # copy, so a meet moved to Tech's pool came only from Tech and Apollo's row kept its old pool, time and no
             # teams (BP app game-card 19).
-            mine = [(i, ev) for i, ev in g["items"] if (ev["row"]["source_name"] == old["source_name"]
+            mine = [(i, ev) for i, ev in g["items"] if not ev["show"] and (ev["row"]["source_name"] == old["source_name"]
                                                          or real_uid(old.get("source_uid"))
                                                          and ev["row"]["source_uid"] == old["source_uid"])
                     and not (g["facts"]["at"] and ev["facts"]["at"] is None and not ev["row"]["end_at"]
@@ -1431,7 +1451,7 @@ def plan(items, existing, today, interests, town=TOWNS[DEFAULT], titles=None, te
             if primary is None and g["facts"]["at"] is None:
                 # Another source gives the time this one left out: the listed event takes it, under
                 # its own source and title (Jesse, 2026-10-27: "always be looking for updates").
-                primary = next(((i, ev) for i, ev in g["items"] if ev["facts"]["at"]), None)
+                primary = next(((i, ev) for i, ev in g["items"] if ev["facts"]["at"] and not ev["show"]), None)
                 filled = primary is not None
             g["status"] = old["status"]
             # Every kept item goes live; only a repeat stays out (Jesse, 2026-10-26).
@@ -1766,6 +1786,37 @@ def t_show_joins_only_its_run():
     assert [g["row"]["source_uid"] for g in r["events"]] == ["run:Reflection: Selected Works"], \
         "a show's read is its run, never a day's old copy (town-feed 62)"
     assert not any("kept apart" in n for n in r["notes"]), r["notes"]
+
+
+def t_show_under_a_new_name_is_one():
+    """loopholes 21: the College's page reads "Bréagán Art Exhibition" from the day it reads it, beside the campus
+    calendar's "Bréagán" open since Oct 3, and a copy taken out the day before."""
+    run_end = "2026-12-18T00:00:00-06:00"
+    live = listed(title="Bréagán", event_date="2026-10-03", end_at=run_end, start_time="2 PM",
+                  location="Alice R. Rogers and Target Galleries, Collegeville", source_name="CSB SJU Campus Events",
+                  source_uid="run:Bréagán")
+    taken = listed(id="22222222-2222-2222-2222-222222222222", title="Bréagán Art Exhibition", event_date="2026-10-13",
+                   end_at=run_end, start_time=None, all_day=True, location="SJU, Collegeville",
+                   source_name="College of Saint Benedict", source_uid="page:2026-10-13:ag-art-br-exhibition",
+                   status="rejected", review_reason="other")
+    read = item(title="Bréagán Art Exhibition", start="2026-10-14", end="2026-12-17", all_day=True,
+                place="SJU, Collegeville", town="Collegeville", area="campus", source_name="College of Saint Benedict",
+                source_url="https://bit.ly/4zGPjqB")
+    r = run([read], [live, taken])
+    [g] = [g for g in r["events"] if g["items"]]
+    assert g["id"] == live["id"] and g["row"] is None and outcome(r, 0) == "merged", (g["id"], g["row"], r["outcomes"])
+    assert any(m.get("new") and m["source_name"] == "College of Saint Benedict" for m in g["mentions"]), g["mentions"]
+    alone = run([read], [taken])["events"][0]  # read the next day: a day apart joins by same_event too
+    assert alone["id"] == taken["id"] and alone["status"] == "rejected" and alone["row"] is None, \
+        "a copy taken out stays out under a new id"
+    alone = run([read], [dict(taken, event_date="2026-10-11")])["events"][0]  # three days on, as Nov 13 and 16
+    assert alone["id"] == taken["id"] and alone["status"] == "rejected" and alone["row"] is None, alone["status"]
+    reception = item(title="Gallery Reception for Bréagán", start="2026-10-16T17:00:00-05:00",
+                     end="2026-10-16T19:00:00-05:00", place="Alice R. Rogers and Target Galleries, Collegeville",
+                     town="Collegeville", area="campus", source_name="CSB SJU Campus Events", source_uid="4724044")
+    r = run([reception], [live])
+    assert outcome(r, 0) == "published", "one night named for the show is its own Event"
+    assert outcome(run([dict(read, end="2027-03-01", title="Winter Art Exhibition")], [live]), 0) == "published"
 
 
 def item(**kw):
@@ -3093,7 +3144,7 @@ TESTS = [t_facebook_event_read_again, t_made_with_other_businesses, t_a_repeat_i
          t_all_day_a_day_apart_is_one, t_no_time_joins_the_timed_one, t_later_read_fills_the_time, t_merge_true_pair,
          t_merge_near_miss_kept_apart, t_posted_twice, t_same_time_no_place, t_no_place_is_its_posters_own, t_reread_updates, t_admin_status_kept, t_misread_comes_back, t_cancelled, t_show_from_by_size, t_kept_out_when_nobody_can_go,
          t_interest_checked, t_area, t_past_and_invalid_skipped, t_writes_are_one_safe_call,
-         t_description_cut_at_a_word, t_city_meeting_end_and_place, t_game, t_teams_from_their_names, t_all_day_run_keeps_its_last_day, t_show_joins_only_its_run,
+         t_description_cut_at_a_word, t_city_meeting_end_and_place, t_game, t_teams_from_their_names, t_all_day_run_keeps_its_last_day, t_show_joins_only_its_run, t_show_under_a_new_name_is_one,
          t_long_titles_shortened_and_kept, t_news_titles_fit_their_two_lines, t_short_levels_kept_apart, t_one_host_listed_twice,
          t_moved_meet_from_another_school]
 
