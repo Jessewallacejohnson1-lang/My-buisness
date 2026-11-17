@@ -228,6 +228,12 @@ struct FeedCardItem: Identifiable, Hashable {
     func photos(failed: Set<URL> = []) -> [FeedCardImageSource] {
         EventPage.photoList(event: image, venue: venue, failed: failed)
     }
+
+    /// Its page's picture: none when it is only its place's cover, which isn't a photo of the Event, so the page shows
+    /// the place's logo or the yellow, as its Town card goes white (BP app town-feed 72). The map keeps `photos`.
+    func pagePhotos(failed: Set<URL> = []) -> [FeedCardImageSource] {
+        coverOnly ? [] : photos(failed: failed)
+    }
 }
 
 /// When an event is, as the card prints it ("Tonight · 7 PM", "Fri, Jul 24 · 11 AM")
