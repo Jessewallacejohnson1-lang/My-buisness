@@ -96,9 +96,13 @@ carry on with the rest.
    - Drop only: a post with nothing to know or do (a quote, a joke, nostalgia, a thank-you,
      behind-the-scenes, a plain photo); something already over; a teaser that doesn't say what;
      a place's daily "here's what we've got" list; anything in another town that isn't an event
-     (a job at another location); and anything at a business's location in another town,
+     and has no tie to St. Joseph (a job at another location); and anything at a business's location in another town,
      events included (Jesse, 2026-10-24: Neighbors' Albertville bar is out of the area); and any post about a private person's health or troubles
      (ADR-020).
+   - Other-town News with a tie to St. Joseph is kept, `area` `announced`: news of an area school (any District 742
+     school, Tech and Apollo included, or a `nearby-school` in `sources/st-joseph-mn.md`) or of another place that
+     file lists, whoever posts it. Jesse, 2026-11-16, on Tech senior Steven Zheng's math award from District 742's
+     page: "We show news for all the schools in the area." This rule wins over the drop above.
 
 **Photos.** Run `python3 sources/scripts/event_photos.py prepare`. For each
    `.runs/morning/photos/batch-N.txt`, start one helper on your own model, at most 10 at once (Jesse, 2026-11-07:

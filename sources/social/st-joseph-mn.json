@@ -1900,24 +1900,6 @@
   "skip": "National chain menu photos and jokes"
  },
  {
-  "entry_id": "tastefully-simple-independent-consultant",
-  "name": "Tastefully Simple Independent Consultant Lori Tiffany",
-  "kind": "facebook",
-  "url": "https://www.facebook.com/pages/Tastefully-Simple-Inc/78129924748",
-  "busy": false,
-  "day": "wed",
-  "skip": "National brand recipe and product posts"
- },
- {
-  "entry_id": "tastefully-simple-independent-consultant",
-  "name": "Tastefully Simple Independent Consultant Lori Tiffany",
-  "kind": "instagram",
-  "url": "https://www.instagram.com/tastefullysimpleinc",
-  "busy": false,
-  "day": "wed",
-  "mirror": true
- },
- {
   "entry_id": "tcc-materials",
   "name": "TCC Materials",
   "kind": "facebook",

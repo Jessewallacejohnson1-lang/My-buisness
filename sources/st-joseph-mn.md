@@ -3354,7 +3354,7 @@ Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Goo
 ## Beumer Outdoors
 ```yaml
 id: beumer-outdoors
-status: proposed
+status: retired
 tier: listed
 place_type: "Business"
 address: "15517 Fruit Farm Road"
@@ -3366,7 +3366,7 @@ sources:
     method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from lakesnwoods.com. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-02: BBB profile shows it active with no closure; same Beumer family farm runs Collegeville Orchards, open for the 2026 season.. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from lakesnwoods.com. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-02: BBB profile shows it active with no closure; same Beumer family farm runs Collegeville Orchards, open for the 2026 season.. Unreviewed — tier `listed`, so it publishes nothing until promoted. Retired 2026-11-16: a double: the Beumers own Collegeville Orchards, at the same address (collegeville-orchards). Hidden in the app (`places.closed_at`); two separate checks agreed (Google Maps and web research), Jesse's yes (BP app watch-every-place 32).
 
 ## Birchwood Electric, Security and Home Technology
 ```yaml
@@ -3389,7 +3389,7 @@ Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists
 ## Birdie’s Pizza & Garden Bar
 ```yaml
 id: birdies-pizza-garden-bar
-status: proposed
+status: retired
 tier: listed
 category: "restaurant"
 place_type: "Business"
@@ -3403,7 +3403,7 @@ sources:
     trust: official
 venue_only: true
 ```
-Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted. Not watched: Busy-place research 2026-11-15 (BP app watch-every-place 30) scored it 1 and 2 of 10, both 5 or below: A restaurant inside The House with no page of its own; its one Event is St. John's Prep's (and likely a duplicate).
+Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted. Not watched: Busy-place research 2026-11-15 (BP app watch-every-place 30) scored it 1 and 2 of 10, both 5 or below: A restaurant inside The House with no page of its own; its one Event is St. John's Prep's (and likely a duplicate). Retired 2026-11-16: closed: gone from The House food hall by Jan 2026 (Brick Oven Pizza there now); Google Maps doesn't list it. Hidden in the app (`places.closed_at`); two separate checks agreed (Google Maps and web research), Jesse's yes (BP app watch-every-place 32).
 
 ## BL Grafx
 ```yaml
@@ -3887,7 +3887,7 @@ Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-0
 ## Collegeville Communities Llc
 ```yaml
 id: collegeville-communities
-status: active
+status: retired
 tier: listed
 category: "real_estate_service"
 place_type: "Business"
@@ -3898,7 +3898,7 @@ sources:
     kind: website
     method: submission
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.95). Watched from 2026-10-15 until 2026-11-04, when Jesse took collegevillecu.com off the watch: its feed now posts articles in Hebrew about index funds, so the site no longer looks like theirs.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.95). Watched from 2026-10-15 until 2026-11-04, when Jesse took collegevillecu.com off the watch: its feed now posts articles in Hebrew about index funds, so the site no longer looks like theirs. Retired 2026-11-16: not a place: a company record at 24 College Ave N, where Krewe is now. Hidden in the app (`places.closed_at`); two separate checks agreed (Google Maps and web research), Jesse's yes (BP app watch-every-place 32).
 
 ## Collegeville Orchards
 ```yaml
@@ -5888,7 +5888,7 @@ Notes: Proposed on 2026-10-05 from lakesnwoods.com. No URL was found, so this is
 ## Lane Marie Hair
 ```yaml
 id: lane-marie-hair
-status: proposed
+status: retired
 tier: listed
 category: "wellness_service"
 place_type: "Business"
@@ -5900,7 +5900,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.91). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.91). Unreviewed — tier `listed`, so it publishes nothing until promoted. Retired 2026-11-16: a double: one stylist's chair inside Blush Salon (blush-salon), same website. Hidden in the app (`places.closed_at`); two separate checks agreed (Google Maps and web research), Jesse's yes (BP app watch-every-place 32).
 
 ## Leaps and Bounds Childcare & Preschool
 ```yaml
@@ -6238,7 +6238,7 @@ Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-02: Live website, 
 ## Millstream Communications
 ```yaml
 id: millstream-communications
-status: active
+status: retired
 tier: listed
 category: "electronics_store"
 place_type: "Business"
@@ -6252,7 +6252,7 @@ sources:
     method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022). Listed again 2026-10-17 (Jesse): its one page was dgcoursereview.com's weekly disc golf calendar for the whole country, which Overture gave this company by mistake (category "park"), so nothing is read for it until its own site is known. It wrote no events. Its social pages came off 2026-11-15: bnnorthtown is Barnes & Noble Northtown, not this place (BP app watch-every-place 27).
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022). Listed again 2026-10-17 (Jesse): its one page was dgcoursereview.com's weekly disc golf calendar for the whole country, which Overture gave this company by mistake (category "park"), so nothing is read for it until its own site is known. It wrote no events. Its social pages came off 2026-11-15: bnnorthtown is Barnes & Noble Northtown, not this place (BP app watch-every-place 27). Retired 2026-11-16: not a place: made from Millstream Park's disc golf page; no listing anywhere. Hidden in the app (`places.closed_at`); two separate checks agreed (Google Maps and web research), Jesse's yes (BP app watch-every-place 32).
 
 ## Minnesota Association of Farm Mutual Insurance Companies
 ```yaml
@@ -6398,7 +6398,7 @@ Notes: Proposed on 2026-10-05 from lakesnwoods.com. No URL was found, so this is
 ## Malibu Tan
 ```yaml
 id: malibu-tan
-status: proposed
+status: retired
 tier: listed
 place_type: "Business"
 address: "708 Elm St E, St. Joseph, MN 56374"
@@ -6411,7 +6411,7 @@ sources:
     method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from lakesnwoods.com. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-02: Movies Etc ended movie rentals in 2024; Malibu Tan's site lists 708 Elm St E, St. Joseph with the same phone 320-363-8485.. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from lakesnwoods.com. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-02: Movies Etc ended movie rentals in 2024; Malibu Tan's site lists 708 Elm St E, St. Joseph with the same phone 320-363-8485.. Unreviewed — tier `listed`, so it publishes nothing until promoted. Retired 2026-11-16: not in St. Joseph: Malibu Tan is only in St. Cloud on Google, and 708 Elm St E is for lease. Hidden in the app (`places.closed_at`); two separate checks agreed (Google Maps and web research), Jesse's yes (BP app watch-every-place 32).
 
 ## NAMI Solutions, Inc.
 ```yaml
@@ -6535,7 +6535,7 @@ Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Goo
 ## The Oasis Bar and Pit
 ```yaml
 id: oasis-bar-pit
-status: proposed
+status: retired
 tier: listed
 category: "restaurant"
 place_type: "Business"
@@ -6548,12 +6548,12 @@ sources:
     method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-04: Overture lists it open (confidence 0.56). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-04: Overture lists it open (confidence 0.56). Unreviewed — tier `listed`, so it publishes nothing until promoted. Retired 2026-11-16: not a place: the address is a family home, sold in 2022; Google doesn't list it. Hidden in the app (`places.closed_at`); two separate checks agreed (Google Maps and web research), Jesse's yes (BP app watch-every-place 32).
 
 ## One Hour Heating & Air Conditioning
 ```yaml
 id: one-hour-heating-air-conditioning
-status: proposed
+status: retired
 tier: listed
 category: "home_service"
 place_type: "Business"
@@ -6566,7 +6566,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted. Retired 2026-11-16: not in St. Joseph: the local site forwards to the national brand, the business now trades as Opie's Gold Heat n' Air in St. Cloud; Google lists only Opie's. Hidden in the app (`places.closed_at`); two separate checks agreed (Google Maps and web research), Jesse's yes (BP app watch-every-place 32).
 
 ## Opie's Gold
 ```yaml
@@ -6691,7 +6691,7 @@ Notes: Proposed on 2026-10-05 from a Google Maps sweep. No URL was found, so thi
 ## Paul Eisenschenk-LakePlace.com
 ```yaml
 id: paul-eisenschenk-lakeplace-com
-status: proposed
+status: retired
 tier: listed
 category: "real_estate_service"
 place_type: "Business"
@@ -6704,7 +6704,7 @@ sources:
     method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.77). Unreviewed — tier `listed`, so it publishes nothing until promoted. Website dropped 2026-10-19: https://www.paulsellsmn.com no longer exists (no DNS record). The place stays (place-photos 07, Jesse's yes).
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.77). Unreviewed — tier `listed`, so it publishes nothing until promoted. Website dropped 2026-10-19: https://www.paulsellsmn.com no longer exists (no DNS record). The place stays (place-photos 07, Jesse's yes). Retired 2026-11-16: not a place: one real estate agent at a home address, website gone; Google doesn't list it. Hidden in the app (`places.closed_at`); two separate checks agreed (Google Maps and web research), Jesse's yes (BP app watch-every-place 32).
 
 ## Paul Kollmann Monuments, LLC
 ```yaml
@@ -7969,7 +7969,7 @@ Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-0
 ## Tastefully Simple Independent Consultant Lori Tiffany
 ```yaml
 id: tastefully-simple-independent-consultant
-status: active
+status: retired
 tier: watched
 category: "professional_service"
 place_type: "Business"
@@ -7983,7 +7983,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.92). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.92). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022). Retired 2026-11-16: not a place: a home seller for a national brand, no storefront; Google doesn't list it. Hidden in the app (`places.closed_at`); two separate checks agreed (Google Maps and web research), Jesse's yes (BP app watch-every-place 32).
 
 ## TCC Materials
 ```yaml
@@ -8203,7 +8203,7 @@ Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submi
 ## V-Twin Tavern
 ```yaml
 id: v-twin-tavern
-status: proposed
+status: retired
 tier: listed
 category: "bar"
 place_type: "Business"
@@ -8215,7 +8215,7 @@ sources:
     method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-04: Overture lists it open (confidence 0.86). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-04: Overture lists it open (confidence 0.86). Unreviewed — tier `listed`, so it publishes nothing until promoted. Retired 2026-11-16: not a place: no sign it ever existed, the address is on a street of houses; Google doesn't list it. Hidden in the app (`places.closed_at`); two separate checks agreed (Google Maps and web research), Jesse's yes (BP app watch-every-place 32).
 
 ## Verizon Wireless Zone
 ```yaml
@@ -9219,7 +9219,7 @@ Notes: Proposed on 2026-10-18 for BP app place-photos 04 (a picture for every ev
 ## Joetown Burgers
 ```yaml
 id: joetown-smashburger
-status: proposed
+status: retired
 tier: listed
 category: "restaurant"
 place_type: "Business"
@@ -9232,4 +9232,4 @@ sources:
     method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-18 for BP app place-photos 04: an app place (Search) that had no entry. One of four restaurants inside The House (13 2nd Ave NW), each run on its own (Jesse, 2026-10-18); Google Maps lists only The House Food and Tap there. Named Joetown Burgers, as its crest reads (Jesse, 2026-10-19); the id keeps the old name. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-18 for BP app place-photos 04: an app place (Search) that had no entry. One of four restaurants inside The House (13 2nd Ave NW), each run on its own (Jesse, 2026-10-18); Google Maps lists only The House Food and Tap there. Named Joetown Burgers, as its crest reads (Jesse, 2026-10-19); the id keeps the old name. Unreviewed — tier `listed`, so it publishes nothing until promoted. Retired 2026-11-16: a double: Joetown Smashburger is the kitchen inside The House Food and Tap (food-house-tap). Hidden in the app (`places.closed_at`); two separate checks agreed (Google Maps and web research), Jesse's yes (BP app watch-every-place 32).
