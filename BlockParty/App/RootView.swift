@@ -549,7 +549,16 @@ struct MainTabsView: View {
             if LaunchFlags.has(.newPost) { creating = true }
         }
         #endif
-        .overlay { BusinessPage().environment(placeOpener) }
+        // Over the whole app, outside the stack: its Events close it and push their page (place-pages 05).
+        .overlay {
+            BusinessPage()
+                .environment(placeOpener)
+                .environment(searchModel)
+                .environment(\.openEvent, EventPageOpener { item in
+                    placeOpener.close()
+                    path.append(item)
+                })
+        }
         .onAppear {
             placeOpener.reduceMotion = reduceMotion
             if hostOpener == nil { hostOpener = makeHostOpener() }

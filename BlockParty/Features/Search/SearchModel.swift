@@ -67,6 +67,8 @@ struct SearchItem: Identifiable, Hashable {
     var townGroup: TownGroup? = nil
     /// A place's `places.id`, which its page follows (BP app follows 02).
     var placeID: String? = nil
+    /// A place's registry id (`places.entry_id`): its Events on its page are those found at it (place-pages 05).
+    var entryId: String? = nil
     /// Its name over its page's photos (`public.place_names`): lettering, or its logo landing there.
     var nameArt: PlaceName? = nil
     /// An Event's Town card: it opens the Event page (five-tabs 04).
@@ -330,6 +332,9 @@ final class SearchModel {
     /// and whether the last read failed. Kept across tab switches, as the rest is.
     private(set) var calendar: [DailyEvent]?
     private(set) var calendarFailed = false
+    /// Each place's Events by registry id, from the 1st of this month (place-pages 05): which of the calendar's
+    /// Events its page shows. Read once per place per app open; a failed read shows no row.
+    private(set) var placeEventIDs: [String: Set<String>] = [:]
     /// What typing finds beyond `items` (search-helpful 07): the Event calendar's Events the Town feed doesn't show,
     /// the Town feed's News, and the Town's two pages with the City's boards.
     private(set) var calendarOnly: [SearchItem] = []
@@ -338,6 +343,8 @@ final class SearchModel {
     private var pagesLoaded = false
     private var pagesTried = false
     private var calendarTried = false
+    /// A calendar read is in flight: a place's page waits on it rather than start another (place-pages 05).
+    @ObservationIgnored private var calendarReading = false
     @ObservationIgnored private var latestCalendar = 0
     /// What the tab was showing, kept across tab switches as Instagram keeps it.
     var chip = SearchChip.all
@@ -378,6 +385,8 @@ final class SearchModel {
     /// the Town feed shows on the next visit. The list on screen stays through a read and a failed one. Under DEBUG
     /// `-town-samples` it is You's invented Events, and `-town-offline` fails.
     func loadCalendar() async {
+        calendarReading = true
+        defer { calendarReading = false }
         latestCalendar += 1
         let mine = latestCalendar
         if calendar == nil { calendarFailed = false }
@@ -391,6 +400,26 @@ final class SearchModel {
             guard mine == latestCalendar, !Task.isCancelled, !(error is CancellationError) else { return }
             calendarFailed = true
         }
+    }
+
+    /// A place's page's Events (place-pages 05): the Event calendar, read here when Search hasn't yet, and the
+    /// place's Event ids.
+    func loadPlaceEvents(_ entry: String) async {
+        // Both at once. Never a second calendar read over Search's own: a newer read drops the one in flight.
+        let needsCalendar = calendar == nil && !calendarReading
+        async let calendarRead: Void = needsCalendar ? loadCalendar() : ()
+        guard placeEventIDs[entry] == nil else { return await calendarRead }
+        #if DEBUG
+        if LaunchFlags.backend == .samples {
+            await calendarRead
+            placeEventIDs[entry] = Set((calendar ?? []).prefix(6).map(\.id))
+            return
+        }
+        #endif
+        let first = Town.day(EventCalendar.month(of: Date()))
+        let ids = try? await api.getPlaceEventIDs(entry, from: first)
+        await calendarRead
+        if let ids { placeEventIDs[entry] = ids }
     }
 
     private func readCalendar() async throws -> [UpcomingEvent] {
@@ -807,6 +836,7 @@ final class SearchModel {
                               rank: logo?.rank ?? .max, photos: saved, street: street(poi.address),
                               about: nonempty(poi.about), links: poi.links ?? [],
                               hours: poi.hours.flatMap { $0.days.allSatisfy(\.isEmpty) ? nil : $0 }, placeID: poi.id,
+                              entryId: poi.entryId,
                               nameArt: poi.entryId.flatMap { names[$0] })
         }
     }

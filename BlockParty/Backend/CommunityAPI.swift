@@ -941,6 +941,16 @@ struct CommunityAPI {
         }
     }
 
+    /// The Events found at a place from `day` on, by id (`club_events.place_entry_id`, BP app place-pages 05): which
+    /// of the Event calendar's its page shows. The public key reads them, as the calendar does.
+    func getPlaceEventIDs(_ entry: String, from day: String) async throws -> Set<String> {
+        struct Row: Decodable { let id: String }
+        let rows: [Row] = try Supabase.decode(await db.rest("club_events", [
+            ("select", "id"), ("place_entry_id", "eq.\(entry)"), ("event_date", "gte.\(day)"),
+        ], anon: true))
+        return Set(rows.map(\.id))
+    }
+
     /// Search's Event calendar (BP app five-tabs 10): a year of the Town's public Events from the 1st of this month,
     /// every date of a series, as Event cards: `get_town_calendar`. Signed out, it reads with the public key, as the
     /// Town feed does. Decoded off the main thread: it is about four times the feed's cards.

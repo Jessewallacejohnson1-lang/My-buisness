@@ -71,6 +71,12 @@ enum EventCalendar {
         return Array(repeating: nil, count: (lead + 7) % 7) + days
     }
 
+    /// A week of days, Sunday first: the weekday names over a grid ("Sun" … "Sat").
+    static var week: [Date] {
+        grid(month(of: Date())).compactMap { $0 }.prefix(7)
+            .sorted { calendar.component(.weekday, from: $0) < calendar.component(.weekday, from: $1) }
+    }
+
     /// Every day of the months, in order.
     static func days(_ months: [Date]) -> [Date] {
         months.flatMap { grid($0).compactMap { $0 } }
@@ -225,10 +231,8 @@ struct EventCalendarView: View {
     }
 
     private var weekdays: some View {
-        let week = EventCalendar.grid(EventCalendar.month(of: Date())).compactMap { $0 }.prefix(7)
-            .sorted { EventCalendar.calendar.component(.weekday, from: $0) < EventCalendar.calendar.component(.weekday, from: $1) }
-        return HStack(spacing: 0) {
-            ForEach(week, id: \.self) { weekday in
+        HStack(spacing: 0) {
+            ForEach(EventCalendar.week, id: \.self) { weekday in
                 Text(Town.format(weekday, "EEE"))
                     .font(.sansMedium(13))
                     .foregroundStyle(Hue.inkSecondary)
@@ -385,19 +389,46 @@ struct EventCalendarView: View {
 
 /// One Event on the day's card, Partiful's row in BP's words: its photo, title and time, and the heart that
 /// keeps it in You's Liked. A tap opens its Event page.
-private struct CalendarRow: View {
+struct CalendarRow: View {
     let event: DailyEvent
     let now: Date
+    /// Its photo, the gap after it and its insets: Search's by default; a place's page draws them smaller to fit
+    /// inside its row (place-pages 05).
+    var photo: CGFloat = CalendarMetric.rowPhoto
+    var photoGap: CGFloat = CalendarMetric.rowGap
+    var lead: CGFloat = CalendarMetric.rowLead
+    var vertical: CGFloat = CalendarMetric.rowVertical
+    var trail: CGFloat = CalendarMetric.rowTrail
+    /// The heart's circle: Search's grey on its white card; a darker wash where the row sits on that grey (place-pages 05).
+    var heartFill: Color = Hue.fill
+    /// Set where the row sits outside a navigation stack (a place's page opened over the whole app): the tap
+    /// goes here instead of pushing.
+    @Environment(\.openEvent) private var openEvent
     @Environment(RealLifeActions.self) private var actions
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var heartTappedAt = 0
 
     var body: some View {
         HStack(spacing: 0) {
-            NavigationLink(value: event.item) {
-                HStack(spacing: CalendarMetric.rowGap) {
+            Group {
+                if let openEvent {
+                    Button { openEvent.open(event.item) } label: { label }
+                } else {
+                    NavigationLink(value: event.item) { label }
+                }
+            }
+            .buttonStyle(.press(.row))
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("\(event.item.title), \(event.startSpoken(now: now))")
+            heart
+                .padding(.trailing, trail)
+        }
+    }
+
+    private var label: some View {
+                HStack(spacing: photoGap) {
                     Hue.fill
-                        .frame(width: CalendarMetric.rowPhoto, height: CalendarMetric.rowPhoto)
+                        .frame(width: photo, height: photo)
                         .overlay { if let url = event.photo { FeedCardURLPhoto(url: url, loadingFill: Hue.fill) } }
                         .clipShape(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
                     VStack(alignment: .leading, spacing: CalendarMetric.rowLines) {
@@ -412,16 +443,9 @@ private struct CalendarRow: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .padding(.leading, CalendarMetric.rowLead)
-                .padding(.vertical, CalendarMetric.rowVertical)
+                .padding(.leading, lead)
+                .padding(.vertical, vertical)
                 .contentShape(Rectangle())
-            }
-            .buttonStyle(.press(.row))
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("\(event.item.title), \(event.startSpoken(now: now))")
-            heart
-                .padding(.trailing, CalendarMetric.rowTrail)
-        }
     }
 
     private var heart: some View {
@@ -440,7 +464,7 @@ private struct CalendarRow: View {
                     glyph.scaleEffect(reduceMotion ? 1 : scale)
                 } animation: { _ in .spring(response: 0.3, dampingFraction: 0.5) }
                 .frame(width: CalendarMetric.heartCircle, height: CalendarMetric.heartCircle)
-                .background(Circle().fill(Hue.fill))
+                .background(Circle().fill(heartFill))
                 .frame(width: PageMetric.tapMin, height: PageMetric.tapMin)
                 .contentShape(Rectangle())
         }
