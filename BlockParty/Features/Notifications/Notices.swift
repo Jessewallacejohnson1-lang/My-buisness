@@ -92,7 +92,7 @@ nonisolated struct Notice: Identifiable, Hashable {
     @MainActor var picture: URL? {
         if let followedLogo { return followedLogo }
         switch FeedCardItem(event).image {
-        case .eventPhoto(let url), .placePhoto(let url, _, _): return url
+        case .eventPhoto(let url), .placePhoto(let url, _, _, _): return url
         case .placeLogo(let picture): return picture.url
         case .fallback: return nil
         }
