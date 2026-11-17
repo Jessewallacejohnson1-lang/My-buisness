@@ -89,7 +89,7 @@ CLOSING = re.compile(r"\b(closed(?! caption)|closure|no school|no classes|late s
 CLOSING_DAYS = 7
 # Something to know rather than go to is News, even with a date (ADR-021). A sale with its own days is an Event,
 # as social.md says (BP app town-feed 47: the monastery's "Holiday Sales" came out as News).
-NEWS = re.compile(CLOSING.pattern + r"|\bholiday\b(?! sales?\b)", re.I)
+NEWS = re.compile(CLOSING.pattern + r"|\bholiday\b(?!.*\bsales?\b)", re.I)
 SAMPLES = Path(__file__).resolve().parent / "samples"
 
 
@@ -1492,7 +1492,7 @@ def t_closings_wait():
         assert NEWS.search(title) and say(title, start="2026-12-21")["shows_from"] == "2026-12-14", title
     title = "Holiday Door Hangers for your Dorm!"
     assert NEWS.search(title) and "shows_from" not in say(title, start="2026-11-19"), title
-    for title in ("Holiday Sales at the Art and Heritage Place", "Holiday Sale at Art and Heritage"):
+    for title in ("Holiday Sales at the Art and Heritage Place", "Holiday Sale at Art and Heritage", "Holiday Craft & Bake Sale"):
         assert not NEWS.search(title), title
     assert say("Winter Break", start="2026-12-21").get("shows_from") is None, "the words have to say so"
     assert "shows_from" not in say("City Offices Closed"), "no day to wait for"
