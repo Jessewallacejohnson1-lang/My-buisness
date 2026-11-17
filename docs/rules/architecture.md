@@ -286,7 +286,7 @@ person (BP app `docs/plans/town-feed`). `TownView` holds `TownBar` and the feed.
   agrees, so it survives a relaunch; a "no" that comes that late flips back with no shake or
   buzz (town-feed ticket 24). Test runs and sample modes keep nothing (`AuthStore.isTestRun`). The photo's double tap only ever hearts. Whether Join, the card's RSVP
   and the heart show is its `canAct` (an account, or a backend that needs none), not the card's. Writes are
-  injected: Supabase, or under DEBUG `-town-samples` nowhere (with `-town-refuse`, every Join refused) and `-town-offline` never answering (taps stay and keep trying),
+  injected: Supabase, or under DEBUG `-town-samples` nowhere (with `-town-refuse`, every Join, Follow and Event heart refused) and `-town-offline` never answering (taps stay and keep trying),
   so a sample Join never reaches the live database. `RootView` gives the DEBUG preview roots
   outside the shell `RealLifeActions.preview`; a card or event page outside both would crash.
 - **When the order changes is ticket 11's** `[test]`: a fresh order only on pull to refresh, or

@@ -253,7 +253,7 @@ final class RealLifeActions {
             setFollow = { try await CommunityAPI(supabase).followWrite($0, $1) }
             readFollow = { try await CommunityAPI(supabase).followCard($0) }
         case .samples:
-            // With `-town-refuse` the server says no to every Join, Join group and Event heart, so
+            // With `-town-refuse` the server says no to every Join, Join group, Follow and Event heart, so
             // the hold, the turn back and the shake can be recorded on the card and the pages.
             let refuses = LaunchFlags.has(.townRefuse)
             let refuse: (String, Bool) async throws -> Void = { _, _ in
