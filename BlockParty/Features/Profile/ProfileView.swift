@@ -44,6 +44,8 @@ struct ProfileView: View {
     @State private var showingCode = false
     @State private var pushedEvent: FeedCardItem?
     @State private var pushedGroup: TownGroup?
+    @State private var showingFriends = false
+    @State private var showingFollowing = false
 
     /// DEBUG-only: force the edit sheet open on launch so it can be screenshotted
     /// headlessly. No effect in release.
@@ -84,11 +86,17 @@ struct ProfileView: View {
         } openMap: {
             openMap()
         } openEvent: { pushedEvent = $0 } openGroup: { pushedGroup = $0 }
+        openFriends: { showingFriends = true } openFollowing: { showingFollowing = true }
         // On every visit, and for another account while You is open (`AppSession` has cleared the last one's).
         .task(id: auth.accountKey) { await model.load() }
         .navigationDestination(isPresented: $settings) { settingsPage }
         .navigationDestination(item: $pushedEvent) { EventPage(item: $0) }
         .navigationDestination(item: $pushedGroup) { GroupPage(group: $0) }
+        // The counts open their lists, as Instagram's do: the Friends tab's See all and Settings' Following.
+        .navigationDestination(isPresented: $showingFriends) {
+            FriendsAllPage(groups: false).environment(friendsBook).environment(you)
+        }
+        .navigationDestination(isPresented: $showingFollowing) { FollowingPage().environment(searchModel) }
         .sheet(isPresented: $editing) { EditProfileView(model: model) }
         // As the Friends tab's Your code opens it (`FriendsWaysCard`).
         .sheet(isPresented: $showingCode) { YourCodeSheet { opener?.push($0) } }

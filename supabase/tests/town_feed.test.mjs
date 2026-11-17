@@ -2713,6 +2713,32 @@ test("following a school lifts the games its activities play under another team'
     'Apollo Football vs Sartell': ['follow', 'Apollo'] });
 });
 
+// A followed game names the side you follow (daily-tab 27): a co-op plays under another team's name, so the app
+// can't find your side by the followed name. Only for the caller, and only a game lifted by a school or activity.
+test("a followed game's card names the caller's side as game.mine, a co-op's team too", async () => {
+  await reset();
+  await schools();
+  await db.exec(`insert into public.teams (id, name, short_name, local) values
+    ('kennedy', 'Kennedy', 'Kennedy', true), ('st-cloud', 'St. Cloud', 'St. Cloud', false) on conflict do nothing`);
+  await game('St. Cloud Wrestling vs Sartell', '2026-10-09', 'Wrestling', ['st-cloud', 'sartell']);
+  await game('Kennedy Girls Basketball vs Sartell', '2026-10-09', 'Girls Basketball', ['kennedy', 'sartell']);
+  await game('Apollo Football vs Sartell', '2026-10-09', 'Football', ['apollo', 'sartell']);
+  // Found on Kennedy's own calendar: the school is named as the Event's activity_team, but plays as St. Cloud.
+  const listed = await game('Kennedy-listed Wrestling vs Tech', '2026-10-09', 'Wrestling', ['st-cloud', 'tech']);
+  await db.query(`update public.club_events set activity_team = 'kennedy' where id = $1`, [listed]);
+  await follow(ME, 'team', 'kennedy');
+  const uuid = async (id) => (await db.query('select uuid from public.teams where id = $1', [id])).rows[0].uuid;
+  const [stCloud, kennedy] = [await uuid('st-cloud'), await uuid('kennedy')];
+  const games = async () => (await db.query(`select title, game from public.flat_town_feed(
+    ('2026-10-08 12:00'::timestamp at time zone 'America/Chicago'))`)).rows;
+  await signIn(ME);
+  const mine = Object.fromEntries((await games()).map((r) => [r.title, r.game?.mine ?? null]));
+  assert.deepEqual(mine, { 'St. Cloud Wrestling vs Sartell': stCloud, 'Kennedy Girls Basketball vs Sartell': kennedy,
+                           'Apollo Football vs Sartell': null, 'Kennedy-listed Wrestling vs Tech': stCloud });
+  await db.exec('reset role; reset request.jwt.claim.sub; set role anon');
+  assert.ok((await games()).every((r) => r.game.mine === undefined), 'signed out, no side');
+});
+
 // The follow check's speed (town-feed 67). Live, a neighbour who followed a whole school had activity_has_event
 // asked about each of its 45 activities for each of 1,421 school Events: 16 s a read, past the 8 s a signed-in
 // read gets, so their feed stopped for two days. The check now runs only for an activity whose team the Event
