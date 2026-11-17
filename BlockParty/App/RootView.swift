@@ -304,7 +304,13 @@ struct MainTabsView: View {
         }
     }
 
-    @State private var tab: Tab
+    /// The tab on screen, read only by the tab stack and the bar (`ReadTab`), so a switch redraws
+    /// those two and not this whole view (tab-lag 01: it cost every switch about 60 ms on the iPhone).
+    @State private var tabs: TabSelection
+    private var tab: Tab {
+        get { tabs.tab }
+        nonmutating set { tabs.tab = newValue }
+    }
     @EnvironmentObject private var auth: AuthStore
     @Environment(\.scenePhase) private var scenePhase
     /// A neighbour's code waiting for these tabs (`RootView`).
@@ -317,7 +323,7 @@ struct MainTabsView: View {
         _code = code
         self.welcoming = welcoming
         // Town, or a DEBUG `-open-tab` override.
-        _tab = State(initialValue: MainTabsView.initialTab())
+        _tabs = State(initialValue: TabSelection(MainTabsView.initialTab()))
         // `-open-map` raises the map on launch, for screenshots: its real way in is a tap.
         _showMap = State(initialValue: LaunchFlags.has(.openMap))
         let session = AppSession(profile: profile)
@@ -327,7 +333,7 @@ struct MainTabsView: View {
         if let left = LeftOff.claim() {
             session.townFeed.resume(left)
             session.eventOfTheDay.showKept()
-            if let tab = Tab(rawValue: left.tab) { _tab = State(initialValue: tab) }
+            if let tab = Tab(rawValue: left.tab) { _tabs = State(initialValue: TabSelection(tab)) }
             if let id = left.event, let card = session.townFeed.cards.first(where: { $0.id == id }) {
                 _path = State(initialValue: NavigationPath([card]))
                 _reopened = State(initialValue: id)
@@ -395,10 +401,6 @@ struct MainTabsView: View {
     @State private var mapOpener: EventMapOpener?
     /// New post, from the Town bar's + (BP app references/post-screen).
     @State private var creating = false
-    /// The tabs built so far: each stays once visited (TabPages.swift).
-    @State private var visited: Set<Tab> = []
-    /// The tab sliding off during a switch, shown until its slide ends.
-    @State private var leaving: Tab?
     /// The Town feed is reading down (`TabBarCompactKey`): the tab bar rests small.
     @State private var tabBarCompact = false
     /// Your profile: the You tab's photo in the bar, and New post's name line.
@@ -726,11 +728,14 @@ struct MainTabsView: View {
                     // Every tab visited stays built (TabPages.swift); the one on screen and the one
                     // sliding off show, each offset to its side, so a switch is the same coupled
                     // slide as before without building the page again.
-                    ZStack {
-                        ForEach(Tab.allCases.filter { visited.contains($0) || $0 == tab }) { page in
-                            KeptTab(page: page, key: [townTappedAgain, dailyDay]) { tabContent(page) }
-                                .equatable()
-                                .tabPage(page, current: tab, leaving: leaving, reduceMotion: reduceMotion)
+                    let key: [AnyHashable?] = [townTappedAgain, dailyDay]
+                    ReadTab(tabs) { tabs in
+                        ZStack {
+                            ForEach(Tab.allCases.filter { tabs.visited.contains($0) || $0 == tabs.tab }) { page in
+                                KeptTab(page: page, key: key) { tabContent(page) }
+                                    .equatable()
+                                    .tabPage(page, current: tabs.tab, leaving: tabs.leaving, reduceMotion: reduceMotion)
+                            }
                         }
                     }
                     // NO LOADING COVER. A tab that is still fetching renders its own
@@ -743,11 +748,13 @@ struct MainTabsView: View {
             }
             .onPreferenceChange(TabBarCompactKey.self) { tabBarCompact = $0 }
 
-            BlockPartyTabBar(selection: tab, onSelect: select,
-                             avatarURL: profile.avatarUrl, compact: tabBarCompact,
-                             friendsDot: friendsBook.dot || chats.unread,
-                             friendsLabel: friendsBook.dot ? "Friends, new friend request"
-                                 : chats.unread ? "Friends, unread message" : nil)
+            ReadTab(tabs) { tabs in
+                BlockPartyTabBar(selection: tabs.tab, onSelect: select,
+                                 avatarURL: profile.avatarUrl, compact: tabBarCompact,
+                                 friendsDot: friendsBook.dot || chats.unread,
+                                 friendsLabel: friendsBook.dot ? "Friends, new friend request"
+                                     : chats.unread ? "Friends, unread message" : nil)
+            }
                 // Apple's measured spot: 21pt above the PHYSICAL bottom edge, not
                 // above the home-indicator safe area. The full-height frame is what
                 // lets `ignoresSafeArea` reach the edge: on the fixed-height bar alone
@@ -794,7 +801,7 @@ struct MainTabsView: View {
         #endif
     }
 
-    /// One tab's page, built on its first visit and kept (`visited`).
+    /// One tab's page, built on its first visit and kept (`TabSelection.visited`).
     @ViewBuilder private func tabContent(_ page: Tab) -> some View {
         switch page {
         case .town:
@@ -830,10 +837,8 @@ struct MainTabsView: View {
                 }
             }
             // Read on every visit, as when the tab was built each time.
-            .onScreen {
-                Task { await eventOfTheDay.refresh() }
-                Task { await followingNews.refresh() }
-            }
+            .visitTask { await eventOfTheDay.refresh() }
+            .visitTask { await followingNews.refresh() }
         // Neighbours and Groups (five-tabs 02): the Friends page as a tab, the
         // Town feed's cards for what friends are going to.
         case .friends:
@@ -894,19 +899,19 @@ struct MainTabsView: View {
     /// Shared, so a route-driven change feels exactly like a tapped one.
     private func switchTab(to newTab: Tab) {
         let old = tab
-        visited.insert(old)
+        tabs.visited.insert(old)
         // A tab's first visit is built off to its side first, so it slides in like the rest.
         let slide = {
-            leaving = old
+            tabs.leaving = old
             withAnimation(reduceMotion
                 ? .easeInOut(duration: 0.2)
                 : .spring(response: 0.44, dampingFraction: 0.86)) {
                 tab = newTab
             } completion: {
-                if leaving == old { leaving = nil }
+                if tabs.leaving == old { tabs.leaving = nil }
             }
         }
-        if visited.insert(newTab).inserted {
+        if tabs.visited.insert(newTab).inserted {
             DispatchQueue.main.async(execute: slide)
         } else {
             slide()
