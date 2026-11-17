@@ -1191,8 +1191,10 @@ struct NewPostSheet: View {
                 PostPhotos(urls: shown.map(\.file), aspect: model.aspect, page: $photoPage, counterAt: .bottomTrailing,
                            label: shown.count > 1 ? "Your photos" : "Your photo")
                     // A tap moves and zooms them (backlog 32): Adjust, on the one on show.
+                    // Alongside the pager's and the page's scrolls, so it never waits on them (with the keyboard up a
+                    // plain tap lost to them about half the time).
                     .contentShape(Rectangle())
-                    .onTapGesture { openAdjust(shown) }
+                    .simultaneousGesture(TapGesture().onEnded { openAdjust(shown) })
                     .accessibilityAction(named: NewPostCopy.adjust) { openAdjust(shown) }
             }
         }
