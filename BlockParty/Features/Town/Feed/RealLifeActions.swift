@@ -229,6 +229,8 @@ final class RealLifeActions {
         switch backend {
         case .live:
             setGoing = { eventID, going in
+                // Daily's sample Events ("daily-e1") are Going on this run only.
+                guard UUID(uuidString: eventID) != nil else { return }
                 let api = CommunityAPI(supabase)
                 if going { try await api.rsvpEvent(eventID) } else { try await api.unRsvpEvent(eventID) }
             }
@@ -251,14 +253,14 @@ final class RealLifeActions {
             setFollow = { try await CommunityAPI(supabase).followWrite($0, $1) }
             readFollow = { try await CommunityAPI(supabase).followCard($0) }
         case .samples:
-            // With `-town-refuse` the server says no to every Join and Join group, so the hold,
-            // the turn back and the shake can be recorded on the card and the pages.
+            // With `-town-refuse` the server says no to every Join, Join group and Event heart, so
+            // the hold, the turn back and the shake can be recorded on the card and the pages.
             let refuses = LaunchFlags.has(.townRefuse)
             let refuse: (String, Bool) async throws -> Void = { _, _ in
                 if refuses { throw SupabaseError(message: "refused (-town-refuse)", status: 403) }
             }
             setGoing = refuse
-            setHeart = { _, _ in }
+            setHeart = refuse
             setNewsHeart = { _, _ in }
             setMember = refuse
             setFollow = { target, on in try await refuse(target.id, on) }

@@ -679,6 +679,22 @@ final class RealLifeActionsTests: XCTestCase {
         XCTAssertFalse(after.heart(card(id: "daily-s1")).isHearted)
     }
 
+    /// Daily's sample Events ("daily-e1") never reach Supabase: Going on one stays, with no
+    /// write, no turn back and no shake, as a sample heart (daily-tab 28).
+    func testGoingOnADailySampleIsNeverSent() async throws {
+        let server = FakeServer()
+        let actions = RealLifeActions(supabase: Supabase(auth: FakeTokenProvider(), send: server.send))
+        let sample = card(id: "daily-e1")
+        actions.toggleGoing(sample)
+        actions.toggleHeart(sample)
+        // The app's own hold and flip, 0.6 s and 0.18 s, and then some.
+        try await Task.sleep(for: .seconds(1))
+        XCTAssertEqual(server.requests, [], "nothing sent for a sample")
+        XCTAssertTrue(actions.going(sample).isGoing)
+        XCTAssertTrue(actions.heart(sample).isHearted)
+        XCTAssertEqual(actions.failureCount(sample.id), 0)
+    }
+
     /// An older build kept a Save tap waiting (inside-cards 16 took Save out): the kept list no longer
     /// reads, so it is dropped once, Going taps with it, and never sent.
     func testAnOlderBuildsWaitingSaveIsDroppedOnce() async throws {
