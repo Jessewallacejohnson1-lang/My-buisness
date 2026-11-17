@@ -250,7 +250,8 @@ final class DailyPageTests: XCTestCase {
             row(5, "Planning Commission", name: "Planning Commission", host: Town.cityPage),
             row(6, "Stitch and Sip", name: "Stitch and Sip", host: "Stitch and Sip"),
             row(7, "Joetown Fall Fest", name: "Joe", host: "Joetown"),
-            row(8, "Bad Habit Brewing: Trivia night", name: "Bad Habit Brewing", host: "Bad Habit Brewing")]))
+            row(8, "Bad Habit Brewing: Trivia night", name: "Bad Habit Brewing", host: "Bad Habit Brewing"),
+            row(9, "City Council's budget hearing", name: "City Council", host: Town.cityPage)]))
         let following = DailyFollowing.today(from: rows.map(TownFeed.card), day: "2026-10-01", now: town(8))
         XCTAssertEqual(following.map { "\($0.name) · \($0.what)" }, [
             "Cathedral · vs ROCORI.",
@@ -260,7 +261,8 @@ final class DailyPageTests: XCTestCase {
             "Planning Commission · Meeting.",
             "Stitch and Sip · Stitch and Sip.",
             "Joe · Joetown Fall Fest.",
-            "Bad Habit Brewing · Trivia night."])
+            "Bad Habit Brewing · Trivia night.",
+            "City Council · City Council's budget hearing."])
         XCTAssertEqual(following.first?.avatar, URL(string: "https://x/ac.png"), "the co-op's logo")
     }
 

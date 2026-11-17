@@ -343,7 +343,8 @@ as $$
                         then public.activity_has_event(m.a, e) end
              union all
              select s.label, 2, s.id from my_schools s where s.id = any(v.teams)) x
-       order by x.ord, x.label limit 1) end as pick) fp
+       order by x.ord, x.label limit 1) end as pick
+                        offset 0) fp
     cross join lateral (select fp.pick[1] as followed, fp.pick[2] as team) fl
     cross join lateral (select
       regexp_match(lower(btrim(e.start_time)), '^(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m\.?$') as m12,

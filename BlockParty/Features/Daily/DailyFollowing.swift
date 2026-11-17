@@ -54,7 +54,7 @@ struct DailyFollowing: Identifiable {
         if let other = card.game?.sides(followed: name)?.other { return "vs \(other.short)." }
         let title = card.title.trimmingCharacters(in: .whitespaces)
         guard let range = title.range(of: name, options: [.anchored, .caseInsensitive]),
-              title[range.upperBound...].first.map({ !$0.isLetter && !$0.isNumber }) ?? true
+              title[range.upperBound...].first.map({ $0.isWhitespace || ":-–—|,.".contains($0) }) ?? true
         else { return "\(title)." }
         let rest = title[range.upperBound...].trimmingCharacters(in: .whitespaces.union(.punctuationCharacters))
         guard let first = rest.first else { return card.hostName == Town.cityPage ? "Meeting." : "\(title)." }
