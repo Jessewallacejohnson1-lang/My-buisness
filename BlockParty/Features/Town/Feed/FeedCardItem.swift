@@ -70,6 +70,9 @@ struct FeedCardItem: Identifiable, Hashable {
     /// `image` is a flyer: the Event page and the Block Party tab's cards show it whole, over a blurred copy
     /// of itself (Jesse, 2026-11-05, BP app event-photos 16).
     var whole = false
+    /// The Event's other own photos after `image`, in order: an exhibit's other pieces of its show, which its page swipes
+    /// through before the flyer (Jesse, 2026-11-17, BP app event-photos 25). Empty otherwise.
+    var pieces: [FeedCardImageSource] = []
     /// The Event's flyer when `image` is its own photo: its page swipes from the photo to the whole flyer (Jesse,
     /// 2026-11-10, BP app town-feed 59). nil otherwise.
     var flyer: URL? = nil

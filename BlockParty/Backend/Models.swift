@@ -247,11 +247,17 @@ nonisolated struct PlacePicture: Decodable, Hashable, Sendable {
     var flyerBox: Box? = nil
     /// That flyer also lists an Event with another title: the Event is part of its host's lineup (town-feed 59).
     var lineup: Bool? = nil
+    /// The Event's other own photos after this one, in order: an exhibit's other pieces of its show, which its page
+    /// swipes through (BP app event-photos 25). nil on every other picture.
+    var morePieces: [Lenient]? = nil
 
     private enum CodingKeys: String, CodingKey {
         case url, kind, credit, site, hue, cover, whole, lineup
-        case width = "w", height = "h", others = "more", flyerBox = "flyer"
+        case width = "w", height = "h", others = "more", flyerBox = "flyer", morePieces = "pieces"
     }
+
+    /// The Event's other pieces, in order, the ones that decode.
+    var pieces: [PlacePicture] { morePieces?.compactMap(\.value) ?? [] }
 
     /// The flyer to swipe to, when it decodes.
     var flyer: PlacePicture? { flyerBox?.value }

@@ -168,6 +168,39 @@ final class EventPageTests: XCTestCase {
                        "a flyer that fails gives way to the place's photo")
     }
 
+    /// An exhibit's page swipes through its pieces, then its flyer (BP app event-photos 25; town-feed 59 for the flyer).
+    /// One that fails to load leaves the set; one picture alone doesn't swipe.
+    func testAnExhibitsPageSwipesThroughItsPiecesThenItsFlyer() {
+        let own = Self.url("horse"), flyer = Self.url("flyer")
+        let pieces = ["coat", "hands"].map { FeedCardImageSource.placePhoto(Self.url($0), credit: "Chloe Briggs") }
+        let pages = { (own: URL?, pieces: [FeedCardImageSource], flyer: URL?, failed: Set<URL>) in
+            EventPage.heroPages(own: own.map { .eventPhoto($0) }, pieces: pieces, flyer: flyer, failed: failed)
+        }
+
+        XCTAssertEqual(pages(own, pieces, flyer, []).map(\.url), [own, Self.url("coat"), Self.url("hands"), flyer])
+        XCTAssertEqual(pages(own, pieces, flyer, []).map(\.flyer), [false, false, false, true], "the flyer comes last, whole")
+        XCTAssertEqual(pages(own, pieces, nil, []).last?.picture.attribution, "Chloe Briggs", "a piece keeps its credit")
+        XCTAssertEqual(pages(own, pieces, nil, [Self.url("coat")]).map(\.url), [own, Self.url("hands")],
+                       "a piece that fails leaves the set")
+        XCTAssertEqual(pages(own, [], flyer, []).map(\.url), [own, flyer], "an own photo and its flyer, as before")
+        XCTAssertEqual(pages(own, [], nil, []).count, 0, "one picture doesn't swipe")
+        XCTAssertEqual(pages(own, pieces, flyer, [Self.url("coat"), Self.url("hands"), flyer]).count, 0)
+        XCTAssertEqual(pages(nil, pieces, flyer, []).count, 0, "with its own photo gone, the page shows the next picture alone")
+    }
+
+    /// Where the hero rests between two pages, for its height, its colour and its dots: the page on the left and how
+    /// far toward the next, never past either end.
+    func testTheSwipeReadsAsAPageAndHowFarTowardTheNext() {
+        let at = { (x: CGFloat, count: Int) in EventPage.between(x, count: count) }
+        XCTAssertEqual(at(0, 3).page, 0)
+        XCTAssertEqual(at(1.25, 3).page, 1)
+        XCTAssertEqual(at(1.25, 3).toward, 0.25, accuracy: 0.0001)
+        XCTAssertEqual(at(2, 3).page, 1, "on the last page: the one before it, all the way across")
+        XCTAssertEqual(at(2, 3).toward, 1, accuracy: 0.0001)
+        XCTAssertEqual(at(-0.3, 3).toward, 0, accuracy: 0.0001, "a rubber band past the first stays on it")
+        XCTAssertEqual(at(2.4, 3).toward, 1, accuracy: 0.0001, "and past the last on it")
+    }
+
     func testAPictureThatFailsToLoadGivesWayToTheNext() {
         let event = FeedCardImageSource.eventPhoto(Self.photoURL)
         let venue = FeedCardImageSource.placePhoto(Self.url("park"), credit: "Ada Lovelace")

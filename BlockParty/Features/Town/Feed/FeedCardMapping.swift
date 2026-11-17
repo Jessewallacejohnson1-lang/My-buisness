@@ -43,6 +43,7 @@ extension FeedCardItem {
             placeMore: event.placePicture?.more.map(FeedCardImageSource.init) ?? [],
             coverOnly: event.placePicture?.cover == true && image == place,
             whole: event.placePicture?.whole == true && image == place,
+            pieces: image == place ? event.placePicture?.pieces.map(FeedCardImageSource.init) ?? [] : [],
             flyer: image == place ? event.placePicture?.flyer?.url : nil,
             flyerAspect: image == place ? event.placePicture?.flyer?.aspect : nil,
             flyerCredit: image == place ? event.placePicture?.flyer?.creditLine : nil,
