@@ -1012,6 +1012,9 @@ def news_lasts_until(old):
     """How long a News in the app makes a new one its repeat: while the Town feed can still show it, and at least its
     week. "Winter gymnastics registration opens Nov 16" went up three times from Oct 24, a week apart (2026-11-06)."""
     made = local(old.get("published_at") or old["created_at"])  # a closing that waits counts from when it goes up
+    # Else from when the place posted it, as the Town feed counts (town-feed 70).
+    if old.get("posted_at") and made <= local(old["created_at"]) + timedelta(hours=1):
+        made = min(made, local(old["posted_at"]))
     last = date.fromisoformat(old["ends_on"][:10]) if old.get("ends_on") else None
     if not last and old.get("starts_at"):
         day = local(old["starts_at"]).date()
@@ -1558,7 +1561,7 @@ def news_in_db(now=None, db=None):
     created time and dates, for repeat_of."""
     now = now or datetime.now(LOCAL)
     since = (now - timedelta(NEWS_MOST)).replace(microsecond=0).isoformat()
-    rows = (db or Supabase()).rest("GET", "board_items?select=title,source_name,place_entry_id,source_url,status,created_at,published_at,starts_at,ends_on"
+    rows = (db or Supabase()).rest("GET", "board_items?select=title,source_name,place_entry_id,source_url,status,created_at,published_at,posted_at,starts_at,ends_on"
                                    f"&status=eq.published&published_at=gte.{quote(since, safe=':')}") or []
     return [r for r in rows if now < news_lasts_until(r)]
 
@@ -1928,6 +1931,9 @@ def t_closings_wait():
                "place_entry_id": held["place_entry_id"], "source_url": city["source_url"],
                "created_at": stamp(-60), "published_at": stamp(13), "starts_at": held["starts_at"]}
     assert news_lasts_until(waiting) > now + timedelta(13), "it catches its repeats until it has gone up and left"
+    assert news_lasts_until(dict(waiting, posted_at=stamp(-61))) > now + timedelta(13), "held back: its post's time is no matter"
+    late = {"created_at": stamp(-1), "published_at": stamp(-1), "posted_at": stamp(-5)}
+    assert news_lasts_until(late) < now + timedelta(3), "found late: its week counts from the post, as the Town feed's (town-feed 70)"
     again = lambda **more: outcome(plan([item(**{**city, **more})], [], TODAY, INTERESTS, recent_news=[waiting]), 0)
     assert again(start=ahead(20), shows_from=ahead(13)) == "repeat", "the same day, read again"
     assert again(start=ahead(20)) == "repeat", "the City's post about that day"
@@ -2407,7 +2413,7 @@ def t_news_look_back_is_the_feeds_week():
     finally:
         Supabase = saved
     assert asked[0].endswith("&published_at=gte.2026-09-29T21:40:12-05:00"), asked
-    assert "select=title,source_name,place_entry_id,source_url,status,created_at,published_at,starts_at,ends_on&" in asked[0], asked
+    assert "select=title,source_name,place_entry_id,source_url,status,created_at,published_at,posted_at,starts_at,ends_on&" in asked[0], asked
     assert kept == ["Plain, 6 days", "Ends in 3 days, 20 old", "About a day ahead, 10 old"], kept
 
 

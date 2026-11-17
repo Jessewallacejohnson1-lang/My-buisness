@@ -637,7 +637,10 @@ as $$
   -- of the day it's about when that day isn't behind its publish day. Only for an app that asks
   -- (p_news): an older one can't read a row without a date.
   news as (
-    select b.id, b.title, b.blurb, b.category, b.source_name, b.source_url, b.published_at, b.place_entry_id,
+    -- Its time is when the place posted it, when the social watch knew (town-feed 70; Jesse, 2026-11-16: it leaves 7
+    -- days after the post and sorts newest post first), else when it went up. A story held back to go up later (a
+    -- closing that waits for its day) counts from that day, so it never reads old on its first day.
+    select b.id, b.title, b.blurb, b.category, b.source_name, b.source_url, a.at as published_at, b.place_entry_id,
            l.leaves_at,
            (select array_agg(x order by x) from unnest(b.interests) x where x = any(me.interests)) as matched
     from public.board_items b
@@ -646,8 +649,12 @@ as $$
     -- A story stays until midnight after the day its words end, else the day it is about, up to 30 days. With neither,
     -- 7 days (Jesse, 2026-11-06; BP app town-feed 49). write_judged.news_lasts_until says the same for its repeats.
     cross join lateral (
-      select case when d.last_day is null then b.published_at + interval '7 days'
-                  else least(b.published_at + interval '30 days', (d.last_day + 1)::timestamp at time zone town.zone) end as leaves_at
+      select case when b.published_at > b.created_at + interval '1 hour' then b.published_at
+                  else least(b.posted_at, b.published_at) end as at
+    ) a
+    cross join lateral (
+      select case when d.last_day is null then a.at + interval '7 days'
+                  else least(a.at + interval '30 days', (d.last_day + 1)::timestamp at time zone town.zone) end as leaves_at
       from (select coalesce(b.ends_on,
                             case when (b.starts_at at time zone town.zone)::date >= (b.published_at at time zone town.zone)::date
                                  then (b.starts_at at time zone town.zone)::date end) as last_day) d

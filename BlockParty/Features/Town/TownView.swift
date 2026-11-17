@@ -361,12 +361,12 @@ struct TownView: View {
             guard !Task.isCancelled else { return }
             await townFeed.refresh()
         }
-        // While the Offline pill shows, read again on its own, 2 s, then 4, 8, then every 15 s, so the pill goes
-        // soon after signal comes back, with no pull (town-feed 47). Not NWPathMonitor: the simulator never tells
-        // it signal came back, so no proof could run.
-        .task(id: offline) {
+        // While a read has failed (the Offline pill, or the retry with no list), read again on its own, 2 s, then 4, 8,
+        // then every 15 s, so the feed comes back soon after signal does, with no pull or tap (town-feed 47). Not
+        // NWPathMonitor: the simulator never tells it signal came back, so no proof could run.
+        .task(id: townFeed.failed) {
             var wait = 2.0
-            while offline {
+            while townFeed.failed {
                 try? await Task.sleep(for: .seconds(wait))
                 guard !Task.isCancelled else { return }
                 await townFeed.refresh()

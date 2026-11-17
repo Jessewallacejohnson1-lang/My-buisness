@@ -99,6 +99,7 @@ nonisolated enum LaunchFlags {
         case townPhoto = "-town-photo"
         case townPosts = "-town-posts"
         case townOffline = "-town-offline"
+        case townOfflineFor = "-town-offline-for"
         case townRefuse = "-town-refuse"
         case townSamples = "-town-samples"
         case townShootout = "-town-shootout"
