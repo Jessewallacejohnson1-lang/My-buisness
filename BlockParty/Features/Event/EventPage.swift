@@ -427,10 +427,27 @@ struct EventPage: View {
 
     private var hasHero: Bool { !photos.isEmpty || heroLogo != nil }
 
-    /// The picture, when it is a flyer (BP app event-photos 16): one that failed to load has left the list.
+    /// The picture, when it shows as a flyer: a flyer (BP app event-photos 16), or a photo too small to fill
+    /// the top without a blur, whole as a flyer is (Jesse, 2026-11-17, BP app event-photo-sharp), unless the
+    /// page swipes from it to the Event's flyer. One that failed to load has left the list.
     private var flyer: URL? {
-        guard item.whole, let url = item.image.url, photos.first?.url == url else { return nil }
+        guard let first = photos.first, let url = first.url else { return nil }
+        if item.whole, item.image.url == url { return url }
+        guard item.flyer == nil, case .placePhoto(_, _, let aspect?, let height?) = first,
+              Self.tooSmall(aspect: aspect, height: height, frame: CGSize(width: width, height: photoHeight),
+                            scale: displayScale) else { return nil }
         return url
+    }
+
+    /// A photo stretched more than this to fill the top shows whole instead (Jesse, 2026-11-17: 1.10).
+    static let mostStretch: CGFloat = 1.10
+
+    /// A photo `height` pixels tall at `aspect` (width over height) would be stretched past `mostStretch` to
+    /// fill `frame` points at `scale`: the Grey Face Rescue photo, 1600 x 1067, fills 402 x 410 at 3x 1.15 times.
+    static func tooSmall(aspect: Double, height: Int, frame: CGSize, scale: CGFloat) -> Bool {
+        guard aspect > 0, height > 0 else { return false }
+        let pixels = CGSize(width: CGFloat(aspect) * CGFloat(height), height: CGFloat(height))
+        return max(frame.width * scale / pixels.width, frame.height * scale / pixels.height) > mostStretch
     }
 
     /// A flyer's shape, width over height: as it decoded, so it never crops; before that as the database sent
@@ -439,7 +456,7 @@ struct EventPage: View {
         if let url = flyer, let image = FeedCardImageLoader.shared.largest(for: url), image.height > 0 {
             return CGFloat(image.width) / CGFloat(image.height)
         }
-        if case .placePhoto(_, _, let aspect?) = photos.first ?? .fallback { return aspect }
+        if case .placePhoto(_, _, let aspect?, _) = photos.first ?? .fallback { return aspect }
         return 1
     }
 

@@ -249,7 +249,7 @@ extension HelloItem.Added {
 
     private static func url(_ image: FeedCardImageSource?) -> URL? {
         switch image {
-        case .eventPhoto(let url), .placePhoto(let url, _, _): url
+        case .eventPhoto(let url), .placePhoto(let url, _, _, _): url
         case .placeLogo(let picture): picture.url
         case .fallback, nil: nil
         }

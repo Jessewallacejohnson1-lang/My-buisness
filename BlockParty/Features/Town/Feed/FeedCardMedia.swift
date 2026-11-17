@@ -39,7 +39,8 @@ struct FeedCardURLPhoto: View {
             FeedCardDownsampledPhoto(
                 request: FeedCardImageRequest(
                     url: url,
-                    maxPixelSize: Self.pixelWidth(points: proxy.size.width, scale: displayScale)
+                    width: Self.pixelWidth(points: proxy.size.width, scale: displayScale),
+                    height: Self.pixelWidth(points: proxy.size.height, scale: displayScale)
                 ),
                 box: proxy.size,
                 onReady: onReady,
@@ -52,11 +53,21 @@ struct FeedCardURLPhoto: View {
         }
     }
 
-    /// The width to decode at, from whole points: the event page's hero measures
+    /// A frame's side in pixels, from whole points: the event page's hero measures
     /// 420.33 pt on iPhone Air, and rounding its pixels up asked for 1261 px against
     /// its card's 1260, so one photo decoded twice and took two of the cache's slots.
     static func pixelWidth(points: CGFloat, scale: CGFloat) -> Int {
         max(1, Int(points.rounded() * scale))
+    }
+
+    /// The long side to decode a photo of `image` pixels at so it fills a `box` of pixels with no
+    /// stretch, never past the photo's own. By width alone, a 3:2 photo came out 804 px tall for the
+    /// Event page's 1230 and was stretched 1.53 times (BP app event-photo-sharp, Jesse 2026-11-17).
+    nonisolated static func decodeSide(image: CGSize, box: CGSize) -> Int {
+        let longest = max(image.width, image.height)
+        guard image.width > 0, image.height > 0 else { return max(1, Int(max(box.width, box.height))) }
+        let fill = max(box.width / image.width, box.height / image.height)
+        return max(1, Int(min(longest, (longest * fill).rounded(.up))))
     }
 
     /// What a flyer keeps clear above it: `top` when it would reach the top and foot of its room, none
@@ -175,7 +186,11 @@ private struct FeedCardDownsampledPhoto: View {
 
 private nonisolated struct FeedCardImageRequest: Hashable, Sendable {
     let url: URL
-    let maxPixelSize: Int
+    /// The frame's size in pixels; the decode fills it (`FeedCardURLPhoto.decodeSide`).
+    let width: Int
+    let height: Int
+    /// Its long side: 300 or under is a face, kept in its own room.
+    var side: Int { max(width, height) }
 }
 
 /// Downsampled photos, the 24 used last, keyed by URL and pixel size, and beside them the 48
@@ -224,7 +239,7 @@ final class FeedCardImageLoader {
     private static let keptOnLeaving = 6
 
     private func trimForLeaving() {
-        for index in Self.droppedOnLeaving(cacheOrder.map(\.maxPixelSize)).sorted(by: >) {
+        for index in Self.droppedOnLeaving(cacheOrder.map(\.side)).sorted(by: >) {
             cache.removeValue(forKey: cacheOrder.remove(at: index))
         }
     }
@@ -289,7 +304,7 @@ final class FeedCardImageLoader {
         }
         guard let thumbnail = await Self.decode(request) else { return nil }
         // Before it shows, so it never jumps. A small square one (a face in its circle) has nothing to cut.
-        if focuses[request.url] == nil, request.maxPixelSize > Self.smallPixels || thumbnail.width != thumbnail.height,
+        if focuses[request.url] == nil, request.side > Self.smallPixels || thumbnail.width != thumbnail.height,
            let spot = await Self.focus(of: thumbnail) {
             focuses[request.url] = spot
         }
@@ -338,9 +353,18 @@ final class FeedCardImageLoader {
             kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceCreateThumbnailWithTransform: true,
             kCGImageSourceShouldCacheImmediately: true,
-            kCGImageSourceThumbnailMaxPixelSize: request.maxPixelSize,
+            kCGImageSourceThumbnailMaxPixelSize: FeedCardURLPhoto.decodeSide(
+                image: pixels(of: source), box: CGSize(width: request.width, height: request.height)),
         ]
         return CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
+    }
+
+    /// The photo's size as it shows, turned as its EXIF says; zero when the file doesn't say.
+    private nonisolated static func pixels(of source: CGImageSource) -> CGSize {
+        guard let p = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+              let w = p[kCGImagePropertyPixelWidth] as? Int, let h = p[kCGImagePropertyPixelHeight] as? Int else { return .zero }
+        let turned = ((p[kCGImagePropertyOrientation] as? Int) ?? 1) >= 5
+        return turned ? CGSize(width: h, height: w) : CGSize(width: w, height: h)
     }
 
     /// Its own cache on the phone, so photos are there after a restart: the default holds 10 MB and
@@ -376,7 +400,7 @@ final class FeedCardImageLoader {
         cache[request] = image
         touch(request)
 
-        for index in Self.overflow(cacheOrder.map(\.maxPixelSize)).sorted(by: >) {
+        for index in Self.overflow(cacheOrder.map(\.side)).sorted(by: >) {
             cache.removeValue(forKey: cacheOrder.remove(at: index))
         }
     }
@@ -448,7 +472,7 @@ extension FeedCardImageSource {
     /// The photograph's address; nil for a logo and for ink.
     var url: URL? {
         switch self {
-        case .eventPhoto(let url), .placePhoto(let url, _, _): url
+        case .eventPhoto(let url), .placePhoto(let url, _, _, _): url
         case .placeLogo, .fallback: nil
         }
     }
@@ -460,14 +484,14 @@ extension FeedCardImageSource {
     /// free photo's author and licence (MEMORY.md, 2026-11-01). nil when there is none, so
     /// no empty capsule renders.
     var attribution: String? {
-        guard case .placePhoto(_, let credit?, _) = self, !credit.isEmpty else { return nil }
+        guard case .placePhoto(_, let credit?, _, _) = self, !credit.isEmpty else { return nil }
         return credit
     }
 
     /// Report photo, for a photo Block Party saved of a place (BP app place-photos 06); nil
     /// for the event's own photo, a logo and ink.
     func report(place: String?) -> PhotoReport? {
-        guard case .placePhoto(let url, _, _) = self else { return nil }
+        guard case .placePhoto(let url, _, _, _) = self else { return nil }
         return PhotoReport(place: place, photo: url)
     }
 
@@ -475,7 +499,7 @@ extension FeedCardImageSource {
     /// tall to 1.91:1 wide; Jesse, 2026-10-19, BP app docs/plans/event-card); 3:2 for a photo
     /// of unknown size, a logo and ink.
     var cardAspect: Double {
-        guard case .placePhoto(_, _, let aspect?) = self, aspect.isFinite, aspect > 0 else { return 3.0 / 2.0 }
+        guard case .placePhoto(_, _, let aspect?, _) = self, aspect.isFinite, aspect > 0 else { return 3.0 / 2.0 }
         return min(max(aspect, 4.0 / 5.0), 1.91)
     }
 
@@ -486,7 +510,7 @@ extension FeedCardImageSource {
 
     /// The photo's own shape, width over height, uncut; square for one of unknown size.
     var ownAspect: Double {
-        guard case .placePhoto(_, _, let aspect?) = self, aspect.isFinite, aspect > 0 else { return 1 }
+        guard case .placePhoto(_, _, let aspect?, _) = self, aspect.isFinite, aspect > 0 else { return 1 }
         return aspect
     }
 

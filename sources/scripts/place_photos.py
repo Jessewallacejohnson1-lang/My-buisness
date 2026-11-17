@@ -55,7 +55,7 @@ from towns import TOWNS, DEFAULT, lookup  # noqa: E402
 
 TOWN = TOWNS[DEFAULT]['photo_slug']  # the photo store's folder and place_photos.town; --town sets it
 OUT = Path(__file__).resolve().parents[2] / '.runs' / 'photos'
-LONG_SIDE = 1600  # the feed hero asks for 1200 px; a little more for the 3x detail view
+LONG_SIDE = 2000  # a 3:2 photo fills the Event page's 402 x 410 pt top at 3x from 1845 px (event-photo-sharp, 2026-11-17)
 MIN_PHOTO = 200  # short side
 STALE_DAYS = 365
 WALK_CREDIT = 'Block Party'
@@ -187,7 +187,7 @@ def credit(c):
 
 
 def download(url, dest, svg_to_png=None):
-    """One image to dest (.png, long side at most 1600 px) through the polite fetch's rules; its (w, h).
+    """One image to dest (.png, long side at most LONG_SIDE px) through the polite fetch's rules; its (w, h).
     An SVG needs `svg_to_png(svg, png, px)` (the skill passes Chrome's); without it, it is refused."""
     p = urllib.parse.urlparse(url)
     server = run.server_of(p.netloc)
@@ -266,7 +266,7 @@ def verdict(row, page_hashes, today, complete=True):
 
 
 def webp(im, logo=False):
-    """A photo at most 1600 px; a logo square (Search's logo view draws into a square), see-through."""
+    """A photo at most LONG_SIDE px; a logo square (Search's logo view draws into a square), see-through."""
     if logo:
         im = im.convert('RGBA')
         side = max(im.size)
@@ -924,13 +924,13 @@ def _saves():
     taken = Taken(409)
     save_picture(taken, other, 'photo', 'x', town='st-joseph', entry_id='bakery', rows=[])
     return [
-        ('a place photo: WebP at most 1600 px at <town>/<entry>/photo-<hash>.webp, its size, its public link, '
+        ('a place photo: WebP at most 2000 px at <town>/<entry>/photo-<hash>.webp, its size, its public link, '
          'a None column left to its default',
          put.startswith('places/st-joseph/bakery/photo-') and put.endswith('.webp') and is_webp(data)
-         and Image.open(io.BytesIO(data)).size == (1600, 800) and table == 'place_photos'
+         and Image.open(io.BytesIO(data)).size == (2000, 1000) and table == 'place_photos'
          and sent == photo and len(sent) == 1 and 'credit' not in sent[0]
          and {k: sent[0][k] for k in ('entry_id', 'kind', 'status', 'width', 'height', 'source_url')}
-         == {'entry_id': 'bakery', 'kind': 'photo', 'status': 'live', 'width': 1600, 'height': 800,
+         == {'entry_id': 'bakery', 'kind': 'photo', 'status': 'live', 'width': 2000, 'height': 1000,
              'source_url': 'https://bakery.com/'}
          and sent[0]['url'] == 'https://db.example/storage/v1/object/public/' + put),
         ("the slot after the place's live and proposed photos (a retired slot is free, an Event's photo takes "
@@ -1013,9 +1013,9 @@ def selftest():
          == ['https://dyn.mktgcdn.com/p/H/width=960,height=960']
          and [u for u, _ in from_page('<img srcset="/a.jpg 1x,/b.jpg 2x"><img srcset="/c.jpg, /d.jpg 2x">', 'https://x.com/')]
          == ['https://x.com/b.jpg', 'https://x.com/d.jpg']),
-        ("Yext's resized copy is asked at 1600 px",
+        ("Yext's resized copy is asked at 2000 px",
          photo_urls([('https://dyn.mktgcdn.com/p/H/width=500,height=500', ''), ('https://dyn.mktgcdn.com/p/H/width=1600,height=1600', '')])
-         == ['https://dyn.mktgcdn.com/p/H/width=1600,height=1600']),
+         == ['https://dyn.mktgcdn.com/p/H/width=2000,height=2000']),
         ('a resized WordPress copy becomes its original',
          photo_urls([('https://x.com/wp-content/uploads/p-300x200.jpg', '')]) == ['https://x.com/wp-content/uploads/p.jpg']),
         ("a page's logo file comes before its share picture, a footer's Facebook icon never",
@@ -1037,9 +1037,9 @@ def selftest():
         ("a Forum paper's story is too slow to read picture by picture; a school's page is not",
          too_slow_to_read(['https://www.stcloudlive.com/a.jpg', 'https://cdn.forumcomm.com/dims4/default/1/x.jpg'])
          and not too_slow_to_read(['https://www.csbsju.edu/a.jpg', 'https://x.com/cdn.forumcomm.com.jpg'])),
-        ('a logo is saved square, a photo at most 1600 px',
+        ('a logo is saved square, a photo at most 2000 px',
          Image.open(io.BytesIO(webp(red, logo=True))).size[0] == Image.open(io.BytesIO(webp(red, logo=True))).size[1]
-         and max(Image.open(io.BytesIO(webp(Image.new('RGB', (4000, 3000))))).size) == 1600),
+         and max(Image.open(io.BytesIO(webp(Image.new('RGB', (4000, 3000))))).size) == 2000),
         ('a free photo is credited Author · Licence, a site photo not at all',
          credit({'author': 'Tomruen', 'licence': 'CC BY-SA 4.0'}) == 'Tomruen · CC BY-SA 4.0' and credit({}) is None),
         ('a logo cut out and squared is still the logo on its white page',
