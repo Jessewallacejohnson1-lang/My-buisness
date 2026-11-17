@@ -2071,6 +2071,28 @@ test("a group's Event names the group and whether you're in it; found ones by it
   assert.deepEqual(mine.filter((r) => r[2] === QUILTS).map((r) => r[3]), [false]);
 });
 
+test("the Lions Club's Facebook page is its own: an Event the social watch reads there names the Group", async () => {
+  // BP app nothing-scheduled 08. The morning sync writes the registry entry's page to sources under the entry's
+  // name, and the social watch writes the page's Events with that name and the entry as their place.
+  await reset();
+  const registry = readFileSync(join(here, '..', '..', 'sources', 'st-joseph-mn.md'), 'utf8');
+  const [, name, url] = registry.match(/^## (.+)\n```yaml\nid: st-joseph-lions-club\n[\s\S]*?url: (\S+)/m);
+  const { rows: [{ id: lions }] } = await db.query(`insert into public.clubs (name, status, entry_id)
+      values ('St. Joseph Lions Club', 'approved', 'group-st-joseph-lions-club') returning id`);
+  await db.exec(readFileSync(join(migrations, '20261117034316_lions_club_own_page.sql'), 'utf8'));
+  await db.query(`insert into public.sources (town, status, method, kind, entry_id, url, name)
+      values ('st-joseph-mn', 'active', 'search_snippet', 'facebook', 'st-joseph-lions-club', $1, $2)`, [url, name]);
+  const breakfast = await add('Pancake breakfast', '2026-10-09', { start_time: '8 AM', source_name: name });
+  await db.query(`update public.club_events set place_entry_id = 'st-joseph-lions-club' where id = $1`, [breakfast]);
+  await add('Fall fair', '2026-10-09', { start_time: '7 PM' });
+  await db.exec('set role anon');
+  const { rows } = await db.query(`select title, club_name, club_id
+    from public.flat_town_feed(('2026-10-08 12:00'::timestamp at time zone 'America/Chicago')) order by title`);
+  assert.equal(url, 'https://www.facebook.com/stjoelion');
+  assert.deepEqual(rows.map((r) => [r.title, r.club_name, r.club_id]),
+                   [['Fall fair', null, null], ['Pancake breakfast', 'St. Joseph Lions Club', lions]]);
+});
+
 // Event of the day (BP app daily-tab 14): the morning job's standouts, one per part of the day for
 // each person, read from get_event_of_the_day.
 async function standouts(day, ids) {
