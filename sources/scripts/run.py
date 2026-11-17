@@ -323,10 +323,12 @@ def decoded(body, encoding):
     return body
 
 
-def fetch(url, data=None, headers=None, timeout=TIMEOUT):
+def fetch(url, data=None, headers=None, timeout=TIMEOUT, owner_allows=False):
     """GET, or POST when `data` is given (511's GraphQL). Robots and Crawl-delay either way,
     and one request at a time to any one server, a second apart: parallel requests made
-    stjosephmn.gov drop connections, which then read as a robots refusal."""
+    stjosephmn.gov drop connections, which then read as a robots refusal. `owner_allows`: the
+    site's owner said yes to this one URL in words its robots.txt doesn't carry, as the registry
+    records (Kennedy's calendar feed); Crawl-delay still holds."""
     p = urlparse(url)
     server = server_of(p.netloc)
     with _host_lock[server]:
@@ -334,7 +336,7 @@ def fetch(url, data=None, headers=None, timeout=TIMEOUT):
         if wait > 0:
             time.sleep(wait)
         _server_hit[server] = time.monotonic()
-        if not robots_ok(url):
+        if not owner_allows and not robots_ok(url):
             why = _unreadable.get(f"{p.scheme}://{p.netloc}")
             if why:
                 raise RuntimeError(f"robots.txt could not be read ({why}); staying out this run, try again next run")

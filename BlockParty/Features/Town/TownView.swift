@@ -361,6 +361,18 @@ struct TownView: View {
             guard !Task.isCancelled else { return }
             await townFeed.refresh()
         }
+        // While the Offline pill shows, read again on its own, 2 s, then 4, 8, then every 15 s, so the pill goes
+        // soon after signal comes back, with no pull (town-feed 47). Not NWPathMonitor: the simulator never tells
+        // it signal came back, so no proof could run.
+        .task(id: offline) {
+            var wait = 2.0
+            while offline {
+                try? await Task.sleep(for: .seconds(wait))
+                guard !Task.isCancelled else { return }
+                await townFeed.refresh()
+                wait = min(wait * 2, 15)
+            }
+        }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
             case .active:
