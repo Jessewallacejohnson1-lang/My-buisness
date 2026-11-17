@@ -138,7 +138,7 @@ struct ChatAPI {
             let chat: Chat?
             init(from decoder: Decoder) { chat = try? Chat(from: decoder) }
         }
-        return try Supabase.decode([Row].self, from: data).compactMap(\.chat)
+        return try Supabase.decode(data, as: [Row].self).compactMap(\.chat)
     }
 
     /// Newest first, as the server sends them; each Event's card is the same card as everywhere.
