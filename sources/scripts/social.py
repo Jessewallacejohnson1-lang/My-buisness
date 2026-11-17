@@ -531,6 +531,17 @@ def runs_since(run, mark, now, give_up, stop=None):
 
 # ---- posts become pages, the way the cheap model reads them ----
 
+def posted_at(stamp):
+    """A post's own time as ISO for board_items.posted_at (BP app town-feed 70), from Facebook's or Instagram's ISO text
+    or a number of seconds; None when it can't be read, so a bad stamp never reaches the database."""
+    try:
+        t = (datetime.fromtimestamp(stamp, timezone.utc) if isinstance(stamp, (int, float)) and not isinstance(stamp, bool)
+             else datetime.fromisoformat(str(stamp).replace("Z", "+00:00")))
+    except (TypeError, ValueError, OverflowError, OSError):
+        return None
+    return t.isoformat() if t.tzinfo else None
+
+
 def when_text(stamp):
     try:
         t = datetime.fromisoformat(str(stamp).replace("Z", "+00:00")).astimezone(LOCAL)
@@ -787,6 +798,7 @@ def post_pages(kind, rows, by_url):
     Facebook event keeps its About there too, saved with its Events' mentions for the time-slot step (event-schedule 01)."""
     pages, hidden = [], []
     for r in rows:
+        posted = None  # only a post's own time is kept (town-feed 70); a story or an event page has none
         src = src_of(r)
         page = page_of(src, by_url)
         if kind == "search" and r.get("id"):  # an Event the search found that is read again: its host's listing (searched)
@@ -840,6 +852,7 @@ def post_pages(kind, rows, by_url):
             if not text.strip() and not pics:
                 continue
             stamp = r.get("time") or r.get("timestamp")
+            posted = posted_at(stamp)
             body = (f"{who} posted this on {kind.title()} "
                     f"on {when_text(stamp)}:\n\n{text.strip() or '(no caption)'}")
             pid, url = r.get("postId") or r.get("id") or r.get("shortCode"), r.get("url")
@@ -853,7 +866,7 @@ def post_pages(kind, rows, by_url):
                       "url": url or page["url"], "entry_id": page["entry_id"],
                       "name": who if kind == "search" else page["name"], "category": page.get("category"), "trust": "official", "text": body,
                       **({"pictures": pics} if pics else {}), **({"collabs": made_with} if made_with else {}),
-                      **({"words": words} if words else {}),
+                      **({"words": words} if words else {}), **({"posted": posted} if posted else {}),
                       **({"listing": listing(r)} if kind in ("events", "search") else {})})
     return pages, hidden
 
@@ -1231,6 +1244,11 @@ def selftest():
     ig = [{"inputUrl": "https://www.instagram.com/krewe", "id": "9", "caption": "Live music Saturday", "timestamp": "2026-10-22T20:00:00Z"}]
     got, _ = post_pages("instagram", ig, {"https://www.instagram.com/krewe": {"name": "Krewe", "entry_id": "krewe", "url": "u"}})
     check(len(got) == 1 and "on Instagram on Thursday, October 22 at 3:00 PM" in got[0]["text"], "an Instagram post reads the same way")
+    check(got[0]["posted"] == "2026-10-22T20:00:00+00:00" and "posted" not in post_pages("instagram", [dict(ig[0], timestamp="soon")],
+          {"https://www.instagram.com/krewe": {"name": "Krewe", "entry_id": "krewe", "url": "u"}})[0][0]
+          and posted_at(1794594505) == "2026-11-13T18:28:25+00:00" and posted_at(None) is None and posted_at("2026-10-22") is None,
+          "a post keeps its own time as ISO for its News (town-feed 70): a number of seconds read too, a stamp that can't be "
+          "read or has no zone left out")
     nt = {"name": "The North Table", "entry_id": "north-table", "url": "https://www.instagram.com/thenorthtables"}
     mh = {"name": "Milk & Honey Ciders", "entry_id": "milk-and-honey-ciders", "url": "https://www.instagram.com/milkandhoneyciders"}
     jt = {"name": "Joetown", "entry_id": "joetown", "url": "https://www.instagram.com/joetown"}

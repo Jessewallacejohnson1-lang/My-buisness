@@ -78,7 +78,6 @@ struct FriendsHomePage: View {
     @EnvironmentObject private var auth: AuthStore
     @Environment(FriendsBook.self) private var book
     @Environment(ChatBook.self) private var chats
-    @Environment(\.tabOnScreen) private var tabOnScreen
     /// The Town's groups, each saying whether you're in it (`get_groups`), read here and on You.
     @Environment(YouModel.self) private var you
     @Environment(RealLifeActions.self) private var actions
@@ -151,13 +150,12 @@ struct FriendsHomePage: View {
         }
         // Read on every visit; once drawn, the dot clears and accepted lines count as seen.
         // The tab stays built (TabPages.swift): a visit is the tab coming on screen.
-        .task(id: tabOnScreen) {
-            guard tabOnScreen else { return }
+        .visitTask {
             await book.refresh()
             await book.seen()
         }
-        .task(id: tabOnScreen) { if tabOnScreen { await book.refreshSuggestions() } }
-        .task(id: tabOnScreen) { if tabOnScreen { await refreshGroups() } }
+        .visitTask { await book.refreshSuggestions() }
+        .visitTask { await refreshGroups() }
         .onScreen { book.screenOpened() } disappear: { book.screenClosed() }
     }
 
