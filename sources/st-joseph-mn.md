@@ -198,6 +198,8 @@ sources:
     trust: official
     reader: finalsite-calendar
     own_calendar: Kennedy Calendar
+    # Under the robots-disallowed /fs/: the school said yes to reading it (Jesse, 2026-11-16).
+    descriptions: "https://kennedy.isd742.org/fs/calendar-manager/events.ics?calendar_ids[]=8"
   - url: https://kennedy.isd742.org/kennedy-news
     kind: website
     method: fetch

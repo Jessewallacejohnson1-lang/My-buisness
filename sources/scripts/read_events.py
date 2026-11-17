@@ -14,7 +14,8 @@ exact dates, no model. A source is read when its entry is active and it names a 
                       the calendars to read are in the source's own url
   cars511             Minnesota 511's road reports within `miles` of `around` (its map's feed)
   finalsite-calendar  a Finalsite calendar page, this month and next (?cal_date=). Its iCal
-                      export sits under the robots-disallowed /fs/, so never that (Kennedy); with
+                      export sits under the robots-disallowed /fs/, read only where the school
+                      said yes (`descriptions`, Kennedy): each event's own words; with
                       `own_calendar_only`, only the school's own calendar, not the district's beside it (Tech)
   csbsju-music        the CSB/SJU music department's season page, a page made by hand: each concert on
                       campus, on its ensemble's row
@@ -601,7 +602,28 @@ def calendar_activity(title, entry):
     return {"activity_team": bound_team(entry), **mark} if mark else {}
 
 
-def finalsite_calendar_items(page, url, entry, src, today):
+POINTS_AWAY = re.compile(r"(view|watch|click|see|visit|register|sign up)\b", re.I)
+
+
+def finalsite_words(text):
+    """{(title, local start "YYYY-MM-DDTHH:MM" or day): its words} from a Finalsite iCal export, and a repeating
+    event's words under its title alone, for every date it repeats on."""
+    words = {}
+    for ev in parse_ics(text):
+        if "SUMMARY" not in ev or "DTSTART" not in ev:
+            continue
+        about = said(unescape(ev.get("DESCRIPTION", ("", ""))[1]))
+        # The export runs the school's lines together ("8am-10am7th/8th grade"), and keeps a link's words but not its
+        # link ("View the schedule, watch meetings live"): a time's end starts a new line, and words that only point
+        # at a link are none. ponytail: only am/pm ends a line; another join reads run together.
+        about = about and not POINTS_AWAY.match(about) and re.sub(r"(?<=\d[ap]m)(?=\d)", "\n", about)
+        if about:
+            title, (start, all_day) = unescape(ev["SUMMARY"][1]), when(ev["DTSTART"])
+            words[title if "RRULE" in ev else (title, start.isoformat()[:10 if all_day else 16])] = about
+    return words
+
+
+def finalsite_calendar_items(page, url, entry, src, today, words=None):
     """Each occurrence once (a long event repeats in every day box it spans), with the exact
     times from <time datetime>; an all-day one takes its days from the occurrence id, whose end is the
     morning after the last ("Winter Break", Dec 21 to Jan 2, is out through Jan 1). An event
@@ -637,8 +659,9 @@ def finalsite_calendar_items(page, url, entry, src, today):
                 not away or entry["_name"].split()[0].lower() in away[1].lower()):
             place = entry["_name"]
         news = bool(NEWS.search(title))
+        about = (words or {}).get((title, start[:16])) or (words or {}).get(title)
         out.append(judged(entry, src, kind="news" if news else "event", category="school" if news else None,
-                          title=title, start=start, end=times.get("End") or (last if last > start else None), all_day="Start" not in times,
+                          **({"blurb": about} if about else {}), title=title, start=start, end=times.get("End") or (last if last > start else None), all_day="Start" not in times,
                           place="" if place.lower() in ("multiple", "tbd", "tba") else place,
                           source_url=url, source_uid=occur, **({} if news else calendar_activity(title, entry))))
     return out
@@ -646,10 +669,12 @@ def finalsite_calendar_items(page, url, entry, src, today):
 
 def read_finalsite_calendar(src, entry, today):
     first = today.replace(day=1)
+    # The school's yes to its feed is in the registry beside `descriptions` (Jesse, 2026-11-16).
+    words = finalsite_words(fetch(src["descriptions"], owner_allows=True)[1]) if src.get("descriptions") else None
     out = []
     for month in (first, (first + timedelta(days=32)).replace(day=1)):
         url = f"{src['url']}?cal_date={month}"
-        out += finalsite_calendar_items(fetch(url)[1], url, entry, src, today)
+        out += finalsite_calendar_items(fetch(url)[1], url, entry, src, today, words)
     return out
 
 
@@ -1783,6 +1808,25 @@ def t_kennedy_calendar():
         "the PTO is for those following the school, and is the PTO's"
     assert not forum.get("followers_only") and not trunk.get("followers_only"), "a forum and Trunk or Treat are everyone's"
     assert "activity_team" not in forum and "activity_team" not in trunk, "an event naming no activity is none's"
+    # The school's own words from its iCal export (Jesse, 2026-11-16: the school said yes): by title and start, a
+    # repeating one by title, a day-long one by its day; one with no words, only a link, or only a link's words, keeps none.
+    ics = ("BEGIN:VEVENT\r\nSUMMARY:School Board Meeting and Work Session\r\nDTSTART;TZID=America/Chicago:20261007T183000"
+           "\r\nDESCRIPTION:Doors at 6\\, public welcome.\r\nEND:VEVENT\r\n"
+           "BEGIN:VEVENT\r\nSUMMARY:School Board Meeting and Work Session\r\nDTSTART;TZID=America/Chicago:20261021T183000"
+           "\r\nDESCRIPTION:Another night.\r\nEND:VEVENT\r\n"
+           "BEGIN:VEVENT\r\nSUMMARY:Walkathon\r\nDTSTART;VALUE=DATE:20261007\r\nDESCRIPTION:K-2 8am-10am3-5 10-noon\r\nEND:VEVENT\r\n"
+           "BEGIN:VEVENT\r\nSUMMARY:League of Women Voters School Board Candidate Forum\r\nDTSTART;TZID=America/Chicago:20261006T190000"
+           "\r\nDESCRIPTION:View the schedule\\, watch meetings live or on demand.\r\nEND:VEVENT\r\n"
+           "BEGIN:VEVENT\r\nSUMMARY:Trunk or Treat\r\nDTSTART;TZID=America/Chicago:20251030T163000\r\nRRULE:FREQ=YEARLY"
+           "\r\nDESCRIPTION:Bring candy.\r\nEND:VEVENT\r\n"
+           "BEGIN:VEVENT\r\nSUMMARY:PTO Meeting at the House\r\nDTSTART;TZID=America/Chicago:20261013T150000"
+           "\r\nDESCRIPTION:https://example.org/pto\r\nEND:VEVENT\r\n")
+    told = {i["title"]: i.get("blurb") for i in finalsite_calendar_items(
+        sample("kennedy-calendar.html"), url, {"_name": "Kennedy Community School"},
+        {"own_calendar": "Kennedy Calendar"}, date(2026, 10, 1), finalsite_words(ics))}
+    assert told["School Board Meeting and Work Session"] == "Doors at 6, public welcome.", told
+    assert (told["Walkathon"], told["Trunk or Treat"]) == ("K-2 8am-10am\n3-5 10-noon", "Bring candy."), told
+    assert told["PTO Meeting at the House"] is None and told["League of Women Voters School Board Candidate Forum"] is None, told
     k = {"_name": "Kennedy Community School"}
     assert calendar_activity("Band/Choir/Orchestra Concert", k) == {"activity_team": "kennedy",
                                                                     "activity_name": "Band/Choir/Orchestra"}
