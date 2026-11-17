@@ -3,7 +3,7 @@
 -- Galleries, was theater, so with no photo of its own it could show another show's scene. The words are
 -- place_photos.EXHIBIT, the dig's is_exhibit too. The subject function is `place_photos.py sql` (its self-test reads
 -- this file); it takes two more arguments, so the three-argument one goes first. event_picture is
--- 20261110231708_lineup_counts_approved.sql line for line but for passing the About and the place.
+-- 20261117204715_exhibit_pieces.sql (event-photos 25, live) line for line but for passing the About and the place.
 
 drop function private.event_subject(text, text, text);
 
@@ -62,7 +62,20 @@ stable
 security invoker
 set search_path = public
 as $$
-  select x.pic
+  select (x.pic - 'own')
+         -- An exhibit's other pieces, after the one leading its card (event-photos 25).
+         || case when x.pic->>'own' is not null then coalesce((
+                   select jsonb_build_object('pieces', jsonb_agg(jsonb_build_object('url', q.url, 'kind', 'photo',
+                                                                 'credit', q.credit, 'site', q.source_url,
+                                                                 'w', q.width, 'h', q.height)
+                                                               order by q.position, q.id))
+                     from (select q.* from public.place_photos q
+                            where q.event_id = p_event and q.status = 'live' and q.kind = 'event'
+                              and q.id <> (x.pic->>'own')::bigint
+                            order by q.position, q.id
+                            limit 9) q
+                   having count(*) > 0), '{}'::jsonb)
+                 else '{}'::jsonb end
          || case when f.url is not null and x.pic->>'url' is distinct from f.url
                  then jsonb_build_object('flyer', jsonb_build_object('url', f.url, 'kind', 'photo', 'credit', f.credit,
                                                                      'site', f.source_url, 'w', f.width, 'h', f.height,
@@ -79,7 +92,7 @@ as $$
   from (
       select coalesce(
         (select case when p.whole then '{"whole": true}'::jsonb else '{}'::jsonb end
-                || jsonb_build_object('url', p.url, 'kind', 'photo', 'credit', p.credit, 'site', p.source_url,
+                || jsonb_build_object('own', p.id, 'url', p.url, 'kind', 'photo', 'credit', p.credit, 'site', p.source_url,
                                    'w', p.width, 'h', p.height,
                                    'more', coalesce((select jsonb_agg(jsonb_build_object('url', o.url, 'kind', 'photo',
                                                               'credit', o.credit, 'site', o.source_url,
@@ -90,7 +103,10 @@ as $$
                                                         and o.kind = 'photo'), '[]'::jsonb))
            from public.club_events e
            join public.place_photos p on p.event_id = e.id and p.status = 'live' and p.kind = 'event'
-          where e.id = p_event),
+          where e.id = p_event
+          -- The first of its set leads (event-photos 25).
+          order by p.position, p.id
+          limit 1),
         (select case when s.whole then '{"whole": true}'::jsonb else '{}'::jsonb end
                 || jsonb_build_object('url', s.url, 'kind', 'photo', 'credit', s.credit, 'site', s.source_url,
                                    'w', s.width, 'h', s.height,
@@ -146,3 +162,4 @@ as $$
                       where fl.event_id = p_event and fl.status = 'live' and fl.kind = 'flyer'
                       limit 1) f on true
 $$;
+
