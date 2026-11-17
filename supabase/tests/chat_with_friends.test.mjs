@@ -411,6 +411,33 @@ test('a report outlives the sender\'s account; deleting an account leaves the ot
   assert.deepEqual(await chats(BEN), [], 'a direct chat with nobody on the other end leaves the list');
 });
 
+test('settling a report answers with a deleted account\'s photo once no open report names it', async () => {
+  await reset();
+  await friends(ANA, BEN);
+  await friends(ANA, CAL);
+  const photo = `${ANA}/${id(78)}.jpg`;
+  await as(ANA, `insert into storage.objects (bucket_id, name) values ('chat-photos', $1)`, [photo]);
+  const { id: toBen } = await sendTo(ANA, BEN, null, { photo, w: 10, h: 10 });
+  const { id: toCal } = await sendTo(ANA, CAL, null, { photo, w: 10, h: 10 });
+  const { id: rudeWords } = await sendTo(ANA, BEN, "rude");
+  await as(BEN, 'select public.report_chat_message($1, $2)', [toBen, 'nudity']);
+  await as(CAL, 'select public.report_chat_message($1, $2)', [toCal, 'nudity']);
+  await as(BEN, 'select public.report_chat_message($1, $2)', [rudeWords, "bullying"]);
+  const settle = async (r) => (await as(DEE, 'select public.resolve_chat_report($1, false) photo', [r.id], { admin: true }))[0].photo;
+  const byBody = async () => await as(DEE, 'select * from public.get_chat_reports()', [], { admin: true });
+
+  const [first] = await byBody();
+  assert.equal(await settle(first), null, 'the owner still has an account');
+  await db.query('delete from auth.users where id = $1', [ANA]);
+  const [second, rude] = await byBody();
+  assert.equal(second.photo_path, photo);
+  assert.equal(await settle(rude), null, 'a report with no photo');
+  assert.equal(await settle(second), photo, 'the last open report naming it, and its owner is gone');
+  assert.equal(await settle(second), photo, 'settling again answers the same, so a failed removal can retry');
+  assert.deepEqual(await byBody(), []);
+  await db.query('delete from storage.objects where name = $1', [photo]);
+});
+
 test('photos: your own folder to send, and only someone who can see the message to read', async () => {
   await reset();
   await friends(ANA, BEN);

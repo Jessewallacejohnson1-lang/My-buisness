@@ -14,6 +14,25 @@ extension EnvironmentValues {
 }
 
 extension View {
+    /// A tab's reads on every visit: each time it comes on screen.
+    func visitTask(_ work: @escaping @MainActor () async -> Void) -> some View {
+        modifier(VisitTask(work: work))
+    }
+}
+
+private struct VisitTask: ViewModifier {
+    let work: @MainActor () async -> Void
+    @Environment(\.tabOnScreen) private var tabOnScreen
+
+    func body(content: Content) -> some View {
+        content.task(id: tabOnScreen) {
+            guard tabOnScreen else { return }
+            await work()
+        }
+    }
+}
+
+extension View {
     /// A tab's page in the shell's stack: on screen, off to the side it slides to, or (Reduce Motion)
     /// faded out; off screen it takes no touch, no VoiceOver, and leaves the tab bar's size alone.
     func tabPage(_ page: Tab, current: Tab, leaving: Tab?, reduceMotion: Bool) -> some View {
@@ -67,4 +86,28 @@ struct KeptTab<Content: View>: View, Equatable {
     static func == (a: Self, b: Self) -> Bool { a.page == b.page && a.key == b.key }
 
     var body: some View { content() }
+}
+
+/// The tab on screen, the tabs built so far (each stays once visited) and the one sliding off.
+@MainActor @Observable
+final class TabSelection {
+    var tab: Tab
+    var visited: Set<Tab> = []
+    /// The tab sliding off during a switch, shown until its slide ends.
+    var leaving: Tab?
+
+    init(_ tab: Tab) { self.tab = tab }
+}
+
+/// Reads the selection in its own body, so only what it draws follows a switch.
+struct ReadTab<Content: View>: View {
+    let tabs: TabSelection
+    @ViewBuilder let content: (TabSelection) -> Content
+
+    init(_ tabs: TabSelection, @ViewBuilder content: @escaping (TabSelection) -> Content) {
+        self.tabs = tabs
+        self.content = content
+    }
+
+    var body: some View { content(tabs) }
 }

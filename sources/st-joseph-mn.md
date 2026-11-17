@@ -8575,6 +8575,22 @@ sources:
 ```
 Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Closed · Opens 1 PM Tue). Unreviewed — tier `listed`, so it publishes nothing until promoted.
 
+## St. Joseph Lions Club
+```yaml
+id: st-joseph-lions-club
+status: active
+tier: listed
+category: "social_or_community_service"
+place_type: "Community group"
+added_by: agent:nothing-scheduled
+sources:
+  - url: https://www.facebook.com/stjoelion
+    kind: facebook
+    method: search_snippet
+    trust: official
+```
+Notes: Added 2026-11-16 (BP app nothing-scheduled 08). The Lions Club's only current page is its Facebook page; its e-clubhouse.org site is out of date. No address: it is a Group, not a Place, and meets at the Lions Building in Millstream Park. The Group's `clubs.own_entry_id` is this entry, so an Event the social watch reads from this page names the Lions Club on its card. Tier `listed`: the morning watch reads nothing here; the social watch reads the page once Jesse ticks it.
+
 ## Tour of Saints (run by Bicycle Alliance of Minnesota)
 ```yaml
 id: tour-of-saints-run-by-bicycle-alliance-o

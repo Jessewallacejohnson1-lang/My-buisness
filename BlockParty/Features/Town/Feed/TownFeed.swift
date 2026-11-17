@@ -164,6 +164,15 @@ final class TownFeed {
         #if DEBUG
         switch LaunchFlags.backend {
         case .offline:
+            // `-town-offline-for <s>`: a first launch with no kept list, signal back after that many seconds.
+            if let seconds = LaunchFlags.value(.townOfflineFor).flatMap(Double.init) {
+                let back = Date().addingTimeInterval(seconds)
+                self.init(read: {
+                    guard Date() >= back else { throw URLError(.notConnectedToInternet) }
+                    return TownFixtures.townEntries()
+                }, actions: actions, live: live)
+                return
+            }
             self.init(read: { throw URLError(.notConnectedToInternet) },
                       kept: { TownFixtures.townEntries() }, actions: actions, live: live)
             return
@@ -410,8 +419,10 @@ final class TownFeed {
         await refresh(at: now)
     }
 
-    /// Retry, a new account: the new order, whatever is on screen.
+    /// Retry, a new account: the new order, whatever is on screen. With no list, the skeleton shows
+    /// while it reads; a quiet read (`refresh`) keeps the retry up instead (town-feed 47).
     func reload(at now: Date = Date()) async {
+        if entries == nil { failed = false }
         await readAgain(at: now, freshOrder: true)
     }
 
@@ -436,7 +447,6 @@ final class TownFeed {
     /// list changes: `nextLeave` reads both, and the feed's leave timer is keyed on
     /// it, so changing either first cancelled the very read the timer had started.
     private func readAgain(at now: Date, freshOrder: Bool) async {
-        if entries == nil { failed = false }
         // Reads overlap (the feed opening, the foreground, a new account): a slow one
         // that lands last must not overwrite a newer one's answer.
         latestRead &+= 1

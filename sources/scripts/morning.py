@@ -686,7 +686,7 @@ def write(run, dry_run):
         if not dry_run:  # saved before the summary, so a slip in printing it never re-reads these pages tomorrow
             save_fingerprints(run)
         # A social check's summary leaves the games to the morning's.
-        lines = summary_lines(prep, result, written) + save_words(run, items, dry_run) \
+        lines = summary_lines(prep, result, written) + save_words(run, items, dry_run) + save_posted(run, items, dry_run) \
             + save_host_words(run, items, dry_run) + save_hours(run, hours, dry_run) \
             + ([] if prep.get("run") else waiting_lines(db)) + ([] if prep.get("run") else live_lines(db, today - timedelta(days=1)))
         print("\n".join(lines))
@@ -701,23 +701,34 @@ def save_words(run, items, dry_run):
     (social.post_pages), found by the item's link, written once onto the News saved with that link. A link that
     isn't the post's own (a place's page, which every News read from it shares) gets none. One line when any were
     kept, or when the database refused them: the News are saved either way."""
+    return _keep_from_post(run, items, dry_run, "words", "post_words", "the post's own words")
+
+
+def save_posted(run, items, dry_run):
+    """Each News from a place's own post keeps when the place posted it (BP app town-feed 70; Jesse, 2026-11-16), so its
+    card's "News · 2d" counts from the post, not from the morning that found it: the page's `posted` (social.posted_at),
+    found and written as save_words does. Before the column is live the database refuses it in one line."""
+    return _keep_from_post(run, items, dry_run, "posted", "posted_at", "the post's own time")
+
+
+def _keep_from_post(run, items, dry_run, key, column, what):
     path = run.folder / "pages.json"
     pages = json.loads(path.read_text()) if path.exists() else []
-    said = [(p["url"], p["words"]) for p in pages if isinstance(p, dict) and p.get("url") and p.get("words")]
+    said = [(p["url"], p[key]) for p in pages if isinstance(p, dict) and p.get("url") and p.get(key)]
     news = [it for it in items if isinstance(it, dict) and it.get("kind") == "news"
             and isinstance(it.get("source_url"), str) and write_judged.own_link(it["source_url"])]
-    found = [(it, w) for it in news if (w := next((w for u, w in said if write_judged.same_link(u, it["source_url"])), None))]
+    found = [(it, v) for it in news if (v := next((v for u, v in said if write_judged.same_link(u, it["source_url"])), None))]
     if not found or dry_run:
-        return [f"- Would keep the post's own words for {len(found)} News"] if found else []
+        return [f"- Would keep {what} for {len(found)} News"] if found else []
     kept = 0
     try:
-        for it, words in found:
+        for it, value in found:
             link = quote(write_judged.clean_link(it["source_url"]), safe="")
-            kept += len(run.db.rest("PATCH", f"board_items?source_url=eq.{link}&post_words=is.null",
-                                    {"post_words": words}, prefer="return=representation") or [])
+            kept += len(run.db.rest("PATCH", f"board_items?source_url=eq.{link}&{column}=is.null",
+                                    {column: value}, prefer="return=representation") or [])
     except DbError as e:
-        return [f"- The post's own words weren't kept ({kept} of {len(found)} News): {' '.join(str(e).split())[:160]}"]
-    return [f"- Kept the post's own words for {kept} News"] if kept else []
+        return [f"- Couldn't keep {what} ({kept} of {len(found)} News): {' '.join(str(e).split())[:160]}"]
+    return [f"- Kept {what} for {kept} News"] if kept else []
 
 
 def save_host_words(run, items, dry_run):
@@ -1579,6 +1590,17 @@ def selftest():
                                              {"post_words": "PASTRIES\n-Morning bun"})],
                        "a News from its own post keeps that post's words once, found by its cleaned link; a place's page "
                        "link, a post with no words and an Event get none, and a dry run writes nothing (town-feed 65)"))
+        (Path(tmp) / "pages.json").write_text(json.dumps([
+            {"file": "facebook-1", "url": "https://m.facebook.com/flourandflowerbakery/posts/pfbid0?fbclid=x", "posted": "2026-11-12T15:00:00+00:00"},
+            {"file": "facebook-2", "url": watched, "posted": "2026-11-12T16:00:00+00:00"}]))
+        pdb = FakeDb(answers={"board_items": [{"id": "n1"}]})
+        r = type("R", (), {"folder": Path(tmp), "db": pdb})()
+        checks.append((save_posted(r, items, True) == ["- Would keep the post's own time for 1 News"]
+                       and save_posted(r, items, False) == ["- Kept the post's own time for 1 News"]
+                       and pdb.writes() == [("PATCH", f"board_items?source_url=eq.{quote(post, safe='')}&posted_at=is.null",
+                                             {"posted_at": "2026-11-12T15:00:00+00:00"})],
+                       "a News from its own post keeps when it was posted, once, found by its cleaned link; a place's page "
+                       "link gets none (town-feed 70)"))
         fb = "https://www.facebook.com/events/1707823090962331/"
         (Path(tmp) / "pages.json").write_text(json.dumps([
             {"file": "events-1707823090962331", "url": fb, "words": "Santa arrives 4:30 PM, tree lighting 7 PM"},
