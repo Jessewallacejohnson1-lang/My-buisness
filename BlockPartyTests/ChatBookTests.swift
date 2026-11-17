@@ -106,6 +106,23 @@ final class ChatBookTests: XCTestCase {
         XCTAssertEqual(book.messages.map(\.id), ["d"])
     }
 
+    func testAKindOfChatThisBuildDoesntKnowLeavesOutOnlyItsRow() async throws {
+        server.answers["rpc/get_chats"] = .init(body: "[\(chatJSON(id: "new", kind: "neighborhood")),\(chatJSON(id: "d"))]")
+        let book = ChatBook(supabase: supabase, live: true)
+        await book.refresh()
+        XCTAssertEqual(book.chats?.map(\.id), ["d"])
+        XCTAssertFalse(book.failed)
+    }
+
+    func testSettlingAReportGoesThroughItsEdgeFunction() async throws {
+        server.answers["settle-chat-report"] = .init(body: #"{"ok":true}"#)
+        try await api.resolve(report: "r1", hide: true)
+        XCTAssertEqual(server.requests.last?.url?.path, "/functions/v1/settle-chat-report")
+        let body = try XCTUnwrap(server.lastBody as? [String: Any])
+        XCTAssertEqual(body["report"] as? String, "r1")
+        XCTAssertEqual(body["hide"] as? Bool, true)
+    }
+
     func testOnlyAnUpdateLightsTheDotAndReadingClearsIt() async throws {
         server.answers["rpc/get_chats"] = .init(body: "[\(goingJSON(unread: true, lights: false))]")
         let book = ChatBook(supabase: supabase, live: true)

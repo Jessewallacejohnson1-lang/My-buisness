@@ -129,7 +129,16 @@ struct ChatAPI {
     init(_ db: Supabase) { self.db = db }
 
     func chats() async throws -> [Chat] {
-        try Supabase.decode(await db.rpc("get_chats"))
+        try Self.chats(from: await db.rpc("get_chats"))
+    }
+
+    /// A row that won't read, such as a kind of chat a newer build made, leaves out only itself, never all of Messages.
+    static func chats(from data: Data) throws -> [Chat] {
+        struct Row: Decodable {
+            let chat: Chat?
+            init(from decoder: Decoder) { chat = try? Chat(from: decoder) }
+        }
+        return try Supabase.decode([Row].self, from: data).compactMap(\.chat)
     }
 
     /// Newest first, as the server sends them; each Event's card is the same card as everywhere.
@@ -255,7 +264,8 @@ struct ChatAPI {
         try Supabase.decode(await db.rpc("get_chat_reports"))
     }
 
+    /// Through the edge function, which also removes the photo of a deleted account once no open report names it.
     func resolve(report: String, hide: Bool) async throws {
-        try await db.rpc("resolve_chat_report", ["p_report": report, "p_hide": hide])
+        try await db.invoke("settle-chat-report", ["report": report, "hide": hide])
     }
 }
