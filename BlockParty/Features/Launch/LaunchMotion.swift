@@ -12,7 +12,7 @@
 //
 //  Two kinds (Jesse, 2026-11-14; BP app references/splash-wordmark): the full show on the day's
 //  first cold start, starting from the still's BlockParty. wordmark, which the ball's hits squeeze
-//  into Bp! (Jesse, 2026-11-17; BP app references/launch-squeeze, mock round 3, whose
+//  into Bp! (Jesse, 2026-11-17; BP app references/launch-squeeze, the mock's Snap, whose
 //  mock.html#probe-<ms> writes the numbers LaunchMotionTests holds); every other open (later ones,
 //  a link, Reduce Motion) shows the wordmark, which shoots out at you as the link's Bp! did while
 //  the yellow fades into the app (Reduce Motion: only the fade). The short cut and the link's own
@@ -64,13 +64,25 @@ nonisolated struct LaunchMotion {
     static let wordSwap = 0.15
     /// The squeeze (Jesse, 2026-11-17: "i like yours", then "a micro animation for attention to
     /// detail", no letters that "fade out at a visible line point"). The ball hits the wordmark's own
-    /// B and P. Each hit swells its letter into Bp!'s in four gulps, `gulp` s apart, one for each
-    /// letter it takes in; the letter being taken fills what is left of its own room, so it shrinks
-    /// whole toward the big letter's widest point (`bellyB`, `bellyP`: canvas units above the line),
-    /// leaning `gulpLean` degrees, with no cut and no fade. The big B waits `squeezeGap` canvas units
-    /// from the small "Party." until the P swells.
-    private static let gulp = 0.045
-    private static let gulpSpring = Spring(response: 0.20, dampingRatio: 0.50)
+    /// B and P. Each hit swells its letter into Bp!'s, taking in its row of letters; the letter being
+    /// taken fills what is left of its own room, so it shrinks whole toward the big letter's widest
+    /// point (`bellyB`, `bellyP`: canvas units above the line), leaning `gulpLean` degrees, with no
+    /// cut and no fade. The big B waits `squeezeGap` canvas units from the small "Party." until the
+    /// P swells.
+    ///
+    /// The swell's rhythm is the mock's Snap (Jesse, 2026-11-17: the letters "dont have a dramatic
+    /// rythme", then "snap"), every number guessed. Once its hit lets go, the big letter holds
+    /// `snapHold` s, crouched `snapDip` of the way back, while its row leans away `flinch` degrees
+    /// (less with each letter, `flinchBy`). Then the four letters go in `snapLag` s apart, each beat
+    /// taking exactly its letter: the first three on a spring that never overshoots (`snapStep`, its
+    /// response), the last on a bouncy one (`snapPop`), so the swell ends in a pop.
+    private static let snapHold = 0.09
+    private static let snapDip = 0.035
+    private static let snapLag = 0.014
+    private static let snapStep = 0.10
+    private static let snapPop = Spring(response: 0.14, dampingRatio: 0.42)
+    private static let flinch = 5.0
+    private static let flinchBy = [1, 0.7, 0.45, 0.25]
     private static let gulpLean = 6.0
     private static let bellyB: CGFloat = 76
     private static let bellyP: CGFloat = 115
@@ -655,7 +667,7 @@ nonisolated struct LaunchMotion {
                          dipB: CGFloat, dipP: CGFloat, swapped: Bool) {
         typealias M = LaunchMotion
         let letGoB = min(hitB + M.contact, skip ?? .infinity), letGoP = min(hitP + M.contact, skip ?? .infinity)
-        let s1 = M.gulps(t - letGoB), s2 = M.gulps(t - letGoP), c1 = clamp01(s1), c2 = clamp01(s2)
+        let s1 = M.swell(t - letGoB, M.wordLock), s2 = M.swell(t - letGoP, M.wordArty), c1 = clamp01(s1), c2 = clamp01(s2)
         let a = M.letterAnchor, big = M.startSize, bulge = CGFloat(M.bulge)
         let party = CGSize(width: M.partyShift.width * s1, height: M.partyShift.height * s1)
 
@@ -690,12 +702,14 @@ nonisolated struct LaunchMotion {
         M.take(M.wordLock, into: &pieces, from: M.pieceL,
                left: rightB - (rightB0 - lock0) * (1 - c1),
                right: leftP0 + party.width + (lock1 - leftP0) * (1 - c1) - M.squeezeGap * c1,
-               belly: footB.y - M.bellyB * kb, drop: party.height, gone: t - letGoB >= M.gulpsFull)
+               belly: footB.y - M.bellyB * kb, drop: party.height, gone: t - letGoB >= M.lockFull,
+               flinch: M.flinch * Double(clamp01(-s1 / CGFloat(M.snapDip))))
         let rightP = footP.x + kp * M.glyphP.width / 2, rightP0 = M.smallFootP.x + M.smallP * M.glyphP.width / 2
         M.take(M.wordArty, into: &pieces, from: M.pieceA,
                left: rightP - (rightP0 - M.wx(M.wordArty[0].0)) * (1 - c2),
                right: lerp(M.wx(M.wordArty[3].1) + party.width, M.endP + big * M.glyphP.width / 2, c2),
-               belly: footP.y - M.bellyP * kp, drop: party.height, gone: t - letGoP >= M.gulpsFull)
+               belly: footP.y - M.bellyP * kp, drop: party.height, gone: t - letGoP >= M.artyFull,
+               flinch: M.flinch * Double(clamp01(-s2 / CGFloat(M.snapDip))))
         if f.word == 1 {
             f.pieces = pieces.map { Frame.Piece(opacity: 0, transform: $0.transform) }
         } else {
@@ -703,32 +717,48 @@ nonisolated struct LaunchMotion {
         }
     }
 
-    /// How far a big letter has swelled `tau` s after its hit let go: the mean of four gulps.
-    private static func gulps(_ tau: Double) -> CGFloat {
-        CGFloat((0..<4).reduce(0.0) { sum, i in
-            let since = tau - Double(i) * gulp
-            return sum + (since > 0 ? gulpSpring.value(target: 1.0, time: since) : 0)
-        } / 4)
+    /// How far a big letter has swelled `tau` s after its hit let go, taking in `row`: below 0 while
+    /// it holds, crouched; then a beat for each letter, as wide a share of the swell as the letter is
+    /// of its row, the last one bouncing past 1.
+    private static func swell(_ tau: Double, _ row: [(CGFloat, CGFloat)]) -> CGFloat {
+        guard tau > 0 else { return 0 }
+        let back = -snapDip * Double(smooth(clamp01(CGFloat(tau / (0.6 * snapHold)))))
+        let from = row[0].0, whole = row[row.count - 1].1 - from
+        var sum = 0.0, was = 0.0
+        for (i, letter) in row.enumerated() {
+            let end = Double((letter.1 - from) / whole), since = tau - snapHold - Double(i) * snapLag
+            if since > 0 {
+                let w = 2 * Double.pi / snapStep * since
+                sum += (end - was) * (i < row.count - 1 ? 1 - (1 + w) * exp(-w) : snapPop.value(target: 1.0, time: since))
+            }
+            was = end
+        }
+        return CGFloat(back + (1 + snapDip) * sum)
     }
 
-    /// When the swell first reaches full size. Its row is gone for good from then on: the spring
+    /// When a row's swell first reaches full size. The row is gone for good from then on: the pop
     /// still rings, and without this the row's last letter came back as a speck each time it did.
-    private static let gulpsFull: Double = {
+    private static func full(_ row: [(CGFloat, CGFloat)]) -> Double {
         var tau = 0.0
-        while gulps(tau) < 1 { tau += 0.0005 }
+        while swell(tau, row) < 1 { tau += 0.0005 }
         return tau
-    }()
+    }
+    private static let lockFull = full(wordLock)
+    private static let artyFull = full(wordArty)
 
     /// A row of letters between the big letter's edge (`left`) and what follows them (`right`): as
     /// the room closes they are taken one at a time from the left. The one being taken fills what is
     /// left of its own room, so it shrinks whole, never stretched, toward `belly`, the big letter's
-    /// widest point; the rest ride with what follows them.
+    /// widest point; the rest ride with what follows them. `flinch`: the degrees the row leans away
+    /// from the big letter while it holds.
     private static func take(_ row: [(CGFloat, CGFloat)], into pieces: inout [Frame.Piece], from first: Int,
-                             left: CGFloat, right: CGFloat, belly: CGFloat, drop: CGFloat, gone: Bool) {
+                             left: CGFloat, right: CGFloat, belly: CGFloat, drop: CGFloat, gone: Bool,
+                             flinch: Double) {
         let start = wx(row[0].0), whole = wx(row[row.count - 1].1) - start, taken = whole - max(0, right - left)
         for (i, letter) in row.enumerated() {
             let before = wx(letter.0) - start, wide = wx(letter.1) - wx(letter.0), u = clamp01((taken - before) / wide)
-            let lean = CGAffineTransform(a: 1, b: 0, c: tan(-gulpLean * sin(.pi * Double(u)) * .pi / 180), d: 1, tx: 0, ty: 0)
+            let lean = CGAffineTransform(a: 1, b: 0, c: tan((-gulpLean * sin(.pi * Double(u)) - flinch * flinchBy[i]) * .pi / 180),
+                                         d: 1, tx: 0, ty: 0)
             pieces[first + i] = Frame.Piece(opacity: gone || u > 0.995 ? 0 : 1, transform: about(
                 CGPoint(x: letter.1 * wordUnit, y: belly - drop - wordBox.minY),
                 lean.concatenating(CGAffineTransform(scaleX: 1 - u, y: 1 - u)),

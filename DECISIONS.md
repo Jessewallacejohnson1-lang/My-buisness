@@ -977,15 +977,19 @@ finishes over the page.
 Only the day's first cold start plays the ball show now (`LaunchShows.fullShowsADay` 1; Jesse:
 "The first open of the day."; two since 2026-11-14). The show no longer fades the still's
 BlockParty. into Bp over `wordSwap`: the ball's hits squeeze it (`LaunchMotion.squeeze`, the
-approved mock's round 3, BP app references/launch-squeeze). The still's own picture (`LaunchStill`)
+approved mock's Snap, BP app references/launch-squeeze). The still's own picture (`LaunchStill`)
 shows until the first hit, when eleven pieces of the same wordmark (`LaunchWordB` … `LaunchWordDot`,
 each a picture the wordmark's size holding one letter) take its place. The hit on B swells Bp!'s B
-out of the wordmark's B (the same shape at a third of the size) in four gulps (`gulp` 0.045 s apart,
-`gulpSpring` response 0.20 damping 0.50), one for each of l, o, c, k, which shrink whole toward the
+out of the wordmark's B (the same shape at a third of the size) on the mock's Snap rhythm (Jesse:
+the letters "dont have a dramatic rythme", then "snap"; it replaced four even gulps 0.045 s apart):
+once the hit lets go the B holds 0.09 s (`snapHold`), crouched 3.5% of the way back (`snapDip`) while
+l, o, c, k lean away up to 5° (`flinch`), then takes them in 0.014 s apart (`snapLag`), each beat
+its letter's share of the swell, the last on a bouncy spring (`snapPop`, response 0.14 damping 0.42)
+so it ends in a pop. The letters shrink whole toward the
 B's widest point (`bellyB` 76 canvas units above the line) leaning `gulpLean` 6°, never cut and
 never faded (Jesse: "i dont like how the letters just fade out at a visible line point"). The hit on
 P does the same with a, r, t, y (`bellyP` 115) while B moves over, and the ball lands on the full
-stop as the !'s dot. The gulps, the lean, the bellies and `squeezeGap` (6) are guessed. The ball
+stop as the !'s dot. Snap's numbers, the lean, the bellies and `squeezeGap` (6) are guessed. The ball
 reaches the wordmark's lower B 0.02 s later than it reached Bp's; its two hops are solved
 (`Flight.arc(…taking:)`) so p's hit and the landing come when they did, and from the jump on the
 show is unchanged, 3.80 s in all. `wordSwap` stays for a link that catches the show.
