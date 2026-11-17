@@ -402,7 +402,7 @@ struct AboutBlockPartySheet: View {
                         .frame(width: 34, height: 34).background(Hue.fill, in: Circle())
                         .contentShape(TapArea())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.press(.squish))
                 .accessibilityLabel("Close About Block Party")
             }
             Text("Block Party puts today's events, the town calendar, and a live map of \(Town.everyday) in one place. Neighbors can share events, groups, and trails.")

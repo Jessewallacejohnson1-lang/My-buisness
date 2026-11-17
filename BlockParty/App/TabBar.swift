@@ -23,7 +23,7 @@ nonisolated enum TabBarMetric {
     /// The Selection bubble: 50pt tall, so 5pt inside the capsule top and bottom,
     /// and as wide as one tab's slot. The slots split the capsule evenly inside a
     /// 9pt side inset, so the end bubbles sit 9pt in. MEASURED on Instagram's five
-    /// slots (69.4pt bubble, 68.5pt slot, first centre 43pt in); four here.
+    /// slots (69.4pt bubble, 68.5pt slot, first centre 43pt in); five here too.
     static let sideInset: CGFloat = 9
     static let bubbleHeight: CGFloat = 50
     /// Icon point size, centred up and down: Instagram's glyph boxes are 22pt and

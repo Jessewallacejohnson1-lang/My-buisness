@@ -133,10 +133,15 @@ struct TownNewsCard: View {
     }
 
     /// The share window, from its hold menu and its News page's send: the white card alone, no heart.
+    /// What a share sends: its headline, then the facts when they add to it, then the post (backlog 20).
+    nonisolated static func shareText(_ news: TownNews) -> String {
+        [news.place + ":", news.headline, news.facts, news.post.absoluteString].compactMap { $0 }.joined(separator: " ")
+    }
+
     static func share(_ news: TownNews) {
         ShareCenter.shared.present(
             SharePayload(title: news.place,
-                         shareText: "\(news.place): \(news.words) \(news.post.absoluteString)",
+                         shareText: shareText(news),
                          includesImage: false) {
                 // The card alone, no heart: the share window has none of the app's environment its hold reads.
                 whiteFace(news, room: 0)

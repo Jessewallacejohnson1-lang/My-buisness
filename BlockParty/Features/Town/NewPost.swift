@@ -565,6 +565,8 @@ final class PostOutbox {
                     self.justPosted = sent.id
                     self.sent = nil
                 }
+                // Up and read back from the feed: its picked photos' tmp files are done with (backlog 20).
+                for photo in sent.photos { try? FileManager.default.removeItem(at: photo.file) }
             case .declined(let reason):
                 self.sent?.state = .notPosted(reason)
                 AccessibilityNotification.Announcement("This post didn't go up").post()

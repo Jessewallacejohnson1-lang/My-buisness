@@ -146,6 +146,13 @@ private struct FeedCardLikeBurstModifier: ViewModifier {
             // `task(id:)` cancels the run in flight, so a rapid second double-tap
             // restarts the burst instead of racing the first one's departure.
             .task(id: burst.generation) { await play() }
+            // Leaving mid-burst cancels `play()` before its own reset, and coming back replays nothing
+            // (same generation): without this the heart stays frozen on the photo (backlog 20).
+            .onDisappear {
+                opacity = 0
+                scale = 0
+                lift = 0
+            }
     }
 
     private func center(of size: CGSize) -> CGPoint {

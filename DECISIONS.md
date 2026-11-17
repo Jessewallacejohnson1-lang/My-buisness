@@ -174,8 +174,9 @@ Several states are deliberately distinguished by value or weight alone:
 
 ## 5. Deferred / out of scope for this rebrand
 
-- **Dark mode.** The token set is light-mode only (ink on paper). There is also
-  a pre-existing Dark Mode tab-bar contrast bug noted on the map branch.
+- **Dark mode.** The `Hue` tokens carry dark values, but dark-mode checks wait until Jesse
+  picks them back up (MEMORY.md, 2026-09-24). There is also a pre-existing Dark Mode tab-bar
+  contrast bug noted on the map branch.
 - **A single accent colour — RETIRED.** Plum `#8E3B6B` is gone from the code. The one
   accent is the brand yellow `#FCE804` (`Theme/BlockPartyColor.swift`), small by rule; plum
   is never used or mentioned again (MEMORY.md).

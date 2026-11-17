@@ -21,15 +21,15 @@ enum EventLook {
     /// A photo: edge to edge from the screen's top, this tall.
     static let photoHeight: CGFloat = 410
     /// The sharp photo is whole to 96 pt above its foot and gone 6 pt above it.
-    static let sharpFrom: CGFloat = 96
-    static let sharpTo: CGFloat = 6
+    nonisolated static let sharpFrom: CGFloat = 96
+    nonisolated static let sharpTo: CGFloat = 6
     /// The blurred copy, mirrored past the foot, carries the photo into the page's colour: whole to 50 pt
     /// above the foot, gone 112 pt below it (46 for a pale picture, so the white buttons stay readable).
-    static let meltFrom: CGFloat = 50
+    nonisolated static let meltFrom: CGFloat = 50
     static let meltTo: CGFloat = 112
     static let meltToPale: CGFloat = 46
-    static let blur: CGFloat = 26
-    static let saturation: Double = 1.25
+    nonisolated static let blur: CGFloat = 26
+    nonisolated static let saturation: Double = 1.25
     /// A picture whose mean brightness is over this is pale.
     static let pale: Double = 0.6
     /// A flyer never crops: full width, at most this tall, starting under the clock, this much melt under it.
@@ -392,7 +392,7 @@ nonisolated enum EventMeltBitmap {
         var blur = EventLook.blur, saturation = EventLook.saturation
     }
 
-    nonisolated(unsafe) private static let context = CIContext(options: [.workingColorSpace: CGColorSpace(name: CGColorSpace.sRGB)!,
+    private static let context = CIContext(options: [.workingColorSpace: CGColorSpace(name: CGColorSpace.sRGB)!,
                                                      .cacheIntermediates: false])
 
     static func make(_ bitmap: CGImage, _ look: Look) -> CGImage? {

@@ -233,14 +233,14 @@ struct SJMapView: View {
                         Haptics.light()
                         onClose()
                     } label: { chromeCircle("xmark") }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.press(.squish))
                     .accessibilityLabel("Close the map")
                 }
                 Spacer(minLength: 8)
                 pill
                 Spacer(minLength: 8)
                 Button { flyHome() } label: { chromeCircle("location") }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.press(.squish))
                     .accessibilityLabel("Recenter map")
             }
             HStack {

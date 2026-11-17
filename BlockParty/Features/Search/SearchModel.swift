@@ -852,9 +852,12 @@ final class SearchModel {
     }
 
     /// The name on a card: the mockup drops what only repeats the kind of place.
+    /// A cut that would leave a name hanging ("Hudson & Company" to "Hudson &") is skipped.
     static func shown(_ name: String) -> String {
-        [" | Italian", " - \(Town.everyday)", " Company", " Restaurant"]
-            .reduce(name) { $0.replacingOccurrences(of: $1, with: "") }
+        [" | Italian", " - \(Town.everyday)", " Company", " Restaurant"].reduce(name) { name, cut in
+            let left = name.replacingOccurrences(of: cut, with: "")
+            return left.hasSuffix("&") || left.hasSuffix(" and") ? name : left
+        }
     }
 
     /// The line under a name, from Google's place type.

@@ -136,7 +136,7 @@ struct EditProfileView: View {
                     Text("Cancel").font(.sans(16)).foregroundStyle(Hue.inkSecondary)
                         .contentShape(TapArea())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.press(.dim))
                 Spacer()
             }
         }
