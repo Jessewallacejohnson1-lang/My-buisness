@@ -2333,6 +2333,12 @@ test('a News counts from its post: its time, newest post first, gone 7 days afte
   assert.deepEqual((await at('2026-11-13 11:59')).map((r) => r.title).includes('Found late'), true);
   assert.deepEqual((await at('2026-11-13 12:01')).map((r) => r.title).includes('Found late'), false,
                    '7 days after its post, not after it was found');
+  // A dated story's 30 days count from its post too.
+  await news('Sale all month', '2026-11-10 07:00', { ends_on: '2026-12-31' });
+  await posted('Sale all month', '2026-11-01 12:00', '2026-11-10 07:00');
+  await db.exec('set role anon');
+  assert.equal((await at('2026-12-01 11:59')).some((r) => r.title === 'Sale all month'), true);
+  assert.equal((await at('2026-12-01 12:01')).some((r) => r.title === 'Sale all month'), false, '30 days after its post');
 });
 
 test('road work shows; unpublished news and news with no post to open stay out', async () => {
