@@ -145,6 +145,9 @@ struct PhotoAdjustView: View {
         /// The circle leaves 20 pt each side.
         static let circleInset: CGFloat = 20
         static let hintGap: CGFloat = 18
+        /// Under the circle the hint sits further off (the mock's 24).
+        static let circleHintGap: CGFloat = 24
+        static let barLift: CGFloat = 8
         static let shapeButton: CGFloat = 36
         static let shapeInset: CGFloat = 12
         static let thumb: CGFloat = 56
@@ -170,12 +173,14 @@ struct PhotoAdjustView: View {
                     .font(.sans(13))
                     .foregroundStyle(.white.opacity(0.75))
                     .frame(width: screen.width)
-                    .offset(y: frame.maxY + Metric.hintGap)
+                    .offset(y: frame.maxY + (shape == .circle ? Metric.circleHintGap : Metric.hintGap))
                     .opacity(touched ? 0 : 1)
                     .allowsHitTesting(false)
                     .accessibilityHidden(true)
                 if case .post = shape { shapeButton(frame) }
-                bar.padding(.top, geo.safeAreaInsets.top)
+                // The mock's: Cancel and Done centred 76 pt down on a 62 pt status inset; read first by VoiceOver.
+                bar.padding(.top, max(geo.safeAreaInsets.top - Metric.barLift, 0))
+                    .accessibilitySortPriority(1)
                 if images.count > 1 {
                     strip
                         .frame(width: screen.width)
@@ -248,11 +253,15 @@ struct PhotoAdjustView: View {
 
     private var bar: some View {
         HStack {
-            Button(PhotoAdjustCopy.cancel) { dismiss() }
-                .font(.display(17))
-                .foregroundStyle(.white)
+            Button { dismiss() } label: {
+                Text(PhotoAdjustCopy.cancel)
+                    .font(.sans(17))
+                    .foregroundStyle(.white)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
+            }
             Spacer()
-            Button(PhotoAdjustCopy.done) {
+            Button {
                 Haptics.light()
                 // Each at the frame's shape now, a photo left before the shape button changed included.
                 let all = images.indices.map { i in
@@ -262,9 +271,13 @@ struct PhotoAdjustView: View {
                 }
                 onDone(all, isSquare)
                 dismiss()
+            } label: {
+                Text(PhotoAdjustCopy.done)
+                    .font(.sansSemibold(17))
+                    .foregroundStyle(Hue.brandDisc)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
             }
-            .font(.displaySemi(17))
-            .foregroundStyle(Hue.brandDisc)
         }
         .buttonStyle(.press(.dim))
         .padding(.horizontal, Metric.barSide)
@@ -287,11 +300,12 @@ struct PhotoAdjustView: View {
             stage.keep(on)
             isSquare.toggle()
         } label: {
-            Image(systemName: isSquare ? "arrow.up.left.and.arrow.down.right" : "arrow.down.right.and.arrow.up.left")
+            Image(systemName: "arrow.up.left.and.arrow.down.right")
                 .font(.glyph(15, weight: .semibold))
                 .foregroundStyle(.white)
                 .frame(width: Metric.shapeButton, height: Metric.shapeButton)
-                .background(.black.opacity(0.55), in: Circle())
+                .background(Hue.pillDeep.opacity(0.72), in: Circle())
+                .background(.ultraThinMaterial, in: Circle())
                 .frame(width: 44, height: 44)
                 .contentShape(Circle())
         }
@@ -455,7 +469,8 @@ struct PhotoAdjustScroll: UIViewRepresentable {
             if fresh && animated {
                 UIView.transition(with: scroll, duration: 0.2, options: .transitionCrossDissolve, animations: apply)
             } else if animated && !sameFrame && !first {
-                UIView.animate(withDuration: 0.35, delay: 0, options: [.curveEaseInOut, .allowUserInteraction], animations: apply)
+                // Motion.smooth's own curve (a 0.35 s spring, no bounce), so the photo and the dimmed hole move as one.
+                UIView.animate(springDuration: 0.35, bounce: 0, options: [.allowUserInteraction], animations: apply)
             } else {
                 apply()
             }

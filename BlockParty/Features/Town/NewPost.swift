@@ -308,11 +308,11 @@ nonisolated struct PickedPhoto: Equatable, Identifiable, Sendable {
     }
 
     /// Cut again from the photo as picked, where Adjust left it (backlog 32); nil when that can't be read or written.
+    /// The old cut stays on disk until the new list is kept (the review: a trash tap mid-cut).
     func recut(_ crop: CGRect) -> PickedPhoto? {
         guard let source, let image = UIImage(contentsOfFile: source.path) else { return nil }
         let cut = PhotoCrop.cut(image, to: crop)
         guard let file = ProfileModel.coverJPEG(cut).flatMap(Self.save) else { return nil }
-        try? FileManager.default.removeItem(at: self.file)
         return PickedPhoto(id: id, file: file, aspect: NewPostDraft.aspect(cut.size), source: source, own: own, crop: crop)
     }
 
@@ -401,9 +401,18 @@ final class NewPostModel {
     func adjust(_ crops: [String: CGRect], square: Bool) async {
         let before = photos
         self.square = square
+        // Post and the photo's tap wait while the photos are cut again, as for a pick still loading.
+        loading += 1
         let next = await Self.recut(before, crops)
-        guard photos == before else { return }
+        loading = max(loading - 1, 0)
+        let old = Set(before.map(\.file)), new = Set(next.map(\.file))
+        guard photos == before else {
+            // Changed meanwhile (the trash): the new cuts go, the photos stay as they are.
+            for file in new.subtracting(old) { try? FileManager.default.removeItem(at: file) }
+            return
+        }
         set(next)
+        for file in old.subtracting(new) { try? FileManager.default.removeItem(at: file) }
     }
 
     @concurrent
