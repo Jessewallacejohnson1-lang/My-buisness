@@ -202,7 +202,8 @@ final class FollowingNews {
             let new = try await read()
             guard mine == latestRead else { return }
             actions?.read(news: new)
-            items = new
+            // Read on every visit: the same stories leave the page alone (tab-lag).
+            if items != new { items = new }
         } catch {
             guard mine == latestRead else { return }
             Log.network("FollowingNews: \(error)")

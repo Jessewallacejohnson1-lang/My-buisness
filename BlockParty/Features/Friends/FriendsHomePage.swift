@@ -78,6 +78,7 @@ struct FriendsHomePage: View {
     @EnvironmentObject private var auth: AuthStore
     @Environment(FriendsBook.self) private var book
     @Environment(ChatBook.self) private var chats
+    @Environment(\.tabOnScreen) private var tabOnScreen
     /// The Town's groups, each saying whether you're in it (`get_groups`), read here and on You.
     @Environment(YouModel.self) private var you
     @Environment(RealLifeActions.self) private var actions
@@ -149,14 +150,15 @@ struct FriendsHomePage: View {
             Task { await refreshGroups() }
         }
         // Read on every visit; once drawn, the dot clears and accepted lines count as seen.
-        .task {
+        // The tab stays built (TabPages.swift): a visit is the tab coming on screen.
+        .task(id: tabOnScreen) {
+            guard tabOnScreen else { return }
             await book.refresh()
             await book.seen()
         }
-        .task { await book.refreshSuggestions() }
-        .task { await refreshGroups() }
-        .onAppear { book.screenOpened() }
-        .onDisappear { book.screenClosed() }
+        .task(id: tabOnScreen) { if tabOnScreen { await book.refreshSuggestions() } }
+        .task(id: tabOnScreen) { if tabOnScreen { await refreshGroups() } }
+        .onScreen { book.screenOpened() } disappear: { book.screenClosed() }
     }
 
     /// Nothing typed: the accepted lines, Requests, Friends are going, Groups, Suggested for you
@@ -286,9 +288,10 @@ struct FriendsHomePage: View {
         func next(_ group: TownGroup) -> String {
             GroupJoinRow.next(group, now: now).map { $0.day + " " + ($0.time ?? "~") } ?? "~"
         }
-        let open = all.filter { !member($0) }.enumerated().sorted { a, b in
-            next(a.element) != next(b.element) ? next(a.element) < next(b.element) : a.offset < b.offset
-        }.map(\.element)
+        // Each group's next get-together worked out once, not on every comparison of the sort.
+        let keyed: [(at: Int, next: String, group: TownGroup)] =
+            all.filter { !member($0) }.enumerated().map { (at: $0.offset, next: next($0.element), group: $0.element) }
+        let open = keyed.sorted { a, b in a.next != b.next ? a.next < b.next : a.at < b.at }.map(\.group)
         return (all.filter(member), open)
     }
 

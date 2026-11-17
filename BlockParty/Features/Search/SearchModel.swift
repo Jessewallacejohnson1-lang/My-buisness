@@ -490,10 +490,16 @@ final class SearchModel {
     /// already leaves out what you hid or muted.
     func show(events cards: [FeedCardItem]?, now: Date = .now) {
         guard let cards else { return }
+        // Search opens again on every visit to its tab: the same cards within the minute are already
+        // shown, and working them out again froze the tab switch (tab-lag, 2026-11-16).
+        if let last = lastShown, last.cards == cards, now.timeIntervalSince(last.at) < 60 { return }
+        lastShown = (cards, now)
         events = Self.events(from: cards, now: now)
         eventsLoaded = true
         findCalendar(now: now)
     }
+
+    @ObservationIgnored private var lastShown: (cards: [FeedCardItem], at: Date)?
 
     /// The Event calendar's year of public Events in its order (`loadCalendar`).
     func show(calendar events: [DailyEvent], now: Date = .now) {
@@ -583,7 +589,11 @@ final class SearchModel {
     /// One kind's row, in order. Businesses show only with a logo: the row is logos, each
     /// shown once. Schools show their crests, not their activities.
     func row(_ kind: SearchItem.Kind) -> [SearchItem] {
-        Self.ordered(items.filter { $0.kind == kind && (kind != .business || $0.logo?.onWall != false) && $0.activity == nil })
+        Self.ordered(items.filter { Self.inRow($0, kind) })
+    }
+
+    private static func inRow(_ item: SearchItem, _ kind: SearchItem.Kind) -> Bool {
+        item.kind == kind && (kind != .business || item.logo?.onWall != false) && item.activity == nil
     }
 
     /// Whether a kind's row is still waiting on Supabase.
@@ -600,9 +610,11 @@ final class SearchModel {
 
     /// The pills worth showing: All, and every filter with something behind it.
     var chips: [SearchChip] {
-        SearchChip.allCases.filter { chip in
+        // Only whether a row has anything: sorting every row to ask cost a tab switch a fifth of a second (tab-lag).
+        let all = items
+        return SearchChip.allCases.filter { chip in
             guard let kind = chip.kind else { return true }
-            return isLoading(kind) || !row(kind).isEmpty
+            return isLoading(kind) || all.contains { Self.inRow($0, kind) }
         }
     }
 

@@ -395,10 +395,10 @@ struct MainTabsView: View {
     @State private var mapOpener: EventMapOpener?
     /// New post, from the Town bar's + (BP app references/post-screen).
     @State private var creating = false
-    /// Direction of the last tab change — whether the incoming screen slides in
-    /// from the trailing edge (moving *forward* through the tab order) or the
-    /// leading edge (moving back). Set in `select(_:)` right before the animation.
-    @State private var slideForward = true
+    /// The tabs built so far: each stays once visited (TabPages.swift).
+    @State private var visited: Set<Tab> = []
+    /// The tab sliding off during a switch, shown until its slide ends.
+    @State private var leaving: Tab?
     /// The Town feed is reading down (`TabBarCompactKey`): the tab bar rests small.
     @State private var tabBarCompact = false
     /// Your profile: the You tab's photo in the bar, and New post's name line.
@@ -723,72 +723,16 @@ struct MainTabsView: View {
             // with anything: one identical capsule on every tab.
             GlassEffectContainer(spacing: 22) {
                 ZStack(alignment: .bottom) {
-                    Group {
-                        switch tab {
-                        case .town:
-                            TownView(
-                                onOpenMap: { showMap = true },
-                                onOpenNotifications: { path.append(NotificationsRoute()) },
-                                onCreate: create,
-                                onOpenPage: { path.append($0) },
-                                townFeed: townFeed,
-                                eventOfTheDay: eventOfTheDay,
-                                places: searchModel.place,
-                                tappedAgain: townTappedAgain
-                            )
-                        // Daily shows paper while its first read is out, then its page: the week
-                        // on top, and under it the picked day, or the named, reserved slot on a
-                        // day with nothing in it.
-                        case .blockParty:
-                            Group {
-                                if DailySpotlight.today != nil || eventOfTheDay.events != nil {
-                                    // The Town feed's list, worked out once for the page (daily-tab 25).
-                                    let feed = townFeed.shown
-                                    DailyPage(spotlight: DailySpotlight.today, events: eventOfTheDay.events ?? [],
-                                              picked: $dailyDay, dayPicks: dayPicks, friends: dailyFriends,
-                                              cards: feed.compactMap(\.card), posts: feed.compactMap(\.post),
-                                              // A story you hid or whose place you muted goes here too.
-                                              news: followingNews.items.filter { !townFeed.hides.isHidden(id: $0.id, host: $0.place) },
-                                              feed: feed)
-                                        // Following's post and News cards (daily-tab 23): the •••'s Delete and
-                                        // the hold's Not interested and Mute.
-                                        .environment(townFeed)
-                                } else {
-                                    Hue.paper.ignoresSafeArea()
-                                }
-                            }
-                            .task { await eventOfTheDay.refresh() }
-                            .task { await followingNews.refresh() }
-                        // Neighbours and Groups (five-tabs 02): the Friends page as a tab, the
-                        // Town feed's cards for what friends are going to.
-                        case .friends:
-                            FriendsHomePage(tab: true, cards: townFeed.cards)
-                                // The Town tab reads the feed; a launch straight onto Friends reads it here.
-                                .task { if townFeed.entries == nil { await townFeed.refresh() } }
-                        // Places, businesses and the Town feed's Events (five-tabs 04).
-                        case .search:
-                            // A failed read with nothing kept is no Events, not a shimmer for good.
-                            SearchPage(model: searchModel,
-                                       cards: townFeed.entries == nil ? (townFeed.failed ? [] : nil) : townFeed.cards,
-                                       news: townFeed.news)
-                                // The Town tab reads the feed; a launch straight onto Search reads it here.
-                                .task { if townFeed.entries == nil { await townFeed.refresh() } }
-                        // Your Profile, with your full Calendar and Agenda (five-tabs 03).
-                        case .you:
-                            // Its Map button opens the map as the Town bar's yellow disc does.
-                            ProfileView(model: session.profile, likes: likes, openMap: { showMap = true })
-                                // Settings' Calendar switch, and what Muted and Following read.
-                                .environment(calendarSync)
-                                .environment(townFeed)
-                                .environment(searchModel)
+                    // Every tab visited stays built (TabPages.swift); the one on screen and the one
+                    // sliding off show, each offset to its side, so a switch is the same coupled
+                    // slide as before without building the page again.
+                    ZStack {
+                        ForEach(Tab.allCases.filter { visited.contains($0) || $0 == tab }) { page in
+                            KeptTab(page: page, key: [townTappedAgain, dailyDay]) { tabContent(page) }
+                                .equatable()
+                                .tabPage(page, current: tab, leaving: leaving, reduceMotion: reduceMotion)
                         }
                     }
-                    // Identity keyed on the tab so a switch is an insertion+removal that
-                    // the page transition can animate: the outgoing screen slides off one
-                    // edge while the incoming slides in from the other, in lockstep — a
-                    // swipe to the new tab rather than a flat swap.
-                    .id(tab)
-                    .transition(pageTransition)
                     // NO LOADING COVER. A tab that is still fetching renders its own
                     // skeleton in its own layout (Features/Components/Skeleton.swift);
                     // nothing is ever hidden behind a full-screen cover. The dark
@@ -850,6 +794,71 @@ struct MainTabsView: View {
         #endif
     }
 
+    /// One tab's page, built on its first visit and kept (`visited`).
+    @ViewBuilder private func tabContent(_ page: Tab) -> some View {
+        switch page {
+        case .town:
+            TownView(
+                onOpenMap: { showMap = true },
+                onOpenNotifications: { path.append(NotificationsRoute()) },
+                onCreate: create,
+                onOpenPage: { path.append($0) },
+                townFeed: townFeed,
+                eventOfTheDay: eventOfTheDay,
+                places: searchModel.place,
+                tappedAgain: townTappedAgain
+            )
+        // Daily shows paper while its first read is out, then its page: the week
+        // on top, and under it the picked day, or the named, reserved slot on a
+        // day with nothing in it.
+        case .blockParty:
+            Group {
+                if DailySpotlight.today != nil || eventOfTheDay.events != nil {
+                    // The Town feed's list, worked out once for the page (daily-tab 25).
+                    let feed = townFeed.shown
+                    DailyPage(spotlight: DailySpotlight.today, events: eventOfTheDay.events ?? [],
+                              picked: $dailyDay, dayPicks: dayPicks, friends: dailyFriends,
+                              cards: feed.compactMap(\.card), posts: feed.compactMap(\.post),
+                              // A story you hid or whose place you muted goes here too.
+                              news: followingNews.items.filter { !townFeed.hides.isHidden(id: $0.id, host: $0.place) },
+                              feed: feed)
+                        // Following's post and News cards (daily-tab 23): the •••'s Delete and
+                        // the hold's Not interested and Mute.
+                        .environment(townFeed)
+                } else {
+                    Hue.paper.ignoresSafeArea()
+                }
+            }
+            // Read on every visit, as when the tab was built each time.
+            .onScreen {
+                Task { await eventOfTheDay.refresh() }
+                Task { await followingNews.refresh() }
+            }
+        // Neighbours and Groups (five-tabs 02): the Friends page as a tab, the
+        // Town feed's cards for what friends are going to.
+        case .friends:
+            FriendsHomePage(tab: true, cards: townFeed.cards)
+                // The Town tab reads the feed; a launch straight onto Friends reads it here.
+                .task { if townFeed.entries == nil { await townFeed.refresh() } }
+        // Places, businesses and the Town feed's Events (five-tabs 04).
+        case .search:
+            // A failed read with nothing kept is no Events, not a shimmer for good.
+            SearchPage(model: searchModel,
+                       cards: townFeed.entries == nil ? (townFeed.failed ? [] : nil) : townFeed.cards,
+                       news: townFeed.news)
+                // The Town tab reads the feed; a launch straight onto Search reads it here.
+                .task { if townFeed.entries == nil { await townFeed.refresh() } }
+        // Your Profile, with your full Calendar and Agenda (five-tabs 03).
+        case .you:
+            // Its Map button opens the map as the Town bar's yellow disc does.
+            ProfileView(model: session.profile, likes: likes, openMap: { showMap = true })
+                // Settings' Calendar switch, and what Muted and Following read.
+                .environment(calendarSync)
+                .environment(townFeed)
+                .environment(searchModel)
+        }
+    }
+
     #if DEBUG
     /// Walks forward through the bar, one tab every 1.4s, wrapping at the end. Each
     /// step goes through `switchTab`, so what gets recorded is the real transition,
@@ -884,25 +893,25 @@ struct MainTabsView: View {
     /// (`TabBarMetric.travel`); Reduce Motion swaps both for a short crossfade.
     /// Shared, so a route-driven change feels exactly like a tapped one.
     private func switchTab(to newTab: Tab) {
-        slideForward = newTab.rawValue > tab.rawValue
-        withAnimation(reduceMotion
-            ? .easeInOut(duration: 0.2)
-            : .spring(response: 0.44, dampingFraction: 0.86)) {
-            tab = newTab
+        let old = tab
+        visited.insert(old)
+        // A tab's first visit is built off to its side first, so it slides in like the rest.
+        let slide = {
+            leaving = old
+            withAnimation(reduceMotion
+                ? .easeInOut(duration: 0.2)
+                : .spring(response: 0.44, dampingFraction: 0.86)) {
+                tab = newTab
+            } completion: {
+                if leaving == old { leaving = nil }
+            }
+        }
+        if visited.insert(newTab).inserted {
+            DispatchQueue.main.async(execute: slide)
+        } else {
+            slide()
         }
         if newTab == .town { Task { await friendsBook.refreshDot() } }
-    }
-
-    /// The coupled slide: incoming enters from the edge you're travelling toward,
-    /// outgoing exits the opposite edge (pure `.move`, no fade, so the two full-
-    /// bleed screens tile seamlessly). Reduce Motion → crossfade, no positional
-    /// motion.
-    private var pageTransition: AnyTransition {
-        if reduceMotion { return .opacity }
-        return .asymmetric(
-            insertion: .move(edge: slideForward ? .trailing : .leading),
-            removal:   .move(edge: slideForward ? .leading  : .trailing)
-        )
     }
 }
 

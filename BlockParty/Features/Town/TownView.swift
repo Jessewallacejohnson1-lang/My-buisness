@@ -289,8 +289,8 @@ struct TownView: View {
         //
         // Leaving and coming back are also the Town feed's (ticket 11): back within 30
         // minutes it lands where it was, which a tab switch used to lose, since the
-        // tab's view is rebuilt.
-        .onAppear {
+        // tab's view was rebuilt. The tab now stays built (TabPages.swift), so these mark the visit.
+        .onScreen {
             AppearanceStore.shared.holdsClock = true
             townFeed.cameBack()
             // Back partway down: land there at once, and a turn later leave the bar
@@ -315,8 +315,7 @@ struct TownView: View {
                 }
             }
             resumed = false
-        }
-        .onDisappear {
+        } disappear: {
             AppearanceStore.shared.holdsClock = false
             townFeed.left(viewGone: true)
         }
