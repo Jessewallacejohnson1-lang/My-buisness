@@ -3,7 +3,6 @@
 //  Block Party — the Town tab body: the top bar over the Town feed.
 //
 
-import Network
 import SwiftUI
 
 struct TownView: View {
@@ -362,13 +361,16 @@ struct TownView: View {
             guard !Task.isCancelled else { return }
             await townFeed.refresh()
         }
-        // Signal back while the Offline pill shows: read again at once, so the pill goes without a pull
-        // (town-feed 47). A read that failed with signal (the server) waits for the next read, as before.
+        // While the Offline pill shows, read again on its own, 2 s, then 4, 8… up to a minute apart, so the pill goes
+        // soon after signal comes back, with no pull (town-feed 47). Not NWPathMonitor: the simulator never tells
+        // it signal came back, so no proof could run.
         .task(id: offline) {
-            guard offline else { return }
-            var lost = false
-            for await path in NWPathMonitor() {
-                if path.status != .satisfied { lost = true } else if lost { await townFeed.refresh(); return }
+            var wait = 2.0
+            while offline {
+                try? await Task.sleep(for: .seconds(wait))
+                guard !Task.isCancelled else { return }
+                await townFeed.refresh()
+                wait = min(wait * 2, 60)
             }
         }
         .onChange(of: scenePhase) { _, phase in
