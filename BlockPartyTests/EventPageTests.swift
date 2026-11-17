@@ -203,6 +203,9 @@ final class EventPageTests: XCTestCase {
                        "a round face covers its circle")
         XCTAssertEqual(FeedCardURLPhoto.decodeSide(image: .zero, box: CGSize(width: 1206, height: 1230)), 1230,
                        "a file that doesn't say its size decodes at the frame's long side")
+        XCTAssertEqual(FeedCardURLPhoto.decodeSide(image: CGSize(width: 1000, height: 2000),
+                                                   box: CGSize(width: 1206, height: 804), fit: true), 804,
+                       "a tall flyer shown whole fits the card's height, no bigger")
     }
 
     /// A photo stretched past 1.10 times to fill the Event page's top shows whole, as a flyer (Jesse, 2026-11-17).

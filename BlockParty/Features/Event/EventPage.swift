@@ -659,7 +659,8 @@ struct EventPage: View {
             if flyer != nil, let credit = creditName, let picture = photos.first {
                 HStack {
                     Spacer(minLength: 0)
-                    PhotoCredit(names: [credit], report: picture.report(place: item.whereLine))
+                    // The picture's label already says it ("Photo, by givemn").
+                    PhotoCredit(names: [credit], report: picture.report(place: item.whereLine), spoken: false)
                         .padding(.trailing, -PhotoCredit.edgeInset)
                 }
                 .frame(height: EventLook.creditLine)

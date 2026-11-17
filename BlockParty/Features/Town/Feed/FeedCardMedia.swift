@@ -40,7 +40,8 @@ struct FeedCardURLPhoto: View {
                 request: FeedCardImageRequest(
                     url: url,
                     width: Self.pixelWidth(points: proxy.size.width, scale: displayScale),
-                    height: Self.pixelWidth(points: proxy.size.height, scale: displayScale)
+                    height: Self.pixelWidth(points: proxy.size.height, scale: displayScale),
+                    fit: whole != nil
                 ),
                 box: proxy.size,
                 onReady: onReady,
@@ -61,13 +62,15 @@ struct FeedCardURLPhoto: View {
     }
 
     /// The long side to decode a photo of `image` pixels at so it fills a `box` of pixels with no
-    /// stretch, never past the photo's own. By width alone, a 3:2 photo came out 804 px tall for the
-    /// Event page's 1230 and was stretched 1.53 times (BP app event-photo-sharp, Jesse 2026-11-17).
-    nonisolated static func decodeSide(image: CGSize, box: CGSize) -> Int {
+    /// stretch, or with `fit` shows whole inside it (a flyer), never past the photo's own. By width
+    /// alone, a 3:2 photo came out 804 px tall for the Event page's 1230 and was stretched 1.53 times
+    /// (BP app event-photo-sharp, Jesse 2026-11-17).
+    nonisolated static func decodeSide(image: CGSize, box: CGSize, fit: Bool = false) -> Int {
         let longest = max(image.width, image.height)
         guard image.width > 0, image.height > 0 else { return max(1, Int(max(box.width, box.height))) }
-        let fill = max(box.width / image.width, box.height / image.height)
-        return max(1, Int(min(longest, (longest * fill).rounded(.up))))
+        let wide = box.width / image.width, tall = box.height / image.height
+        let scale = fit ? min(wide, tall) : max(wide, tall)
+        return max(1, Int(min(longest, (longest * scale).rounded(.up))))
     }
 
     /// What a flyer keeps clear above it: `top` when it would reach the top and foot of its room, none
@@ -189,6 +192,8 @@ private nonisolated struct FeedCardImageRequest: Hashable, Sendable {
     /// The frame's size in pixels; the decode fills it (`FeedCardURLPhoto.decodeSide`).
     let width: Int
     let height: Int
+    /// Shown whole (a flyer), so it fits the frame rather than fills it.
+    var fit = false
     /// Its long side: 300 or under is a face, kept in its own room.
     var side: Int { max(width, height) }
 }
@@ -354,7 +359,7 @@ final class FeedCardImageLoader {
             kCGImageSourceCreateThumbnailWithTransform: true,
             kCGImageSourceShouldCacheImmediately: true,
             kCGImageSourceThumbnailMaxPixelSize: FeedCardURLPhoto.decodeSide(
-                image: pixels(of: source), box: CGSize(width: request.width, height: request.height)),
+                image: pixels(of: source), box: CGSize(width: request.width, height: request.height), fit: request.fit),
         ]
         return CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
     }
