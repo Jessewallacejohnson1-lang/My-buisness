@@ -1703,7 +1703,7 @@ final class TownFeedEventsTests: XCTestCase {
         tap = TownFeed {
             failedDuringRead.append(tap?.failed ?? false)
             if failedDuringRead.count == 1 { throw Offline() }
-            return [TownFeed.entry(row("b"))]
+            return [TownFeed.entry(self.row("b"))]
         }
         await tap?.reload(at: now)
         await tap?.reload(at: now.addingTimeInterval(10))
