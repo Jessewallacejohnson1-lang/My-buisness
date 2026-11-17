@@ -339,8 +339,8 @@ struct FeedCardActionState: Equatable {
 enum FeedCardImageSource: Hashable {
     case eventPhoto(URL)
     /// A place's photo, the chip that credits it (a site, or an author and licence), and its
-    /// shape (width over height) when the database knows it.
-    case placePhoto(URL, credit: String?, aspect: Double? = nil)
+    /// shape (width over height) and height in pixels when the database knows them.
+    case placePhoto(URL, credit: String?, aspect: Double? = nil, height: Int? = nil)
     /// A place we have no photo of: its logo on its Search backdrop (Jesse, 2026-10-16),
     /// drawn as `logo`.
     case placeLogo(PlacePicture)
@@ -348,7 +348,7 @@ enum FeedCardImageSource: Hashable {
 
     nonisolated init(_ picture: PlacePicture) {
         switch picture.kind {
-        case .photo: self = .placePhoto(picture.url, credit: picture.creditLine, aspect: picture.aspect)
+        case .photo: self = .placePhoto(picture.url, credit: picture.creditLine, aspect: picture.aspect, height: picture.height)
         case .logo: self = .placeLogo(picture)
         }
     }

@@ -180,7 +180,7 @@ struct TodayBubble: Identifiable {
     /// its place's logo (`isLogo` sits a logo inside the glass).
     var picture: (url: URL, isLogo: Bool)? {
         switch event.photos().first {
-        case .eventPhoto(let url), .placePhoto(let url, _, _): (url, false)
+        case .eventPhoto(let url), .placePhoto(let url, _, _, _): (url, false)
         case .placeLogo(let logo): (logo.url, true)
         case .fallback, nil: nil
         }

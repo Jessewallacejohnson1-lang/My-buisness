@@ -228,6 +228,37 @@ final class EventPageTests: XCTestCase {
         XCTAssertEqual(FeedCardURLPhoto.pixelWidth(points: 32, scale: 3), 96, "an avatar is unchanged")
     }
 
+    /// A photo decodes to fill its frame's height too, never past its own size: by width alone the Grey
+    /// Face Rescue photo (1600 x 1067) came out 1206 x 804 for the Event page's 1206 x 1230 px top, and was
+    /// stretched 1.53 times (BP app event-photo-sharp).
+    func testAPhotoDecodesToFillItsFrame() {
+        let photo = CGSize(width: 1600, height: 1067)
+        XCTAssertEqual(FeedCardURLPhoto.decodeSide(image: photo, box: CGSize(width: 1206, height: 1230)), 1600,
+                       "the Event page's top takes the whole photo")
+        XCTAssertEqual(FeedCardURLPhoto.decodeSide(image: photo, box: CGSize(width: 1206, height: 804)), 1206,
+                       "a card of the photo's own shape decodes at its width, as before")
+        XCTAssertEqual(FeedCardURLPhoto.decodeSide(image: photo, box: CGSize(width: 96, height: 96)), 144,
+                       "a round face covers its circle")
+        XCTAssertEqual(FeedCardURLPhoto.decodeSide(image: .zero, box: CGSize(width: 1206, height: 1230)), 1230,
+                       "a file that doesn't say its size decodes at the frame's long side")
+        XCTAssertEqual(FeedCardURLPhoto.decodeSide(image: CGSize(width: 1000, height: 2000),
+                                                   box: CGSize(width: 1206, height: 804), fit: true), 804,
+                       "a tall flyer shown whole fits the card's height, no bigger")
+    }
+
+    /// A photo stretched past 1.10 times to fill the Event page's top shows whole, as a flyer (Jesse, 2026-11-17).
+    func testAPhotoTooSmallForTheTopShowsWhole() {
+        let top = CGSize(width: 402, height: 410)
+        XCTAssertTrue(EventPage.tooSmall(aspect: 1600.0 / 1067, height: 1067, frame: top, scale: 3),
+                      "1600 x 1067 is stretched 1.15 times")
+        XCTAssertFalse(EventPage.tooSmall(aspect: 2000.0 / 1333, height: 1333, frame: top, scale: 3),
+                       "2000 x 1333 fills it")
+        XCTAssertFalse(EventPage.tooSmall(aspect: 1.5, height: 1130, frame: top, scale: 3),
+                       "1.09 times still fills")
+        XCTAssertTrue(EventPage.tooSmall(aspect: 0.8, height: 1250, frame: top, scale: 3),
+                      "a tall one 1000 px wide is stretched 1.21 times across")
+    }
+
     /// A photo fills its frame around where the eye goes (photo-focus): a face near a tall photo's
     /// top moves the photo down as far as its edge allows; the centre, and a photo already the
     /// frame's shape, move nothing.
