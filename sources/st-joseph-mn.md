@@ -2747,7 +2747,7 @@ Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-0
 ## 7 Hills Staurolites
 ```yaml
 id: 7-hills-staurolites
-status: proposed
+status: retired
 tier: listed
 category: "hardware_home_and_garden_store"
 place_type: "Business"
@@ -2760,7 +2760,7 @@ sources:
     method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-02: 7 Hills Jewelry Company LLC was filed July 2025 and is active at this exact address; also in recent Overture map data.. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-02: 7 Hills Jewelry Company LLC was filed July 2025 and is active at this exact address; also in recent Overture map data.. Unreviewed — tier `listed`, so it publishes nothing until promoted. Retired 2026-11-16: no sign of life: not on Apple Maps or Google, nothing on the web. Hidden in the app (`places.closed_at`) on Jesse's yes; one check only (BP app watch-every-place 32).
 
 ## Adam McArthur Agency LLC
 ```yaml
@@ -3250,7 +3250,7 @@ Notes: Proposed on 2026-10-05 from a Google Maps sweep. Verified 2026-10-04: Goo
 ## The Barn
 ```yaml
 id: barn
-status: proposed
+status: retired
 tier: listed
 category: "farm"
 place_type: "Business"
@@ -3262,7 +3262,7 @@ sources:
     method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-04: Overture lists it open (confidence 0.54). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-04: Overture lists it open (confidence 0.54). Unreviewed — tier `listed`, so it publishes nothing until promoted. Retired 2026-11-16: no sign of life: not on Apple Maps or Google, the address isn't on property sites. Hidden in the app (`places.closed_at`) on Jesse's yes; one check only (BP app watch-every-place 32).
 
 ## Barrett’s Music
 ```yaml
@@ -4013,7 +4013,7 @@ Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-0
 ## Cost Cutters
 ```yaml
 id: cost-cutters
-status: proposed
+status: retired
 tier: listed
 category: "personal_or_beauty_service"
 place_type: "Business"
@@ -4026,7 +4026,7 @@ sources:
     method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.85). Unreviewed — tier `listed`, so it publishes nothing until promoted. Website dropped 2026-10-19: http://costcutters.regiscorp.com/salondetail/default.asp?salonid=16700 has no address. The place stays (place-photos 07, Jesse's yes).
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.85). Unreviewed — tier `listed`, so it publishes nothing until promoted. Website dropped 2026-10-19: http://costcutters.regiscorp.com/salondetail/default.asp?salonid=16700 has no address. The place stays (place-photos 07, Jesse's yes). Retired 2026-11-16: no sign of life: not on Apple Maps; Google's only nearby Cost Cutters (Sauk Rapids) is closed; suites at its address for lease. Hidden in the app (`places.closed_at`) on Jesse's yes; one check only (BP app watch-every-place 32).
 
 ## Crafted Skin Clinic
 ```yaml
@@ -4619,7 +4619,7 @@ Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-0
 ## Fifth Gear Repair
 ```yaml
 id: fifth-gear-repair
-status: proposed
+status: retired
 tier: listed
 place_type: "Business"
 address: "8274 Delta Circle"
@@ -4631,7 +4631,7 @@ sources:
     method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from lakesnwoods.com. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-02: Fifth Gear Repair Inc. is active/in good standing with MN Secretary of State, renewed July 2025, principal office 8274 Delta Circle.. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from lakesnwoods.com. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-02: Fifth Gear Repair Inc. is active/in good standing with MN Secretary of State, renewed July 2025, principal office 8274 Delta Circle.. Unreviewed — tier `listed`, so it publishes nothing until promoted. Retired 2026-11-16: no sign of life: not on Apple Maps or Google, one old directory listing. Hidden in the app (`places.closed_at`) on Jesse's yes; one check only (BP app watch-every-place 32).
 
 ## Fine Line Entertainment
 ```yaml
@@ -5585,7 +5585,7 @@ Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists
 ## John Mondloch Remodeling
 ```yaml
 id: john-mondloch-remodeling
-status: proposed
+status: retired
 tier: listed
 place_type: "Business"
 address: "8046 Sterling Dr"
@@ -5597,7 +5597,7 @@ sources:
     method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.85). Unreviewed — tier `listed`, so it publishes nothing until promoted. Website dropped 2026-10-19: http://mondlochremodeling.com/ answers 404 on every page. The place stays (place-photos 07, Jesse's yes).
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.85). Unreviewed — tier `listed`, so it publishes nothing until promoted. Website dropped 2026-10-19: http://mondlochremodeling.com/ answers 404 on every page. The place stays (place-photos 07, Jesse's yes). Retired 2026-11-16: no sign of life: not on Apple Maps or Google, its website is gone (404). Hidden in the app (`places.closed_at`) on Jesse's yes; one check only (BP app watch-every-place 32).
 
 ## Jon Mueller Roofing
 ```yaml
@@ -6066,7 +6066,7 @@ Notes: Proposed on 2026-10-05 from lakesnwoods.com. No URL was found, so this is
 ## The Master Engraving Shoppe
 ```yaml
 id: master-engraving-shoppe
-status: proposed
+status: retired
 tier: listed
 category: "fashion_and_apparel_store"
 place_type: "Business"
@@ -6079,7 +6079,7 @@ sources:
     method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-04: Overture lists it open (confidence 0.95). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-04: Overture lists it open (confidence 0.95). Unreviewed — tier `listed`, so it publishes nothing until promoted. Retired 2026-11-16: no sign of life: not on Apple Maps or Google, nothing on the web. Hidden in the app (`places.closed_at`) on Jesse's yes; one check only (BP app watch-every-place 32).
 
 ## Mathew Hall Components
 ```yaml
@@ -6604,7 +6604,7 @@ Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists
 ## Outlet Bait & Tackle
 ```yaml
 id: outlet-bait-tackle
-status: active
+status: retired
 tier: watched
 category: "sporting_goods_store"
 place_type: "Business"
@@ -6617,7 +6617,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.52). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.52). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022). Retired 2026-11-16: no sign of life: not on Apple Maps or Google; its website on file is a national fishing site. Hidden in the app (`places.closed_at`) on Jesse's yes; one check only (BP app watch-every-place 32).
 
 ## Paquin Seasonal/Self Storage
 ```yaml
@@ -7174,7 +7174,7 @@ Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-0
 ## Rocky Acre Gardens
 ```yaml
 id: rocky-acre-gardens
-status: proposed
+status: retired
 tier: listed
 category: "hardware_home_and_garden_store"
 place_type: "Business"
@@ -7187,7 +7187,7 @@ sources:
     method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-04: Overture lists it open (confidence 0.72). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-04: Overture lists it open (confidence 0.72). Unreviewed — tier `listed`, so it publishes nothing until promoted. Retired 2026-11-16: no sign of life: not on Apple Maps or Google, nothing on the web. Hidden in the app (`places.closed_at`) on Jesse's yes; one check only (BP app watch-every-place 32).
 
 ## Roger Preusser Inc
 ```yaml
@@ -7369,7 +7369,7 @@ Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps li
 ## Sam's Outdoor & More
 ```yaml
 id: sams-outdoor-more
-status: proposed
+status: retired
 tier: listed
 category: "sporting_goods_store"
 place_type: "Business"
@@ -7382,7 +7382,7 @@ sources:
     method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted. Website dropped 2026-10-19: https://samsoutdoorsllc.com/ answers 404 on every page. The place stays (place-photos 07, Jesse's yes).
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.92). Unreviewed — tier `listed`, so it publishes nothing until promoted. Website dropped 2026-10-19: https://samsoutdoorsllc.com/ answers 404 on every page. The place stays (place-photos 07, Jesse's yes). Retired 2026-11-16: no sign of life: not on Apple Maps or Google, its website and store page are gone. Hidden in the app (`places.closed_at`) on Jesse's yes; one check only (BP app watch-every-place 32).
 
 ## Scenic Specialties Landscape Professionals
 ```yaml
@@ -9202,7 +9202,7 @@ Notes: Proposed on 2026-10-18 for BP app place-photos 04 (a picture for every ev
 ## Sheryl Matters Massage
 ```yaml
 id: sheryl-matters-massage
-status: proposed
+status: retired
 tier: listed
 category: "massage"
 place_type: "Business"
@@ -9214,7 +9214,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-18 for BP app place-photos 04 (a picture for every event place). An app place (Search) that had no entry; its Google Maps listing names this website. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-18 for BP app place-photos 04 (a picture for every event place). An app place (Search) that had no entry; its Google Maps listing names this website. Unreviewed — tier `listed`, so it publishes nothing until promoted. Retired 2026-11-16: no sign of life: not on Apple Maps or Google, newest web date 2024, her licences now in Kansas and Indiana. Hidden in the app (`places.closed_at`) on Jesse's yes; one check only (BP app watch-every-place 32).
 
 ## Joetown Burgers
 ```yaml
