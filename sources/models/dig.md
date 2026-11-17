@@ -35,9 +35,15 @@ try the name, the place or the paper another way.
   (thecentralminnesotacatholic.org), a school's student paper: a story on this Event in an earlier year, or on its
   person or group. Search with the place's town and "MN": there are many St. Josephs. The same kind of event in
   another town than the Event's `place` is another Event: Sartell's Veterans Day parade is not St. Cloud's.
+- **An exhibit** (its line says `"exhibit": true`: an art show, gallery exhibit or museum show) wants the work on
+  display (BP app event-photos 24; Jesse, 2026-11-17: "for exhibits we need to be trying to find photos of work
+  displayed"). Read the About for every artist and search each one: their own site on `name`, one page per artist. On
+  `site`, the host's own page for this show; on `news`, the story about it. And each artist's own Instagram profile
+  (`https://www.instagram.com/<handle>`), as `"from": "artist"`: the place's posts step reads it beside the gallery's own
+  posts. This is the one Instagram page a finder names.
 - A page about this Event, its person or its group. Not a search page, a list of events, or a home page with nothing
   on it.
-- Never Facebook, Instagram, Pinterest, Wikipedia, a wire service (AP, Reuters) or a stock site (Getty, Shutterstock):
+- Never Facebook, Instagram (but an exhibit's artists), Pinterest, Wikipedia, a wire service (AP, Reuters) or a stock site (Getty, Shutterstock):
   none of them is kept.
 - Search results only. Pages are read by `event_photos.py dig-sheets` alone: WebFetch and the like stay unused, since
   some sites refuse them.
@@ -65,6 +71,11 @@ the page); `meta_says` is that page's own words for the picture (its alt text), 
   teaching), or a portrait the page's words name as them. The artist's own work counts for their show. A headshot
   nobody names (a writer's byline photo), anyone else on the page, a book cover, or a crowd you can't tell is
   theirs: none.
+- An exhibit (`"exhibit": true`): a piece in this show, from the host's page, its story, an artist's site or an
+  artist's own post, runs before anything else. A piece runs as the artist made it: a soft or misty painting, or a
+  still from the artist's own video work, letterboxed (Bréagán's horse on a misty hill). A reception crowd, the
+  gallery's room, or any picture of another show (last spring's senior art show) is another story: none. With no piece
+  found, pick none: the Event goes on the morning sheet to be found by hand.
 - From `site` or `news`: this Event in an earlier year at this place, or this group (the choir, the team, the class),
   as event-photo.md's caption test. Another place, another kind of thing or another group is none, and so is the
   same kind of event in another town than the Event's place: read the `page_title` (Sartell's Veterans Day parade

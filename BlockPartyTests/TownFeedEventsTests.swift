@@ -526,10 +526,10 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertFalse(cards[0].whole, "its own photo is the picture, not the flyer")
     }
 
-    /// A place's cover isn't a photo of the Event (BP app town-feed 40): its Town card goes white,
-    /// while its page keeps the cover, alone (BP app inside-cards 15), and `image` stays for every
-    /// other screen. The Event's own photo still wins over the cover.
-    func testAPlacesCoverMakesTheWhiteCardAndStaysOnTheEventPage() throws {
+    /// A place's cover isn't a photo of the Event (BP app town-feed 40): its Town card goes white, and
+    /// its page shows no picture (town-feed 72), while the map and `image` keep it for every other
+    /// screen. The Event's own photo still wins over the cover.
+    func testAPlacesCoverMakesTheWhiteCardAndLeavesTheEventPage() throws {
         let row = { (id: String, image: String) in """
         {"id":"\(id)","recurrence":null,"leaves_at":"2026-10-31T17:00:00+00:00",
          "card":{"id":"\(id)","title":"Fall Craft Day","event_date":"2026-10-31","start_time":"10 AM",
@@ -544,7 +544,10 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(cards.map(\.coverOnly), [true, false])
         XCTAssertEqual(cards.map(\.isPhotoless), [true, false], "its place's cover: white; its own photo: a photo card")
         XCTAssertEqual(cards[0].photos().compactMap { $0.url?.lastPathComponent }, ["hall.webp"],
-                       "its page keeps the place's cover")
+                       "the map keeps the place's cover")
+        XCTAssertEqual(cards[0].pagePhotos(), [], "its page drops the cover")
+        XCTAssertEqual(cards[1].pagePhotos().compactMap { $0.url?.lastPathComponent }, ["own.jpg"],
+                       "its own photo stays on its page")
         XCTAssertEqual(cards[0].image.url?.lastPathComponent, "hall.webp", "other screens keep what they show")
     }
 

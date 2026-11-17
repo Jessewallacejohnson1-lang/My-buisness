@@ -413,16 +413,17 @@ struct EventPage: View {
 
     // MARK: The picture (inside-cards 15 and 17)
 
-    /// The card's picture (`FeedCardItem.photos`): the Event's own, else its place's, saved by Block Party,
-    /// so nothing is looked up. One picture, so the page doesn't swipe (Jesse, 2026-11-06).
+    /// The card's picture (`FeedCardItem.pagePhotos`): the Event's own, else its place's, saved by Block Party,
+    /// so nothing is looked up; never its place's cover alone (BP app town-feed 72). One picture, so the page
+    /// doesn't swipe (Jesse, 2026-11-06).
     private var photos: [FeedCardImageSource] {
-        item.photos(failed: failedPhotos)
+        item.pagePhotos(failed: failedPhotos)
     }
 
     /// A place we have no photo of puts its logo where the picture goes, on a white disc: the card's own
     /// picture when that is the logo, else its place's.
     private var heroLogo: SearchLogo? {
-        photos.isEmpty ? item.image.logo ?? item.place?.logo : nil
+        photos.isEmpty ? item.image.logo ?? item.place?.logo ?? item.hostPicture.map(FeedCardImageSource.init)?.logo : nil
     }
 
     private var hasHero: Bool { !photos.isEmpty || heroLogo != nil }
