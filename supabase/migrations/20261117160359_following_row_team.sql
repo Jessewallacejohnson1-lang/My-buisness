@@ -4,11 +4,114 @@
 -- title and missed the logo. The follow pick now keeps the team it matched, and the Event's card says it as
 -- game.mine (that team's uuid, as game.teams[].id), for the caller only.
 --
--- 20261117034755_news_post_time.sql's private.town_feed, line for line but for three places marked
--- "daily-tab 27". Same arguments and columns, so get_town_feed (which calls it) stays as it is.
--- Roll back: re-run that file's private.town_feed.
+-- supabase/town_feed.sql, changed in three places marked "daily-tab 27"; same arguments and columns.
+-- Roll back: re-run 20261117034755_news_post_time.sql.
 
-create or replace function private.town_feed(p_now timestamptz, p_news boolean, p_only uuid[] default null,
+-- The same creator never twice in a row (BP app town-feed 66, Jesse 2026-11-13). Takes the Town feed's cards in their
+-- order, each as its creator (a number per creator) and its lane (0 live on top, 1 Events and posts, 2 News), and gives
+-- back the order to show them in, as places in that list. Every spot keeps its lane, so live stays on top and News keeps
+-- its spots. Each spot takes the first card of its lane not yet placed whose creator isn't the one above, so a card
+-- moves down only past the next creator's card. A pair still touching after that (one creator all that's left at the
+-- bottom, or a story's spot after its own place's Event) trades one of its two cards with the nearest card of the same
+-- lane, within 20 spots, that sits between two others there: the shortest move first, below first. The first pass
+-- doesn't look ahead to a story's spot, so now and then it leaves more touching than the order it was given; that order
+-- gets the same trades too, and the one with fewer touching wins (the first pass's on a tie). One creator with more than
+-- half a lane still touches: no card is left out.
+create or replace function private.never_two_in_a_row(p_who int[], p_lane int[])
+returns int[]
+language plpgsql
+immutable strict
+set search_path = ''
+as $$
+declare
+  n int := coalesce(array_length(p_who, 1), 0);
+  used boolean[] := array_fill(false, array[n]);
+  pick int[] := array_fill(0, array[n]);
+  -- Per lane, where its cards not yet placed start.
+  first_of int[] := array[1, 1, 1];
+  lane int;
+  prev int;
+  j int;
+  take int;
+  spare int;
+  m int;
+  held int;
+  greedy int[];
+  best int[];
+  fewest int;
+  touching int;
+begin
+  for pos in 1..n loop
+    lane := p_lane[pos];
+    take := null;
+    spare := null;
+    j := first_of[lane + 1];
+    while j <= n loop
+      if not used[j] and p_lane[j] = lane then
+        spare := coalesce(spare, j);
+        if prev is null or p_who[j] <> prev then
+          take := j;
+          exit;
+        end if;
+      end if;
+      j := j + 1;
+    end loop;
+    -- Every spot has a card of its lane left: a lane has as many cards as spots.
+    take := coalesce(take, spare);
+    used[take] := true;
+    pick[pos] := take;
+    prev := p_who[take];
+    while first_of[lane + 1] <= n and (used[first_of[lane + 1]] or p_lane[first_of[lane + 1]] <> lane) loop
+      first_of[lane + 1] := first_of[lane + 1] + 1;
+    end loop;
+  end loop;
+
+  greedy := pick;
+  for round in 1..2 loop
+    pick := case when round = 1 then greedy else array(select generate_series(1, n)) end;
+    -- 20 spots each way: twice the longest move on the live feed (10, 2026-11-13), and a feed one creator fills stays
+    -- quick. Each check is plain arithmetic, no query.
+    for k in 2..n loop
+      continue when p_who[pick[k]] <> p_who[pick[k - 1]];
+      <<pair>>
+      for d in 1..20 loop
+        foreach j in array array[k, k - 1] loop
+          foreach m in array array[j + d, j - d] loop
+            -- Only a card of the same lane from someone else can go there.
+            continue when m < 1 or m > n or p_lane[m] <> p_lane[j] or p_who[pick[m]] = p_who[pick[j]];
+            held := pick[m];
+            pick[m] := pick[j];
+            pick[j] := held;
+            exit pair when (m = 1 or p_who[pick[m]] <> p_who[pick[m - 1]])
+                       and (m = n or p_who[pick[m]] <> p_who[pick[m + 1]])
+                       and (j = 1 or p_who[pick[j]] <> p_who[pick[j - 1]])
+                       and (j = n or p_who[pick[j]] <> p_who[pick[j + 1]]);
+            pick[j] := pick[m];
+            pick[m] := held;
+          end loop;
+        end loop;
+      end loop;
+    end loop;
+    touching := 0;
+    for k in 2..n loop
+      if p_who[pick[k]] = p_who[pick[k - 1]] then
+        touching := touching + 1;
+      end if;
+    end loop;
+    if fewest is null or touching < fewest then
+      best := pick;
+      fewest := touching;
+    end if;
+  end loop;
+  return best;
+end;
+$$;
+revoke execute on function private.never_two_in_a_row(int[], int[]) from public;
+grant execute on function private.never_two_in_a_row(int[], int[]) to anon, authenticated;
+
+drop function if exists private.town_feed(timestamptz, boolean, uuid[], boolean);
+
+create function private.town_feed(p_now timestamptz, p_news boolean, p_only uuid[] default null,
                                              p_later boolean default false)
 returns table (
   id uuid,
@@ -818,3 +921,44 @@ as $$
 $$;
 revoke execute on function private.town_feed(timestamptz, boolean, uuid[], boolean) from public;
 grant execute on function private.town_feed(timestamptz, boolean, uuid[], boolean) to anon, authenticated;
+
+-- The Town feed, as every app reads it: the body is private.town_feed's.
+drop function if exists public.get_town_feed(timestamptz, boolean, boolean);
+
+create function public.get_town_feed(p_now timestamptz default now(), p_news boolean default false,
+                                      p_later boolean default false)
+returns table (
+  id uuid,
+  title text,
+  location text,
+  image_url text,
+  source_name text,
+  created_at timestamptz,
+  recurrence text,
+  leaves_at timestamptz,
+  reason text,
+  reason_name text,
+  score jsonb,
+  heart_count int,
+  hearted boolean,
+  saved boolean,
+  place_picture jsonb,
+  description text,
+  club_id uuid,
+  in_club boolean,
+  kind text,
+  source_url text,
+  -- A post's neighbour: name, photo and the friends they tagged (town-feed 29); null for the rest.
+  poster jsonb,
+  -- The Event card (codebase-health-2 02); null for news and posts. An Event's title, place, picture, words and
+  -- link are its card's: those columns are news' and posts' only (codebase-health-2 03).
+  card jsonb
+)
+language sql
+stable
+security invoker
+set search_path = public
+as $$
+  select * from private.town_feed(p_now, p_news, null, p_later);
+$$;
+grant execute on function public.get_town_feed(timestamptz, boolean, boolean) to anon, authenticated;

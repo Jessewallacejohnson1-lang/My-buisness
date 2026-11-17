@@ -315,6 +315,7 @@ as $$
                then m24[1]::int * 60 + m24[2]::int
            end as start_minutes,
            fl.followed as school_followed,
+           fl.team as school_team,
            mt.is_meeting,
            mt.board as meeting_board
     from public.club_events e
@@ -331,15 +332,19 @@ as $$
     -- activity plays in it under another team's name; by label within each, so a card keeps its name.
     -- Only an Event naming a school can be one's: the rest skip the activity match. The inner `case` keeps
     -- the order: activity_has_event's team rule and activity_may_have first, both cheap, then the function.
+    -- With it, the team it plays as in this Event (daily-tab 27): the co-op's when the co-op plays, else its own.
     cross join lateral (select case when e.team_ids is not null or e.activity_team is not null then
-      (select x.label
-       from (select m.label, m.ord from my_activities m
+      (select array[x.label, x.team]
+       from (select m.label, m.ord,
+                    case when m.coop = any(v.teams) then m.coop else m.fielder end as team
+             from my_activities m
              where case when (m.fielder = any(v.teams) or m.coop = any(v.teams))
                          and private.activity_may_have(m.base, m.gender, v.n, v.base, v.gender, e.sport is null)
                         then public.activity_has_event(m.a, e) end
              union all
-             select s.label, 2 from my_schools s where s.id = any(v.teams)) x
-       order by x.ord, x.label limit 1) end as followed) fl
+             select s.label, 2, s.id from my_schools s where s.id = any(v.teams)) x
+       order by x.ord, x.label limit 1) end as pick) fp
+    cross join lateral (select fp.pick[1] as followed, fp.pick[2] as team) fl
     cross join lateral (select
       regexp_match(lower(btrim(e.start_time)), '^(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m\.?$') as m12,
       regexp_match(btrim(e.start_time), '^(\d{1,2}):(\d{2})(?::\d{2})?$') as m24
@@ -474,7 +479,12 @@ as $$
     -- The Event card (codebase-health-2 02), and from it Going counted once (every account's) and the
     -- caller's friends Going.
     select s.*,
-           ec.card,
+           -- A game's side the caller follows, as game.mine (daily-tab 27): the app's Following row says "vs" the
+           -- other side and shows this one's logo.
+           coalesce(case when s.school_team is not null and jsonb_typeof(ec.card->'game') = 'object'
+                         then jsonb_set(ec.card, '{game,mine}',
+                                        (select to_jsonb(t.uuid) from public.teams t where t.id = s.school_team)) end,
+                    ec.card) as card,
            (ec.card->>'going_count')::int as going_n,
            -- New (town-feed 36, 38, 41): in the feed, posted or its show-from day come, since the caller's
            -- last visit or in the last 24 hours, whichever reaches further back (least() skips a missing
