@@ -441,11 +441,12 @@ struct EventPage: View {
 
     /// The picture, when it shows as a flyer: a flyer (BP app event-photos 16), or a photo too small to fill
     /// the top without a blur, whole as a flyer is (Jesse, 2026-11-17, BP app event-photo-sharp), unless the
-    /// page swipes from it to the Event's flyer. One that failed to load has left the list.
+    /// page swipes from it to the Event's flyer or through an exhibit's pieces, whose pictures all fill the top
+    /// alike (event-photos 25). One that failed to load has left the list.
     private var flyer: URL? {
         guard let first = photos.first, let url = first.url else { return nil }
         if item.whole, item.image.url == url { return url }
-        guard item.flyer == nil, case .placePhoto(_, _, let aspect?, let height?) = first,
+        guard item.flyer == nil, item.pieces.isEmpty, case .placePhoto(_, _, let aspect?, let height?) = first,
               Self.tooSmall(aspect: aspect, height: height, frame: CGSize(width: width, height: photoHeight),
                             scale: displayScale) else { return nil }
         return url
