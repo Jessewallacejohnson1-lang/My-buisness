@@ -1250,6 +1250,28 @@ test("an event card shows its place's photo of what the event is, in season, tak
   await db.exec('delete from public.place_photos; delete from public.places;');
 });
 
+test("an exhibit whose title names nothing never shows another show's scene (event-photos 26)", async () => {
+  await reset();
+  await db.exec(`delete from public.place_photos; delete from public.places;
+    insert into public.place_photos (id, entry_id, url, source_url, position, kind, status, width, height, subjects, seasons, description)
+    overriding system value values
+      (801, 'campus', 'https://x/campus.webp', 'https://campus.edu/', 0, 'photo', 'live', 1600, 1067, '{}', '{}', null),
+      (802, 'campus', 'https://x/play.webp', 'https://campus.edu/t', 1, 'scene', 'live', 1600, 1067, '{theater}', '{}', 'A play on stage');`);
+  const subject = async (...a) => (await db.query('select private.event_subject($1, $2, $3, $4, $5) as s', a)).rows[0].s;
+  assert.equal(await subject('Bréagán', null, 'art_theater', null, 'Alice R. Rogers and Target Galleries'), 'art-gallery', 'its place says gallery');
+  assert.equal(await subject('Reflection', null, 'art_theater', 'The senior art show opens', null), 'art-gallery', 'its About says art show');
+  assert.equal(await subject('Artist Talk', null, 'art_theater', null, 'Gorecki Gallery'), 'talk', "the title's own subject wins");
+  assert.equal(await subject('Bréagán', null, 'art_theater', null, null), 'theater', 'nothing says exhibit: its category');
+  const add = async (title, location) => (await db.query(
+    `insert into public.club_events (status, title, event_date, category, location, source_name, place_entry_id)
+     values ('approved', $1, '2026-12-01', 'art_theater', $2, 'Campus', 'campus') returning id`, [title, location])).rows[0].id;
+  const pic = async (id) => (await db.query('select public.event_picture($1) as p', [id])).rows[0].p;
+  assert.equal((await pic(await add('Bréagán', 'Alice R. Rogers and Target Galleries'))).url, 'https://x/campus.webp',
+               "an exhibit falls through to its place's picture, never the play");
+  assert.equal((await pic(await add('Winter Showcase', 'Escher Auditorium'))).url, 'https://x/play.webp', 'a show still gets the play');
+  await db.exec('delete from public.place_photos; delete from public.places;');
+});
+
 test('event_picture says a flyer shows whole, and never of anything else (event-photos 16)', async () => {
   await reset();
   await db.exec(`delete from public.place_photos; delete from public.places;
