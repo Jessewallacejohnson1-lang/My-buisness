@@ -156,9 +156,6 @@ struct FriendsAllPage: View {
                         }
                     } else {
                         ForEach(book.friends) { PersonRow(person: $0, waiting: false) }
-                        if !book.loaded {
-                            ProgressView().frame(maxWidth: .infinity).padding(.top, FriendsMetric.sectionTop)
-                        }
                     }
                 }
                 .padding(.top, PageMetric.bar + FriendsMetric.resultsTop)
