@@ -2304,6 +2304,37 @@ test('a closing shows from a week before its day until midnight after its last, 
   assert.deepEqual(await newsTitles('2027-01-04 00:01'), []);
 });
 
+// A News counts from when the place posted it (town-feed 70; Jesse, 2026-11-16): its age, its order, its 7 days.
+async function posted(title, postedAt, savedAt) {
+  await db.exec('reset role');
+  await db.query(`update public.board_items set posted_at = $2::timestamp at time zone 'America/Chicago',
+                    created_at = $3::timestamp at time zone 'America/Chicago' where title = $1`, [title, postedAt, savedAt]);
+}
+test('a News counts from its post: its time, newest post first, gone 7 days after the post; one held back counts from its day', async () => {
+  await reset();
+  await news('Found late', '2026-11-10 07:00');
+  await posted('Found late', '2026-11-06 12:00', '2026-11-10 07:00');
+  await news('Found at once', '2026-11-09 08:00');
+  await posted('Found at once', '2026-11-09 07:30', '2026-11-09 08:00');
+  await news('No post time', '2026-11-08 08:00');
+  // A closing written Nov 1 that goes up Nov 12: its post is old, but it is new on its day.
+  await news('Offices Closed', '2026-11-12 00:00', { starts_at: '2026-11-26 00:00' });
+  await posted('Offices Closed', '2026-10-31 09:00', '2026-11-01 06:00');
+  await db.exec('set role anon');
+  const at = async (now) => (await db.query(
+    `select title, created_at from public.flat_town_feed(($1::timestamp at time zone 'America/Chicago'), true)`, [now])).rows;
+  const rows = await at('2026-11-12 09:00');
+  assert.deepEqual(rows.map((r) => r.title), ['Offices Closed', 'Found at once', 'No post time', 'Found late'],
+                   'newest post first: the late find sorts by its post, under one posted after it');
+  const when = Object.fromEntries(rows.map((r) => [r.title, new Date(r.created_at).toISOString()]));
+  assert.equal(when['Found late'], '2026-11-06T18:00:00.000Z', 'its time is the post\'s');
+  assert.equal(when['No post time'], '2026-11-08T14:00:00.000Z', 'no post time: when it went up, as before');
+  assert.equal(when['Offices Closed'], '2026-11-12T06:00:00.000Z', 'held back: the day it goes up');
+  assert.deepEqual((await at('2026-11-13 11:59')).map((r) => r.title).includes('Found late'), true);
+  assert.deepEqual((await at('2026-11-13 12:01')).map((r) => r.title).includes('Found late'), false,
+                   '7 days after its post, not after it was found');
+});
+
 test('road work shows; unpublished news and news with no post to open stay out', async () => {
   await reset();
   await news('Fiber installation underway', '2026-10-08 17:00', { category: 'road', source_name: 'City of St. Joseph' });
