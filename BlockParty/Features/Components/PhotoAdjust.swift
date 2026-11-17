@@ -432,8 +432,9 @@ struct PhotoAdjustScroll: UIViewRepresentable {
                                         : (keep ?? PhotoCrop.middle(of: size, aspect: frame.width / frame.height))
             let least = PhotoCrop.fill(size, frame: frame.size)
             let place = PhotoCrop.place(target, image: size, frame: frame.size, inset: inset)
+            let isNew = index != shown
             let apply = {
-                if index != self.shown {
+                if isNew {
                     self.photo.image = image
                     scroll.minimumZoomScale = 1
                     scroll.maximumZoomScale = 1
