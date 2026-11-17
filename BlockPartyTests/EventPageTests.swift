@@ -168,6 +168,44 @@ final class EventPageTests: XCTestCase {
                        "a flyer that fails gives way to the place's photo")
     }
 
+    /// An exhibit's page swipes through its pieces, then its flyer (BP app event-photos 25; town-feed 59 for the flyer).
+    /// One that fails to load leaves the set; one picture alone doesn't swipe.
+    func testAnExhibitsPageSwipesThroughItsPiecesThenItsFlyer() {
+        let own = Self.url("horse"), flyer = Self.url("flyer")
+        let pieces = ["coat", "hands"].map { FeedCardImageSource.placePhoto(Self.url($0), credit: "Chloe Briggs") }
+        let pages = { (own: URL?, pieces: [FeedCardImageSource], flyer: URL?, failed: Set<URL>) in
+            EventPage.heroPages(own: own.map { .eventPhoto($0) }, pieces: pieces, flyer: flyer, failed: failed)
+        }
+
+        XCTAssertEqual(pages(own, pieces, flyer, []).map(\.url), [own, Self.url("coat"), Self.url("hands"), flyer])
+        XCTAssertEqual(pages(own, pieces, flyer, []).map(\.flyer), [false, false, false, true], "the flyer comes last, whole")
+        XCTAssertEqual(pages(own, pieces, nil, []).last?.picture.attribution, "Chloe Briggs", "a piece keeps its credit")
+        XCTAssertEqual(pages(own, pieces, nil, [Self.url("coat")]).map(\.url), [own, Self.url("hands")],
+                       "a piece that fails leaves the set")
+        XCTAssertEqual(pages(own, [], flyer, []).map(\.url), [own, flyer], "an own photo and its flyer, as before")
+        XCTAssertEqual(pages(own, [], nil, []).count, 0, "one picture doesn't swipe")
+        XCTAssertEqual(pages(own, pieces, flyer, [Self.url("coat"), Self.url("hands"), flyer]).count, 0)
+        XCTAssertEqual(pages(nil, pieces, flyer, []).count, 0, "no own photo: no set")
+        XCTAssertEqual(pages(own, pieces, flyer, [own]).map(\.url), [Self.url("coat"), Self.url("hands"), flyer],
+                       "its first piece fails: the next leads")
+        XCTAssertEqual(pages(own, pieces + [.eventPhoto(own)], nil, []).map(\.url), [own, Self.url("coat"), Self.url("hands")],
+                       "each picture once")
+        XCTAssertEqual(pages(own, [], flyer, [own]).count, 0, "only the flyer left: it shows alone")
+    }
+
+    /// Where the hero rests between two pages, for its height, its colour and its dots: the page on the left and how
+    /// far toward the next, never past either end.
+    func testTheSwipeReadsAsAPageAndHowFarTowardTheNext() {
+        let at = { (x: CGFloat, count: Int) in EventPage.between(x, count: count) }
+        XCTAssertEqual(at(0, 3).page, 0)
+        XCTAssertEqual(at(1.25, 3).page, 1)
+        XCTAssertEqual(at(1.25, 3).toward, 0.25, accuracy: 0.0001)
+        XCTAssertEqual(at(2, 3).page, 1, "on the last page: the one before it, all the way across")
+        XCTAssertEqual(at(2, 3).toward, 1, accuracy: 0.0001)
+        XCTAssertEqual(at(-0.3, 3).toward, 0, accuracy: 0.0001, "a rubber band past the first stays on it")
+        XCTAssertEqual(at(2.4, 3).toward, 1, accuracy: 0.0001, "and past the last on it")
+    }
+
     func testAPictureThatFailsToLoadGivesWayToTheNext() {
         let event = FeedCardImageSource.eventPhoto(Self.photoURL)
         let venue = FeedCardImageSource.placePhoto(Self.url("park"), credit: "Ada Lovelace")
@@ -188,6 +226,37 @@ final class EventPageTests: XCTestCase {
         XCTAssertEqual(FeedCardURLPhoto.pixelWidth(points: 420 + 1.0 / 3, scale: 3), 1260)
         XCTAssertEqual(FeedCardURLPhoto.pixelWidth(points: 420, scale: 3), 1260)
         XCTAssertEqual(FeedCardURLPhoto.pixelWidth(points: 32, scale: 3), 96, "an avatar is unchanged")
+    }
+
+    /// A photo decodes to fill its frame's height too, never past its own size: by width alone the Grey
+    /// Face Rescue photo (1600 x 1067) came out 1206 x 804 for the Event page's 1206 x 1230 px top, and was
+    /// stretched 1.53 times (BP app event-photo-sharp).
+    func testAPhotoDecodesToFillItsFrame() {
+        let photo = CGSize(width: 1600, height: 1067)
+        XCTAssertEqual(FeedCardURLPhoto.decodeSide(image: photo, box: CGSize(width: 1206, height: 1230)), 1600,
+                       "the Event page's top takes the whole photo")
+        XCTAssertEqual(FeedCardURLPhoto.decodeSide(image: photo, box: CGSize(width: 1206, height: 804)), 1206,
+                       "a card of the photo's own shape decodes at its width, as before")
+        XCTAssertEqual(FeedCardURLPhoto.decodeSide(image: photo, box: CGSize(width: 96, height: 96)), 144,
+                       "a round face covers its circle")
+        XCTAssertEqual(FeedCardURLPhoto.decodeSide(image: .zero, box: CGSize(width: 1206, height: 1230)), 1230,
+                       "a file that doesn't say its size decodes at the frame's long side")
+        XCTAssertEqual(FeedCardURLPhoto.decodeSide(image: CGSize(width: 1000, height: 2000),
+                                                   box: CGSize(width: 1206, height: 804), fit: true), 804,
+                       "a tall flyer shown whole fits the card's height, no bigger")
+    }
+
+    /// A photo stretched past 1.10 times to fill the Event page's top shows whole, as a flyer (Jesse, 2026-11-17).
+    func testAPhotoTooSmallForTheTopShowsWhole() {
+        let top = CGSize(width: 402, height: 410)
+        XCTAssertTrue(EventPage.tooSmall(aspect: 1600.0 / 1067, height: 1067, frame: top, scale: 3),
+                      "1600 x 1067 is stretched 1.15 times")
+        XCTAssertFalse(EventPage.tooSmall(aspect: 2000.0 / 1333, height: 1333, frame: top, scale: 3),
+                       "2000 x 1333 fills it")
+        XCTAssertFalse(EventPage.tooSmall(aspect: 1.5, height: 1130, frame: top, scale: 3),
+                       "1.09 times still fills")
+        XCTAssertTrue(EventPage.tooSmall(aspect: 0.8, height: 1250, frame: top, scale: 3),
+                      "a tall one 1000 px wide is stretched 1.21 times across")
     }
 
     /// A photo fills its frame around where the eye goes (photo-focus): a face near a tall photo's

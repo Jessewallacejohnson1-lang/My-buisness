@@ -94,6 +94,7 @@ import find_spots
 import apple_maps
 import team_logos
 import venue_spots
+import audience
 import event_parts
 import nothing_scheduled
 import meeting_times
@@ -1225,6 +1226,7 @@ def finish(run, dry_run):
                        ("standouts", lambda: standouts(run, dry_run)),
                        ("team logos", lambda: team_logos.keep(run, dry_run)),
                        ("venue spots", lambda: venue_spots.keep(run, dry_run)),
+                       ("who it's for", lambda: audience.keep(run, dry_run)),
                        ("event parts", lambda: event_parts.keep(run, dry_run)),
                        ("since the last report", lambda: since_lines(db, today)),
                        ("event photos", lambda: photo_lines(db, today)),

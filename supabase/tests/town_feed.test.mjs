@@ -1310,7 +1310,7 @@ test("an Event's own photo shows before any scene, credited, and is never its pl
   assert.equal((await pic(spring)).url, 'https://x/stage.webp', "another Event never shows this one's photo");
   assert.equal((await db.query("select public.place_picture('prep') as p")).rows[0].p.url, 'https://x/prep.webp',
                "an Event's photo is never the place's cover, though it takes the cover's position");
-  await assert.rejects(own(fall, 'https://x/second.webp'), /place_photos_one_per_event/, 'one live photo per Event');
+  await assert.rejects(own(fall, 'https://x/second.webp'), /place_photos_one_per_piece/, 'one live photo per Event at one place in its set');
   await assert.rejects(own(null, 'https://x/loose.webp'), /place_photos_event_kind/, "an Event's photo names its Event");
   await assert.rejects(own(spring, 'https://x/scene.webp', 'live', 'scene'), /place_photos_event_kind/, 'a scene names none');
 
@@ -1393,8 +1393,42 @@ test("one flyer with many Events: each its own photo, its flyer a swipe away (to
   assert.equal((await pic(santa)).lineup, undefined, 'one series on its own flyer is no lineup');
   await db.query("update public.club_events set status = 'rejected' where id = $1", [market]);
   assert.equal((await pic(memorial)).lineup, undefined, "a hidden Event on the flyer makes no lineup");
-  await assert.rejects(put(memorial, 'https://x/second.webp', 'event'), /place_photos_one_per_event/, 'one live photo per Event');
+  await assert.rejects(put(memorial, 'https://x/second.webp', 'event'), /place_photos_one_per_piece/,
+                       'one live photo per place in its set');
   await db.exec('delete from public.place_photos; delete from public.places;');
+});
+
+test("an exhibit's pieces: the first leads its card, the rest follow in order, then its flyer (event-photos 25)", async () => {
+  await reset();
+  await db.exec('delete from public.place_photos; delete from public.places;');
+  const show = (await db.query(
+    `insert into public.club_events (status, title, event_date, category, source_name, place_entry_id, created_at)
+     values ('approved', 'Bréagán', '2026-11-03', 'arts', 'Campus', 'sju', '2026-09-01 12:00-05') returning id`)).rows[0].id;
+  const put = (url, position, kind = 'event', status = 'live', credit = null) => db.query(
+    `insert into public.place_photos (entry_id, url, source_url, kind, status, event_id, position, credit, width, height)
+     values ('sju', $1, 'https://gallery.example/show', $3, $4, $2, $5, $6, 1600, 1067) returning id`,
+    [url, show, kind, status, position, credit]);
+  const pic = async () => (await db.query('select public.event_picture($1) as p', [show])).rows[0].p;
+
+  await put('https://x/horse.webp', 0);
+  let p = await pic();
+  assert.equal(p.url, 'https://x/horse.webp');
+  assert.equal(p.pieces, undefined, 'one picture: no set');
+  assert.equal(p.own, undefined, 'its row id stays inside');
+  await put('https://x/hands.webp', 2);
+  await put('https://x/coat.webp', 1, 'event', 'live', 'Chloe Briggs');
+  await put('https://x/old.webp', 3, 'event', 'retired');
+  await put('https://x/flyer.webp', 0, 'flyer');
+  p = await pic();
+  assert.equal(p.url, 'https://x/horse.webp', 'the first by position leads the card');
+  assert.deepEqual(p.pieces.map((x) => x.url), ['https://x/coat.webp', 'https://x/hands.webp'], 'the rest in order, live only');
+  assert.deepEqual([p.pieces[0].credit, p.pieces[0].w, p.pieces[0].kind], ['Chloe Briggs', 1600, 'photo'], 'each with its credit');
+  assert.equal(p.flyer.url, 'https://x/flyer.webp', 'its flyer still comes along, last');
+  for (let n = 4; n < 16; n++) await put(`https://x/piece-${n}.webp`, n);
+  assert.equal((await pic()).pieces.length, 9, 'ten at most with the one leading');
+  await assert.rejects(put('https://x/again.webp', 1), /place_photos_one_per_piece/, 'one live photo per place in the set');
+  await assert.rejects(put('https://x/flyer-2.webp', 1, 'flyer'), /place_photos_one_per_event/, 'still one live flyer');
+  await db.exec('delete from public.place_photos;');
 });
 
 test('a Christmas photo shows on a holiday event from November 1, on any from December 1 to January 6 (event-photos 07)', async () => {

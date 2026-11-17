@@ -536,6 +536,29 @@ def plan(lines, groups):
     return picks
 
 
+def pieces_of(lines, groups):
+    """An exhibit's other pieces of its show, after its pick, as the picker named them (`"pieces"`, dig.md): {group key:
+    [candidate]}, each one of the group's own pictures once, none small, none its pick, at most PIECES with the pick
+    (BP app event-photos 25). Only an exhibit's; only a group whose pick is a photo, never a flyer."""
+    picks, by, out = plan(lines, groups), {g["key"]: g for g in groups}, {}
+    for ln in lines:
+        if not isinstance(ln, dict) or ln.get("event") not in picks or ln["event"] in out:
+            continue
+        g, (pick, _, flyer) = by[ln["event"]], picks[ln["event"]]
+        if not g.get("exhibit") or flyer:
+            continue
+        cands = {f"c{c['n']}": c for c in g["cands"]}
+        chosen, seen = [], {pick["url"]}
+        for name in ln.get("pieces") or ():
+            c = cands.get(str(name).strip())
+            if c and not c.get("small") and c["url"] not in seen and len(chosen) < PIECES - 1:
+                seen.add(c["url"])
+                chosen.append(c)
+        if chosen:
+            out[ln["event"]] = chosen
+    return out
+
+
 def image_of(c, clear=None):
     """A pick's picture as it runs: a small flyer sharpened (sharpen.py). None when it can't be sharpened here (no
     numpy or onnxruntime, or the model failed): its Event isn't marked, so a run with the morning's libraries lays it
@@ -654,6 +677,10 @@ RUNGS = ("name", "site", "news")   # the free rungs, in the order a fit is taken
 PER_RUNG = 2                       # pages read for one Event on one rung
 PER_PAGE = 6                       # pictures taken from one page, its share picture first
 DIG_MAX = 8                        # pictures laid out for one Event
+# An exhibit keeps every piece of its show the dig finds, its page swiping through them, at most 10 (Jesse, 2026-11-17,
+# BP app event-photos 25): a gallery's page or post gives up to that many, and a few more are laid out to choose from.
+PIECES = 10
+PIECES_LAID = 14
 PER_FIND = 5                       # Events in one finder's batch
 # Never kept from the dig: wire services and stock (the spec's floor), Commons (dropped in dig-deeper 06, and its
 # licence wants an author we don't save), Google's copies, and Facebook and Instagram (the paid rung, dig-deeper 23).
@@ -785,6 +812,7 @@ def dig_sheets(out, get=fetch, grab=None, minutes=PART_MINUTES):
 
     def read_one(key):
         g, cands, failed = by[key], [], []
+        per, most = (PIECES, PIECES_LAID) if g.get("exhibit") else (PER_PAGE, DIG_MAX)
         for p in pages_of(found[key]):
             try:
                 pics, title = page_pictures(p["page"], get)
@@ -792,9 +820,9 @@ def dig_sheets(out, get=fetch, grab=None, minutes=PART_MINUTES):
                 failed.append(f"{g['title']}: {p['page']} would not read ({str(x)[:80]})")
                 continue
             cands += [{"url": u, "about": a, "from": p["from"], "page": p["page"], "title": title, "why": p["why"]}
-                      for u, a in pics[:PER_PAGE] if not NOT_OURS.search(u)]
+                      for u, a in pics[:per] if not NOT_OURS.search(u)]
         g["cands"] = cands
-        failed += download([g], folder, grab, n=int(key[1:]) * 100, most=DIG_MAX)
+        failed += download([g], folder, grab, n=int(key[1:]) * 100, most=most)
         (folder / f"{key}.json").write_text(json.dumps({"cands": g["cands"], "failed": failed}, ensure_ascii=False))
 
     keys = [g["key"] for g in groups if g["key"] in found]
@@ -971,8 +999,8 @@ def dig_posts(out, now=None, grab=None, minutes=PART_MINUTES, listed=None, wait=
                        "title": " ".join(str(r.get("text") or r.get("caption") or "").split())[:160],
                        **({"why": f"the artist {pg['name']}'s own post", "credit": pg["name"]} if pg.get("artist")
                           else {"why": "its place's own post"})}
-                      for pg, r in rows for p in pictures(r)[:2]]
-        failed = download([g], folder, grab, n=int(key[1:]) * 100 + 50, most=DIG_MAX)
+                      for pg, r in rows for p in pictures(r)[:PIECES if g.get("exhibit") else 2]]
+        failed = download([g], folder, grab, n=int(key[1:]) * 100 + 50, most=PIECES_LAID if g.get("exhibit") else DIG_MAX)
         # the free rungs' choice rides along, so the picker keeps whichever fits best (Jesse, 2026-11-07: "having judgment")
         g["cands"] = ([chose[key][0]] if key in chose else []) + g["cands"]
         (folder / f"{key}.json").write_text(json.dumps({"cands": g["cands"], "failed": failed}, ensure_ascii=False))
@@ -1015,9 +1043,13 @@ def dig_keep(out, dry_run=False, db=None, now=None):
     named = {k for k, v in picks.items() if v[0]["from"] == "name"}
     done = [g for g in reached if g["key"] in named or g["key"] not in sent or g["key"] in posts_done]
 
+    free_pieces = pieces_of(read_items(folder / "picks.jsonl"), list(laid.values()))
+    post_pieces = pieces_of(plines, list(plaid.values()))
+
     def pick_of(k):  # the person by name; else, when it went on to its posts, the posts picker's (it saw the free pick too)
-        return ((laid[k], picks[k]) if k in named else ((plaid[k], ppicks[k]) if k in ppicks else None) if k in sent
-                else (laid[k], picks[k]) if k in picks else None)
+        free, posts = (laid.get(k), picks.get(k), free_pieces.get(k, [])), (plaid.get(k), ppicks.get(k), post_pieces.get(k, []))
+        return (free if k in named else (posts if k in ppicks else None) if k in sent
+                else free if k in picks else None)
     chosen = {g["key"]: pick_of(g["key"]) for g in done if pick_of(g["key"])}
     db = db or (None if dry_run else Supabase())
     stamp = (now or datetime.now(timezone.utc)).isoformat()
@@ -1029,19 +1061,22 @@ def dig_keep(out, dry_run=False, db=None, now=None):
             return
         if kind == "dug":
             return db.rest("PATCH", f"club_events?id=eq.{what}", {"photo_dug_at": stamp}, prefer="return=minimal")
-        g, (c, shows, flyer) = chosen[what]
+        g, (c, shows, flyer), more = chosen[what]
         im = image_of(c)
         if im is None:
             unsaved.add(what)
             return print(f"[dig]   {g['title']}: its small flyer not sharpened here; dug again next time")
-        try:
-            place_photos.save_picture(db, im, "flyer" if flyer else "event", c["page"], town=TOWN,
-                                      events=[(e["id"], entry_of(e)) for e in g["events"]], description=shows,
-                                      credit=c.get("credit") or (g["events"][0].get("source_name") if POST.search(c["page"]) else None),
-                                      proposed_by=DIG)
-        except DbError as e:
-            if e.status != 409:  # the Event's one live photo: an earlier run's save that got through
-                raise
+        # An exhibit's pick leads at 0 and its other pieces follow it, in the picker's order (event-photos 25).
+        for at, (pic, image) in enumerate([(c, im)] + [(p, None) for p in more]):
+            try:
+                place_photos.save_picture(db, image or image_of(pic), "flyer" if flyer else "event", pic["page"], town=TOWN,
+                                          events=[(e["id"], entry_of(e)) for e in g["events"]],
+                                          description=shows if at == 0 else None, position=at or None,
+                                          credit=pic.get("credit") or (g["events"][0].get("source_name") if POST.search(pic["page"]) else None),
+                                          proposed_by=DIG)
+            except DbError as e:
+                if e.status != 409:  # the Event's live photo at that place: an earlier run's save that got through
+                    raise
     if not dry_run:
         Part(folder / "kept.json").each([k for g in done for k in ([f"photo:{g['key']}"] if g["key"] in chosen else [])
                                          + [f"dug:{e['id']}" for e in g["events"]]], save_one)
@@ -1049,6 +1084,7 @@ def dig_keep(out, dry_run=False, db=None, now=None):
     got = [g for g in done if g["key"] in chosen and g["key"] not in unsaved]
     per = ", ".join(f"{r} {count([g for g in got if chosen[g['key']][1][0]['from'] == r])}" for r in RUNGS + ("posts",))
     flyers = count([g for g in got if chosen[g["key"]][1][2]])
+    sets = [g for g in got if chosen[g["key"]][2]]
     still = [g for g in done if g["key"] not in chosen or g["key"] in unsaved]
     waiting = [g for g in groups if g not in done]
 
@@ -1065,7 +1101,9 @@ def dig_keep(out, dry_run=False, db=None, now=None):
                 else "its pictures not judged" if k not in [x["key"] for x in reached]
                 else "its place's posts not read" if k not in plaid else "its posts' pictures not judged")
     out_lines = [f"[dig] {count(groups)} Events left bare by the photo step: {count(got)} got a photo ({per}"
-                 + (f"; {flyers} of them a flyer" if flyers else "") + f"), {count(still)} still bare, "
+                 + (f"; {flyers} of them a flyer" if flyers else "")
+                 + (f"; {count(sets)} exhibits with {sum(len(chosen[g['key']][2]) + 1 for g in sets)} pieces" if sets else "")
+                 + f"), {count(still)} still bare, "
                  f"{count(waiting)} waiting for the next morning" + (" (dry run: nothing written)" if dry_run else "")]
     if s.get("runs"):
         out_lines.append(f"[dig] Apify for the dig: ${float(s.get('cost') or 0):.2f} this morning, "
@@ -1583,6 +1621,31 @@ def selftest():
         fake = place_photos.Unsent("https://db.example")
         (out / "dig" / "kept.json").unlink()
         check("dry run" in dig_keep(out, dry_run=True, db=fake)[0] and fake.calls == [], "a dry run writes nothing")
+
+        # event-photos 25: an exhibit keeps the other pieces of its show after its pick, in the picker's order
+        lj = (out / "dig" / "laid.json").read_text()
+        (out / "dig" / "laid.json").write_text(json.dumps([{**g, "exhibit": g["key"] == "d1"} for g in json.loads(lj)]))
+        (out / "dig" / "picks.jsonl").write_text(
+            '{"event": "d1", "pick": "c102", "shows": "A piece of the show", "pieces": ["c101", "c102", "c999", "c101"]}\n')
+        fake = place_photos.Unsent("https://db.example")
+        said = dig_keep(out, db=fake, now=datetime(2026, 11, 7, 13, tzinfo=timezone.utc))
+        rows_in = [r for m, p, b in fake.calls if p == "place_photos" for r in b]
+        check([(r.get("position"), r.get("description"), r["kind"]) for r in rows_in]
+              == [(None, "A piece of the show", "event"), (1, None, "event")]
+              and len({r["url"] for r in rows_in}) == 2 and "1 exhibits with 2 pieces" in said[0],
+              f"an exhibit's pick leads and its other piece follows at 1; the pick, an unknown and a repeat named again are "
+              f"skipped: {rows_in} {said[0]}")
+        (out / "dig" / "laid.json").write_text(lj)
+        (out / "dig" / "kept.json").unlink()
+        show = {"key": "d9", "exhibit": True, "cands": [{"n": n, "url": f"u{n}", **({"small": True} if n == 3 else {})}
+                                                         for n in range(1, 15)]}
+        named = ["c1", "c3"] + [f"c{n}" for n in range(4, 15)]
+        got = pieces_of([{"event": "d9", "pick": "c2", "pieces": named}], [show])
+        check([c["n"] for c in got["d9"]] == [1] + list(range(4, 12))
+              and pieces_of([{"event": "d9", "pick": "c2", "pieces": named}], [{**show, "exhibit": False}]) == {}
+              and pieces_of([{"event": "d9", "pick": "c2", "flyer": True, "pieces": named}], [show]) == {}
+              and pieces_of([{"event": "d9", "pick": "c2"}], [show]) == {},
+              "an exhibit's pieces: 10 at most with its pick, none small; none for another Event, a flyer or a pick alone")
 
         # dig-deeper 23: the paid rung, the place's own posts
         (out / "dig" / "picks.jsonl").write_text('{"event": "d1", "pick": "c102", "shows": "Terrance Hayes reading"}\n'

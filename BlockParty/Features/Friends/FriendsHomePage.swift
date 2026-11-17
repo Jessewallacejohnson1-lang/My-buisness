@@ -679,10 +679,10 @@ struct NeighborPage: View {
             bio: extras?.bio,
             friends: extras?.friends,
             following: extras?.following,
+            followers: extras?.followers,
             countsLoading: countsLoading,
             groups: (extras?.groupIds ?? []).compactMap { byId[$0] },
             going: shared.map { ProfileFace.nextPlans($0, now: now) },
-            mutual: neighbor.mutualFriends,
             coverKnown: extras != nil,
             now: now)
     }

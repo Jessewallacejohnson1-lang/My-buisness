@@ -76,6 +76,12 @@ the page); `meta_says` is that page's own words for the picture (its alt text), 
   still from the artist's own video work, letterboxed (Bréagán's horse on a misty hill). A reception crowd, the
   gallery's room, or any picture of another show (last spring's senior art show) is another story: none. With no piece
   found, pick none: the Event goes on the morning sheet to be found by hand.
+- An exhibit's other pieces: its page swipes through every piece of this show, like an Instagram post (BP app
+  event-photos 25; Jesse, 2026-11-17: "port the photos in, so viewers can swipe through them"). After the pick, name
+  each other picture that is a different piece of this same show, as the artist made it, in `"pieces"`, in the order its
+  page shows them, at most 9: `{"event": "d2", "pick": "c201", "shows": "A horse on a misty hill", "pieces": ["c203",
+  "c205"]}`. The same piece twice (a crop, a detail, a smaller copy), the room, a crowd, a portrait of the artist, a
+  poster or another show's work is not a piece: leave it out. Only for `"exhibit": true`, and never with a flyer.
 - From `site` or `news`: this Event in an earlier year at this place, or this group (the choir, the team, the class),
   as event-photo.md's caption test. Another place, another kind of thing or another group is none, and so is the
   same kind of event in another town than the Event's place: read the `page_title` (Sartell's Veterans Day parade

@@ -490,6 +490,7 @@ struct MainTabsView: View {
                     case .contacts: FriendsContactsPage()
                     case .allFriends: FriendsAllPage(groups: false)
                     case .groups: FriendsAllPage(groups: true)
+                    case .followers: FollowersPage()
                     }
                 }
                 // A neighbour's page, from any name or face: the Friends page or Search.
