@@ -349,7 +349,7 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
     }
 
     /// Each number over its word in an 81 pt column, the numbers in ink, the words grey, no card.
-    /// VoiceOver reads them as one line: "24 friends, 2 groups, 9 following", or, on your own page
+    /// VoiceOver reads them as one line: "24 friends, 9 following, 3 followers", or, on your own page
     /// where friends and following open their lists (Instagram's counts), one button each. Each
     /// column is known by its word, so a count that arrives and moves the others over slides them,
     /// never cross-fading one number into its neighbour's place.
@@ -369,7 +369,7 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
                 .lineLimit(1)
                 .frame(width: ProfileMetric.countColumn)
                 if let open = opens(part.word) {
-                    Button(action: open) { column.contentShape(Rectangle()) }
+                    Button(action: open) { column.contentShape(TapArea()) }
                         .buttonStyle(.press(.squish))
                         .accessibilityLabel("\(part.number) \(part.word)")
                 } else {
