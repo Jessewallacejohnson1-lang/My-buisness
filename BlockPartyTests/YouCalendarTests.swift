@@ -652,15 +652,21 @@ final class YouCalendarTests: XCTestCase {
 
     // MARK: Profile (BP app references/profile-remake)
 
-    /// "24 friends, 1 group, 9 following": a zero or an unknown is left out, never said.
+    /// "24 friends, 9 following, 3 followers": three numbers at most, a zero or an unknown left out.
     func testProfileCountsLeaveOutZerosAndUnknowns() {
         let words = { (parts: [(number: Int, word: String)]) in parts.map { "\($0.number) \($0.word)" } }
-        XCTAssertEqual(words(ProfileFace.counts(friends: 24, groups: 1, following: 9)), ["24 friends", "1 group", "9 following"])
-        XCTAssertEqual(words(ProfileFace.counts(friends: 1, groups: 0, following: nil)), ["1 friend"])
-        XCTAssertEqual(words(ProfileFace.counts(friends: nil, groups: 3, following: 0)), ["3 groups"])
-        XCTAssertTrue(ProfileFace.counts(friends: 0, groups: 0, following: nil).isEmpty)
+        XCTAssertEqual(words(ProfileFace.counts(friends: 24, following: 9, followers: 3)),
+                       ["24 friends", "9 following", "3 followers"])
+        XCTAssertEqual(words(ProfileFace.counts(friends: 1, following: nil, followers: 1)), ["1 friend", "1 follower"])
+        XCTAssertEqual(words(ProfileFace.counts(friends: nil, following: 0, followers: 0)), [])
+        XCTAssertTrue(ProfileFace.counts(friends: 0, following: nil, followers: nil).isEmpty)
         // A new neighbour: onboarding's three places, nothing else yet.
-        XCTAssertEqual(words(ProfileFace.counts(friends: 0, groups: 0, following: 3)), ["3 following"])
+        XCTAssertEqual(words(ProfileFace.counts(friends: 0, following: 3, followers: nil)), ["3 following"])
+    }
+
+    /// Three 81 pt columns fit the smallest iPhone (375 pt) with room to spare.
+    func testProfileCountsFitTheSmallestPhone() {
+        XCTAssertLessThanOrEqual(CGFloat(3) * ProfileMetric.countColumn, 375 - 32)
     }
 
     /// `get_profile` before it said how many they follow still reads, bio and friends with it;
@@ -673,6 +679,9 @@ final class YouCalendarTests: XCTestCase {
         XCTAssertNil(old.following)
         let after = #"[{"bio":null,"cover_url":null,"friends":0,"group_ids":[],"both_going":[],"following":3}]"#
         XCTAssertEqual(try Supabase.decode(Data(after.utf8), as: [ProfileExtras].self).first?.following, 3)
+        XCTAssertNil(try Supabase.decode(Data(after.utf8), as: [ProfileExtras].self).first?.followers)
+        let withFollowers = #"[{"bio":null,"cover_url":null,"friends":0,"group_ids":[],"both_going":[],"following":3,"followers":5}]"#
+        XCTAssertEqual(try Supabase.decode(Data(withFollowers.utf8), as: [ProfileExtras].self).first?.followers, 5)
     }
 
     /// A friend's shared plans: only those not over, three at most, in the Calendar's order.
@@ -695,12 +704,6 @@ final class YouCalendarTests: XCTestCase {
         XCTAssertTrue(ProfileFace.goingLine(timed, now: now).hasPrefix("Sat, Oct 31 · 9"))
         let allDay = YouCalendar.event(from: row("b", "2026-11-01", nil, allDay: true))!
         XCTAssertEqual(ProfileFace.goingLine(allDay, now: now), "Sun, Nov 1 · All day")
-    }
-
-    /// A neighbour's friends you share sit in the counts line, after their friends.
-    func testProfileCountsCarryMutualFriends() {
-        let words = ProfileFace.counts(friends: 31, mutual: 2, groups: 0, following: nil).map { "\($0.number) \($0.word)" }
-        XCTAssertEqual(words, ["31 friends", "2 mutual"])
     }
 
     /// A bio is cut as the database counts it, one per Unicode scalar, never mid-emoji.
