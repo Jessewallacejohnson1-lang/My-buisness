@@ -121,7 +121,9 @@ carry on with the rest.
 
 **Answer** with the summary as `save` printed it, keep's `[photos]` line, `done`'s lines (the pictures line is what
    reading pictures added to the cost), every `[social] FAILED` and `[social] Events tab lists events` line
-   from Prepare, then one line per flag you dropped that a neighbour might have wanted, and why. A
+   from Prepare, then one line per flag you dropped that a neighbour might have wanted, and why. After Prepare's
+   `[social] stories:` line, say what each `stories-` page became: the Event or News title it gave (or the one it
+   repeats), else left out and why (BP app watch-every-place 25). A
    page Apify says is not available, or returns nothing for, three reads in a row sets itself aside
    and is named once in the summary, as is a weekly page with no new post four reads in a row (read
    once a month from then on); fixing its address or hiding it in
