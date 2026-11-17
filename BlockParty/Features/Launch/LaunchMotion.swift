@@ -655,13 +655,7 @@ nonisolated struct LaunchMotion {
                          dipB: CGFloat, dipP: CGFloat, swapped: Bool) {
         typealias M = LaunchMotion
         let letGoB = min(hitB + M.contact, skip ?? .infinity), letGoP = min(hitP + M.contact, skip ?? .infinity)
-        func gulps(_ tau: Double) -> CGFloat {
-            CGFloat((0..<4).reduce(0.0) { sum, i in
-                let since = tau - Double(i) * M.gulp
-                return sum + (since > 0 ? M.gulpSpring.value(target: 1.0, time: since) : 0)
-            } / 4)
-        }
-        let s1 = gulps(t - letGoB), s2 = gulps(t - letGoP), c1 = clamp01(s1), c2 = clamp01(s2)
+        let s1 = M.gulps(t - letGoB), s2 = M.gulps(t - letGoP), c1 = clamp01(s1), c2 = clamp01(s2)
         let a = M.letterAnchor, big = M.startSize, bulge = CGFloat(M.bulge)
         let party = CGSize(width: M.partyShift.width * s1, height: M.partyShift.height * s1)
 
@@ -696,26 +690,42 @@ nonisolated struct LaunchMotion {
         M.take(M.wordLock, into: &pieces, from: M.pieceL,
                left: rightB - (rightB0 - lock0) * (1 - c1),
                right: leftP0 + party.width + (lock1 - leftP0) * (1 - c1) - M.squeezeGap * c1,
-               belly: footB.y - M.bellyB * kb, drop: party.height)
+               belly: footB.y - M.bellyB * kb, drop: party.height, gone: t - letGoB >= M.gulpsFull)
         let rightP = footP.x + kp * M.glyphP.width / 2, rightP0 = M.smallFootP.x + M.smallP * M.glyphP.width / 2
         M.take(M.wordArty, into: &pieces, from: M.pieceA,
                left: rightP - (rightP0 - M.wx(M.wordArty[0].0)) * (1 - c2),
                right: lerp(M.wx(M.wordArty[3].1) + party.width, M.endP + big * M.glyphP.width / 2, c2),
-               belly: footP.y - M.bellyP * kp, drop: party.height)
+               belly: footP.y - M.bellyP * kp, drop: party.height, gone: t - letGoP >= M.gulpsFull)
         f.pieces = pieces.contains { $0.opacity > 0 } ? pieces : []
     }
+
+    /// How far a big letter has swelled `tau` s after its hit let go: the mean of four gulps.
+    private static func gulps(_ tau: Double) -> CGFloat {
+        CGFloat((0..<4).reduce(0.0) { sum, i in
+            let since = tau - Double(i) * gulp
+            return sum + (since > 0 ? gulpSpring.value(target: 1.0, time: since) : 0)
+        } / 4)
+    }
+
+    /// When the swell first reaches full size. Its row is gone for good from then on: the spring
+    /// still rings, and without this the row's last letter came back as a speck each time it did.
+    private static let gulpsFull: Double = {
+        var tau = 0.0
+        while gulps(tau) < 1 { tau += 0.0005 }
+        return tau
+    }()
 
     /// A row of letters between the big letter's edge (`left`) and what follows them (`right`): as
     /// the room closes they are taken one at a time from the left. The one being taken fills what is
     /// left of its own room, so it shrinks whole, never stretched, toward `belly`, the big letter's
     /// widest point; the rest ride with what follows them.
     private static func take(_ row: [(CGFloat, CGFloat)], into pieces: inout [Frame.Piece], from first: Int,
-                             left: CGFloat, right: CGFloat, belly: CGFloat, drop: CGFloat) {
+                             left: CGFloat, right: CGFloat, belly: CGFloat, drop: CGFloat, gone: Bool) {
         let start = wx(row[0].0), whole = wx(row[row.count - 1].1) - start, taken = whole - max(0, right - left)
         for (i, letter) in row.enumerated() {
             let before = wx(letter.0) - start, wide = wx(letter.1) - wx(letter.0), u = clamp01((taken - before) / wide)
             let lean = CGAffineTransform(a: 1, b: 0, c: tan(-gulpLean * sin(.pi * Double(u)) * .pi / 180), d: 1, tx: 0, ty: 0)
-            pieces[first + i] = Frame.Piece(opacity: u > 0.995 ? 0 : 1, transform: about(
+            pieces[first + i] = Frame.Piece(opacity: gone || u > 0.995 ? 0 : 1, transform: about(
                 CGPoint(x: letter.1 * wordUnit, y: belly - drop - wordBox.minY),
                 lean.concatenating(CGAffineTransform(scaleX: 1 - u, y: 1 - u)),
                 shift: CGSize(width: right - (whole - before - wide) - wx(letter.1), height: drop)))

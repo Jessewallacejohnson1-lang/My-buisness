@@ -154,6 +154,10 @@ final class LaunchMotionTests: XCTestCase {
         XCTAssertTrue(m.frame(at: m.hitP + 0.05).pShown)
         XCTAssertEqual(m.frame(at: m.landAt + 0.01).pieces.last?.opacity, 1, "the full stop waits for the ball")
         XCTAssertTrue(m.frame(at: m.landAt + 0.02).pieces.isEmpty, "the ball is the dot now")
+        // The swell's spring rings past full size and back; a letter it took never shows again.
+        for t in stride(from: m.hitB + 0.26, to: m.hitP, by: 0.004) {
+            XCTAssertEqual(m.frame(at: t).pieces[1...4].map(\.opacity), [0, 0, 0, 0], "lock is gone, at \(t)")
+        }
         XCTAssertEqual(m.frame(at: 2).word, 0)
     }
 
@@ -163,9 +167,9 @@ final class LaunchMotionTests: XCTestCase {
         let f = motion.frame(at: motion.landAt + 0.11)
         XCTAssertEqual(f.b.width, 0.9, accuracy: 0.002, "still 90% as the ball lands")
         XCTAssertEqual(f.p.width, 0.9, accuracy: 0.004)
-        for shift in [f.bShift, f.pShift] {
-            XCTAssertEqual(shift.width, 0, accuracy: 0.5)
-            XCTAssertEqual(shift.height, 0, accuracy: 0.5)
+        for shift in [f.bShift, f.pShift] {   // canvas units: the spring's last ring, under half a point
+            XCTAssertEqual(shift.width, 0, accuracy: 1)
+            XCTAssertEqual(shift.height, 0, accuracy: 1)
         }
         let late = motion.frame(at: 2)
         XCTAssertEqual(late.bShift.width, 0, accuracy: 1e-6)
