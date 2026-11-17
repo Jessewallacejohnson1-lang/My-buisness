@@ -290,18 +290,46 @@ nonisolated struct PickedPhoto: Equatable, Identifiable, Sendable {
     let file: URL
     /// Width over height, inside 4:5 to 1.91:1.
     let aspect: Double
+    /// The photo as picked, before any cut, which Adjust cuts again (backlog 32); nil when it couldn't be kept.
+    var source: URL? = nil
+    /// The source's own shape inside those limits: what Adjust's shape button turns back to.
+    var own: Double = 1
+    /// Where Adjust left it, a part of the source from 0 to 1; nil for its middle.
+    var crop: CGRect? = nil
 
-    /// The photo cut to its card's shape and saved; nil when it can't be written.
-    static func make(_ image: UIImage, id: String = UUID().uuidString) -> PickedPhoto? {
-        let cut = Self.cut(image)
-        guard let jpeg = ProfileModel.coverJPEG(cut) else { return nil }
+    /// The photo cut to its card's shape (or `aspect`, a square post's) and saved, beside it as picked; nil when it
+    /// can't be written.
+    static func make(_ image: UIImage, id: String = UUID().uuidString, aspect: Double? = nil) -> PickedPhoto? {
+        let cut = aspect.map { PhotoCrop.cut(image, to: PhotoCrop.middle(of: image.size, aspect: $0)) } ?? Self.cut(image)
+        guard let file = ProfileModel.coverJPEG(cut).flatMap(Self.save) else { return nil }
+        let source = image.jpegData(compressionQuality: 0.9).flatMap(Self.save)
+        return PickedPhoto(id: id, file: file, aspect: NewPostDraft.aspect(cut.size), source: source,
+                           own: NewPostDraft.aspect(image.size))
+    }
+
+    /// Cut again from the photo as picked, where Adjust left it (backlog 32); nil when that can't be read or written.
+    func recut(_ crop: CGRect) -> PickedPhoto? {
+        guard let source, let image = UIImage(contentsOfFile: source.path) else { return nil }
+        let cut = PhotoCrop.cut(image, to: crop)
+        guard let file = ProfileModel.coverJPEG(cut).flatMap(Self.save) else { return nil }
+        try? FileManager.default.removeItem(at: self.file)
+        return PickedPhoto(id: id, file: file, aspect: NewPostDraft.aspect(cut.size), source: source, own: own, crop: crop)
+    }
+
+    /// The cut and the source both go once the post is up or thrown away.
+    func removeFiles() {
+        try? FileManager.default.removeItem(at: file)
+        if let source { try? FileManager.default.removeItem(at: source) }
+    }
+
+    private static func save(_ jpeg: Data) -> URL? {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("post-photos", isDirectory: true)
         let file = folder.appendingPathComponent(UUID().uuidString + ".jpg")
         do {
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             try jpeg.write(to: file)
         } catch { return nil }
-        return PickedPhoto(id: id, file: file, aspect: NewPostDraft.aspect(cut.size))
+        return file
     }
 
     /// The photo cut to its card's shape, so what goes up is what the card shows.
@@ -365,6 +393,23 @@ final class NewPostModel {
     var hasPhoto: Bool { !photos.isEmpty || loading > 0 || editing?.photo != nil }
     /// The post's shape: the first photo's, which every photo takes (Instagram's, town-feed 46).
     var aspect: Double { photos.first?.aspect ?? 4.0 / 5.0 }
+    /// Square, from Adjust's shape button: every photo, and every pick after it (backlog 32).
+    private(set) var square = false
+
+    /// Adjust's Done (backlog 32): each photo cut again where it was left, all at one shape, by id. A photo whose
+    /// source is gone stays as it was.
+    func adjust(_ crops: [String: CGRect], square: Bool) async {
+        let before = photos
+        self.square = square
+        let next = await Self.recut(before, crops)
+        guard photos == before else { return }
+        set(next)
+    }
+
+    @concurrent
+    private nonisolated static func recut(_ photos: [PickedPhoto], _ crops: [String: CGRect]) async -> [PickedPhoto] {
+        photos.map { photo in crops[photo.id].flatMap { photo.recut($0) } ?? photo }
+    }
 
     /// Edit on your own post: New post on its words, Place and `@` names (town-feed 44).
     func startEditing(_ post: TownPost) {
@@ -411,7 +456,8 @@ final class NewPostModel {
             let batch = items[start..<min(start + 3, items.count)].map { item in
                 let key = item.itemIdentifier ?? UUID().uuidString
                 if let photo = kept[key] { return Task<PickedPhoto?, Never> { photo } }
-                return Task { await Self.photo(item, id: key) }
+                let square = square
+                return Task { await Self.photo(item, id: key, aspect: square ? 1 : nil) }
             }
             for task in batch { if let photo = await task.value { loaded.append(photo) } }
         }
@@ -446,11 +492,11 @@ final class NewPostModel {
     }
 
     @concurrent
-    private nonisolated static func photo(_ item: PhotosPickerItem, id: String) async -> PickedPhoto? {
+    private nonisolated static func photo(_ item: PhotosPickerItem, id: String, aspect: Double?) async -> PickedPhoto? {
         guard let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) else { return nil }
         let k = min(1, NewPostMetric.upload / max(image.size.width * image.scale, 1))
         let size = CGSize(width: image.size.width * image.scale * k, height: image.size.height * image.scale * k)
-        return PickedPhoto.make(await image.byPreparingThumbnail(ofSize: size) ?? image, id: id)
+        return PickedPhoto.make(await image.byPreparingThumbnail(ofSize: size) ?? image, id: id, aspect: aspect)
     }
 
     /// Event on: the Town's, never Friends-only, nobody tagged (Events are the Town's).
@@ -566,7 +612,7 @@ final class PostOutbox {
                     self.sent = nil
                 }
                 // Up and read back from the feed: its picked photos' tmp files are done with (backlog 20).
-                for photo in sent.photos { try? FileManager.default.removeItem(at: photo.file) }
+                for photo in sent.photos { photo.removeFiles() }
             case .declined(let reason):
                 self.sent?.state = .notPosted(reason)
                 AccessibilityNotification.Announcement("This post didn't go up").post()
@@ -684,6 +730,8 @@ struct NewPostSheet: View {
     @State private var model = NewPostModel()
     /// The photo on show of several, which the trash takes out (town-feed 46).
     @State private var photoPage: Int?
+    /// Adjust is up (backlog 32), on these photos as picked.
+    @State private var adjusting: [(id: String, image: UIImage)] = []
 
     private var name: String { me.displayName }
     private var picture: URL? { me.avatarUrl.flatMap(URL.init(string:)) }
@@ -775,6 +823,7 @@ struct NewPostSheet: View {
             // Apple's own picker numbering each pick in the order tapped, up to 10 (town-feed 46; Jesse at Check-in 1).
             .photosPicker(isPresented: $picking, selection: $model.picks, maxSelectionCount: NewPostDraft.photoLimit,
                           selectionBehavior: .ordered, matching: .images, photoLibrary: .shared())
+            .fullScreenCover(isPresented: Binding { !adjusting.isEmpty } set: { if !$0 { adjusting = [] } }) { adjust }
         }
         .tint(Hue.ink)
         .onChange(of: model.picks) { Task { await model.load() } }
@@ -1141,6 +1190,10 @@ struct NewPostSheet: View {
                 // How many you picked, where the trash isn't: the dots can sit under the Post bar (Check-in 2).
                 PostPhotos(urls: shown.map(\.file), aspect: model.aspect, page: $photoPage, counterAt: .bottomTrailing,
                            label: shown.count > 1 ? "Your photos" : "Your photo")
+                    // A tap moves and zooms them (backlog 32): Adjust, on the one on show.
+                    .contentShape(Rectangle())
+                    .onTapGesture { openAdjust(shown) }
+                    .accessibilityAction(named: NewPostCopy.adjust) { openAdjust(shown) }
             }
         }
             .overlay(alignment: .topLeading) {
@@ -1179,6 +1232,26 @@ struct NewPostSheet: View {
                 .disabled(model.loading > 0)
                 .padding(NewPostMetric.onPhotoInset - (NewPostMetric.tap - NewPostMetric.onPhoto) / 2)
             }
+    }
+
+    /// Adjust over New post (backlog 32) on the photos as picked, starting on the one on show.
+    private func openAdjust(_ shown: [PickedPhoto]) {
+        guard model.loading == 0 else { return }
+        let pairs = shown.compactMap { photo in photo.source.flatMap { UIImage(contentsOfFile: $0.path) }.map { (id: photo.id, image: $0) } }
+        guard !pairs.isEmpty else { return }
+        Haptics.light()
+        adjusting = pairs
+    }
+
+    @ViewBuilder private var adjust: some View {
+        let pairs = adjusting
+        let byId = Dictionary(model.photos.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let on = min(photoPage ?? 0, max(pairs.count - 1, 0))
+        PhotoAdjustView(images: pairs.map(\.image), shape: .post(own: CGFloat(model.photos.first?.own ?? model.aspect)),
+                        crops: pairs.map { byId[$0.id]?.crop }, square: model.square, start: on) { crops, square in
+            let byPhoto = Dictionary(zip(pairs.map(\.id), crops), uniquingKeysWith: { first, _ in first })
+            Task { await model.adjust(byPhoto, square: square) }
+        }
     }
 
     // MARK: Over the keyboard
@@ -1271,6 +1344,8 @@ enum NewPostCopy {
     static let post = "Post"
     /// On the photos once there are several: the picker reopens to add, drop or reorder (town-feed 46).
     static let editPhotos = "Edit"
+    /// A tap on the photo: move and zoom it (backlog 32).
+    static let adjust = "Adjust"
     static let discard = "Discard post?"
     static let discardWhy = "If you leave now, you'll lose this post."
     static let discardButton = "Discard"

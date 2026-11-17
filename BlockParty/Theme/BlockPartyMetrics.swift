@@ -24,6 +24,8 @@ enum Radius {
     static let photoCard: CGFloat = 13
     /// New in St. Joseph's yellow New tag, from the five-tabs mock's round 2 (BP app five-tabs 04).
     static let newTag: CGFloat = 7
+    /// Adjust's strip of a post's photos: Instagram's small rounded squares (BP app backlog 32, the mock's 8).
+    static let adjustThumb: CGFloat = 8
 
     /// The Town's Event of the day poster: DICE's card corner (the approved Round 3 page, BP app
     /// event-card 03), tighter than a Town card's 20, as a printed poster's is.
