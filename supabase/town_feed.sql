@@ -332,9 +332,12 @@ as $$
     -- activity plays in it under another team's name; by label within each, so a card keeps its name.
     -- Only an Event naming a school can be one's: the rest skip the activity match. The inner `case` keeps
     -- the order: activity_has_event's team rule and activity_may_have first, both cheap, then the function.
-    -- With it, the team it plays as in this Event (daily-tab 27): the co-op's when the co-op plays, else its own.
+    -- With it, the side of the game it plays as (daily-tab 27): the co-op's when the co-op plays, else its own; the
+    -- first pick that is a side, as a school can be named only as the Event's `activity_team` (ROCORI's calendar lists
+    -- the River Lakes co-op's games).
     cross join lateral (select case when e.team_ids is not null or e.activity_team is not null then
-      (select array[x.label, x.team]
+      (select array[(array_agg(x.label order by x.ord, x.label))[1],
+                    (array_agg(x.team order by x.ord, x.label) filter (where x.team = any(e.team_ids)))[1]]
        from (select m.label, m.ord,
                     case when m.coop = any(v.teams) then m.coop else m.fielder end as team
              from my_activities m
@@ -343,7 +346,7 @@ as $$
                         then public.activity_has_event(m.a, e) end
              union all
              select s.label, 2, s.id from my_schools s where s.id = any(v.teams)) x
-       order by x.ord, x.label limit 1) end as pick
+      ) end as pick
                         offset 0) fp
     cross join lateral (select fp.pick[1] as followed, fp.pick[2] as team) fl
     cross join lateral (select

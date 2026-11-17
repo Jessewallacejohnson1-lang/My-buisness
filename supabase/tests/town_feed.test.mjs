@@ -2723,6 +2723,9 @@ test("a followed game's card names the caller's side as game.mine, a co-op's tea
   await game('St. Cloud Wrestling vs Sartell', '2026-10-09', 'Wrestling', ['st-cloud', 'sartell']);
   await game('Kennedy Girls Basketball vs Sartell', '2026-10-09', 'Girls Basketball', ['kennedy', 'sartell']);
   await game('Apollo Football vs Sartell', '2026-10-09', 'Football', ['apollo', 'sartell']);
+  // Found on Kennedy's own calendar: the school is named as the Event's activity_team, but plays as St. Cloud.
+  const listed = await game('Kennedy-listed Wrestling vs Tech', '2026-10-09', 'Wrestling', ['st-cloud', 'tech']);
+  await db.query(`update public.club_events set activity_team = 'kennedy' where id = $1`, [listed]);
   await follow(ME, 'team', 'kennedy');
   const uuid = async (id) => (await db.query('select uuid from public.teams where id = $1', [id])).rows[0].uuid;
   const [stCloud, kennedy] = [await uuid('st-cloud'), await uuid('kennedy')];
@@ -2731,7 +2734,7 @@ test("a followed game's card names the caller's side as game.mine, a co-op's tea
   await signIn(ME);
   const mine = Object.fromEntries((await games()).map((r) => [r.title, r.game?.mine ?? null]));
   assert.deepEqual(mine, { 'St. Cloud Wrestling vs Sartell': stCloud, 'Kennedy Girls Basketball vs Sartell': kennedy,
-                           'Apollo Football vs Sartell': null });
+                           'Apollo Football vs Sartell': null, 'Kennedy-listed Wrestling vs Tech': stCloud });
   await db.exec('reset role; reset request.jwt.claim.sub; set role anon');
   assert.ok((await games()).every((r) => r.game.mine === undefined), 'signed out, no side');
 });
