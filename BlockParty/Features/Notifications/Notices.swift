@@ -51,8 +51,7 @@ nonisolated struct Notice: Identifiable, Hashable {
     @MainActor private func subject(now: Date) -> String {
         let card = FeedCardItem(event)
         let thing: String
-        if let teams = event.game?.teams, let name = followed,
-           let other = teams.first(where: { !name.hasPrefix($0.short) }) {
+        if let other = event.game?.sides(followed: followed)?.other {
             thing = "game vs \(other.short)"
         } else {
             thing = card.title

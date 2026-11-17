@@ -42,18 +42,23 @@ struct DailyFollowing: Identifiable {
         }
     }
 
-    /// The school's logo for a game (the team the name starts with), else who puts it on.
-    private static func avatar(of card: FeedCardItem, name: String) -> URL? {
-        card.game?.teams.first { name.hasPrefix($0.short) }?.logo ?? card.hostPicture?.url ?? card.hostAvatar
+    /// Your side's logo for a game (`Game.sides`, a co-op's too), else who puts it on.
+    static func avatar(of card: FeedCardItem, name: String) -> URL? {
+        card.game?.sides(followed: name)?.mine.logo ?? card.hostPicture?.url ?? card.hostAvatar
     }
 
-    /// After the name: "vs Sartell." for a game, else the Event's own title (Jesse, 2026-10-26).
-    private static func what(_ card: FeedCardItem, name: String) -> String {
-        if let teams = card.game?.teams, teams.contains(where: { name.hasPrefix($0.short) }),
-           let other = teams.first(where: { !name.hasPrefix($0.short) }) {
-            return "vs \(other.short)."
-        }
-        return "\(card.title)."
+    /// After the name: "vs Sartell." for a game (Jesse, 2026-10-26), else the Event's own title without the name
+    /// it starts with (daily-tab 27; Jesse, 2026-11-17): "City Council · Work Session.". A City board's Event
+    /// titled only its name is "Meeting."; anyone else's keeps its title.
+    static func what(_ card: FeedCardItem, name: String) -> String {
+        if let other = card.game?.sides(followed: name)?.other { return "vs \(other.short)." }
+        let title = card.title.trimmingCharacters(in: .whitespaces)
+        guard let range = title.range(of: name, options: [.anchored, .caseInsensitive]),
+              title[range.upperBound...].first.map({ $0.isWhitespace || ":-–—|,.".contains($0) }) ?? true
+        else { return "\(title)." }
+        let rest = title[range.upperBound...].trimmingCharacters(in: .whitespaces.union(.punctuationCharacters))
+        guard let first = rest.first else { return card.hostName == Town.cityPage ? "Meeting." : "\(title)." }
+        return "\(first.uppercased())\(rest.dropFirst())."
     }
 
     /// What the rows show (Jesse, 2026-10-06): today's events still on or to come, soonest first,

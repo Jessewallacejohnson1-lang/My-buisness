@@ -7,7 +7,8 @@ runs when it **adds** to that: it shows this Event, its people, its person or it
 the place's own.
 
 Your batch file's first line names a sheet: open it with the Read tool. Each line after it is one Event: its `event`
-key (`e3`), title, host, place, date and About, and its pictures. Each picture has its `pick` number (`c7`) and what
+key (`e3`), title, host, place, date and About, `"exhibit": true` for an art show, gallery exhibit or museum show,
+and its pictures. Each picture has its `pick` number (`c7`) and what
 came with it:
 
 - `from`: `post`, `page` or `listing` is the post or page the Event was found on, or the story its post links to;
@@ -50,6 +51,10 @@ Work each Event the way a photo editor works a story.
      artical have").
    - **A file photo**: this Event in an earlier year, or this kind of event at this place (the play's rehearsal for
      the play, last year's contest for this year's).
+   - **An exhibit runs its work** (BP app event-photos 24, Jesse, 2026-11-17): for an art show, gallery exhibit or
+     museum show, a piece in this show beats every other picture, people included, and runs as the artist made it,
+     soft, misty or a letterboxed still from their video work. A reception crowd, the gallery's room or a picture
+     of another show is another story.
    - **The thing itself**, when it is what people come for: the art in an exhibit, a dog in costume for a costume
      contest, the wreaths at a wreath-making night.
    - **The place dressed for it**: a recent photo of the place set up or lit as the Event will look, in season, or of

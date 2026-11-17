@@ -225,6 +225,11 @@ test('a dropped game is marked cancelled once, and restored by a re-read or anot
   // The writer's list runs from the Town's yesterday on, and the game above has a fixed date: today it is.
   await db.exec(`update public.club_events set event_date = (now() at time zone 'America/Chicago')::date`);
   assert.ok('cancelled_at' in (await db.query('select public.listed_for_writer() as l')).rows[0].l[0]);
+  // A show still running is listed with its last day, though it opened weeks ago (loopholes 21).
+  await db.exec(`update public.club_events set event_date = (now() at time zone 'America/Chicago')::date - 20,
+    end_at = now() + interval '30 days'`);
+  const [show] = (await db.query('select public.listed_for_writer() as l')).rows[0].l;
+  assert.ok(show && show.end_at, 'a running show reaches the writer');
 });
 
 // An About our describe step or the cleaning wrote (about_written_at) says only what it is and what to expect, so
