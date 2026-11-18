@@ -95,6 +95,8 @@ struct EventPage: View {
     /// own coordinates: whether opening it scrolls it clear of the bar.
     @State private var smallMapTop: CGFloat = 0
     @State private var visibleBottom: CGFloat = 0
+    /// A game's scoring plays' top in the page's own coordinates, where "Show less" lands the page (game-card 34).
+    @State private var playsTop: CGFloat = 0
     @Environment(\.displayScale) private var displayScale
     /// What raises Block Party's map on this Event: the shell's, or the map's own when the page is on it.
     @Environment(\.viewOnMap) private var viewOnMap
@@ -986,7 +988,11 @@ struct EventPage: View {
         if let game {
             VStack(alignment: .leading, spacing: 0) {
                 // A game's score says its title (game-card 08): its plays lead, the facts follow.
-                GameScoring(game: game, top: Metric.sectionTop)
+                GameScoring(game: game, top: Metric.sectionTop) {
+                    // "Show less" takes the page back up to the list's top, just under the round buttons (game-card 34).
+                    position.scrollTo(y: max(0, playsTop - Metric.buttonTop - Metric.tapBox))
+                }
+                .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named(Self.page)).minY } action: { playsTop = $0 }
 
                 facts
                     .padding(.top, Metric.sectionTop - Metric.rowsTop)
