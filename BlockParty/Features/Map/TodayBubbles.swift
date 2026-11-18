@@ -306,6 +306,8 @@ struct TodayEventBubble: View {
                 // Dark like the Camera's, and the Now dot's green while it's on (Jesse, 2026-11-17).
                 .glassEffect(.regular.tint(phase == .live ? MapBubbleInk.live : MapBubbleInk.glass), in: Circle())
                 .animation(reduceMotion ? nil : .easeInOut(duration: 0.4), value: phase == .live)
+                // The simulator's glass draws no edge light; the Camera's ring has one (frames 2026-11-17).
+                .overlay { RecordRim() }
                 // The glass never takes the touch itself: when it did, iOS lit it up and
                 // swelled it white over the photo and the ring (frames 2026-10-22). The
                 // clear disc on top takes the drag instead.
@@ -537,6 +539,25 @@ private struct LiveBleed: View {
     }
 }
 
+/// The record button's edge: a thin light on the outer rim, bright top and bottom and faint at the
+/// sides, and a hairline just outside it, as measured off Jesse's Camera screenshot (BP app
+/// references/map-glass-ring/SPEC.md: the light's strength every 30 degrees from the top).
+private struct RecordRim: View {
+    private static let light: [Double] = [0.72, 0.42, 0.2, 0.05, 0.08, 0.36, 0.72, 0.33, 0.06, 0.05, 0.2, 0.42, 0.72]
+
+    var body: some View {
+        ZStack {
+            Circle().strokeBorder(
+                AngularGradient(stops: Self.light.enumerated().map { i, a in
+                    .init(color: MapBubbleInk.paper.opacity(a), location: Double(i) / 12)
+                }, center: .center, startAngle: .degrees(-90), endAngle: .degrees(270)),
+                lineWidth: 1)
+            Circle().stroke(MapBubbleInk.ink.opacity(0.45), lineWidth: 0.5)
+        }
+        .allowsHitTesting(false)
+    }
+}
+
 /// The time tag under a bubble: a small glass capsule, ink text.
 private struct BubbleTag: ViewModifier {
     func body(content: Content) -> some View {
@@ -555,7 +576,7 @@ private struct BubbleTag: ViewModifier {
 private enum MapBubbleInk {
     static let ink = Hue.ink.onLightCanvas
     /// The record button's dark glass ring (BP app references/map-glass-ring).
-    static let glass = Hue.ink.onLightCanvas.opacity(0.6)
+    static let glass = Hue.ink.onLightCanvas.opacity(0.66)
     /// The ring while the event is on: the Now dot's green (Jesse, 2026-11-17).
     static let live = Hue.now.onLightCanvas.opacity(0.85)
     /// Under a logo, or a bubble with no picture.
