@@ -447,6 +447,10 @@ private struct EventMelt: View {
     let height: CGFloat
     let pale: Bool
     let ready: Bool
+    /// A flyer's own frame, smaller than the melt's: the copy is the flyer's decode stretched to fill `width`, so
+    /// one decode serves both (it's blurred anyway). Nil, the copy fills its frame, as the photo above it does.
+    var sharp: CGSize? = nil
+    var width: CGFloat = 0
 
     var body: some View {
         let reach = pale ? EventLook.meltToPale : EventLook.meltTo
@@ -474,10 +478,18 @@ private struct EventMelt: View {
         .accessibilityHidden(true)
     }
 
-    private var copy: some View {
-        FeedCardURLPhoto(url: url, loadingFill: Hue.gameNight)
-            .frame(height: height)
-            .clipped()
+    @ViewBuilder private var copy: some View {
+        if let sharp, sharp.width > 0, sharp.height > 0 {
+            FeedCardURLPhoto(url: url, loadingFill: Hue.gameNight)
+                .frame(width: sharp.width, height: sharp.height)
+                .scaleEffect(max(width / sharp.width, height / sharp.height))
+                .frame(width: width, height: height)
+                .clipped()
+        } else {
+            FeedCardURLPhoto(url: url, loadingFill: Hue.gameNight)
+                .frame(height: height)
+                .clipped()
+        }
     }
 }
 
@@ -510,7 +522,9 @@ struct EventFlyerHero: View {
         let height = Self.height(aspect: aspect, width: width)
         Color.clear
             .frame(height: height)
-            .background(alignment: .top) { EventMelt(url: url, height: height, pale: pale, ready: ready) }
+            .background(alignment: .top) {
+                EventMelt(url: url, height: height, pale: pale, ready: ready, sharp: size, width: width)
+            }
             .overlay(alignment: .top) {
                 FeedCardURLPhoto(url: url, onReady: onReady, onFailure: onFailure, loadingFill: Hue.gameNight)
                     .frame(width: size.width, height: size.height)
