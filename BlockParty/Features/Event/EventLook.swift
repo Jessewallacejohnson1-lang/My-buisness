@@ -483,6 +483,9 @@ private struct EventMelt: View {
             FeedCardURLPhoto(url: url, loadingFill: Hue.gameNight)
                 .frame(width: sharp.width, height: sharp.height)
                 .scaleEffect(max(width / sharp.width, height / sharp.height))
+                // Moved toward its focus, as a photo filling this frame is.
+                .offset(FeedCardURLPhoto.offset(image: sharp, box: CGSize(width: width, height: height),
+                                                 focus: FeedCardImageLoader.shared.focus(for: url)))
                 .frame(width: width, height: height)
                 .clipped()
         } else {
