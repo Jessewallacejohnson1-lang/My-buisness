@@ -382,6 +382,10 @@ final class FeedCardImageLoader {
         let folder = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("feed-photos")
         config.urlCache = URLCache(memoryCapacity: 4 << 20, diskCapacity: 300 << 20, directory: folder)
+        #if DEBUG
+        // `-forget-photos`: a start with none kept, for counting photos that come on blank (BP app tab-lag 03).
+        if LaunchFlags.has(.forgetPhotos) { config.urlCache?.removeAllCachedResponses() }
+        #endif
         return URLSession(configuration: config)
     }()
 

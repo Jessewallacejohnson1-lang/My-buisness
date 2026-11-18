@@ -20,6 +20,7 @@ nonisolated enum LaunchFlags {
         case feedScrollSweep = "-feed-scroll-sweep"
         case feedScrolled = "-feed-scrolled"
         case feedScrolledY = "-feed-scrolled-y"
+        case forgetPhotos = "-forget-photos"
         case frameGapLog = "-frame-gap-log"
         case friendsFail = "-friends-fail"
         case friendsLimit = "-friends-limit"
