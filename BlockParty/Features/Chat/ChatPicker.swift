@@ -2,7 +2,7 @@
 //  ChatPicker.swift
 //  Block Party — who a message goes to (BP app five-tabs 05). The pencil in Messages picks one friend or several,
 //  a group of friends with a name if you like, and opens the chat. "Send in a chat" on an Event's share sheet
-//  lists your chats and friends, each with Instagram's Send, which sends the Event's card at once.
+//  lists your chats, your Groups and friends, each with Instagram's Send, which sends the Event's card at once.
 //
 
 import SwiftUI
@@ -13,6 +13,8 @@ struct ChatPicker: View {
 
     @Environment(ChatBook.self) private var chats
     @Environment(FriendsBook.self) private var book
+    @Environment(YouModel.self) private var you: YouModel?
+    @Environment(RealLifeActions.self) private var actions: RealLifeActions?
     @Environment(\.dismiss) private var dismiss
     @State private var words = ""
     @State private var picked: [Neighbor] = []
@@ -21,6 +23,8 @@ struct ChatPicker: View {
     /// Who an Event can go to, kept as the sheet opened: a send moves a chat up the list behind it,
     /// and the row under your thumb mustn't move.
     @State private var targets: [Target] = []
+    /// Your Groups with no chat on your list yet (five-tabs 09); nil until asked.
+    @State private var groups: [TownGroup]?
     @State private var failures = 0
     @State private var starting = false
     @State private var failed = false
@@ -34,19 +38,29 @@ struct ChatPicker: View {
 
     private var friends: [Neighbor] { book.friends.filter { matches($0.displayName) } }
 
-    /// A chat, or a friend you haven't one with.
+    /// A chat, a Group with none yet, or a friend you haven't one with.
     private struct Target: Identifiable {
         let id: String
         let name: String
         var chat: Chat? = nil
+        var group: TownGroup? = nil
         var person: Neighbor? = nil
     }
 
-    /// For an Event: your chats first, then friends you haven't one with.
+    /// For an Event: your chats first, then your Groups with no chat yet, then friends you haven't one with.
     private func listTargets() -> [Target] {
         chats.messages.filter { !$0.waiting && $0.kind != .going }.map { Target(id: $0.id, name: $0.title, chat: $0) }
+            + (groups ?? []).map { Target(id: $0.id, name: $0.name, group: $0) }
             + book.friends.filter { chats.chat(with: $0) == nil }
                 .map { Target(id: $0.id, name: $0.displayName, person: $0) }
+    }
+
+    /// The Groups you're in, read now if nothing has read them yet.
+    private func yourGroups() async -> [TownGroup] {
+        guard let you, let actions else { return [] }
+        let all: [TownGroup]
+        if let read = you.groups { all = read } else { all = await you.refreshGroups() ?? [] }
+        return all.filter { actions.member($0).isMember }
     }
 
     var body: some View {
@@ -57,7 +71,7 @@ struct ChatPicker: View {
                         .padding(.horizontal, ChatMetric.side)
                         .padding(.bottom, ChatMetric.sectionBottom)
                     if card == nil { picking } else { sending }
-                    if !book.loaded {
+                    if !book.loaded || groups == nil {
                         SkeletonBlock(cornerRadius: ChatMetric.loadingLine / 2)
                             .frame(width: ChatMetric.loadingName, height: ChatMetric.loadingLine)
                             .frame(maxWidth: .infinity, minHeight: ChatMetric.older)
@@ -81,8 +95,12 @@ struct ChatPicker: View {
             .safeAreaInset(edge: .bottom, spacing: 0) { if card == nil && !picked.isEmpty { start } }
         }
         .task { await book.refresh() }
-        .onChange(of: book.loaded, initial: true) { _, loaded in
-            if loaded, targets.isEmpty { targets = listTargets() }
+        .task {
+            guard card != nil else { groups = []; return }
+            groups = await chats.groupsToSend(yourGroups())
+        }
+        .onChange(of: book.loaded && groups != nil, initial: true) { _, ready in
+            if ready, targets.isEmpty { targets = listTargets() }
         }
         .presentationDetents([.large])
     }
@@ -178,11 +196,13 @@ struct ChatPicker: View {
             row(key: target.id, name: target.name) {
                 if let chat = target.chat {
                     ChatFace(chat: chat)
+                } else if let group = target.group {
+                    ChatGroupFace(group: group)
                 } else if let person = target.person {
                     Avatar(avatarUrl: person.avatarUrl, size: ChatMetric.face)
                 }
             } send: {
-                await deliver(key: target.id, chat: target.chat?.id, to: target.person?.id)
+                await deliver(key: target.id, chat: target.chat?.id, group: target.group?.id, to: target.person?.id)
             }
         }
     }
@@ -216,11 +236,14 @@ struct ChatPicker: View {
     }
 
     /// Sent at once: the button says so, and turns back with a shake if it didn't go.
-    private func deliver(key: String, chat: String?, to person: String?) async {
+    /// A Group with no chat yet gets one first, as opening it from its page does.
+    private func deliver(key: String, chat: String?, group: String?, to person: String?) async {
         guard let card else { return }
         withAnimation(Motion.snappy) { _ = sent.insert(key) }
         Haptics.light()
         do {
+            var chat = chat
+            if let group { chat = try await chats.api.joinGroup(group) }
             _ = try await chats.api.send(chat: chat, to: person, client: UUID().uuidString.lowercased(), .event(card.id))
             await chats.refresh()
         } catch {

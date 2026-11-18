@@ -245,6 +245,27 @@ final class ChatBookTests: XCTestCase {
                        3)
     }
 
+    func testAnEventGoesToYourGroupsWithNoChatYetOnlyWhenYouMayBeInOne() async throws {
+        server.answers["rpc/get_chats"] = .init(body: "[\(clubJSON())]")
+        let book = ChatBook(supabase: supabase, live: true)
+        await book.refresh()
+        let rodAndGun = TownGroup(id: "g7", name: "Rod and Gun Club"), lions = TownGroup(id: "g8", name: "Lions Club")
+        server.answers["rpc/get_group_chat"] = .init(body: #"[{"state":"open","is_host":false}]"#)
+        let offered = await book.groupsToSend([rodAndGun, lions])
+        XCTAssertEqual(offered.map(\.id), ["g8"], "a Group whose chat is on the list goes as that chat")
+        XCTAssertEqual(server.lastBody as? [String: String], ["p_club": "g8"])
+        server.answers["rpc/get_group_chat"] = .init(body: #"[{"state":"birthday","is_host":false}]"#)
+        let noBirthday = await book.groupsToSend([rodAndGun, lions])
+        XCTAssertEqual(noBirthday, [])
+        server.answers["rpc/get_group_chat"] = .init(body: #"[{"state":"none","is_host":false}]"#)
+        let underEighteen = await book.groupsToSend([lions])
+        XCTAssertEqual(underEighteen, [])
+        let before = server.requests.count
+        let all = await book.groupsToSend([rodAndGun])
+        XCTAssertEqual(all, [])
+        XCTAssertEqual(server.requests.count, before, "nothing to ask about")
+    }
+
     func testAskingAboutAGroupChatReadsItsOwnFunction() async throws {
         server.answers["rpc/get_group_chat"] = .init(body: #"[{"state":"birthday","is_host":false}]"#)
         let access = try await api.groupAccess("g7")

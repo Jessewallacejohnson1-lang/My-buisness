@@ -61,6 +61,15 @@ final class ChatBook {
         chats?.first { $0.kind == .club && $0.clubId == id }
     }
 
+    /// Your Groups whose chat isn't on your list yet, for an Event's Send (BP app five-tabs 09): Send makes the chat. None
+    /// when you can't be in a Group chat at all (under 18, or no birthday yet), which one ask of the server says, so the
+    /// list never offers a Send it refuses.
+    func groupsToSend(_ yours: [TownGroup]) async -> [TownGroup] {
+        let new = yours.filter { chat(forGroup: $0.id) == nil }
+        guard let first = new.first, (try? await api.groupAccess(first.id))?.state == .open else { return [] }
+        return new
+    }
+
     func refresh() async {
         guard live, db.auth.userId != nil else { return }
         latestRead &+= 1
