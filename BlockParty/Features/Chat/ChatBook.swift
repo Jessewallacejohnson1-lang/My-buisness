@@ -27,6 +27,9 @@ final class ChatBook {
     /// The chat on screen, which hears what the socket hears.
     @ObservationIgnored weak var open: ChatThread?
     @ObservationIgnored private var latestRead = 0
+    /// The server said you may be in a Group chat. Kept, so only the first Send to waits for the ask: a birthday
+    /// isn't taken back and nobody gets younger. A no isn't kept, since adding a birthday changes it.
+    @ObservationIgnored private var mayGroupChat = false
     /// The read that's waiting for what the socket heard to settle.
     @ObservationIgnored private var hearing: Task<Void, Never>?
 
@@ -66,8 +69,9 @@ final class ChatBook {
     /// list never offers a Send it refuses.
     func groupsToSend(_ yours: [TownGroup]) async -> [TownGroup] {
         let new = yours.filter { chat(forGroup: $0.id) == nil }
-        guard let first = new.first, (try? await api.groupAccess(first.id))?.state == .open else { return [] }
-        return new
+        guard let first = new.first else { return [] }
+        if !mayGroupChat { mayGroupChat = (try? await api.groupAccess(first.id))?.state == .open }
+        return mayGroupChat ? new : []
     }
 
     func refresh() async {
@@ -125,6 +129,7 @@ final class ChatBook {
         chats = live ? nil : []
         failed = false
         sending = nil
+        mayGroupChat = false
     }
 
     /// Read on screen, so its dot goes at once.
