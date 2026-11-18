@@ -107,17 +107,25 @@ enum EventCalendar {
         return planned.first(where: inMonth) ?? first
     }
 
-    /// Whether `page` is `current` or one beside it in `pages`: the pages a swipe can bring in next, the only ones
-    /// worth drawing in full.
-    static func near(_ page: Date, _ current: Date, in pages: [Date]) -> Bool {
+    /// Whether `page` is `current` or within `reach` pages of it in `pages`: the pages a swipe, or two swipes in a
+    /// row, can bring in, the only ones worth drawing in full.
+    static func near(_ page: Date, _ current: Date, in pages: [Date], reach: Int = 2) -> Bool {
         guard let a = pages.firstIndex(of: page), let b = pages.firstIndex(of: current) else { return page == current }
-        return abs(a - b) <= 1
+        return abs(a - b) <= reach
     }
 
-    /// Whether the month pager draws `page`: up to the month after the furthest one shown (`furthest`, an index into
-    /// `months`, or `shown` when that is further), so every month a slide can pass is there (tab-lag 02).
-    static func drawn(_ page: Date, shown: Date, furthest: Int, in months: [Date]) -> Bool {
-        (months.firstIndex(of: page) ?? 0) <= max(furthest, months.firstIndex(of: shown) ?? 0) + 1
+    /// Whether the month pager draws `page`: the month shown, and with a `reach` every month up to that many past
+    /// the furthest one shown (`furthest`, an index into `months`, or `shown` when that is further), so every month
+    /// a slide can pass is there (tab-lag 02).
+    static func drawn(_ page: Date, shown: Date, furthest: Int, reach: Int = 2, in months: [Date]) -> Bool {
+        let index = months.firstIndex(of: page) ?? 0, at = months.firstIndex(of: shown) ?? 0
+        return index == at || reach > 0 && index <= max(furthest, at) + reach
+    }
+
+    /// How far the calendar draws past the month and day on screen as `step` goes from 0 (the tap) to 4 (all), one
+    /// part a frame apart, so no frame builds more than a month's grid or two day cards (tab-lag 02).
+    static func reach(_ step: Int) -> (months: Int, days: Int) {
+        (months: step >= 3 ? 2 : step >= 1 ? 1 : 0, days: step >= 4 ? 2 : step >= 2 ? 1 : 0)
     }
 
     /// How tall `month`'s grid stands: its weeks of day circles and the gaps between them, so a month drawn as
@@ -146,9 +154,10 @@ struct EventCalendarView: View {
     @State private var picked: Date?
     /// The furthest month shown so far, as an index into the months: they stay drawn.
     @State private var furthest = 0
-    /// Off until the page has come in: the tap draws this month and the picked day's card, and the month and
-    /// days a swipe reaches next come a moment later, so the pill's first frame waits on less (tab-lag 02).
-    @State private var settled = false
+    /// The tap draws this month and the picked day's card; once the page has come in, the months and days one and
+    /// two swipes away follow a part at a time (`EventCalendar.reach`), so the pill's first frame waits on less
+    /// (tab-lag 02). Any move draws them all at once.
+    @State private var step = 0
     @Namespace private var ring
 
     var body: some View {
@@ -161,37 +170,43 @@ struct EventCalendarView: View {
             let byDay = YouCalendar.byDay(events ?? [])
             let planned = byDay.keys.sorted()
             let day = picked.flatMap { EventCalendar.days(months).contains($0) ? $0 : nil } ?? today
+            let reach = EventCalendar.reach(step)
             VStack(spacing: 0) {
                 monthRow(month, months: months, today: today, day: day, planned: planned)
                 weekdays
                     .padding(.top, CalendarMetric.weekdaysTop)
                 AgendaPager(pages: months, day: month, pick: { go(to: $0, today: today, day: day, planned: planned) },
                             jump: reduceMotion ? nil : Motion.smooth) { page in
-                    // Drawn up to the month after the furthest one shown, so every month a slide can pass is
-                    // there: the year at once held the pill's first frame for half a second (BP app tab-lag 02).
-                    // A month past that stands in as its own height. Only this month and the two beside it ask
+                    // Drawn up to two months past the furthest one shown, so every month one or two slides can
+                    // pass is there: the year at once held the pill's first frame for half a second (BP app
+                    // tab-lag 02). A month past that stands in as its own height. Only the months within reach ask
                     // for their photos: a year of them at once kept the month on screen waiting behind the rest.
-                    if EventCalendar.drawn(page, shown: month, furthest: furthest, in: months) && (settled || page == month) {
-                        grid(page, byDay: EventCalendar.near(page, month, in: months) ? byDay : [:], today: today,
-                             day: day, loaded: events != nil)
+                    if EventCalendar.drawn(page, shown: month, furthest: furthest, reach: reach.months, in: months) {
+                        let near = EventCalendar.near(page, month, in: months, reach: reach.months)
+                        grid(page, byDay: near ? byDay : [:], today: today, day: day, loaded: events != nil)
                             .padding(.horizontal, CalendarMetric.gridInset)
                     } else {
                         Color.clear.frame(height: EventCalendar.gridHeight(page))
                     }
                 }
                 .padding(.top, CalendarMetric.gridTop)
-                dayCards(events, byDay: byDay, months: months, today: today, day: day, now: now, planned: planned)
+                dayCards(events, byDay: byDay, months: months, today: today, day: day, now: now, planned: planned,
+                         reach: reach.days)
                     .padding(.top, CalendarMetric.cardTop)
             }
         }
         .onChange(of: shown) { _, month in
             if let month, let index = EventCalendar.months(now: .now).firstIndex(of: month) { furthest = max(furthest, index) }
+            step = 4
         }
+        .onChange(of: picked) { step = 4 }
         // On every visit and a new account; the list on screen stays meanwhile.
         .task(id: auth.accountKey) { await model.loadCalendar() }
         .task {
-            try? await Task.sleep(for: .milliseconds(400))
-            settled = true
+            for next in 1...4 {
+                guard (try? await Task.sleep(for: .milliseconds(next == 1 ? 350 : 100))) != nil else { return }
+                step = max(step, next)
+            }
         }
     }
 
@@ -301,13 +316,13 @@ struct EventCalendarView: View {
     /// today and the day picked. Before that, the card with its skeleton or the retry.
     @ViewBuilder
     private func dayCards(_ events: [DailyEvent]?, byDay: [Date: [DailyEvent]], months: [Date], today: Date,
-                          day: Date, now: Date, planned: [Date]) -> some View {
+                          day: Date, now: Date, planned: [Date], reach: Int) -> some View {
         if let events {
             let pages = YouCalendar.pages(events, days: EventCalendar.days(months), today: today, day: day)
             AgendaPager(pages: pages, day: day, pick: { pick($0, from: day) }) { page in
-                // The picked day and the two beside it, as the months: a card for every day of the year held
-                // the pill's first frame (tab-lag 02). A day further off is drawn once a move brings it beside.
-                if EventCalendar.near(page, day, in: pages) && (settled || page == day) {
+                // The picked day and two each side, as the months: a card for every day of the year held the
+                // pill's first frame (tab-lag 02). A day further off is drawn once a move brings it within two.
+                if EventCalendar.near(page, day, in: pages, reach: reach) {
                     dayCard(page, events: byDay[page] ?? [], today: today, now: now, planned: planned)
                 } else {
                     Color.clear.frame(height: 0)

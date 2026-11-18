@@ -80,8 +80,9 @@ struct AgendaPager<Page: View>: View {
                             .padding(.bottom, AgendaMetric.shadowBelow)
                             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
                                 // A card opening or closing: the pager grows on the card's own spring,
-                                // so what's below moves with it. The first measure lands at once.
-                                withAnimation(heights[date] == nil || reduceMotion ? nil : Motion.bentoExpand) {
+                                // so what's below moves with it. The first measure lands at once, and so does a
+                                // page's first real one after standing in as nothing (Search's far days).
+                                withAnimation((heights[date] ?? 0) == 0 || reduceMotion ? nil : Motion.bentoExpand) {
                                     heights[date] = height
                                 }
                             }

@@ -89,23 +89,38 @@ final class EventCalendarTests: XCTestCase {
         XCTAssertEqual(land("2027-03-01", picked: "2027-01-15"), "2027-03-01")
     }
 
-    /// Only the page on screen and the two beside it draw their photos (a year at once kept the month waiting).
+    /// Only the page on screen and the pages one or two swipes away draw in full (a year at once kept the month
+    /// waiting); as the calendar opens, fewer.
     func testOnlyNearPagesDrawInFull() {
         let pages = ["2026-11-13", "2026-11-14", "2026-11-19", "2026-12-04"].map(day)
         XCTAssertTrue(EventCalendar.near(day("2026-11-14"), day("2026-11-13"), in: pages))
         XCTAssertTrue(EventCalendar.near(day("2026-11-13"), day("2026-11-13"), in: pages))
-        XCTAssertFalse(EventCalendar.near(day("2026-11-19"), day("2026-11-13"), in: pages))
+        XCTAssertTrue(EventCalendar.near(day("2026-11-19"), day("2026-11-13"), in: pages))
+        XCTAssertFalse(EventCalendar.near(day("2026-12-04"), day("2026-11-13"), in: pages))
         XCTAssertFalse(EventCalendar.near(day("2026-11-20"), day("2026-11-13"), in: pages))
+        XCTAssertFalse(EventCalendar.near(day("2026-11-19"), day("2026-11-13"), in: pages, reach: 1))
+        XCTAssertFalse(EventCalendar.near(day("2026-11-14"), day("2026-11-13"), in: pages, reach: 0))
     }
 
-    /// The pill opens with this month and the next drawn, not the year; a month once shown stays drawn, and so does
-    /// every month a slide back to it passes (BP app tab-lag 02).
+    /// The pill opens with this month drawn, then the next two, not the year; a month once shown stays drawn, and so
+    /// does every month a slide back to it passes (BP app tab-lag 02).
     func testOnlyMonthsASlideCanReachAreDrawn() {
         let months = EventCalendar.months(now: town("2026-11-13 12:00"))
-        XCTAssertEqual(months.filter { EventCalendar.drawn($0, shown: months[0], furthest: 0, in: months) }, Array(months[0...1]))
-        XCTAssertEqual(months.filter { EventCalendar.drawn($0, shown: months[4], furthest: 0, in: months) }, Array(months[0...5]))
-        XCTAssertEqual(months.filter { EventCalendar.drawn($0, shown: months[0], furthest: 6, in: months) }, Array(months[0...7]))
+        func drawn(_ shown: Int, _ furthest: Int, _ reach: Int = 2) -> [Date] {
+            months.filter { EventCalendar.drawn($0, shown: months[shown], furthest: furthest, reach: reach, in: months) }
+        }
+        XCTAssertEqual(drawn(0, 0, 0), [months[0]])
+        XCTAssertEqual(drawn(0, 0, 1), Array(months[0...1]))
+        XCTAssertEqual(drawn(0, 0), Array(months[0...2]))
+        XCTAssertEqual(drawn(4, 0), Array(months[0...6]))
+        XCTAssertEqual(drawn(0, 6), Array(months[0...8]))
         XCTAssertTrue(EventCalendar.drawn(months[11], shown: months[11], furthest: 0, in: months))
+    }
+
+    /// The parts drawn after the tap, a frame apart: the next month, the days beside, a second month, a second day.
+    func testTheCalendarDrawsItsReachInSteps() {
+        XCTAssertEqual((0...4).map { EventCalendar.reach($0).months }, [0, 1, 1, 2, 2])
+        XCTAssertEqual((0...4).map { EventCalendar.reach($0).days }, [0, 0, 1, 1, 2])
     }
 
     /// A month not yet drawn stands in at its grid's height: five weeks for November 2026, six for May 2027.

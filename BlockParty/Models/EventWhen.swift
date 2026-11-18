@@ -87,8 +87,9 @@ extension EventWhen {
     /// below took half the Event calendar's read of its year on the main thread (BP app tab-lag 02).
     private static let read = OSAllocatedUnfairLock(initialState: [String: Int?]())
 
-    private nonisolated static func reading(_ raw: String?) -> Int? {
-        guard let text = raw?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(), !text.isEmpty
+    private nonisolated static func reading(_ raw: String) -> Int? {
+        let text = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !text.isEmpty
         else { return nil }
         // A word ahead of any digit starts it: "noon-2pm" is noon, "midnight to 2 AM" midnight.
         let firstDigit = text.firstIndex(where: \.isNumber) ?? text.endIndex
