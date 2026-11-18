@@ -180,4 +180,13 @@ final class EventCardTests: XCTestCase {
         let before = card.replacingOccurrences(of: #","recurrence":"Every Thursday""#, with: "")
         XCTAssertNil(try Supabase.decode(Data(before.utf8), as: ChatEvent.self).card?.recurrence)
     }
+
+    /// A card's date chip, from the one formatter made once (tab-lag 02): the day as the card shows it, and
+    /// nothing for a date that isn't one.
+    func testTheDateChip() {
+        XCTAssertEqual(FeedCardItem.dateChip(from: "2026-11-18"), "WED NOV 18")
+        XCTAssertEqual(FeedCardItem.dateChip(from: "2027-01-01"), "FRI JAN 1")
+        XCTAssertEqual(FeedCardItem.dateChip(from: nil), "")
+        XCTAssertEqual(FeedCardItem.dateChip(from: "Nov 18"), "")
+    }
 }

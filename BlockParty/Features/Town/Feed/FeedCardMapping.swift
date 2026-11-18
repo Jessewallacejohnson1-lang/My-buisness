@@ -65,7 +65,7 @@ extension FeedCardItem {
         return trimmed
     }
 
-    private static func dateChip(from value: String?) -> String {
+    static func dateChip(from value: String?) -> String {
         guard let value else { return "" }
         let parts = value.split(separator: "-", omittingEmptySubsequences: false)
         guard parts.count == 3,
@@ -74,18 +74,27 @@ extension FeedCardItem {
               let day = Int(parts[2])
         else { return "" }
 
+        guard let date = chipCalendar.date(from: DateComponents(year: year, month: month, day: day))
+        else { return "" }
+        return chipFormat.string(from: date).uppercased()
+    }
+
+    /// Made once: a formatter made per row took a third of the Event calendar's 300 ms read of its year on the
+    /// main thread (BP app tab-lag 02, Jesse's iPhone).
+    private static let chipCalendar: Calendar = {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = .current
-        guard let date = calendar.date(from: DateComponents(year: year, month: month, day: day))
-        else { return "" }
+        return calendar
+    }()
 
+    private static let chipFormat: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.calendar = calendar
+        formatter.calendar = chipCalendar
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = .current
         formatter.dateFormat = "EEE MMM d"
-        return formatter.string(from: date).uppercased()
-    }
+        return formatter
+    }()
 
     /// An organizer's own photo, then a bundled, human-verified `KnownLocalPhoto` for its
     /// title, then the place's saved photo or logo (`place`), then flat ink. Nothing here
