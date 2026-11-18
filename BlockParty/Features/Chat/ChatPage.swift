@@ -1,18 +1,22 @@
 //
 //  ChatPage.swift
-//  Block Party — one chat (BP app five-tabs 05): Instagram's thread (mock round 2). Your bubbles are ink with
-//  white words, theirs the light fill, never yellow (taste, 2026-10-06). Text, a photo or an Event, whose card
-//  opens the Event page, with I'm in, Maybe and Can't under one sent to you. Typing dots and
-//  Seen, no online status. A request shows Accept, Delete and Block where the composer goes.
+//  Block Party — one chat (BP app five-tabs 05, messages 02): Instagram's thread, measured (BP app
+//  `references/messages-instagram/SPEC.md`). Your bubbles run violet to blue down the screen, theirs are the light
+//  fill, never yellow (taste, 2026-10-06). Text, a photo or an Event, whose card opens the Event page, with I'm in,
+//  Maybe and Can't under one sent to you. Typing dots, no Seen and no online status. Your words come up out of the
+//  composer, a drag left shows the times, and the + sends an Event. A request shows Accept, Delete and Block where
+//  the composer goes.
 //
 //  A Going chat (five-tabs 06) is the same thread among strangers: the bar shows its Event, it takes words only, with no
-//  Seen or typing dots, and whatever its host writes is an update, drawn as Instagram's channel card.
+//  typing dots, and whatever its host writes is an update, drawn as Instagram's channel card.
 //
 //  A Group chat (five-tabs 07) is that room for a Group's members: the bar shows the Group, words and Events go in, and
 //  everyone is equal, since a Group has no host.
 //
 //  Apple's pieces: a bottom-anchored scroll (`defaultScrollAnchor`), the composer in `safeAreaInset`, a growing
-//  `TextField`, `PhotosPicker`, and `contextMenu` on a bubble. How Instagram builds its own is a guess.
+//  `TextField`, `PhotosPicker`, `contextMenu` on a bubble and a sheet for the +. Ours: the bubble's colour by its
+//  height, its rise from the composer and the drag for the times (`ChatTimesPan`). How Instagram builds its own
+//  is a guess.
 //
 
 import PhotosUI
@@ -48,6 +52,14 @@ struct ChatPage: View {
     @State private var blocking: Neighbor?
     @State private var askingLeave = false
     @State private var problem: String?
+    /// The + sheet is up.
+    @State private var sendingEvent = false
+    /// The whole screen's height: your bubbles' colour goes by where they sit on it.
+    @State private var screen: CGFloat = Hue.chatMineScreen
+    /// Where the composer's words start, on the screen: a message just sent comes up from there.
+    @State private var composerWords: CGPoint?
+    /// The message on its way up out of the composer.
+    @State private var rising: String?
     @FocusState private var typing: Bool
 
     /// The list's newest word on this chat: a request accepted, a person now waiting.
@@ -83,10 +95,20 @@ struct ChatPage: View {
 
     var body: some View {
         ZStack {
-            Hue.paper.ignoresSafeArea()
+            Hue.surface.ignoresSafeArea()
             if let thread { content(thread) }
         }
+        .onGeometryChange(for: CGFloat.self) { $0.size.height + $0.safeAreaInsets.top + $0.safeAreaInsets.bottom } action: { screen = $0 }
         .toolbar(.hidden, for: .navigationBar)
+        .sheet(isPresented: $sendingEvent) {
+            ChatEventSheet { card in
+                guard let thread else { return }
+                Task {
+                    await thread.send(card: card)
+                    surfaceRefusal(thread)
+                }
+            }
+        }
         .task {
             // Coming back from an Event or a Profile keeps what's here, what failed to send included.
             if thread == nil {
@@ -187,7 +209,10 @@ struct ChatPage: View {
     private func content(_ thread: ChatThread) -> some View {
         VStack(spacing: 0) {
             bar(thread)
-            ChatMessages(thread: thread, isGroup: isGroup, others: others, reduceMotion: reduceMotion,
+            ChatMessages(thread: thread, isGroup: isGroup, others: others, reduceMotion: reduceMotion, screen: screen,
+                         composerWords: composerWords, rising: rising,
+                         // A friend's chat opens on them, once there is nothing older to read.
+                         profile: isGroup ? nil : others.first,
                          answer: { answer($0, card: $1, thread) },
                          report: { reporting = $0 },
                          block: { blocking = $0 })
@@ -198,25 +223,27 @@ struct ChatPage: View {
 
     // MARK: The bar
 
-    /// Back, who it is (a tap opens their Profile), and the ••• (Apple's menu): Report, then Block or a group's Leave.
+    /// Back, who it is (a tap opens their Profile, the Event or the Group), and the ••• (Apple's menu): Report, then
+    /// Block or a group's Leave. Flat white, a line under it.
     private func bar(_ thread: ChatThread) -> some View {
         HStack(spacing: 0) {
-            BackButton { dismiss() }
+            ChatBackButton { dismiss() }
             Group {
                 if let card = goingCard {
-                    NavigationLink(value: card) { who }
+                    NavigationLink(value: card) { who(opens: true) }
                         .buttonStyle(.press(.dim))
                 } else if let townGroup {
-                    NavigationLink(value: townGroup) { who }
+                    NavigationLink(value: townGroup) { who(opens: true) }
                         .buttonStyle(.press(.dim))
                         .accessibilityHint("Opens the group")
                 } else if !isGroup, let other = others.first {
-                    NavigationLink(value: other) { who }
+                    NavigationLink(value: other) { who(opens: true) }
                         .buttonStyle(.press(.dim))
                 } else {
-                    who
+                    who(opens: false)
                 }
             }
+            .padding(.leading, ChatMetric.barFaceLead - ChatMetric.backLead - PageMetric.tapMin)
             Spacer(minLength: 0)
             Menu {
                 // Not in a room, where whoever spoke last is a stranger: a press reports the right one.
@@ -235,39 +262,49 @@ struct ChatPage: View {
                 }
             } label: {
                 Image(systemName: "ellipsis")
-                    .font(.glyph(18, weight: .semibold))
+                    .font(.glyph(20, weight: .medium))
                     .foregroundStyle(Hue.ink)
                     .frame(width: PageMetric.tapMin, height: PageMetric.tapMin)
                     .contentShape(Rectangle())
             }
             .accessibilityLabel("More options")
-            .padding(.trailing, PageMetric.backLead)
+            .padding(.trailing, ChatMetric.pencilTrail)
         }
-        .frame(height: PageMetric.bar)
-        .background(Hue.paper)
-        .overlay(alignment: .bottom) { Rectangle().fill(Hue.hairline).frame(height: FriendsMetric.hairline) }
+        .frame(height: ChatMetric.backMid * 2)
+        .frame(height: ChatMetric.chatBar, alignment: .top)
+        .background(Hue.surface)
+        .overlay(alignment: .bottom) { Rectangle().fill(Hue.chatLine).frame(height: ChatMetric.line) }
     }
 
-    private var who: some View {
-        HStack(spacing: ChatMetric.chipGap) {
+    private func who(opens: Bool) -> some View {
+        let square = goingCard != nil || clubID != nil || isGroup
+        return HStack(spacing: square ? ChatMetric.barSquareGap : ChatMetric.barFaceGap) {
             if let card = goingCard {
-                ChatEventFace(card: card, size: ChatMetric.barFace)
+                ChatEventFace(card: card, size: ChatMetric.barSquare)
             } else if clubID != nil {
-                ChatGroupFace(group: townGroup, size: ChatMetric.barFace)
-            } else if let current {
-                ChatFace(chat: current, size: ChatMetric.barFace)
+                ChatGroupFace(group: townGroup, size: ChatMetric.barSquare)
+            } else if isGroup, others.count > 1 {
+                ChatDuoFace(first: others[0], second: others[1], size: ChatMetric.barSquare)
             } else {
                 Avatar(avatarUrl: others.first?.avatarUrl, size: ChatMetric.barFace)
             }
             VStack(alignment: .leading, spacing: 0) {
-                Text(title)
-                    .font(.sansSemibold(16))
-                    .foregroundStyle(Hue.ink)
-                    .lineLimit(1)
+                HStack(spacing: ChatMetric.barChevronGap) {
+                    Text(title)
+                        .appleFont(16, weight: .bold)
+                        .foregroundStyle(Hue.ink)
+                        .lineLimit(1)
+                    if opens {
+                        Image(systemName: "chevron.right")
+                            .font(.glyph(ChatMetric.barChevron, weight: .semibold))
+                            .foregroundStyle(Hue.ink)
+                            .accessibilityHidden(true)
+                    }
+                }
                 if let line {
                     Text(line)
-                        .font(.sans(12))
-                        .foregroundStyle(Hue.inkSecondary)
+                        .appleFont(12)
+                        .foregroundStyle(Hue.chatGrey)
                         .lineLimit(1)
                 }
             }
@@ -276,17 +313,14 @@ struct ChatPage: View {
         .contentShape(Rectangle())
     }
 
-    /// "Friends since 2024" (the mock's), how many are in a group, how many are Going, or a Group's members, never 0.
+    /// How many are Going, a Group's members, or how many are in a group of friends, never 0. A friend's has none.
     private var line: String? {
         if let card = goingCard {
             let count = actions.going(card).count
             return count > 0 ? "\(count) going" : nil
         }
         if clubID != nil { return townGroup.flatMap { GroupPage.membersText(actions.member($0).count) } }
-        if isGroup { return "\(others.count + 1) people" }
-        guard let other = others.first, book.relation(other) == .friends,
-              let since = other.friendsSince.flatMap(DateHelpers.timestamp) else { return nil }
-        return "Friends since \(Town.format(since, "yyyy"))"
+        return isGroup ? "\(others.count + 1) people" : nil
     }
 
     // MARK: The foot
@@ -298,67 +332,81 @@ struct ChatPage: View {
             } block: { blocking = others.first }
         } else if current?.waiting == true {
             Text("Sent as a request. You can write more once \(others.first?.firstName ?? "they") accepts.")
-                .font(.sans(13))
-                .foregroundStyle(Hue.inkSecondary)
+                .appleFont(13)
+                .foregroundStyle(Hue.chatGrey)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity)
                 .padding(.horizontal, ChatMetric.side)
-                .padding(.vertical, ChatMetric.composerY)
-                .background(Hue.paper)
+                .padding(.vertical, ChatMetric.requestTop)
+                .background(Hue.surface)
         } else {
             composer(thread)
         }
     }
 
-    /// The camera's place holds the photo button, the field grows to five lines, and the arrow comes with words.
+    /// Instagram's composer: a grey pill with the photo button and the + at its right; with words in it, it grows a
+    /// little and the send pill takes their place. The field grows to five lines.
     private func composer(_ thread: ChatThread) -> some View {
         let empty = words.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         // Before a chat exists with someone who isn't your friend, words alone go.
         let strangers = current == nil && !isGroup && others.first.map { book.relation($0) != .friends } == true
-        // A room takes no photos, and has nowhere to send words until it's joined.
+        // A room has nowhere to send words until it's joined.
         let ready = !thread.isRoom || thread.chatID != nil
-        return HStack(alignment: .bottom, spacing: ChatMetric.chipGap) {
-            if !strangers, !thread.isRoom { photoButton(thread) }
-            HStack(alignment: .bottom, spacing: 0) {
-                TextField(thread.isHost ? "Post an update…" : "Message…", text: $words, axis: .vertical)
-                    .font(.sans(16))
-                    .foregroundStyle(Hue.ink)
-                    .lineLimit(1 ... ChatMetric.composerLines)
-                    .focused($typing)
-                    .padding(.vertical, ChatMetric.bubbleY)
-                    .onChange(of: words) { _, new in if !new.isEmpty { thread.typed() } }
-                if !empty, ready {
-                    Button { send(thread) } label: {
-                        Image(systemName: "arrow.up")
-                            .font(.glyph(ChatMetric.sendGlyph, weight: .bold))
-                            .foregroundStyle(Hue.surface)
-                            .frame(width: ChatMetric.composerField - 8, height: ChatMetric.composerField - 8)
-                            .background(Hue.ink, in: Circle())
-                            .frame(width: PageMetric.tapMin, height: ChatMetric.composerField)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.press(.squish))
-                    .accessibilityLabel("Send")
-                    .transition(.scale.combined(with: .opacity))
+        let height = empty ? ChatMetric.composerField : ChatMetric.composerTyping
+        return HStack(alignment: .bottom, spacing: 0) {
+            TextField("", text: $words,
+                      prompt: Text(thread.isHost ? "Post an update..." : "Message...").foregroundStyle(Hue.chatGrey), axis: .vertical)
+                .appleFont(16)
+                .foregroundStyle(Hue.ink)
+                .lineLimit(1 ... ChatMetric.composerLines)
+                .focused($typing)
+                .padding(.vertical, (height - ChatMetric.bubbleLine) / 2)
+                .onGeometryChange(for: CGPoint.self) { proxy in
+                    let frame = proxy.frame(in: .global)
+                    return CGPoint(x: frame.minX, y: frame.midY)
+                } action: { composerWords = $0 }
+                .onChange(of: words) { _, new in if !new.isEmpty { thread.typed() } }
+            if !empty, ready {
+                Button { send(thread) } label: {
+                    FeedActionGlyphView(glyph: .send, size: ChatMetric.sendGlyph)
+                        .foregroundStyle(Hue.surface)
+                        .frame(width: ChatMetric.sendWidth, height: ChatMetric.sendHeight)
+                        .background { ChatMineFill(screen: screen).clipShape(Capsule()) }
+                        .contentShape(TapArea())
                 }
+                .buttonStyle(.press(.squish))
+                .accessibilityLabel("Send")
+                .padding(.trailing, ChatMetric.composerSendTrail)
+                .padding(.bottom, (ChatMetric.composerTyping - ChatMetric.sendHeight) / 2)
+                .transition(.scale.combined(with: .opacity))
+            } else if empty, !strangers, goingCard == nil {
+                // A Going chat is words only; a Group chat takes Events; friends take photos too.
+                HStack(spacing: ChatMetric.composerIconGap) {
+                    if !thread.isRoom { photoButton(thread) }
+                    Button { sendingEvent = true } label: { composerGlyph("plus.circle") }
+                        .buttonStyle(.press(.dim))
+                        .accessibilityLabel("Send an Event")
+                }
+                .frame(height: ChatMetric.composerField)
+                .padding(.trailing, ChatMetric.composerIconsTrail)
             }
-            .padding(.leading, ChatMetric.side)
-            .padding(.trailing, empty ? ChatMetric.side : 0)
-            .frame(minHeight: ChatMetric.composerField)
-            .background(Hue.fill, in: RoundedRectangle(cornerRadius: ChatMetric.composerField / 2, style: .continuous))
-            .animation(reduceMotion ? nil : Motion.snappy, value: empty)
         }
-        .padding(.horizontal, ChatMetric.composerX)
+        .padding(.leading, ChatMetric.composerWordsLead)
+        .frame(minHeight: height)
+        .background(Hue.chatComposer, in: RoundedRectangle(cornerRadius: height / 2, style: .continuous))
+        .animation(reduceMotion ? nil : ChatMotion.send, value: empty)
+        .padding(.leading, ChatMetric.composerLead)
+        .padding(.trailing, ChatMetric.composerTrail)
         .padding(.vertical, ChatMetric.composerY)
-        .background(Hue.paper)
+        .background(Hue.surface)
     }
 
     @ViewBuilder private func photoButton(_ thread: ChatThread) -> some View {
         #if DEBUG
         // `-new-event-photo <file>`: a bundled photo as if picked; AXe can't reach Apple's picker.
         if let file = LaunchFlags.value(.newEventPhoto), let image = UIImage(named: file) {
-            Button { Task { await thread.send(photo: image) } } label: { photoGlyph }
-                .buttonStyle(.press(.squish))
+            Button { Task { await thread.send(photo: image) } } label: { composerGlyph("photo") }
+                .buttonStyle(.press(.dim))
                 .accessibilityLabel("Send a photo")
         } else {
             photoPicker
@@ -369,30 +417,34 @@ struct ChatPage: View {
     }
 
     private var photoPicker: some View {
-        PhotosPicker(selection: $pick, matching: .images) { photoGlyph }
-            .buttonStyle(.press(.squish))
+        PhotosPicker(selection: $pick, matching: .images) { composerGlyph("photo") }
+            .buttonStyle(.press(.dim))
             .accessibilityLabel("Send a photo")
     }
 
-    private var photoGlyph: some View {
-        Image(systemName: "photo")
-            .font(.glyph(16, weight: .semibold))
-            .foregroundStyle(Hue.surface)
-            .frame(width: ChatMetric.composerButton, height: ChatMetric.composerButton)
-            .background(Hue.ink, in: Circle())
-            .frame(width: PageMetric.tapMin, height: ChatMetric.composerField)
-            // Apple's 44 reaches a little past the field's height.
-            .contentShape(Rectangle().inset(by: (ChatMetric.composerField - PageMetric.tapMin) / 2))
+    /// One of the composer's two icons: 24 drawn, 44 to the finger.
+    private func composerGlyph(_ name: String) -> some View {
+        Image(systemName: name)
+            .font(.glyph(22))
+            .foregroundStyle(Hue.ink)
+            .frame(width: ChatMetric.composerIcon, height: ChatMetric.composerIcon)
+            .contentShape(TapArea())
     }
 
     // MARK: Actions
 
+    /// The words leave the composer and come up as their bubble.
     private func send(_ thread: ChatThread) {
-        let text = words
+        let text = words, id = UUID().uuidString.lowercased()
         words = ""
+        rising = reduceMotion ? nil : id
         Task {
-            await thread.send(text)
+            await thread.send(text, id: id)
             surfaceRefusal(thread)
+        }
+        Task {
+            try? await Task.sleep(for: .milliseconds(600))
+            if rising == id { rising = nil }
         }
     }
 
@@ -472,26 +524,36 @@ private struct ChatMessages: View {
     let isGroup: Bool
     let others: [Neighbor]
     let reduceMotion: Bool
+    let screen: CGFloat
+    let composerWords: CGPoint?
+    let rising: String?
+    let profile: Neighbor?
     let answer: (String, FeedCardItem) -> Void
     let report: (ChatMessage) -> Void
     let block: (Neighbor) -> Void
+    /// How far a finger has dragged the chat left, for its times.
+    @State private var pull: CGFloat = 0
 
     private var names: [String: Neighbor] {
         Dictionary(others.map { ($0.id.lowercased(), $0) }, uniquingKeysWith: { first, _ in first })
     }
 
     var body: some View {
+        let shift = ChatLook.timesShift(pull)
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: 0) {
                     if thread.hasOlder {
                         // Older messages read as this comes into view: a bubble's shape, shimmering.
-                        SkeletonBlock(cornerRadius: Radius.card)
-                            .frame(width: ChatMetric.loadingName, height: ChatMetric.composerField)
+                        SkeletonBlock(cornerRadius: ChatMetric.bubbleCorner)
+                            .frame(width: ChatMetric.loadingName, height: ChatMetric.typingHeight)
                             .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.leading, ChatMetric.threadLead)
                             .shimmering()
                             .accessibilityLabel("Loading")
                             .task { await thread.readOlder() }
+                    } else if let profile, thread.loaded {
+                        ChatProfileBlock(person: profile)
                     }
                     if !thread.loaded {
                         if thread.failed {
@@ -503,9 +565,9 @@ private struct ChatMessages: View {
                     let messages = thread.messages
                     if thread.isRoom, thread.loaded, messages.isEmpty {
                         Text(thread.club == nil ? "Say hi to everyone going." : "Say hi to the group.")
-                            .font(.sans(14))
-                            .foregroundStyle(Hue.inkSecondary)
-                            .padding(.bottom, ChatMetric.sectionTop)
+                            .appleFont(14)
+                            .foregroundStyle(Hue.chatGrey)
+                            .padding(.vertical, ChatMetric.sectionTop)
                     }
                     ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
                         let last = index > 0 ? messages[index - 1] : nil
@@ -514,8 +576,8 @@ private struct ChatMessages: View {
                         if stamped {
                             TimelineView(.everyMinute) { context in
                                 Text(ChatWords.stamp(message.at, now: context.date))
-                                    .font(.sansMedium(12))
-                                    .foregroundStyle(Hue.inkSecondary)
+                                    .appleFont(12)
+                                    .foregroundStyle(Hue.chatStamp)
                             }
                             .padding(.top, ChatMetric.stampTop)
                             .padding(.bottom, ChatMetric.stampBottom)
@@ -524,45 +586,102 @@ private struct ChatMessages: View {
                         let firstOfRun = stamped || last?.senderID != message.senderID || message.host || last?.host == true
                         let lastOfRun = next?.senderID != message.senderID || message.host || next?.host == true
                             || (next.map { ChatWords.needsStamp($0, after: message) } ?? true)
+                        // An Event's card joins nothing: the bubbles beside it keep their round corners.
+                        let joinsAbove = !firstOfRun && message.card == nil && last?.card == nil
+                        let joinsBelow = !lastOfRun && message.card == nil && next?.card == nil
+                        let rises = message.id == rising
                         ChatBubble(message: message, thread: thread, sender: names[message.senderID] ?? message.sender,
                                    showsName: isGroup && firstOfRun, showsFace: lastOfRun, isGroup: isGroup,
+                                   joinsAbove: joinsAbove, joinsBelow: joinsBelow, screen: screen,
+                                   risesFrom: rises ? composerWords : nil, timeShown: min(1, shift / ChatMetric.timesShown),
                                    reduceMotion: reduceMotion, report: report, block: block)
-                            .padding(.top, firstOfRun && !stamped ? ChatMetric.groupGap : stamped ? 0 : ChatMetric.runGap)
+                            .padding(.top, message.host ? ChatMetric.updateAbove
+                                     : firstOfRun && !stamped ? ChatMetric.groupGap : ChatMetric.runGap)
                             .id(message.id)
-                            .transition(reduceMotion ? .opacity : .asymmetric(
-                                insertion: .scale(scale: 0.9, anchor: thread.isMine(message) ? .bottomTrailing : .bottomLeading)
-                                    .combined(with: .opacity),
+                            // Your words come up out of the composer (`ChatBubble`); everything else pops in from its corner.
+                            .transition(reduceMotion ? .opacity : rises ? .identity : .asymmetric(
+                                insertion: .scale(scale: 0.6, anchor: thread.isMine(message) ? .bottomTrailing : .bottomLeading)
+                                    .combined(with: .opacity).animation(ChatMotion.pop),
                                 removal: .opacity))
                     }
                     if let card = thread.answerable {
                         ChatAnswers { answer($0.sent, card) }
                     }
-                    if thread.seen {
-                        Text("Seen")
-                            .font(.sans(12))
-                            .foregroundStyle(Hue.inkSecondary)
-                            .frame(maxWidth: .infinity, alignment: .trailing)
-                            .padding(.top, ChatMetric.runGap)
-                            .padding(.trailing, ChatMetric.runGap)
-                    }
-                    if !thread.typing.isEmpty {
-                        ChatTypingDots(reduceMotion: reduceMotion)
+                    if let who = thread.typing.first {
+                        ChatTypingDots(face: names[who], reduceMotion: reduceMotion)
                             .padding(.top, ChatMetric.groupGap)
                             .id("typing")
+                            .transition(reduceMotion ? .opacity : .scale(scale: 0.6, anchor: .bottomLeading)
+                                .combined(with: .opacity).animation(ChatMotion.pop))
                     }
                     Color.clear.frame(height: 1).id("end")
                 }
-                .padding(.horizontal, ChatMetric.threadSide)
-                .padding(.vertical, ChatMetric.threadSide)
+                .padding(.vertical, ChatMetric.threadY)
+                .offset(x: -shift)
             }
             .defaultScrollAnchor(.bottom)
+            // A drag left brings the times in at the right; letting go sends the chat back.
+            .gesture(ChatTimesPan { pull = $0 } ended: {
+                withAnimation(reduceMotion ? nil : ChatMotion.timesBack) { pull = 0 }
+            })
             // A message or the dots arriving: down to the end, as every chat does.
             .onChange(of: thread.messages.last?.id) { _, _ in
-                withAnimation(reduceMotion ? nil : Motion.smooth) { proxy.scrollTo("end", anchor: .bottom) }
+                withAnimation(reduceMotion ? nil : ChatMotion.rise) { proxy.scrollTo("end", anchor: .bottom) }
             }
             .onChange(of: thread.typing.isEmpty) { _, none in
-                if !none { withAnimation(reduceMotion ? nil : Motion.smooth) { proxy.scrollTo("end", anchor: .bottom) } }
+                if !none { withAnimation(reduceMotion ? nil : ChatMotion.rise) { proxy.scrollTo("end", anchor: .bottom) } }
             }
+        }
+    }
+}
+
+/// The top of a friend's chat, Instagram's: their face, name, mutual friends and View profile.
+private struct ChatProfileBlock: View {
+    let person: Neighbor
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Avatar(avatarUrl: person.avatarUrl, size: ChatMetric.profileFace)
+                .accessibilityHidden(true)
+            Text(person.displayName)
+                .appleFont(19, weight: .bold)
+                .foregroundStyle(Hue.ink)
+                .lineLimit(1)
+                .frame(height: ChatMetric.profileNameLine)
+                .padding(.top, ChatMetric.profileNameTop)
+            if let mutual = person.mutualLine {
+                Text(mutual)
+                    .appleFont(16)
+                    .foregroundStyle(Hue.chatGrey)
+                    .frame(height: ChatMetric.profileLine)
+            }
+            NavigationLink(value: person) {
+                Text("View profile")
+                    .appleFont(14, weight: .semibold)
+                    .foregroundStyle(Hue.ink)
+                    .padding(.horizontal, ChatMetric.profileButtonPad)
+                    .frame(height: ChatMetric.profileButton)
+                    .background(Hue.chatViewProfile, in: RoundedRectangle(cornerRadius: ChatMetric.profileButtonCorner, style: .continuous))
+                    .contentShape(TapArea())
+            }
+            .buttonStyle(.press(.squish))
+            .padding(.top, ChatMetric.profileButtonTop)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, ChatMetric.profileTop)
+        .padding(.horizontal, ChatMetric.side)
+    }
+}
+
+/// What sits behind your bubble and the send pill: Instagram's violet to blue, by where it is on the screen.
+struct ChatMineFill: View {
+    let screen: CGFloat
+
+    var body: some View {
+        GeometryReader { proxy in
+            let frame = proxy.frame(in: .global), k = Hue.chatMineScreen / max(screen, 1)
+            LinearGradient(colors: [Hue.chatMine(y: frame.minY * k), Hue.chatMine(y: frame.maxY * k)],
+                           startPoint: .top, endPoint: .bottom)
         }
     }
 }
@@ -576,11 +695,42 @@ private struct ChatBubble: View {
     let showsName: Bool
     let showsFace: Bool
     let isGroup: Bool
+    let joinsAbove: Bool
+    let joinsBelow: Bool
+    let screen: CGFloat
+    /// Where the composer's words were, when this is the message just sent from it.
+    let risesFrom: CGPoint?
+    /// 0 to 1 as a drag left brings the times in.
+    let timeShown: CGFloat
     let reduceMotion: Bool
     let report: (ChatMessage) -> Void
     let block: (Neighbor) -> Void
+    /// Up in its place; false while it is still down in the composer.
+    @State private var up: Bool
+
+    init(message: ChatMessage, thread: ChatThread, sender: Neighbor?, showsName: Bool, showsFace: Bool, isGroup: Bool,
+         joinsAbove: Bool, joinsBelow: Bool, screen: CGFloat, risesFrom: CGPoint?, timeShown: CGFloat, reduceMotion: Bool,
+         report: @escaping (ChatMessage) -> Void, block: @escaping (Neighbor) -> Void) {
+        self.message = message
+        self.thread = thread
+        self.sender = sender
+        self.showsName = showsName
+        self.showsFace = showsFace
+        self.isGroup = isGroup
+        self.joinsAbove = joinsAbove
+        self.joinsBelow = joinsBelow
+        self.screen = screen
+        self.risesFrom = risesFrom
+        self.timeShown = timeShown
+        self.reduceMotion = reduceMotion
+        self.report = report
+        self.block = block
+        _up = State(initialValue: risesFrom == nil)
+    }
 
     private var mine: Bool { thread.isMine(message) }
+
+    private var shape: UnevenRoundedRectangle { ChatLook.bubble(mine: mine, joinsAbove: joinsAbove, joinsBelow: joinsBelow) }
 
     var body: some View {
         VStack(alignment: message.host ? .center : mine ? .trailing : .leading, spacing: 2) {
@@ -591,13 +741,13 @@ private struct ChatBubble: View {
             }
             if message.state == .refused {
                 Text("Not sent.")
-                    .font(.sans(12))
+                    .appleFont(12)
                     .foregroundStyle(Hue.canceled)
                     .turnBackShake(failures: thread.failures, shakes: !reduceMotion)
             } else if message.state == .failed {
                 Button { Task { await thread.retry(message) } } label: {
                     Label("Not sent. Tap to try again.", systemImage: "exclamationmark.circle")
-                        .font(.sans(12))
+                        .appleFont(12)
                         .foregroundStyle(Hue.canceled)
                         .frame(minHeight: PageMetric.tapMin)
                         .contentShape(Rectangle())
@@ -606,19 +756,37 @@ private struct ChatBubble: View {
                 .turnBackShake(failures: thread.failures, shakes: !reduceMotion)
             }
         }
+        .padding(.leading, ChatMetric.threadLead)
+        .padding(.trailing, ChatMetric.threadTrail)
+        // Its time waits past the right edge until a drag left brings the chat over.
+        .overlay(alignment: .bottomTrailing) {
+            if !message.host {
+                Text(Town.clock(message.at))
+                    .appleFont(12)
+                    .foregroundStyle(Hue.chatStamp)
+                    .lineLimit(1)
+                    .frame(width: ChatMetric.timesWidth, alignment: .trailing)
+                    .offset(x: ChatMetric.timesOut, y: -ChatMetric.timesUp)
+                    .opacity(timeShown)
+                    .accessibilityHidden(true)
+            }
+        }
         .accessibilityElement(children: .contain)
+        .onAppear {
+            if !up { withAnimation(ChatMotion.rise) { up = true } }
+        }
     }
 
     /// A host's update: Instagram's channel card, in the middle of the thread, their face on its top edge.
     private func update(_ words: String) -> some View {
         let name = mine ? "You" : sender?.displayName ?? "Host"
         return VStack(spacing: ChatMetric.updateLineGap) {
-            Text("\(Text(name).font(.sansSemibold(12)).foregroundStyle(Hue.ink)) · Host")
-                .font(.sans(12))
-                .foregroundStyle(Hue.inkSecondary)
+            Text("\(Text(name).fontWeight(.semibold).foregroundStyle(Hue.ink)) · Host")
+                .appleFont(12)
+                .foregroundStyle(Hue.chatGrey)
                 .lineLimit(1)
             Text(words)
-                .font(.sansSemibold(16))
+                .appleFont(16, weight: .semibold)
                 .foregroundStyle(Hue.ink)
                 .multilineTextAlignment(.center)
         }
@@ -626,19 +794,20 @@ private struct ChatBubble: View {
         .padding(.horizontal, ChatMetric.updateSide)
         .padding(.bottom, ChatMetric.updateSide)
         .frame(width: ChatMetric.updateWidth)
-        .background(Hue.fill, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+        .background(Hue.chatFill, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
         .opacity(message.state == .sending ? 0.6 : 1)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Host update, \(name): \(words), \(ChatWords.ago(message.at))")
         .contextMenu { menu }
         .overlay(alignment: .top) { updateFace.offset(y: -ChatMetric.updateFace / 2) }
         .padding(.top, ChatMetric.updateFace / 2)
+        .padding(.bottom, ChatMetric.updateBelow)
         .frame(maxWidth: .infinity)
     }
 
     @ViewBuilder private var updateFace: some View {
         let face = Avatar(avatarUrl: sender?.avatarUrl, size: ChatMetric.updateFace)
-            .overlay(Circle().stroke(Hue.paper, lineWidth: 2))
+            .overlay(Circle().stroke(Hue.surface, lineWidth: 2))
         if !mine, let sender {
             NavigationLink(value: sender) { face.contentShape(Circle()) }
                 .buttonStyle(.press(.squish))
@@ -651,9 +820,10 @@ private struct ChatBubble: View {
     @ViewBuilder private var bubble: some View {
         if showsName, !mine, let sender {
             Text(sender.firstName)
-                .font(.sans(12))
-                .foregroundStyle(Hue.inkSecondary)
-                .padding(.leading, ChatMetric.theirLead)
+                .appleFont(12)
+                .foregroundStyle(Hue.chatStamp)
+                .padding(.leading, ChatMetric.theirLead + ChatMetric.bubbleX)
+                .padding(.bottom, ChatMetric.nameBottom - 2)
         }
         HStack(alignment: .bottom, spacing: ChatMetric.theirLead - ChatMetric.theirFace) {
             if mine { Spacer(minLength: 0) }
@@ -676,8 +846,16 @@ private struct ChatBubble: View {
                 }
             }
             body(for: message.content)
-                .opacity(message.state == .sending ? 0.6 : 1)
+                // Still on its way once it has landed: faint, as before.
+                .opacity(!up ? 0.7 : message.state == .sending && risesFrom == nil ? 0.6 : 1)
                 .contextMenu { menu }
+                // Just sent: it starts down where the composer's words were and comes up to its place.
+                .visualEffect { [up, risesFrom] view, proxy in
+                    let frame = proxy.frame(in: .global)
+                    let from = up ? nil : risesFrom
+                    return view.offset(x: from.map { $0.x - ChatMetric.bubbleX - frame.minX } ?? 0,
+                                       y: from.map { $0.y - ChatMetric.typingHeight / 2 - frame.minY } ?? 0)
+                }
             if !mine { Spacer(minLength: 0) }
         }
     }
@@ -702,17 +880,20 @@ private struct ChatBubble: View {
         switch content {
         case .text(let words):
             Text(words)
-                .font(.sans(16))
+                .appleFont(16)
                 .foregroundStyle(mine ? Hue.surface : Hue.ink)
                 .padding(.horizontal, ChatMetric.bubbleX)
                 .padding(.vertical, ChatMetric.bubbleY)
-                .background(mine ? Hue.ink : Hue.fill, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+                .background {
+                    if mine { ChatMineFill(screen: screen).clipShape(shape) } else { shape.fill(Hue.chatFill) }
+                }
+                .contentShape(.contextMenuPreview, shape)
                 .frame(maxWidth: ChatMetric.bubbleMax, alignment: mine ? .trailing : .leading)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("\(spokenSender): \(words), \(ChatWords.ago(message.at))")
         case .photo(let path, let width, let height):
             ChatPhoto(image: thread.picked[message.id], link: path.flatMap { thread.links[$0] },
-                      width: width, height: height)
+                      width: width, height: height, shape: shape)
                 .accessibilityLabel("\(spokenSender) sent a photo, \(ChatWords.ago(message.at))")
         case .event(let card):
             if let card {
@@ -721,11 +902,11 @@ private struct ChatBubble: View {
                     .accessibilityLabel("\(spokenSender) sent an Event, \(ChatWords.ago(message.at))")
             } else {
                 Text("This Event is no longer available.")
-                    .font(.sans(14))
-                    .foregroundStyle(Hue.inkSecondary)
+                    .appleFont(14)
+                    .foregroundStyle(Hue.chatGrey)
                     .padding(.horizontal, ChatMetric.bubbleX)
                     .padding(.vertical, ChatMetric.bubbleY)
-                    .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).stroke(Hue.hairline))
+                    .overlay(RoundedRectangle(cornerRadius: ChatMetric.bubbleCorner, style: .continuous).stroke(Hue.chatRing))
             }
         }
     }
@@ -737,6 +918,8 @@ private struct ChatPhoto: View {
     let link: URL?
     let width: Int
     let height: Int
+    /// Its bubble's corners: tight where the run joins.
+    let shape: UnevenRoundedRectangle
     @State private var open = false
     @Namespace private var zoom
 
@@ -749,7 +932,7 @@ private struct ChatPhoto: View {
     var body: some View {
         Button { open = true } label: { picture.frame(width: size.width, height: size.height).clipped() }
             .buttonStyle(.press(.squish))
-            .clipShape(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+            .clipShape(shape)
             .matchedTransitionSource(id: "photo", in: zoom)
             // Apple's zoom: it grows from the bubble, and a drag down takes it back there.
             .fullScreenCover(isPresented: $open) {
@@ -762,9 +945,9 @@ private struct ChatPhoto: View {
         if let image {
             Image(uiImage: image).resizable().scaledToFill()
         } else if let link {
-            FeedCardURLPhoto(url: link, loadingFill: Hue.fill)
+            FeedCardURLPhoto(url: link, loadingFill: Hue.chatFill)
         } else {
-            Rectangle().fill(Hue.fill).shimmering()
+            Rectangle().fill(Hue.chatFill).shimmering()
         }
     }
 }
@@ -821,11 +1004,11 @@ private struct ChatEventCard: View {
         VStack(alignment: .leading, spacing: 0) {
             NavigationLink(value: card) {
                 VStack(alignment: .leading, spacing: 0) {
-                    Hue.fill
+                    Hue.chatFill
                         .frame(height: ChatMetric.eventPhoto)
                         .overlay {
                             if let url = card.image.url {
-                                FeedCardURLPhoto(url: url, loadingFill: Hue.fill)
+                                FeedCardURLPhoto(url: url, loadingFill: Hue.chatFill)
                             } else if let logo = card.image.logo {
                                 // A place we have no photo of: its logo bare, as Search shows it.
                                 CastLogo(logo: logo, side: ChatMetric.eventLogo)
@@ -833,15 +1016,15 @@ private struct ChatEventCard: View {
                         }
                         .clipped()
                     Text(card.title)
-                        .font(.sansSemibold(16))
+                        .appleFont(16, weight: .semibold)
                         .foregroundStyle(Hue.ink)
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
                         .padding(.top, ChatMetric.eventInsetY)
                         .padding(.horizontal, ChatMetric.eventInsetX)
                     Text(line)
-                        .font(.sans(13))
-                        .foregroundStyle(Hue.inkSecondary)
+                        .appleFont(13)
+                        .foregroundStyle(Hue.chatGrey)
                         .lineLimit(1)
                         .padding(.horizontal, ChatMetric.eventInsetX)
                     if !card.friendsGoing.isEmpty {
@@ -883,12 +1066,12 @@ private struct ChatAnswers: View {
             ForEach(ChatAnswer.allCases) { answer in
                 Button { tap(answer) } label: {
                     Text(answer.label)
-                        .font(.sansSemibold(14))
+                        .appleFont(14, weight: .semibold)
                         .foregroundStyle(Hue.ink)
                         .padding(.horizontal, ChatMetric.chipPad)
                         .frame(height: ChatMetric.chipHeight)
                         .background(Hue.surface, in: Capsule())
-                        .overlay(Capsule().stroke(Hue.hairline))
+                        .overlay(Capsule().stroke(Hue.chatRing))
                         .frame(minHeight: PageMetric.tapMin)
                         .contentShape(Rectangle())
                 }
@@ -896,33 +1079,41 @@ private struct ChatAnswers: View {
             }
             Spacer(minLength: 0)
         }
-        .padding(.leading, ChatMetric.theirLead)
+        .padding(.leading, ChatMetric.threadLead + ChatMetric.theirLead)
+        .padding(.top, ChatMetric.chipGap - (PageMetric.tapMin - ChatMetric.chipHeight) / 2)
     }
 }
 
-/// Three dots, breathing while someone types, still with Reduce Motion.
+/// Three dots in their bubble, each hopping in turn while someone types; still with Reduce Motion.
 private struct ChatTypingDots: View {
+    /// Whoever is typing, when the chat knows their face.
+    let face: Neighbor?
     let reduceMotion: Bool
 
     var body: some View {
-        HStack(spacing: 0) {
-            Color.clear.frame(width: ChatMetric.theirLead, height: 1)
-            HStack(spacing: ChatMetric.runGap) {
+        HStack(alignment: .bottom, spacing: ChatMetric.theirLead - ChatMetric.theirFace) {
+            Avatar(avatarUrl: face?.avatarUrl, size: ChatMetric.theirFace)
+            HStack(spacing: ChatMetric.typingGap) {
                 ForEach(0..<3, id: \.self) { i in
                     TimelineView(.animation(paused: reduceMotion)) { context in
-                        let phase = context.date.timeIntervalSinceReferenceDate * 2 * .pi / 1.2 - Double(i) * 1.05
+                        // 1.1 s a round, each dot 0.15 s after the last: up and back in the first 60%, then still.
+                        let turn = (context.date.timeIntervalSinceReferenceDate - Double(i) * 0.15)
+                            .truncatingRemainder(dividingBy: 1.1) / 1.1
+                        let hop = reduceMotion || turn > 0.6 ? 0 : sin(.pi * turn / 0.6)
                         Circle()
-                            .fill(Hue.inkSecondary)
+                            .fill(Hue.chatTypingDot)
                             .frame(width: ChatMetric.typingDot, height: ChatMetric.typingDot)
-                            .opacity(reduceMotion ? 0.6 : 0.35 + 0.65 * max(0, sin(phase)))
+                            .offset(y: -ChatMetric.typingJump * hop)
+                            .opacity(0.55 + 0.45 * hop)
                     }
                 }
             }
-            .padding(.horizontal, ChatMetric.bubbleX)
-            .padding(.vertical, ChatMetric.bubbleX)
-            .background(Hue.fill, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
+            .padding(.horizontal, ChatMetric.typingX)
+            .frame(height: ChatMetric.typingHeight)
+            .background(Hue.chatFill, in: Capsule())
             Spacer(minLength: 0)
         }
+        .padding(.leading, ChatMetric.threadLead)
         .accessibilityElement()
         .accessibilityLabel("Typing")
     }
@@ -934,18 +1125,21 @@ private struct ChatLoadingBubbles: View {
             ForEach([true, false, true, true, false], id: \.self) { mine in
                 HStack {
                     if mine { Spacer(minLength: 0) }
-                    SkeletonBlock(cornerRadius: Radius.card)
-                        .frame(width: ChatMetric.bubbleMax * (mine ? 0.5 : 0.7), height: ChatMetric.composerField)
+                    SkeletonBlock(cornerRadius: ChatMetric.bubbleCorner)
+                        .frame(width: ChatMetric.bubbleMax * (mine ? 0.5 : 0.7), height: ChatMetric.typingHeight)
                     if !mine { Spacer(minLength: 0) }
                 }
             }
         }
+        .padding(.leading, ChatMetric.threadLead)
+        .padding(.trailing, ChatMetric.threadTrail)
         .shimmering()
         .accessibilityLabel("Loading")
     }
 }
 
 /// A request's foot: Accept brings it into your chats, Delete takes it away and it can't ask again, Block ends it.
+/// Instagram's Decline and Join, measured: grey and blue, 44 tall.
 private struct ChatRequestBar: View {
     let chat: Chat
     let name: String
@@ -959,28 +1153,30 @@ private struct ChatRequestBar: View {
     var body: some View {
         VStack(spacing: ChatMetric.chipGap) {
             Text("\(name) isn't your friend yet. They won't know you've read this until you accept.")
-                .font(.sans(13))
-                .foregroundStyle(Hue.inkSecondary)
+                .appleFont(13)
+                .foregroundStyle(Hue.chatGrey)
                 .multilineTextAlignment(.center)
             HStack(spacing: ChatMetric.chipGap) {
-                pill("Block", fill: Hue.fill, ink: Hue.canceled, action: block)
-                pill("Delete", fill: Hue.fill, ink: Hue.ink) { act { try await chats.decline(chat); done(true) } }
-                pill("Accept", fill: Hue.ink, ink: Hue.surface) { act { try await chats.accept(chat); done(false) } }
+                pill("Block", fill: Hue.chatButton, ink: Hue.chatBlock, action: block)
+                pill("Delete", fill: Hue.chatButton, ink: Hue.ink) { act { try await chats.decline(chat); done(true) } }
+                pill("Accept", fill: Hue.chatBlue, ink: Hue.surface) { act { try await chats.accept(chat); done(false) } }
             }
             .turnBackShake(failures: failures, shakes: !reduceMotion)
         }
         .padding(.horizontal, ChatMetric.side)
-        .padding(.vertical, ChatMetric.composerY)
-        .background(Hue.paper)
+        .padding(.top, ChatMetric.requestTop)
+        .padding(.bottom, ChatMetric.composerY)
+        .background(Hue.surface)
+        .overlay(alignment: .top) { Rectangle().fill(Hue.chatLine).frame(height: ChatMetric.line) }
     }
 
     private func pill(_ words: String, fill: Color, ink: Color, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(words)
-                .font(.sansSemibold(15))
+                .appleFont(15, weight: .semibold)
                 .foregroundStyle(ink)
-                .frame(maxWidth: .infinity, minHeight: PageMetric.tapMin)
-                .background(fill, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                .frame(maxWidth: .infinity, minHeight: ChatMetric.requestButton)
+                .background(fill, in: RoundedRectangle(cornerRadius: ChatMetric.requestCorner, style: .continuous))
                 .contentShape(Rectangle())
         }
         .buttonStyle(.press(.squish))

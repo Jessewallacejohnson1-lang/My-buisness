@@ -1,8 +1,8 @@
 //
 //  ChatBook.swift
 //  Block Party — chat's state (BP app five-tabs 05). `ChatBook`, the shell's, holds your chats, the unread
-//  dot and the live updates; `ChatThread` holds one open chat: its messages, what's on its way, who has
-//  read how far and who's typing. Any change the socket hears reads again, and what comes back is merged by
+//  dot and the live updates; `ChatThread` holds one open chat: its messages, what's on its way and who's
+//  typing. Any change the socket hears reads again, and what comes back is merged by
 //  the phone's id for each message, so nothing unsent is lost and no bubble jumps.
 //
 
@@ -24,6 +24,9 @@ final class ChatBook {
     @ObservationIgnored private var socket: RealtimeClient?
     /// Pushes on the shell's stack, from a sheet that's closing or a page outside it; the shell sets it.
     @ObservationIgnored var push: ((ChatRoute) -> Void)?
+    /// What a chat's + lists (`ChatLook.eventsToSend`); the shell sets it, since it holds your Going, your hearts
+    /// and the Town feed.
+    @ObservationIgnored var eventsToSend: (() async -> [FeedCardItem])?
     /// The chat on screen, which hears what the socket hears.
     @ObservationIgnored weak var open: ChatThread?
     @ObservationIgnored private var latestRead = 0
@@ -179,8 +182,6 @@ final class ChatThread {
     private(set) var failures = 0
     /// What the server refused the last send for, in words, when there are any.
     private(set) var lastRefusal: String?
-    /// How far each other person has read.
-    private(set) var reads: [String: Date] = [:]
     /// Who's typing now, by id.
     private(set) var typing: Set<String> = []
     /// Links to the chat's photos, by path, for as long as the page is up.
@@ -236,8 +237,8 @@ final class ChatThread {
 
     // MARK: Reading
 
-    /// A room of people who didn't pick each other, a Going or a Group chat: joined before it reads, with no Seen,
-    /// no typing dots and no photos.
+    /// A room of people who didn't pick each other, a Going or a Group chat: joined before it reads, with no
+    /// typing dots and no photos.
     var isRoom: Bool { goingEvent != nil || club != nil }
 
     func read() async {
@@ -260,16 +261,12 @@ final class ChatThread {
         latestRead &+= 1
         let thisRead = latestRead
         do {
-            async let newest = api.messages(chatID, limit: Self.page)
-            // A room writes no reads: nobody is shown as having read it.
-            async let read = isRoom ? [:] : api.reads(chatID)
-            let (rows, seen) = try await (newest, read)
+            let rows = try await api.messages(chatID, limit: Self.page)
             guard thisRead == latestRead else { return }
             actions?.read(rows.compactMap(\.card))
             hasOlder = loaded ? hasOlder : rows.count == Self.page
             let before = messages.count
             withAnimation(before == 0 ? nil : Motion.smooth) { messages = Self.merged(messages, rows) }
-            reads = seen.filter { $0.key != me }
             loaded = true
             failed = false
             // Others' messages landing while the app is open: VoiceOver says so.
@@ -342,13 +339,14 @@ final class ChatThread {
 
     // MARK: Sending
 
-    func send(_ words: String) async {
+    /// `id`: the phone's id for it, given by the page when the bubble comes up out of the composer.
+    func send(_ words: String, id: String = UUID().uuidString.lowercased()) async {
         // The database's own limit, kept here so a long message isn't refused whole.
         let words = String(words.trimmingCharacters(in: .whitespacesAndNewlines).prefix(ChatThread.longest))
         guard !words.isEmpty else { return }
         lastRefusal = nil
         // A host's update shows their face at once, from their last one when there is one.
-        await deliver(ChatMessage(id: UUID().uuidString.lowercased(), senderID: me, content: .text(words), at: .now,
+        await deliver(ChatMessage(id: id, senderID: me, content: .text(words), at: .now,
                                   state: .sending, sender: isHost ? messages.last { $0.senderID == me }?.sender : nil,
                                   host: isHost))
     }
@@ -376,7 +374,7 @@ final class ChatThread {
 
     private func deliver(_ message: ChatMessage, placed: Bool = false) async {
         if !placed {
-            withAnimation(Motion.snappy) { messages.append(message) }
+            withAnimation(ChatMotion.rise) { messages.append(message) }
             Haptics.light()
         }
         do {
@@ -473,13 +471,6 @@ final class ChatThread {
 
     // MARK: What the screen asks
 
-    /// "Seen" sits under your last message once someone else has read past it.
-    var seen: Bool {
-        guard let last = messages.last(where: { $0.senderID == me && $0.state == .sent }),
-              messages.last?.id == last.id else { return false }
-        return reads.values.contains { $0 >= last.at }
-    }
-
     /// The Event a reply can answer: the last message, from someone else (the mock's I'm in, Maybe, Can't).
     var answerable: FeedCardItem? {
         guard let last = messages.last, last.senderID != me, case .event(let card?) = last.content,
@@ -520,25 +511,22 @@ enum ChatWords {
         return said
     }
 
-    /// When, short, as Instagram's rows say it: 5m, 3h, Yesterday, Mon, Oct 3.
+    /// When, short, as Instagram's rows say it: now, 5m, 3h, 2d, 3w.
     static func ago(_ date: Date, now: Date = .now) -> String {
         let seconds = now.timeIntervalSince(date)
-        if seconds < 60 { return "Now" }
+        if seconds < 60 { return "now" }
         if seconds < 3600 { return "\(Int(seconds / 60))m" }
-        let days = Town.days(from: date, to: now)
-        if days == 0 { return "\(Int(seconds / 3600))h" }
-        if days == 1 { return "Yesterday" }
-        if days < 7 { return Town.format(date, "EEE") }
-        return Town.format(date, "MMMd")
+        if seconds < 24 * 3600 { return "\(Int(seconds / 3600))h" }
+        let days = Int(seconds / (24 * 3600))
+        return days < 7 ? "\(days)d" : "\(days / 7)w"
     }
 
-    /// A chat's stamp between messages: today's time, or the day and time.
+    /// A chat's stamp between messages, in capitals as Instagram's: TODAY 9:12 AM, YESTERDAY 6:46 PM, SUNDAY 1:30 PM,
+    /// then the date.
     static func stamp(_ date: Date, now: Date = .now) -> String {
         let days = Town.days(from: date, to: now)
-        if days == 0 { return Town.clock(date) }
-        if days == 1 { return "Yesterday \(Town.clock(date))" }
-        if days < 7 { return "\(Town.format(date, "EEE")) \(Town.clock(date))" }
-        return "\(Town.format(date, "MMMd")) \(Town.clock(date))"
+        let day = days == 0 ? "Today" : days == 1 ? "Yesterday" : Town.format(date, days < 7 ? "EEEE" : "MMMd")
+        return "\(day) \(Town.clock(date))".uppercased()
     }
 
     /// A stamp goes before a message 15 minutes or more after the last, and before the first.
