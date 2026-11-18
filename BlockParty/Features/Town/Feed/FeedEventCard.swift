@@ -98,11 +98,12 @@ struct FeedEventCard: View {
             // moment a finger lands.
             .gesture(FeedTouchDownTracker(isPressed: $linkPressed))
             // The heart in the card's bottom right corner, over the link as its own button: one spot on
-            // the photo, the white card and the game card (event-card 06; inside-cards 24).
+            // the photo, the white card and the game card, in glass on the game's colors (event-card 06; inside-cards 24;
+            // game-card 33).
             .overlay(alignment: .bottomTrailing) {
                 if actions.canAct {
                     // Rides the card's corner in as it sinks.
-                    TownCardHeart(item: item, onWhite: item.game != nil || item.isPhotoless)
+                    TownCardHeart(item: item, onWhite: item.isPhotoless)
                         .padding(TownCardHeart.inset)
                         .offset(x: -photoSize.width * (1 - pressScale) / 2,
                                 y: -photoSize.height * (1 - pressScale) / 2)
@@ -348,7 +349,7 @@ struct FeedEventCard: View {
 
     /// What the card shows: its picture, or ink once that picture has failed to load.
     private var displayImage: FeedCardImageSource {
-        // A game draws its white card (`WhiteGameCard`), never its place's photo or logo.
+        // A game draws its split card (`SplitGameCard`), never its place's photo or logo.
         if item.game != nil { return .fallback }
         if let url = item.image.url, url == failedPhoto { return .fallback }
         return item.image
@@ -491,7 +492,7 @@ struct FeedEventCard: View {
             .accessibilitySortPriority(-1)
             .allowsHitTesting(false)
         }
-        // The white game card sets its own sport and place (game-card 06).
+        // The game card sets its own sport (game-card 06, 33).
         // A whole flyer has them under it, in the stack.
         .overlay(alignment: .bottom) {
             if item.game == nil && !wholeFlyer { copyRow }
@@ -516,7 +517,7 @@ struct FeedEventCard: View {
         if dynamicTypeSize.isAccessibilitySize {
             card.aspectRatio(1, contentMode: .fit)
         } else if item.game != nil {
-            card.frame(height: WhiteGameCard.Metric.height)
+            card.frame(height: SplitGameCard.Metric.height)
         } else {
             card.aspectRatio(CGFloat(item.image.cardAspect), contentMode: .fit)
         }
@@ -525,7 +526,7 @@ struct FeedEventCard: View {
     @ViewBuilder
     private var imageContent: some View {
         if let game = item.game {
-            WhiteGameCard(item: item, game: game, place: item.smallLines)
+            SplitGameCard(item: item, game: game, place: item.smallLines)
         } else if let url = displayImage.url {
             // The Event page's carousel with the Event's one photo: it rubber-bands (a sideways swipe
             // used to open the Event page as if it were a tap, 2026-10-20). The place's other photos stay
