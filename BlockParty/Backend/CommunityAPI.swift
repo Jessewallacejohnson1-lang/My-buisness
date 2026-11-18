@@ -251,9 +251,9 @@ struct CommunityAPI {
     /// once with how it repeats, all worked out by `get_town_feed`, the one function
     /// iOS and Android both call. Signed out, it reads with the public key, as
     /// `getPlaces` does. It asks for town news too (town-feed 35); an app that doesn't
-    /// gets the events alone.
-    func getTownFeed() async throws -> [TownFeedLine] {
-        let data = try await db.rpc("get_town_feed", ["p_news": true], anon: true)
+    /// gets the events alone. `top`: the top five's roll (`TownTop.args`, town-feed 73).
+    func getTownFeed(top: [String: Any] = [:]) async throws -> [TownFeedLine] {
+        let data = try await db.rpc("get_town_feed", top.merging(["p_news": true]) { _, news in news }, anon: true)
         return try await Self.unpackTownFeed(data)
     }
 

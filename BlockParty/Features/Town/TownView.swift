@@ -339,6 +339,10 @@ struct TownView: View {
         .refreshable {
             await Task { await read(from: .pull) }.value
         }
+        // An open after an hour or more away rolled a new top five (town-feed 73): to the top at once, where it lands.
+        .onChange(of: townFeed.rolls) {
+            feedPosition.scrollTo(edge: .top)
+        }
         // The Town tab tapped again, as Instagram's Home: to the top, then a read, the loop
         // riding in a gap of its own.
         .onChange(of: tappedAgain) {

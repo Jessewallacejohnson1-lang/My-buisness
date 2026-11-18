@@ -1824,6 +1824,109 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertNil(stale.entries)
     }
 
+    // MARK: The top five (BP app town-feed 73)
+
+    private func topKeep() -> UserDefaults {
+        let name = "TownTopTests-\(UUID().uuidString)"
+        let keep = UserDefaults(suiteName: name)!
+        keep.removePersistentDomain(forName: name)
+        return keep
+    }
+
+    /// An hour or more away rolls a new top, and its read lands though the screen was left partway down: the
+    /// screen goes to the top for it (`rolls`). Under an hour, the roll and the screen stay.
+    func testAnHourAwayRollsANewTopAndItsReadLandsFromTheTop() async {
+        let top = TownTop(keep: topKeep())
+        var answers = [entries(["a", "b"]), entries(["c", "a"]), entries(["new", "b", "a"])]
+        let town = TownFeed(read: { answers.removeFirst() }, top: top)
+        town.cameBack(at: now)
+        await town.refresh(at: now)
+        XCTAssertEqual(town.rolls, 1, "a first launch rolls")
+        let first = top.seed
+        XCTAssertNotNil(first)
+
+        town.scrolled(to: 900)
+        town.left(at: now)
+        town.cameBack(at: now.addingTimeInterval(59 * 60))
+        await town.refresh(at: now.addingTimeInterval(59 * 60))
+        XCTAssertEqual(town.rolls, 1)
+        XCTAssertEqual(top.seed, first, "under an hour, the same five")
+        XCTAssertEqual(town.cards.map(\.id), ["a", "b"], "scrolled down, nothing moves")
+
+        town.left(at: now.addingTimeInterval(59 * 60))
+        town.cameBack(at: now.addingTimeInterval(119 * 60))
+        XCTAssertEqual(town.rolls, 1, "the screen goes up only with the new top, never before it lands")
+        await town.refresh(at: now.addingTimeInterval(119 * 60))
+        XCTAssertEqual(town.rolls, 2)
+        XCTAssertEqual(town.cards.map(\.id), ["new", "b", "a"], "the roll's read lands from partway down")
+    }
+
+    /// A finger on the list holds the roll's read, as any fresh order; a failed read keeps it due for the next.
+    func testARollWaitsForTheFingerAndOutlastsAFailedRead() async {
+        let top = TownTop(keep: topKeep())
+        var answers: [[TownFeedEntry]?] = [entries(["a"]), nil, entries(["b"]), entries(["c"])]
+        let town = TownFeed(read: {
+            guard let next = answers.removeFirst() else { throw URLError(.notConnectedToInternet) }
+            return next
+        }, top: top)
+        town.cameBack(at: now)
+        await town.refresh(at: now)
+        town.left(at: now)
+        town.cameBack(at: now.addingTimeInterval(2 * 3600))
+        await town.refresh(at: now.addingTimeInterval(2 * 3600))
+        XCTAssertEqual(town.cards.map(\.id), ["a"])
+        XCTAssertEqual(town.rolls, 1)
+        town.scrolled(to: 500)
+        town.fingerDown = true
+        await town.refresh(at: now.addingTimeInterval(2 * 3600 + 20))
+        XCTAssertEqual(town.cards.map(\.id), ["a"], "nothing moves under the finger")
+        XCTAssertEqual(town.rolls, 1)
+        town.fingerDown = false
+        await town.fingerLifted(at: now.addingTimeInterval(2 * 3600 + 21))
+        XCTAssertEqual(town.rolls, 2, "the finger off, the new top lands and the screen goes up with it")
+        XCTAssertEqual(town.cards.map(\.id), ["c"])
+    }
+
+    /// A relaunch inside the hour keeps the roll: the time away counts from when the feed last went off screen.
+    func testARelaunchInsideTheHourKeepsTheRoll() async {
+        let keep = topKeep()
+        let top = TownTop(keep: keep)
+        let before = TownFeed(read: { [] }, top: top)
+        before.cameBack(at: now)
+        let seed = top.seed
+        before.left(at: now)
+
+        let relaunched = TownFeed(read: { [] }, top: TownTop(keep: keep))
+        relaunched.cameBack(at: now.addingTimeInterval(40 * 60))
+        await relaunched.refresh(at: now.addingTimeInterval(40 * 60))
+        XCTAssertEqual(relaunched.rolls, 0)
+        XCTAssertEqual(TownTop(keep: keep).seed, seed)
+
+        let later = TownFeed(read: { [] }, top: TownTop(keep: keep))
+        later.cameBack(at: now.addingTimeInterval(61 * 60))
+        await later.refresh(at: now.addingTimeInterval(61 * 60))
+        XCTAssertEqual(later.rolls, 1)
+        XCTAssertNotEqual(TownTop(keep: keep).seed, seed)
+    }
+
+    /// The roll's first card goes with the next roll, so it never leads twice in a row; only a database id is sent.
+    func testTheLastRollsFirstCardGoesWithTheNextRoll() {
+        let top = TownTop(keep: topKeep())
+        XCTAssertTrue(top.args.isEmpty, "no roll yet: the feed as before")
+        top.roll()
+        let ids = (1...6).map { "4FF6AD8A-14BC-4BB5-A8D9-52CE03DFD8\(10 + $0)" }
+        top.landed(ids)
+        top.landed(["8B6F0C9E-0000-4000-8000-000000000000"])
+        XCTAssertNil(top.args["p_last_top"], "this roll's own firsts aren't sent")
+        top.roll()
+        XCTAssertEqual(top.args["p_last_top"] as? [String], Array(ids.prefix(4)),
+                       "the first read's first four (up to 3 live, then the top's first), not a later read's")
+        XCTAssertNotNil(top.args["p_top_seed"] as? Int)
+        top.landed(["sample"])
+        top.roll()
+        XCTAssertNil(top.args["p_last_top"], "a sample id is never sent")
+    }
+
     /// Back within 10 minutes it lands where it was; after, from the top.
     func testComingBackLandsWhereItWasUnlessLongAway() {
         let town = feed(answers: [])
