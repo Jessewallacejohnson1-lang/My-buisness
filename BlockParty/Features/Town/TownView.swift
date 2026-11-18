@@ -403,8 +403,15 @@ struct TownView: View {
             if LaunchFlags.has(.feedScrollRun) {
                 Task { @MainActor in
                     try? await Task.sleep(for: .seconds(5))
+                    print("ReadAhead: scroll down")
                     for step in 1...30 {
                         withAnimation(.easeOut(duration: 0.35)) { feedPosition.scrollTo(y: CGFloat(step) * 700) }
+                        try? await Task.sleep(for: .seconds(1))
+                    }
+                    // Back up two steps: the screen behind should still be drawn.
+                    print("ReadAhead: scroll back")
+                    for step in 1...2 {
+                        withAnimation(.easeOut(duration: 0.35)) { feedPosition.scrollTo(y: CGFloat(30 - step) * 700) }
                         try? await Task.sleep(for: .seconds(1))
                     }
                     print("ReadAhead: run done")
@@ -482,8 +489,8 @@ final class FrameGapLog {
 enum ReadAheadLog {
     static let enabled = LaunchFlags.has(.readAheadLog)
 
-    static func cameOn(_ kind: String, ready: Bool) {
-        if enabled { print("ReadAhead: \(ready ? "READY" : "BLANK") \(kind)") }
+    static func cameOn(_ kind: String, ready: Bool, _ url: URL) {
+        if enabled { print("ReadAhead: \(ready ? "READY" : "BLANK") \(kind) \(url.absoluteString)") }
     }
 }
 #endif

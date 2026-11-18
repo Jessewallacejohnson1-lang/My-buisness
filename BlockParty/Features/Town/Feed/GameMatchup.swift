@@ -1275,7 +1275,7 @@ struct LogoDisc: View {
         .animation(Motion.smooth, value: image != nil)
         .task(id: logo) { if let logo { logos.prefetch([logo]) } }
         #if DEBUG
-        .onAppear { if let logo { ReadAheadLog.cameOn("logo", ready: logos.images[logo] != nil) } }
+        .onAppear { if let logo { ReadAheadLog.cameOn("logo", ready: logos.images[logo] != nil, logo) } }
         #endif
     }
 }
