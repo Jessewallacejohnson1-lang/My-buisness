@@ -2246,7 +2246,7 @@ Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com, www.joetown
 ## Speedway
 ```yaml
 id: speedway
-status: active
+status: retired
 tier: listed
 category: shop=convenience
 added_by: agent:discover
@@ -2257,7 +2257,7 @@ sources:
     method: submission
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56730, -94.32002. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56730, -94.32002. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Unreviewed — tier `listed`, so it publishes nothing until promoted. 2026-11-17: retired, hidden in the app (BP app place-pages 06, Jesse's yes): Apple Maps has no Speedway here; GasBuddy reviews say closed; 27 W Birch St listed as a former convenience store.
 
 ## St Joseph Off-Sale Liquor
 ```yaml
@@ -5412,7 +5412,7 @@ Notes: Proposed on 2026-10-05 from overture. No URL was found, so this is `submi
 ## Insurance Advisors: St. Joseph
 ```yaml
 id: insurance-advisors-st-joseph
-status: proposed
+status: retired
 tier: listed
 place_type: "Business"
 address: "26 E Birch St"
@@ -5425,7 +5425,7 @@ sources:
     method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 4:30 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted. Website dropped 2026-10-19: http://www.divingrates.com/ no longer exists (no DNS record), and was never this agency's site. The place stays (place-photos 07, Jesse's yes).
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 4:30 PM). Unreviewed — tier `listed`, so it publishes nothing until promoted. Website dropped 2026-10-19: http://www.divingrates.com/ no longer exists (no DNS record), and was never this agency's site. The place stays (place-photos 07, Jesse's yes). 2026-11-17: retired, hidden in the app (BP app place-pages 06, Jesse's yes): Apple Maps has no Insurance Advisors in St. Joseph; BBB's address for it is Mainstay's, already in the app.
 
 ## Interstate Bearing Systems
 ```yaml
