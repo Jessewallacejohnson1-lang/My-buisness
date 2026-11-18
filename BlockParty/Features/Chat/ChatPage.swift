@@ -533,6 +533,8 @@ private struct ChatMessages: View {
     let block: (Neighbor) -> Void
     /// How far a finger has dragged the chat left, for its times.
     @State private var pull: CGFloat = 0
+    /// How tall the scroll is on the screen, between the bar and the composer.
+    @State private var room: CGFloat = 0
 
     private var names: [String: Neighbor] {
         Dictionary(others.map { ($0.id.lowercased(), $0) }, uniquingKeysWith: { first, _ in first })
@@ -542,91 +544,88 @@ private struct ChatMessages: View {
         let shift = ChatLook.timesShift(pull), names = self.names
         ScrollViewReader { proxy in
             ScrollView {
-                ZStack(alignment: .top) {
-                    // A short chat with a friend starts under the bar, its profile block on top: the page is at
-                    // least as tall as the room it has. Any other short chat sits on the composer.
-                    if profile != nil, thread.loaded, !thread.hasOlder {
-                        Color.clear.containerRelativeFrame(.vertical)
+                LazyVStack(spacing: 0) {
+                    if thread.hasOlder {
+                        // Older messages read as this comes into view: a bubble's shape, shimmering.
+                        SkeletonBlock(cornerRadius: ChatMetric.bubbleCorner)
+                            .frame(width: ChatMetric.loadingName, height: ChatMetric.typingHeight)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.leading, ChatMetric.threadLead)
+                            .shimmering()
+                            .accessibilityLabel("Loading")
+                            .task { await thread.readOlder() }
+                    } else if let profile, thread.loaded {
+                        ChatProfileBlock(person: profile)
                     }
-                    LazyVStack(spacing: 0) {
-                        if thread.hasOlder {
-                            // Older messages read as this comes into view: a bubble's shape, shimmering.
-                            SkeletonBlock(cornerRadius: ChatMetric.bubbleCorner)
-                                .frame(width: ChatMetric.loadingName, height: ChatMetric.typingHeight)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.leading, ChatMetric.threadLead)
-                                .shimmering()
-                                .accessibilityLabel("Loading")
-                                .task { await thread.readOlder() }
-                        } else if let profile, thread.loaded {
-                            ChatProfileBlock(person: profile)
+                    if !thread.loaded {
+                        if thread.failed {
+                            ChatFailedLine { await thread.read() }
+                        } else {
+                            ChatLoadingBubbles()
                         }
-                        if !thread.loaded {
-                            if thread.failed {
-                                ChatFailedLine { await thread.read() }
-                            } else {
-                                ChatLoadingBubbles()
-                            }
-                        }
-                        let messages = thread.messages
-                        if thread.isRoom, thread.loaded, messages.isEmpty {
-                            Text(thread.club == nil ? "Say hi to everyone going." : "Say hi to the group.")
-                                .appleFont(14)
-                                .foregroundStyle(Hue.chatGrey)
-                                .padding(.vertical, ChatMetric.sectionTop)
-                        }
-                        ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
-                            let last = index > 0 ? messages[index - 1] : nil
-                            let next = index + 1 < messages.count ? messages[index + 1] : nil
-                            let stamped = ChatWords.needsStamp(message, after: last)
-                            if stamped {
-                                TimelineView(.everyMinute) { context in
-                                    Text(ChatWords.stamp(message.at, now: context.date))
-                                        .appleFont(12)
-                                        .foregroundStyle(Hue.chatStamp)
-                                }
-                                .padding(.top, ChatMetric.stampTop)
-                                .padding(.bottom, ChatMetric.stampBottom)
-                            }
-                            // A host's update stands alone, so its face never sits on the card above.
-                            let firstOfRun = stamped || last?.senderID != message.senderID || message.host || last?.host == true
-                            let lastOfRun = next?.senderID != message.senderID || message.host || next?.host == true
-                                || (next.map { ChatWords.needsStamp($0, after: message) } ?? true)
-                            // An Event's card joins nothing: the bubbles beside it keep their round corners.
-                            let joinsAbove = !firstOfRun && message.card == nil && last?.card == nil
-                            let joinsBelow = !lastOfRun && message.card == nil && next?.card == nil
-                            let rises = message.id == rising && !message.host
-                            ChatBubble(message: message, thread: thread, sender: names[message.senderID] ?? message.sender,
-                                       showsName: isGroup && firstOfRun, showsFace: lastOfRun, isGroup: isGroup,
-                                       joinsAbove: joinsAbove, joinsBelow: joinsBelow, screen: screen,
-                                       risesFrom: rises ? composerWords : nil, timeShown: min(1, shift / ChatMetric.timesShown),
-                                       reduceMotion: reduceMotion, report: report, block: block)
-                                .padding(.top, message.host ? ChatMetric.updateAbove
-                                         : firstOfRun && !stamped ? ChatMetric.groupGap : ChatMetric.runGap)
-                                .id(message.id)
-                                // Your words come up out of the composer (`ChatBubble`); everything else pops in from its corner.
-                                .transition(reduceMotion ? .opacity : rises ? .identity : .asymmetric(
-                                    insertion: .scale(scale: 0.6, anchor: thread.isMine(message) ? .bottomTrailing : .bottomLeading)
-                                        .combined(with: .opacity).animation(ChatMotion.pop),
-                                    removal: .opacity))
-                        }
-                        if let card = thread.answerable {
-                            ChatAnswers { answer($0.sent, card) }
-                        }
-                        if let who = thread.typing.first {
-                            ChatTypingDots(face: names[who], reduceMotion: reduceMotion)
-                                .padding(.top, ChatMetric.groupGap)
-                                .id("typing")
-                                .transition(reduceMotion ? .opacity : .scale(scale: 0.6, anchor: .bottomLeading)
-                                    .combined(with: .opacity).animation(ChatMotion.pop))
-                        }
-                        Color.clear.frame(height: 1).id("end")
                     }
-                    .padding(.vertical, ChatMetric.threadY)
-                    .offset(x: -shift)
+                    let messages = thread.messages
+                    if thread.isRoom, thread.loaded, messages.isEmpty {
+                        Text(thread.club == nil ? "Say hi to everyone going." : "Say hi to the group.")
+                            .appleFont(14)
+                            .foregroundStyle(Hue.chatGrey)
+                            .padding(.vertical, ChatMetric.sectionTop)
+                    }
+                    ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
+                        let last = index > 0 ? messages[index - 1] : nil
+                        let next = index + 1 < messages.count ? messages[index + 1] : nil
+                        let stamped = ChatWords.needsStamp(message, after: last)
+                        if stamped {
+                            TimelineView(.everyMinute) { context in
+                                Text(ChatWords.stamp(message.at, now: context.date))
+                                    .appleFont(12)
+                                    .foregroundStyle(Hue.chatStamp)
+                            }
+                            .padding(.top, ChatMetric.stampTop)
+                            .padding(.bottom, ChatMetric.stampBottom)
+                        }
+                        // A host's update stands alone, so its face never sits on the card above.
+                        let firstOfRun = stamped || last?.senderID != message.senderID || message.host || last?.host == true
+                        let lastOfRun = next?.senderID != message.senderID || message.host || next?.host == true
+                            || (next.map { ChatWords.needsStamp($0, after: message) } ?? true)
+                        // An Event's card joins nothing: the bubbles beside it keep their round corners.
+                        let joinsAbove = !firstOfRun && message.card == nil && last?.card == nil
+                        let joinsBelow = !lastOfRun && message.card == nil && next?.card == nil
+                        let rises = message.id == rising && !message.host
+                        ChatBubble(message: message, thread: thread, sender: names[message.senderID] ?? message.sender,
+                                   showsName: isGroup && firstOfRun, showsFace: lastOfRun, isGroup: isGroup,
+                                   joinsAbove: joinsAbove, joinsBelow: joinsBelow, screen: screen,
+                                   risesFrom: rises ? composerWords : nil, timeShown: min(1, shift / ChatMetric.timesShown),
+                                   reduceMotion: reduceMotion, report: report, block: block)
+                            .padding(.top, message.host ? ChatMetric.updateAbove
+                                     : firstOfRun && !stamped ? ChatMetric.groupGap : ChatMetric.runGap)
+                            .id(message.id)
+                            // Your words come up out of the composer (`ChatBubble`); everything else pops in from its corner.
+                            .transition(reduceMotion ? .opacity : rises ? .identity : .asymmetric(
+                                insertion: .scale(scale: 0.6, anchor: thread.isMine(message) ? .bottomTrailing : .bottomLeading)
+                                    .combined(with: .opacity).animation(ChatMotion.pop),
+                                removal: .opacity))
+                    }
+                    if let card = thread.answerable {
+                        ChatAnswers { answer($0.sent, card) }
+                    }
+                    if let who = thread.typing.first {
+                        ChatTypingDots(face: names[who], reduceMotion: reduceMotion)
+                            .padding(.top, ChatMetric.groupGap)
+                            .id("typing")
+                            .transition(reduceMotion ? .opacity : .scale(scale: 0.6, anchor: .bottomLeading)
+                                .combined(with: .opacity).animation(ChatMotion.pop))
+                    }
+                    Color.clear.frame(height: 1).id("end")
                 }
+                .padding(.vertical, ChatMetric.threadY)
+                .offset(x: -shift)
+                // A short chat with a friend starts under the bar, its profile block on top: the page is at least as
+                // tall as the room the scroll has. Any other short chat sits on the composer.
+                .frame(minHeight: profile != nil && thread.loaded && !thread.hasOlder ? room : nil, alignment: .top)
             }
             .defaultScrollAnchor(.bottom)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { room = $0 }
             // A drag left brings the times in at the right; letting go sends the chat back.
             .gesture(ChatTimesPan { pull = $0 } ended: {
                 withAnimation(reduceMotion ? nil : ChatMotion.timesBack) { pull = 0 }
