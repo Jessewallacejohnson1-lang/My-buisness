@@ -158,6 +158,20 @@ final class EventPageTests: XCTestCase {
         XCTAssertEqual(page.photoList(event: .fallback, venue: []), [])
     }
 
+    /// The host row's round picture: a place's photo shows, except when the Event's picture is only its place's
+    /// cover, which the page leaves out (town-feed 72), so the row shows the letter (BP app backlog 20).
+    func testTheHostRowLeavesOutACoverThePageLeftOut() {
+        let row = { (type: FollowTargetType, picture: String?) in
+            FollowRow(targetType: type, targetId: "h", name: "Church of Saint Joseph", kind: nil,
+                      picture: picture, pictureKind: picture == nil ? nil : "photo")
+        }
+        let shows = EventHostRow.showsPhoto
+        XCTAssertTrue(shows(row(.place, "https://x/mass.jpg"), false), "a place's photo, as before")
+        XCTAssertFalse(shows(row(.place, "https://x/mass.jpg"), true), "the cover the page left out: the letter")
+        XCTAssertFalse(shows(row(.place, nil), false), "no picture: the letter")
+        XCTAssertTrue(shows(row(.profile, nil), true), "a person keeps their picture, or the blank one")
+    }
+
     func testAFlyersPageShowsTheFlyerAlone() {
         var flyer = FeedCardItem({ var e = self.event(imageUrl: nil)
             e.placePicture = PlacePicture(url: Self.photoURL, kind: .photo, whole: true); return e }())

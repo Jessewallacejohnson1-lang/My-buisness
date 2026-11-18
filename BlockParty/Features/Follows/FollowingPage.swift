@@ -363,7 +363,7 @@ struct EventHostRow: View {
             if !hosts.isEmpty {
                 VStack(alignment: .leading, spacing: plain ? 0 : Self.gap) {
                     ForEach(Array(hosts.enumerated()), id: \.element.id) { n, host in
-                        EventHostLine(host: host, plain: plain, sun: sun, first: n == 0)
+                        EventHostLine(host: host, plain: plain, sun: sun, first: n == 0, coverOnly: item.coverOnly)
                     }
                 }
                 .padding(.top, top)
@@ -376,6 +376,13 @@ struct EventHostRow: View {
             hosts = found
             for host in found { await actions.refreshFollow(host.target) }
         }
+    }
+
+    /// The round picture shows the host's photo: a person's always, a place's unless the Event's own picture is only
+    /// its place's cover, which the page doesn't show either (town-feed 72), so the cover can't come back in the row.
+    /// Otherwise its logo or its first letter.
+    static func showsPhoto(_ host: FollowRow, coverOnly: Bool) -> Bool {
+        host.targetType == .profile || (host.picture != nil && !coverOnly)
     }
 
     /// "Host", or a page's or board's own kind: "City government", "City of St. Joseph".
@@ -414,6 +421,8 @@ private struct EventHostLine: View {
     var sun = false
     /// The first row carries the hairline over the hosts; the rows after it sit under it with none.
     var first = true
+    /// The Event's picture is only its place's cover (`FeedCardItem.coverOnly`).
+    var coverOnly = false
     @Environment(RealLifeActions.self) private var actions
     @Environment(\.hostOpener) private var opener
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -511,13 +520,13 @@ private struct EventHostLine: View {
     }
 
     /// The host's logo as its Town card draws it, trimmed and fitted on a white disc in a white ring (BP app
-    /// inside-cards 31); a person's photo; else the first letter.
+    /// inside-cards 31); a photo (`EventHostRow.showsPhoto`); else the first letter.
     @ViewBuilder private func hostPicture(_ host: FollowRow) -> some View {
         let size = EventLook.hostLogo
         if host.pictureKind == "logo", let url = host.picture.flatMap(URL.init) {
             HostMarkDisc(picture: PlacePicture(url: url, kind: .logo), name: host.name, size: size)
                 .accessibilityHidden(true)
-        } else if host.targetType == .profile || host.picture != nil {
+        } else if EventHostRow.showsPhoto(host, coverOnly: coverOnly) {
             FollowPicture(row: host, size: size)
         } else {
             Circle()
