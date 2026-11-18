@@ -1,11 +1,10 @@
 -- Open to the big Events (BP app town-feed 73; Jesse, 2026-11-17). An open after an hour or more away rolls a new top:
 -- the Town feed starts with five real happenings from the next 7 days, big first, made yours by your interests and the
 -- kinds of Events you went Going to, at most 3 of them yours, drawn by chance from the best 8. get_town_feed takes the
--- roll (p_top_seed) and the last roll's first card (p_last_top); an app that sends neither gets the feed as before.
+-- roll (p_top_seed) and the last roll's first cards (p_last_top); an app that sends neither gets the feed as before.
 --
--- supabase/town_feed.sql, changed in the "town-feed 73" lines. Roll back: re-run
--- 20261117165427_following_row_team_side.sql, then drop the six-argument private.town_feed and the five-argument
--- get_town_feed.
+-- supabase/town_feed.sql, changed in the "town-feed 73" lines. Roll back: drop the six-argument private.town_feed and
+-- the five-argument get_town_feed first, then re-run 20261117165427_following_row_team_side.sql.
 
 -- The same creator never twice in a row (BP app town-feed 66, Jesse 2026-11-13). Takes the Town feed's cards in their
 -- order, each as its creator (a number per creator) and its lane (0 live and the top five on top, 1 Events and posts, 2 News), and gives
@@ -110,14 +109,15 @@ revoke execute on function private.never_two_in_a_row(int[], int[]) from public;
 grant execute on function private.never_two_in_a_row(int[], int[]) to anon, authenticated;
 
 drop function if exists private.town_feed(timestamptz, boolean, uuid[], boolean);
-drop function if exists private.town_feed(timestamptz, boolean, uuid[], boolean, int, uuid);
+drop function if exists private.town_feed(timestamptz, boolean, uuid[], boolean, int, uuid[]);
 
 -- p_top_seed (town-feed 73): the open's roll, which the app makes new after an hour or more away. With one, the feed
 -- starts with the top five (`top_pick`), the same five for every read with that roll; none (an older app, the Block
--- Party tab, Later Events), no top. p_last_top: the last roll's first card, which never leads the next one.
+-- Party tab, Later Events), no top. p_last_top: the last roll's first cards (live ones, then its top's first), none
+-- of which leads the next one.
 create function private.town_feed(p_now timestamptz, p_news boolean, p_only uuid[] default null,
                                              p_later boolean default false, p_top_seed int default null,
-                                             p_last_top uuid default null)
+                                             p_last_top uuid[] default null)
 returns table (
   id uuid,
   title text,
@@ -805,7 +805,7 @@ as $$
   -- Five of them, the highest after the mix, at most 3 yours, so the town's biggest stay in sight; the last roll's
   -- first goes to the back.
   top_pick as (
-    select y.id, row_number() over (order by y.id = p_last_top, y.key desc, y.id) as top
+    select y.id, row_number() over (order by coalesce(y.id = any(p_last_top), false), y.key desc, y.id) as top
     from (select y.* from (select b.*, row_number() over (partition by b.mine order by b.key desc, b.id) as of_mine
                            from top_best b) y
           where not y.mine or y.of_mine <= (select (w->>'topMine')::int from weights)
@@ -1001,18 +1001,18 @@ as $$
   from feed_rows r
   order by r.spot;
 $$;
-revoke execute on function private.town_feed(timestamptz, boolean, uuid[], boolean, int, uuid) from public;
-grant execute on function private.town_feed(timestamptz, boolean, uuid[], boolean, int, uuid) to anon, authenticated;
+revoke execute on function private.town_feed(timestamptz, boolean, uuid[], boolean, int, uuid[]) from public;
+grant execute on function private.town_feed(timestamptz, boolean, uuid[], boolean, int, uuid[]) to anon, authenticated;
 
 -- The Town feed, as every app reads it: the body is private.town_feed's.
 drop function if exists public.get_town_feed(timestamptz, boolean, boolean);
-drop function if exists public.get_town_feed(timestamptz, boolean, boolean, int, uuid);
+drop function if exists public.get_town_feed(timestamptz, boolean, boolean, int, uuid[]);
 
--- p_top_seed and p_last_top: the open's roll and the last roll's first card (town-feed 73); an app that sends neither
+-- p_top_seed and p_last_top: the open's roll and the last roll's first cards (town-feed 73); an app that sends neither
 -- gets the feed as before.
 create function public.get_town_feed(p_now timestamptz default now(), p_news boolean default false,
                                       p_later boolean default false, p_top_seed int default null,
-                                      p_last_top uuid default null)
+                                      p_last_top uuid[] default null)
 returns table (
   id uuid,
   title text,
@@ -1047,4 +1047,4 @@ set search_path = public
 as $$
   select * from private.town_feed(p_now, p_news, null, p_later, p_top_seed, p_last_top);
 $$;
-grant execute on function public.get_town_feed(timestamptz, boolean, boolean, int, uuid) to anon, authenticated;
+grant execute on function public.get_town_feed(timestamptz, boolean, boolean, int, uuid[]) to anon, authenticated;

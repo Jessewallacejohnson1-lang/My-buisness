@@ -3507,7 +3507,7 @@ test('feed-load: get_town_feed is private.town_feed', async () => {
   await db.exec('reset role; reset request.jwt.claims');
   // A later migration that gives get_town_feed a body of its own again would leave Event of the day
   // reading the old one: change private.town_feed instead.
-  const { rows: [{ def }] } = await db.query(`select pg_get_functiondef('public.get_town_feed(timestamptz, boolean, boolean, int, uuid)'::regprocedure) as def`);
+  const { rows: [{ def }] } = await db.query(`select pg_get_functiondef('public.get_town_feed(timestamptz, boolean, boolean, int, uuid[])'::regprocedure) as def`);
   assert.match(def, /private\.town_feed\(p_now, p_news, null, p_later, p_top_seed, p_last_top\)/);
 });
 

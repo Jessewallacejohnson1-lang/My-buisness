@@ -43,7 +43,7 @@ async function rolled(seed, last = null) {
   const { rows } = await db.query(
     `select f.id, coalesce(f.card->>'title', f.title) as title, f.kind, (f.score->>'top')::int as top,
             (f.score->>'topWeight')::float8 as weight
-     from public.get_town_feed(($1::timestamp at time zone 'America/Chicago'), true, false, $2, $3) f`,
+     from public.get_town_feed(($1::timestamp at time zone 'America/Chicago'), true, false, $2, $3::uuid[]) f`,
     [NOW, seed, last]);
   return rows;
 }
@@ -93,7 +93,7 @@ test('the same roll draws the same five, and the last roll\'s first never leads 
     assert.deepEqual(topOf(await rolled(seed)), once);
     assert.equal(once.length, 5);
     tops.add(once.join());
-    const next = topOf(await rolled(seed, (await rolled(seed))[0].id));
+    const next = topOf(await rolled(seed, [(await rolled(seed))[0].id]));
     assert.notEqual(next[0], once[0]);
     assert.deepEqual(new Set(next), new Set(once), 'the same five, its old first at the back');
     assert.equal(next[4], once[0]);

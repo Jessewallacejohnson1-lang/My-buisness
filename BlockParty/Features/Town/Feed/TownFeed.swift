@@ -80,9 +80,9 @@ final class TownFeed {
     @ObservationIgnored private var freshDue = false
     /// The top five's roll (town-feed 73); nil, no top.
     private let top: TownTop?
-    /// Goes up each time an open rolls a new top: the screen goes to the top for it.
+    /// Goes up each time a roll's new top lands: the screen goes to the top with it.
     private(set) var rolls = 0
-    /// A roll's read is due: it lands wherever the screen is, which is going to the top.
+    /// A roll's read is due: it lands wherever the screen is, unless a finger is on it, and takes the screen up.
     @ObservationIgnored private var rollDue = false
     @ObservationIgnored private var keptChecked = false
     /// Numbers each read, so only the newest one's answer is kept.
@@ -415,7 +415,6 @@ final class TownFeed {
         if let top, now.timeIntervalSince(max(since, top.leftAt ?? .distantPast)) >= TownTop.after {
             top.roll()
             rollDue = true
-            rolls += 1
         }
         holdGames(at: now)
     }
@@ -432,9 +431,9 @@ final class TownFeed {
         await readAgain(at: now, freshOrder: false)
     }
 
-    /// The finger's off a list a fresh order was waiting on.
+    /// The finger's off a list a fresh order, or a roll's new top, was waiting on.
     func fingerLifted(at now: Date = Date()) async {
-        guard freshDue, atTop else { return }
+        guard (freshDue && atTop) || rollDue else { return }
         await refresh(at: now)
     }
 
@@ -502,9 +501,13 @@ final class TownFeed {
             actions?.read(new.compactMap(\.card))
             actions?.read(posts: new.compactMap(\.post))
             actions?.read(news: new.compactMap(\.news))
-            if entries == nil || freshOrder || (freshDue && (atTop || rollDue) && !fingerDown) {
-                if rollDue { top?.landed(first: new.first?.id) }
-                rollDue = false
+            let rolled = rollDue && !fingerDown
+            if entries == nil || freshOrder || rolled || (freshDue && atTop && !fingerDown) {
+                if rollDue {
+                    top?.landed(new.map(\.id))
+                    rollDue = false
+                    rolls += 1
+                }
                 entries = new
                 viewed = []  // a new feed load: each card may count once more
                 clearMore()
