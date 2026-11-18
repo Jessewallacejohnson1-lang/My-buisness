@@ -268,7 +268,7 @@ struct ChatBackButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: "chevron.left")
-                .font(.glyph(22, weight: .medium))
+                .font(.glyph(23, weight: .medium))
                 .foregroundStyle(Hue.ink)
                 .frame(width: PageMetric.tapMin, height: PageMetric.tapMin)
                 .contentShape(Rectangle())
@@ -287,7 +287,7 @@ struct ChatSearchBar: View {
     var body: some View {
         HStack(spacing: ChatMetric.searchIconGap) {
             Image(systemName: "magnifyingglass")
-                .font(.glyph(15, weight: .medium))
+                .font(.glyph(16.5, weight: .medium))
                 .foregroundStyle(Hue.ink)
                 .frame(width: ChatMetric.searchIcon, height: ChatMetric.searchIcon)
                 .accessibilityHidden(true)
@@ -336,7 +336,7 @@ struct MessagesPage: View {
                 MessagesBar(title: "Messages") {
                     Button { picking = true } label: {
                         Image(systemName: "square.and.pencil")
-                            .font(.glyph(22))
+                            .font(.glyph(24))
                             .foregroundStyle(Hue.ink)
                             .frame(width: PageMetric.tapMin, height: PageMetric.tapMin)
                             .contentShape(Rectangle())
@@ -498,6 +498,7 @@ private struct ChatRow: View {
                                 .foregroundStyle(chat.unread ? Hue.ink : Hue.chatGrey)
                                 .lineLimit(1)
                             Text(" · \(ago)")
+                                .accessibilityLabel(ChatWords.agoSpoken(chat.lastDate))
                                 .appleFont(14)
                                 .foregroundStyle(Hue.chatGrey)
                                 .fixedSize()

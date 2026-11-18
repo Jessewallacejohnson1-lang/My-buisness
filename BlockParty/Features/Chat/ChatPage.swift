@@ -425,7 +425,7 @@ struct ChatPage: View {
     /// One of the composer's two icons: 24 drawn, 44 to the finger.
     private func composerGlyph(_ name: String) -> some View {
         Image(systemName: name)
-            .font(.glyph(22))
+            .font(.glyph(23.5))
             .foregroundStyle(Hue.ink)
             .frame(width: ChatMetric.composerIcon, height: ChatMetric.composerIcon)
             .contentShape(TapArea())
@@ -444,7 +444,7 @@ struct ChatPage: View {
         }
         Task {
             try? await Task.sleep(for: .milliseconds(600))
-            if rising == id { rising = nil }
+            if rising == id { withAnimation(Motion.snappy) { rising = nil } }
         }
     }
 
@@ -539,7 +539,7 @@ private struct ChatMessages: View {
     }
 
     var body: some View {
-        let shift = ChatLook.timesShift(pull)
+        let shift = ChatLook.timesShift(pull), names = self.names
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: 0) {
@@ -589,7 +589,7 @@ private struct ChatMessages: View {
                         // An Event's card joins nothing: the bubbles beside it keep their round corners.
                         let joinsAbove = !firstOfRun && message.card == nil && last?.card == nil
                         let joinsBelow = !lastOfRun && message.card == nil && next?.card == nil
-                        let rises = message.id == rising
+                        let rises = message.id == rising && !message.host
                         ChatBubble(message: message, thread: thread, sender: names[message.senderID] ?? message.sender,
                                    showsName: isGroup && firstOfRun, showsFace: lastOfRun, isGroup: isGroup,
                                    joinsAbove: joinsAbove, joinsBelow: joinsBelow, screen: screen,
@@ -620,6 +620,8 @@ private struct ChatMessages: View {
                 .offset(x: -shift)
             }
             .defaultScrollAnchor(.bottom)
+            // A short chat with a friend starts under the bar, its profile block on top; any other sits on the composer.
+            .defaultScrollAnchor(profile != nil && thread.loaded && !thread.hasOlder ? .top : .bottom, for: .alignment)
             // A drag left brings the times in at the right; letting go sends the chat back.
             .gesture(ChatTimesPan { pull = $0 } ended: {
                 withAnimation(reduceMotion ? nil : ChatMotion.timesBack) { pull = 0 }
@@ -797,7 +799,7 @@ private struct ChatBubble: View {
         .background(Hue.chatFill, in: RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
         .opacity(message.state == .sending ? 0.6 : 1)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Host update, \(name): \(words), \(ChatWords.ago(message.at))")
+        .accessibilityLabel("Host update, \(name): \(words), \(ChatWords.agoSpoken(message.at))")
         .contextMenu { menu }
         .overlay(alignment: .top) { updateFace.offset(y: -ChatMetric.updateFace / 2) }
         .padding(.top, ChatMetric.updateFace / 2)
@@ -890,16 +892,16 @@ private struct ChatBubble: View {
                 .contentShape(.contextMenuPreview, shape)
                 .frame(maxWidth: ChatMetric.bubbleMax, alignment: mine ? .trailing : .leading)
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel("\(spokenSender): \(words), \(ChatWords.ago(message.at))")
+                .accessibilityLabel("\(spokenSender): \(words), \(ChatWords.agoSpoken(message.at))")
         case .photo(let path, let width, let height):
             ChatPhoto(image: thread.picked[message.id], link: path.flatMap { thread.links[$0] },
                       width: width, height: height, shape: shape)
-                .accessibilityLabel("\(spokenSender) sent a photo, \(ChatWords.ago(message.at))")
+                .accessibilityLabel("\(spokenSender) sent a photo, \(ChatWords.agoSpoken(message.at))")
         case .event(let card):
             if let card {
                 ChatEventCard(card: card)
                     .accessibilityElement(children: .contain)
-                    .accessibilityLabel("\(spokenSender) sent an Event, \(ChatWords.ago(message.at))")
+                    .accessibilityLabel("\(spokenSender) sent an Event, \(ChatWords.agoSpoken(message.at))")
             } else {
                 Text("This Event is no longer available.")
                     .appleFont(14)

@@ -521,6 +521,11 @@ enum ChatWords {
         return days < 7 ? "\(days)d" : "\(days / 7)w"
     }
 
+    /// The same for VoiceOver, said whole: "3 days ago".
+    static func agoSpoken(_ date: Date) -> String {
+        date.timeIntervalSinceNow > -60 ? "now" : date.formatted(.relative(presentation: .numeric, unitsStyle: .wide))
+    }
+
     /// A chat's stamp between messages, in capitals as Instagram's: TODAY 9:12 AM, YESTERDAY 6:46 PM, SUNDAY 1:30 PM,
     /// then the date.
     static func stamp(_ date: Date, now: Date = .now) -> String {

@@ -187,12 +187,11 @@ struct NewMessagePage: View {
                     .appleFont(14, weight: .semibold)
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity, minHeight: ChatMetric.pickButton)
-                    .background(Hue.chatBlue, in: RoundedRectangle(cornerRadius: ChatMetric.pickButtonCorner, style: .continuous))
+                    .background(Hue.chatBlue.opacity(picked.isEmpty ? 0.4 : 1), in: RoundedRectangle(cornerRadius: ChatMetric.pickButtonCorner, style: .continuous))
                     .contentShape(Rectangle())
             }
             .buttonStyle(.press(.squish))
             .disabled(picked.isEmpty || starting)
-            .opacity(picked.isEmpty ? 0.4 : 1)
             .turnBackShake(failures: failures, shakes: !reduceMotion)
         }
         .padding(.horizontal, ChatMetric.side)
