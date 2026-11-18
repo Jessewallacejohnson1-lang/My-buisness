@@ -65,21 +65,19 @@ What some interests cover (BP app docs/plans/onboarding, tickets 14, 15 and 21):
 ## How much it draws
 
 The `draw` is how many neighbours would make a point of going, not whether it's worthy. The
-Town feed opens to the 3s (BP app town-feed 74), and a weekly Event is never one:
+Town feed opens to the 3s (BP app town-feed 74), so a 3 must be big, and a weekly Event never is:
 
 - **3**: what the town turns out for or plans a day around. A festival, fair, parade, homecoming,
   a concert by a college, community, semi-professional or touring band, choir or orchestra
   (wherever it is listed), a big game (a rivalry, homecoming, playoff or college football game), a
   farmers, holiday or Christmas market or a vendor market (at a farm, brewery or bar too), a craft
   fair, a fundraiser dinner the town turns out for.
-- **2**: a one-off Event for whoever's into it. A talk, workshop, one-time class, trivia night,
-  recital, play, a concert by a school's own students (mostly their families go), a regular game,
-  a sale, a club night.
-- **1**: what comes back every week, and routine business. A `weekly` class, session, service,
-  drop-in, bingo night, meat raffle or open gym; city council, board, commission and committee
-  meetings; school picture retakes, "the trimester ends"; staff or members-only dates. A city's
-  own class, sport or program (Pilates at City Hall, youth volleyball) is 2 even when weekly: from
-  a city, 1 means a meeting, which the feed shows only to those who follow it.
+- **2**: a normal public Event for whoever's into it. A talk, workshop, class, trivia night,
+  recital, play, a concert by a school's own students (mostly their families go), a regular game or
+  scrimmage at any level (JV, middle school too), a sale, a club night, and every `weekly` Event: a
+  class, service, drop-in, bingo night or meat raffle.
+- **1**: routine business most people skip. City council, board, commission and committee
+  meetings, school picture retakes, "the trimester ends", staff or members-only dates.
 
 When unsure, 2.
 
