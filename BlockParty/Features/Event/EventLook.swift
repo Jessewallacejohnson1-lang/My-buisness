@@ -364,7 +364,7 @@ struct EventMeltHero: View {
     private var live: some View {
         Color.clear
             .frame(height: height)
-            .background(alignment: .top) { EventMelt(url: url, height: height, pale: pale, ready: ready) }
+            .background(alignment: .top) { EventMelt(url: url, height: height, pale: pale, ready: ready, width: width) }
             .overlay(alignment: .top) {
                 // Near-black while it loads, never the dark ramp's near-white ink (the page is dark).
                 FeedCardURLPhoto(url: url, onReady: onReady, onFailure: onFailure, loadingFill: Hue.gameNight)
@@ -447,10 +447,10 @@ private struct EventMelt: View {
     let height: CGFloat
     let pale: Bool
     let ready: Bool
+    let width: CGFloat
     /// A flyer's own frame, smaller than the melt's: the copy is the flyer's decode stretched to fill `width`, so
     /// one decode serves both (it's blurred anyway). Nil, the copy fills its frame, as the photo above it does.
     var sharp: CGSize? = nil
-    var width: CGFloat = 0
 
     var body: some View {
         let reach = pale ? EventLook.meltToPale : EventLook.meltTo
@@ -526,7 +526,7 @@ struct EventFlyerHero: View {
         Color.clear
             .frame(height: height)
             .background(alignment: .top) {
-                EventMelt(url: url, height: height, pale: pale, ready: ready, sharp: size, width: width)
+                EventMelt(url: url, height: height, pale: pale, ready: ready, width: width, sharp: size)
             }
             .overlay(alignment: .top) {
                 FeedCardURLPhoto(url: url, onReady: onReady, onFailure: onFailure, loadingFill: Hue.gameNight)
