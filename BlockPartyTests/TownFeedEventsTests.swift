@@ -1888,7 +1888,7 @@ final class TownFeedEventsTests: XCTestCase {
     }
 
     /// A relaunch inside the hour keeps the roll: the time away counts from when the feed last went off screen.
-    func testARelaunchInsideTheHourKeepsTheRoll() {
+    func testARelaunchInsideTheHourKeepsTheRoll() async {
         let keep = topKeep()
         let top = TownTop(keep: keep)
         let before = TownFeed(read: { [] }, top: top)
@@ -1898,12 +1898,15 @@ final class TownFeedEventsTests: XCTestCase {
 
         let relaunched = TownFeed(read: { [] }, top: TownTop(keep: keep))
         relaunched.cameBack(at: now.addingTimeInterval(40 * 60))
+        await relaunched.refresh(at: now.addingTimeInterval(40 * 60))
         XCTAssertEqual(relaunched.rolls, 0)
         XCTAssertEqual(TownTop(keep: keep).seed, seed)
 
         let later = TownFeed(read: { [] }, top: TownTop(keep: keep))
         later.cameBack(at: now.addingTimeInterval(61 * 60))
+        await later.refresh(at: now.addingTimeInterval(61 * 60))
         XCTAssertEqual(later.rolls, 1)
+        XCTAssertNotEqual(TownTop(keep: keep).seed, seed)
     }
 
     /// The roll's first card goes with the next roll, so it never leads twice in a row; only a database id is sent.
