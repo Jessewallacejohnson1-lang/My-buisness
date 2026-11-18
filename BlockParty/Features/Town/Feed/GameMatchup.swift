@@ -963,6 +963,8 @@ struct SplitGameCard: View {
         static let numberX: [CGFloat] = [0.385, 0.635]
         static let numberRise: CGFloat = 11
         static let number: CGFloat = 38
+        /// The widest a number may be, as a share of the card's width.
+        static let numberRoom: CGFloat = 0.2
         /// The chip at the line's foot.
         static let chipBottom: CGFloat = 14
         /// The loser's side once the final is in.
@@ -1021,6 +1023,9 @@ struct SplitGameCard: View {
                             .font(.eventDisplay(Metric.number))
                             .foregroundStyle(.white)
                             .lineLimit(1)
+                            // A basketball "102" shrinks to stay clear of its logo and the line.
+                            .minimumScaleFactor(0.6)
+                            .frame(maxWidth: size.width * Metric.numberRoom)
                             .contentTransition(.numericText(countsDown: false))
                             .animation(reduceMotion ? nil : Motion.smooth, value: score[side])
                             .opacity(lost(side) ? Metric.faded : 1)
