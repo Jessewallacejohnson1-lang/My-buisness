@@ -28,6 +28,9 @@ struct EditProfileView: View {
     private enum Field { case name, bio }
     @State private var cover: UIImage?
     @State private var coverPick: PhotosPickerItem?
+    /// A photo just picked, in Adjust before it lands (backlog 32): the profile photo's circle, the cover's shape.
+    @State private var adjustingPhoto: UIImage?
+    @State private var adjustingCover: UIImage?
     @State private var showInterests = EditProfileView.debugOpenInterests()
     @State private var saving = false
     @State private var saveProblem: ProfileModel.SaveProblem?
@@ -82,6 +85,13 @@ struct EditProfileView: View {
             if name.isEmpty { name = model.displayName }
             if interests.isEmpty { interests = model.interestIds }
             if bio.isEmpty { bio = model.bio }
+            #if DEBUG
+            // `-profile-adjust photo|cover`: Adjust on a bundled photo as if just picked; AXe can't reach Apple's picker.
+            if let which = LaunchFlags.value(.profileAdjust), adjustingPhoto == nil, adjustingCover == nil {
+                if which == "cover" { adjustingCover = UIImage(named: "rocktoberfest.jpg") }
+                else { adjustingPhoto = UIImage(named: "millstream-arts-festival.jpg") }
+            }
+            #endif
         }
         // Opened before Profile's read landed: its bio comes in then, unless you've typed one.
         .onChange(of: model.bio) { old, new in if bio == old { bio = new } }
@@ -89,17 +99,25 @@ struct EditProfileView: View {
             guard let item else { return }
             Task {
                 if let data = try? await item.loadTransferable(type: Data.self), let ui = UIImage(data: data) {
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { cover = ui }
+                    adjustingCover = await PhotoCrop.shrunk(ui)
                 }
+                coverPick = nil
             }
         }
         .onChange(of: pick) { _, item in
             guard let item else { return }
             Task {
                 if let data = try? await item.loadTransferable(type: Data.self), let ui = UIImage(data: data) {
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { image = ui }
+                    adjustingPhoto = await PhotoCrop.shrunk(ui)
                 }
+                pick = nil
             }
+        }
+        .photoAdjust($adjustingPhoto, shape: .circle) { cut in
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { image = cut }
+        }
+        .photoAdjust($adjustingCover, shape: .wide(GroupPage.Metric.heroAspect)) { cut in
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { cover = cut }
         }
         .sheet(isPresented: $showInterests) {
             InterestsSheet(picked: $interests, schools: schools,

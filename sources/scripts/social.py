@@ -76,7 +76,7 @@ Composio. Only Apify's schedules start paid runs; each task has its own spending
   python3 sources/scripts/social.py --selftest
 """
 
-import argparse, hashlib, io, json, math, os, re, shutil, subprocess, sys, tempfile, time, urllib.error, urllib.request
+import argparse, contextlib, hashlib, io, json, math, os, re, shutil, subprocess, sys, tempfile, time, urllib.error, urllib.request
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import parse_qs, quote, urlsplit
@@ -927,7 +927,7 @@ def prepare(run, now):
             return print(f"[social] run again: {', '.join(waiting)} still running on Apify")
         failed += [f"{n} still running after 8 minutes; its posts wait for the next check" for n in waiting]
 
-        posts, cost, until, reads = [], 0.0, mark, []
+        posts, cost, until, reads, story_usd = [], 0.0, mark, [], 0.0
         for kind, runs in found.items():
             # Every page of its kind, either list: a run may carry a page set aside or back since.
             by_url = {canon(p["url"]): p for (_, k), ps in lists.items() if k == kind for p in ps}
@@ -936,6 +936,7 @@ def prepare(run, now):
                 by_url = {events_tab(u): p for u, p in every.items()} | every
             for r in runs:
                 cost += float(r.get("usageTotalUsd") or 0)
+                story_usd += float(r.get("usageTotalUsd") or 0) if kind == "stories" else 0
                 finished = datetime.fromisoformat(r["finishedAt"].replace("Z", "+00:00"))
                 until = max(until, finished) if until else finished
                 rows = items(r["defaultDatasetId"])
@@ -958,7 +959,8 @@ def prepare(run, now):
             missed, aside, back, uncounted = tally(reads, saved["missed"], today, weekly)
             saved.update(missed=missed, aside=aside_lines(missed, aside, back, lists))
             failed += uncounted
-        saved.update(posts=unique, cost=cost, until=until and until.isoformat(), runs=sum(len(v) for v in found.values()))
+        saved.update(posts=unique, cost=cost, until=until and until.isoformat(), runs=sum(len(v) for v in found.values()),
+                     stories=round(story_usd, 3) if "stories" in found else None)
     posts = [p for p in saved["posts"] if not p.get("cancelled")]
     cancels = [p for p in saved["posts"] if p.get("cancelled")]
     pics = add_pictures(posts, out / "pictures", fetch_picture, stop, saved.get("pics"))
@@ -987,7 +989,9 @@ def prepare(run, now):
                "interests": interests, "apify_usd": round(cost, 3), "apify_runs": runs,
                "read_until": until.isoformat() if until and runs else None, "pictures": pics,
                "aside": saved.get("aside", []), "missed": saved.get("missed"), "cancelled": len(cancels),
-               "again": len({p["url"] for p in saved.get("again") or ()}), "tabs": saved.get("tabs", [])}
+               "again": len({p["url"] for p in saved.get("again") or ()}), "tabs": saved.get("tabs", []),
+               "stories": (check, "stories") in lists and {"read": sum(p["file"].startswith("stories-") for p in posts),
+                                                            "usd": saved.get("stories")}}
     run.prepared(summary)
     say_prepared(summary, out)
 
@@ -1002,6 +1006,10 @@ def say_prepared(s, out):
     if s.get("again"):
         print(f"[social] {s['again']} upcoming Events linked to a Facebook event are read again on "
               f"{' and '.join(d.title() for d in REREAD_DAYS)}, unless that day's search found them last time")
+    if s.get("stories"):  # watch-every-place 25: the judge's answer says what each story became
+        st = s["stories"]
+        print(f"[social] stories: {st['read']} read, Apify ${st['usd']:.2f}" if st["usd"] is not None
+              else "[social] stories: no Apify run since the last check")
     print(pictures_line(s["pictures"]))
     for t in s.get("tabs") or ():
         print(f'[social] Events tab lists events: {t}: give it "events": true in the page list')
@@ -1114,6 +1122,16 @@ def selftest():
           f"one with no picture is none: {got}")
     check(actor_input("stories", [jt["url"], "https://www.instagram.com/krewerestaurant/"], None) == {"usernames": ["joetownmn", "krewerestaurant"]},
           "a stories task reads accounts by their handle")
+    base = {"since": None, "run": "busy", "apify_runs": 2, "fetched": 9, "changed": 3, "batches": 1, "apify_usd": 0.3,
+            "pictures": {"read": 0, "posts": 0, "tokens": 0, "failed": []}, "aside": [], "failed": []}
+    lines = []
+    for st in ({"read": 2, "usd": 0.1018}, {"read": 0, "usd": None}, False):
+        said = io.StringIO()
+        with contextlib.redirect_stdout(said):
+            say_prepared(dict(base, stories=st), Path("."))
+        lines.append([ln for ln in said.getvalue().splitlines() if "stories" in ln])
+    check(lines == [["[social] stories: 2 read, Apify $0.10"], ["[social] stories: no Apify run since the last check"], []],
+          f"the busy line counts the stories read and their cost, says when none were read, and a weekly check says nothing: {lines}")
     check(task_name("weekly", "events", "mon") == "bp-weekly-mon-events" and task_name("busy", "facebook") == "bp-busy-facebook",
           "a task's name")
     wed = datetime(2026, 11, 4, 21, 30, tzinfo=LOCAL)  # a Wednesday evening
