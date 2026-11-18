@@ -147,15 +147,17 @@ enum TodayBubbleRules {
 
 enum TodayBubbleClock {
     /// Now. In DEBUG, `-map-now HH:MM` pins the map's clock there at launch and lets it
-    /// tick on, so recordings can show a live bubble and a countdown at any hour.
+    /// tick on, so recordings can show a live bubble and a countdown at any hour; `HH:MM+1`
+    /// is that time a day on, for tomorrow's real Events when today's are over.
     static func now(_ real: Date = Date()) -> Date { real.addingTimeInterval(offset) }
 
     private static let offset: TimeInterval = {
         #if DEBUG
         guard let now = LaunchFlags.value(.mapNow) else { return 0 }
-        let parts = now.split(separator: ":").compactMap { Int($0) }
+        let day = now.split(separator: "+")
+        let parts = (day.first ?? "").split(separator: ":").compactMap { Int($0) }
         guard parts.count == 2 else { return 0 }
-        let target = parts[0] * 3600 + parts[1] * 60
+        let target = (day.count == 2 ? Int(day[1]) ?? 0 : 0) * 86_400 + parts[0] * 3600 + parts[1] * 60
         return Town.gregorian.startOfDay(for: Date()).addingTimeInterval(TimeInterval(target)).timeIntervalSinceNow
         #else
         return 0
