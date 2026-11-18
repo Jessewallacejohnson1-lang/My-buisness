@@ -111,5 +111,8 @@ struct FriendsSearchField: View {
         }
         .frame(height: SearchMetric.fieldHeight)
         .background(Hue.searchField, in: RoundedRectangle(cornerRadius: Radius.searchField, style: .continuous))
+        // The whole grey field takes the tap, not only the text line (Clear keeps its own).
+        .contentShape(RoundedRectangle(cornerRadius: Radius.searchField, style: .continuous))
+        .onTapGesture { focused = true }
     }
 }

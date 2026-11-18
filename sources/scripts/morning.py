@@ -2394,7 +2394,9 @@ def steps_alone():
         except SystemExit as e:
             printed.write(f"exit {e.code}\n")
         return printed.getvalue()
-    saved = spots.fill, apple_maps.check, social.limits, social.missed_checks, write_judged.interest_ids, own_page, find_spots.read
+    saved = (spots.fill, apple_maps.check, social.limits, social.missed_checks, write_judged.interest_ids, own_page, find_spots.read,
+             social.blocked)
+    social.blocked = lambda: None  # never the real Apify
     spots.fill, apple_maps.check = (lambda db, today, write, maps: ["- Map spots"]), (lambda db, write, today: ["- Apple Maps"])
     find_spots.read = lambda folder, minutes: None
     social.limits, social.missed_checks = (lambda: {"current": {"monthlyUsageUsd": 1}, "limits": {"maxMonthlyUsageUsd": 25}}), (lambda: [])
@@ -2460,7 +2462,8 @@ def steps_alone():
             said(finish, run(), False)
             caught_up = db.writes()[n:]
     finally:
-        spots.fill, apple_maps.check, social.limits, social.missed_checks, write_judged.interest_ids, own_page, find_spots.read = saved
+        (spots.fill, apple_maps.check, social.limits, social.missed_checks, write_judged.interest_ids, own_page, find_spots.read,
+         social.blocked) = saved
     ids = lambda calls, key: [p.rsplit("=", 1)[1][-2:] for _, p, b in calls if p.startswith("club_events?id=eq.") and key in b]
     return [
         (listed == f"{long_title}\nNews, 30 characters at most:\n{long_news}\n" and titled[0] == titled[1]
@@ -2785,8 +2788,9 @@ def whole_morning():
             said.append(command(*argv))
         return said
     saved = (runner.read_page, runner.validate, runner.find_root, runner.time, runner.NOW, social.limits, social.missed_checks,
-             Supabase, load, start_reader, fetch_watched, find_root, own_page, write_judged.interest_ids, firecrawl_credits)
-    social.missed_checks = lambda: []
+             Supabase, load, start_reader, fetch_watched, find_root, own_page, write_judged.interest_ids, firecrawl_credits,
+             social.blocked)
+    social.missed_checks, social.blocked = (lambda: []), (lambda: None)
     firecrawl_credits = lambda: {"remainingCredits": 1000, "planCredits": 1000,  # none used, so the real clock can't change the line
                                  "billingPeriodStart": "2026-10-21T01:45:31.463Z", "billingPeriodEnd": "2026-11-21T01:45:31.463Z"}
     try:
@@ -2858,7 +2862,8 @@ def whole_morning():
         spots.fill, find_spots.read = real_fill, real_read
         apple_maps.check = real_check
         (runner.read_page, runner.validate, runner.find_root, runner.time, runner.NOW, social.limits, social.missed_checks,
-         Supabase, load, start_reader, fetch_watched, find_root, own_page, write_judged.interest_ids, firecrawl_credits) = saved
+         Supabase, load, start_reader, fetch_watched, find_root, own_page, write_judged.interest_ids, firecrawl_credits,
+         social.blocked) = saved
     report = finished[-1].splitlines()
     return [
         (readied.startswith("[ready] ready on Python ") and "pillow, numpy" in readied,

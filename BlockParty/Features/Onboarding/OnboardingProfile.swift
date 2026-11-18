@@ -178,6 +178,10 @@ struct OnboardingProfilePhoto: View {
     @State private var library = false
     @State private var camera = false
     @State private var pick: PhotosPickerItem?
+    /// A photo just picked or taken, in Adjust's circle before it lands (backlog 32).
+    @State private var adjusting: UIImage?
+    /// The camera's photo, held until the camera has gone so Adjust can come up.
+    @State private var taken: UIImage?
 
     static let side: CGFloat = 80
     private static var hasCamera: Bool { UIImagePickerController.isSourceTypeAvailable(.camera) }
@@ -194,14 +198,19 @@ struct OnboardingProfilePhoto: View {
             Button("Take photo") { camera = true }
         }
         .photosPicker(isPresented: $library, selection: $pick, matching: .images, photoLibrary: .shared())
-        .fullScreenCover(isPresented: $camera) {
-            CameraPicker { use($0) }.ignoresSafeArea()
+        .fullScreenCover(isPresented: $camera, onDismiss: {
+            guard let shot = taken else { return }
+            taken = nil
+            Task { adjusting = await PhotoCrop.shrunk(shot) }
+        }) {
+            CameraPicker { taken = $0 }.ignoresSafeArea()
         }
+        .photoAdjust($adjusting, shape: .circle) { use($0) }
         .onChange(of: pick) { _, item in
             guard let item else { return }
             Task {
                 if let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) {
-                    use(image)
+                    adjusting = await PhotoCrop.shrunk(image)
                 }
                 pick = nil
             }

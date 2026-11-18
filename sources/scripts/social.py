@@ -11,10 +11,10 @@ Apify reads the pages on its own clock (Jesse, 2026-10-23: "apify has direct sou
 check never waits on the Claude plan: saved tasks hold each list's pages, and schedules start them.
 The busy list (`bp-busy-<kind>`) is read once a day at 7pm Chicago (Jesse, 2026-11-15, BP app watch-every-place
 26: 69% of twice-a-day reads found nothing new; 9:30am and 7pm from 2026-11-10, noon and 9pm before). Every other page is read once a week, a seventh of them each day at
-3pm (`bp-weekly-<day>-<kind>`, with the Facebook Events tabs that list events, a search of Facebook's events for the
-town on Mondays and Facebook's own events page for the town on Mondays and Saturdays: page_lists; Monday's and Saturday's search tasks also read again
-every upcoming Event linked to a Facebook event, so a new date, time, place, About or cover, or a cancelling, reaches
-it: rereads, BP app watch-every-place 24). A page's day is its `day` in the list,
+3pm (`bp-weekly-<day>-<kind>`, with the Facebook Events tabs that list events and Facebook's own events page for the
+town on Mondays and Saturdays: page_lists; Monday's and Saturday's search tasks also read again every upcoming Event
+linked to a Facebook event, so a new date, time, place, About or cover, or a cancelling, reaches it: rereads, BP app
+watch-every-place 24). A page's day is its `day` in the list,
 set so each day reads a mix of kinds (Jesse, 2026-11-11: "divide the type of events up so a reading
 can get a variety"; until then every page was read on Thursdays, one big drop a week). Each read
 reaches back to an hour before its task's last good read (since), so a run that the monthly cap or
@@ -36,6 +36,11 @@ skipped (the 9pm one on 2026-10-22) is read by the next.
                   heads-up past 3/4 of the cap and at the cap (Jesse, 2026-11-04: no slowdown,
                   just say). The cap is whatever Apify reports. The 8 AM check emails this line
                   the morning it first passes either one (private.apify_level, BP app loopholes 13).
+
+When Apify turns the whole account off (2026-11-16: an unpaid invoice), its spend still reads as usual and only
+writes are refused, so for two days the checks blamed the network secret and judged days of old posts again (BP app
+watch-every-place 36). Now `spend`, `prepare` and the morning report's social line each say that Apify refuses every
+run, and why, and prepare reads nothing until it is settled.
 
 A busy-list Instagram page with `"stories": true` also has its stories read, once a day by the 7pm busy run
 (STORIES_AT: a story lasts 24 hours, so one read a day sees each), through a no-login Apify actor (BP app
@@ -76,7 +81,7 @@ Composio. Only Apify's schedules start paid runs; each task has its own spending
   python3 sources/scripts/social.py --selftest
 """
 
-import argparse, hashlib, io, json, math, os, re, shutil, subprocess, sys, tempfile, time, urllib.error, urllib.request
+import argparse, contextlib, hashlib, io, json, math, os, re, shutil, subprocess, sys, tempfile, time, urllib.error, urllib.request
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import parse_qs, quote, urlsplit
@@ -177,7 +182,7 @@ def search_pages():
     know (2026-11-03: a band at La Playette, a parish craft fair), so each is named for its host. The words searches
     are read on Mondays, the town's events page on Mondays and Saturdays (Jesse, 2026-11-15, BP app watch-every-place
     26: it found a new Event for 4 cents, a third of them under a week ahead; Collegeville's words search left the town
-    file, 16 of its 28 events were past)."""
+    file, 16 of its 28 events were past; St. Joseph's left on 2026-11-17, 36 of its 43 past)."""
     town, pages = TOWNS[TOWN], []
     queries = town.get("facebook_events_search") or []
     for q in ([queries] if isinstance(queries, str) else queries):
@@ -313,7 +318,25 @@ def api(method, path, body=None):
 
 
 def _store_id():
-    return api("POST", f"/key-value-stores?name={STORE}")["data"]["id"]  # makes it the first time, finds it after
+    """The store, found by name with a read and made only the first time: a refused write (an account Apify turned
+    off) must not hide the marks, or every check reads days of old runs again (BP app watch-every-place 36)."""
+    found = by_name("/key-value-stores").get(STORE)
+    return found["id"] if found else api("POST", f"/key-value-stores?name={STORE}")["data"]["id"]
+
+
+def blocked():
+    """Why Apify refuses every run (2026-11-16: "Too many outstanding invoices"), or None. None too when Apify can't
+    say, so a check goes on as before."""
+    try:
+        actors = api("GET", "/users/me")["data"]["effectivePlatformFeatures"]["ACTORS"]
+    except Exception:
+        return None
+    return None if actors.get("isEnabled", True) else actors.get("disabledReason") or "the account is turned off"
+
+
+def block_line(why):
+    return (f"Apify refuses every run: {why}. Facebook and Instagram are read again once that is settled in Apify's "
+            "console (Billing)")
 
 
 def last_read(run):
@@ -416,32 +439,15 @@ def since(task, began, now):
     return (at - OVERLAP).astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
 
 
-def searched(tasks):
-    """{day: the Facebook event ids its search task's last good run found on its search pages}. An Event among them is
-    returned by that day's search again, with every field a read again takes, so it isn't read again as well (Jesse,
-    2026-11-15, BP app watch-every-place 26: 34 of 41 were paid twice). One the search stops returning is read again
-    the next week."""
-    out = {}
-    for name, task in tasks.items():
-        day = re.fullmatch(r"bp-weekly-(\w+)-search", name)
-        got = day and api("GET", f"/actor-tasks/{task['id']}/runs?desc=true&limit=1&status=SUCCEEDED")["data"]["items"]
-        if got:
-            out[day[1]] = {str(r.get("id")) for r in items(got[0]["defaultDatasetId"])
-                           if not r.get("error") and r.get("id") and not FB_EVENT.search(r.get("inputUrl") or "")}
-    return out
-
-
 def sync_tasks(root, missed=None, now=None, again=()):
     """Each task's pages as the lists now have them (page_lists), each weekly page in its day's task
     (`bp-weekly-<day>-<kind>`), and how far back each posts task reads (since); makes a task that is
-    missing. Returns {task name: id} of the tasks with pages."""
+    missing. Returns {task name: id} of the tasks with pages. Every Event in `again` is read on both its days: Apify
+    bills an event once a run however many of the run's pages return it, so one the town's events page returns too
+    costs nothing more (2026-11-16: 103 rows, 103 events), and skipping it saves only when the page stops returning it,
+    the read that matters (BP app watch-every-place 26, 2026-11-17)."""
     now = now or datetime.now(timezone.utc)
     tasks, ids, began = by_name("/actor-tasks"), {}, days_began()
-    try:
-        found = searched(tasks)
-    except Exception:  # unread: every Event is read again, paid twice rather than missed
-        found = {}
-    again = [p for p in again if FB_EVENT.search(p["url"])[1] not in found.get(p.get("day"), ())]
     for (run, kind), pages in page_lists(root, missed, now, again).items():
         actor, cap = ACTORS[(run, kind)]
         shares = {None: pages} if run == "busy" else {}
@@ -801,7 +807,7 @@ def post_pages(kind, rows, by_url):
         posted = None  # only a post's own time is kept (town-feed 70); a story or an event page has none
         src = src_of(r)
         page = page_of(src, by_url)
-        if kind == "search" and r.get("id"):  # an Event the search found that is read again: its host's listing (searched)
+        if kind == "search" and r.get("id"):  # an Event the search found that is read again: its host's listing (rereads)
             page = by_url.get(canon(f"https://www.facebook.com/events/{r['id']}")) or page
         if kind == "instagram":  # a collab post shows on each author's page: its owner hosts it, read from either
             page = ig_page(r.get("ownerUsername"), by_url) or page
@@ -888,6 +894,9 @@ def prepare(run, now):
     downloads stop after the part's minutes and say "run again", and social-part.json carries the check to
     the next part."""
     root, out, today, check, stop = find_root(), run.folder, run.today, run.check, run.stop
+    why = blocked()
+    if why:  # nothing new can exist: say why, and read no old run again (BP app watch-every-place 36)
+        return print(f"[social] FAILED {block_line(why)}\n[social] nothing read or marked: answer with the line above and stop")
     state, part = run.begin("social-part.json", {"failed": [], "give_up": time.time() + WAIT})
     if state == "busy":
         return print("[social] another prepare is still running in this copy: let it finish, and start no second one")
@@ -927,7 +936,7 @@ def prepare(run, now):
             return print(f"[social] run again: {', '.join(waiting)} still running on Apify")
         failed += [f"{n} still running after 8 minutes; its posts wait for the next check" for n in waiting]
 
-        posts, cost, until, reads = [], 0.0, mark, []
+        posts, cost, until, reads, story_usd = [], 0.0, mark, [], 0.0
         for kind, runs in found.items():
             # Every page of its kind, either list: a run may carry a page set aside or back since.
             by_url = {canon(p["url"]): p for (_, k), ps in lists.items() if k == kind for p in ps}
@@ -936,6 +945,7 @@ def prepare(run, now):
                 by_url = {events_tab(u): p for u, p in every.items()} | every
             for r in runs:
                 cost += float(r.get("usageTotalUsd") or 0)
+                story_usd += float(r.get("usageTotalUsd") or 0) if kind == "stories" else 0
                 finished = datetime.fromisoformat(r["finishedAt"].replace("Z", "+00:00"))
                 until = max(until, finished) if until else finished
                 rows = items(r["defaultDatasetId"])
@@ -958,7 +968,8 @@ def prepare(run, now):
             missed, aside, back, uncounted = tally(reads, saved["missed"], today, weekly)
             saved.update(missed=missed, aside=aside_lines(missed, aside, back, lists))
             failed += uncounted
-        saved.update(posts=unique, cost=cost, until=until and until.isoformat(), runs=sum(len(v) for v in found.values()))
+        saved.update(posts=unique, cost=cost, until=until and until.isoformat(), runs=sum(len(v) for v in found.values()),
+                     stories=round(story_usd, 3) if "stories" in found else None)
     posts = [p for p in saved["posts"] if not p.get("cancelled")]
     cancels = [p for p in saved["posts"] if p.get("cancelled")]
     pics = add_pictures(posts, out / "pictures", fetch_picture, stop, saved.get("pics"))
@@ -987,7 +998,9 @@ def prepare(run, now):
                "interests": interests, "apify_usd": round(cost, 3), "apify_runs": runs,
                "read_until": until.isoformat() if until and runs else None, "pictures": pics,
                "aside": saved.get("aside", []), "missed": saved.get("missed"), "cancelled": len(cancels),
-               "again": len({p["url"] for p in saved.get("again") or ()}), "tabs": saved.get("tabs", [])}
+               "again": len({p["url"] for p in saved.get("again") or ()}), "tabs": saved.get("tabs", []),
+               "stories": (check, "stories") in lists and {"read": sum(p["file"].startswith("stories-") for p in posts),
+                                                            "usd": saved.get("stories")}}
     run.prepared(summary)
     say_prepared(summary, out)
 
@@ -1001,7 +1014,11 @@ def say_prepared(s, out):
         print(f"[social] {s['cancelled']} Facebook events cancelled by their hosts: save marks their Events cancelled")
     if s.get("again"):
         print(f"[social] {s['again']} upcoming Events linked to a Facebook event are read again on "
-              f"{' and '.join(d.title() for d in REREAD_DAYS)}, unless that day's search found them last time")
+              f"{' and '.join(d.title() for d in REREAD_DAYS)}")
+    if s.get("stories"):  # watch-every-place 25: the judge's answer says what each story became
+        st = s["stories"]
+        print(f"[social] stories: {st['read']} read, Apify ${st['usd']:.2f}" if st["usd"] is not None
+              else "[social] stories: no Apify run since the last check")
     print(pictures_line(s["pictures"]))
     for t in s.get("tabs") or ():
         print(f'[social] Events tab lists events: {t}: give it "events": true in the page list')
@@ -1026,7 +1043,7 @@ def finish(run):
             # undo the other's comeback. Save only the pages this check changed if they ever overlap.
             save_missed(prep["missed"])
     except Exception as e:  # the next check then reads these runs again; the writer merges repeats
-        return print(f"[social] FAILED marking {prep['run']} read ({e}): check the Apify network secret")
+        return print(f"[social] FAILED marking {prep['run']} read ({e})")
     print(f"[social] {prep['run']}: {prep['apify_runs']} runs marked read, up to "
           f"{datetime.fromisoformat(prep['read_until']).astimezone(LOCAL):%a %b %-d %-I:%M %p}")
 
@@ -1040,12 +1057,17 @@ def missed_checks(now=None):
     yesterday = (now - timedelta(days=1)).replace(minute=0, second=0, microsecond=0)
     due = [("busy", "last evening's check", yesterday.replace(hour=19)),
            ("weekly", "yesterday afternoon's check", yesterday.replace(hour=WEEKLY_AT))]
-    out = []
-    for run, name, by in due:
-        mark = last_read(run)
-        if not mark or mark < by:
-            read = f"read up to {mark.astimezone(LOCAL):%a %b %-d %-I:%M %p}" if mark else "never read"
-            out.append(f"{name} didn't finish ({read})")
+    why = blocked()
+    out = [block_line(why)] if why else []
+    try:
+        for run, name, by in due:
+            mark = last_read(run)
+            if not mark or mark < by:
+                read = f"read up to {mark.astimezone(LOCAL):%a %b %-d %-I:%M %p}" if mark else "never read"
+                out.append(f"{name} didn't finish ({read})")
+    except Exception:  # an account Apify turned off is said even when its marks can't be read
+        if not out:
+            raise
     return out
 
 
@@ -1063,9 +1085,9 @@ def spend():
         d = limits()
     except urllib.error.HTTPError as e:  # 401: the environment's Apify network secret is missing or wrong
         return f"Apify: spend unknown, Apify refused the request (HTTP {e.code}): check the routine's network secret"
-    end = d.get("monthlyUsageCycle", {}).get("endAt", "")[:10]
+    end, why = d.get("monthlyUsageCycle", {}).get("endAt", "")[:10], blocked()
     return (spend_line(float(d["current"]["monthlyUsageUsd"]), float(d["limits"]["maxMonthlyUsageUsd"]))
-            + (f" (resets after {end})" if end else ""))
+            + (f" (resets after {end})" if end else "") + (f". {block_line(why)}." if why else ""))
 
 
 def selftest():
@@ -1076,13 +1098,13 @@ def selftest():
             sys.exit(f"selftest failed: {what}")
         ok += 1
     t = lambda d, h, m: datetime(2026, 10, d, h, m, tzinfo=LOCAL)
-    real_last_read = globals()["last_read"]
-    def missed(busy, weekly, now):
-        globals()["last_read"] = {"busy": busy, "weekly": weekly}.get
+    real_last_read, real_blocked = globals()["last_read"], globals()["blocked"]
+    def missed(busy, weekly, now, why=None):
+        globals()["last_read"], globals()["blocked"] = {"busy": busy, "weekly": weekly}.get, lambda: why
         try:
             return missed_checks(now)
         finally:
-            globals()["last_read"] = real_last_read
+            globals()["last_read"], globals()["blocked"] = real_last_read, real_blocked
     thu, fri = t(29, 6, 0), t(30, 6, 0)  # Oct 29, 2026 is a Thursday
     check(missed(t(28, 21, 1), t(28, 15, 1), thu) == [], "both lists' last runs read by morning: nothing to say")
     check(missed(t(28, 12, 1), t(28, 15, 1), thu) == ["last evening's check didn't finish (read up to Wed Oct 28 12:01 PM)"],
@@ -1090,6 +1112,18 @@ def selftest():
     check(missed(t(29, 21, 1), t(28, 15, 1), fri) == ["yesterday afternoon's check didn't finish (read up to Wed Oct 28 3:01 PM)"],
           "the weekly list is read every afternoon now: Thursday's day unread is said on Friday")
     check(missed(None, t(29, 15, 1), fri) == ["last evening's check didn't finish (never read)"], "no mark at all")
+    check(missed(t(28, 21, 1), t(28, 15, 1), thu, "Too many outstanding invoices")
+          == ["Apify refuses every run: Too many outstanding invoices. Facebook and Instagram are read again once that is "
+              "settled in Apify's console (Billing)"],
+          "an account Apify turned off is said first, with why, so the 8 AM email carries it (watch-every-place 36)")
+    def unreadable(run):
+        raise RuntimeError("HTTP Error 429")
+    globals()["last_read"], globals()["blocked"] = unreadable, lambda: "Too many outstanding invoices"
+    try:
+        said = missed_checks(thu)
+    finally:
+        globals()["last_read"], globals()["blocked"] = real_last_read, real_blocked
+    check(said == [block_line("Too many outstanding invoices")], "the account turned off is said even when its marks can't be read")
     check(actor_input("facebook", ["u"], "2026-11-11T14:30:00")["onlyPostsNewerThan"] == "2026-11-11T14:30:00",
           "a task reads back to a time")
     check([s for s in SCHEDULES if s[2] == "busy"] == [("bp-busy-7pm", "0 19 * * *", "busy")]
@@ -1114,6 +1148,16 @@ def selftest():
           f"one with no picture is none: {got}")
     check(actor_input("stories", [jt["url"], "https://www.instagram.com/krewerestaurant/"], None) == {"usernames": ["joetownmn", "krewerestaurant"]},
           "a stories task reads accounts by their handle")
+    base = {"since": None, "run": "busy", "apify_runs": 2, "fetched": 9, "changed": 3, "batches": 1, "apify_usd": 0.3,
+            "pictures": {"read": 0, "posts": 0, "tokens": 0, "failed": []}, "aside": [], "failed": []}
+    lines = []
+    for st in ({"read": 2, "usd": 0.1018}, {"read": 0, "usd": None}, False):
+        said = io.StringIO()
+        with contextlib.redirect_stdout(said):
+            say_prepared(dict(base, stories=st), Path("."))
+        lines.append([ln for ln in said.getvalue().splitlines() if "stories" in ln])
+    check(lines == [["[social] stories: 2 read, Apify $0.10"], ["[social] stories: no Apify run since the last check"], []],
+          f"the busy line counts the stories read and their cost, says when none were read, and a weekly check says nothing: {lines}")
     check(task_name("weekly", "events", "mon") == "bp-weekly-mon-events" and task_name("busy", "facebook") == "bp-busy-facebook",
           "a task's name")
     wed = datetime(2026, 11, 4, 21, 30, tzinfo=LOCAL)  # a Wednesday evening
@@ -1149,7 +1193,13 @@ def selftest():
     tab = lambda e: {"error": e, "input": "https://www.facebook.com/krewe/upcoming_hosted_events"}
     _, hidden = post_pages("events", [tab("no_results"), tab("blocked")], {events_tab(u): p for u, p in by_url.items()})
     check(hidden == ["Krewe: blocked"], "an events tab listing none says nothing; another error names its page")
-    sp, ex = search_pages()[0], search_pages()[-1]
+    town = TOWNS[TOWN]
+    TOWNS[TOWN] = dict(town, facebook_events_search="St. Joseph, Minnesota")  # a town with a words search
+    try:
+        worded = search_pages()
+    finally:
+        TOWNS[TOWN] = town
+    sp, ex = worded[0], worded[-1]
     found = lambda eid, loc, **kw: {"inputUrl": sp["url"], "id": eid, "url": f"https://fb/e/{eid}", "name": "Stone Road Live",
                                     "location": loc, "dateTimeSentence": "Saturday, November 7, 2026 at 8:30 PM CST",
                                     "organizators": [{"name": "Stone Road"}], **kw}
@@ -1208,28 +1258,52 @@ def selftest():
     got, _ = post_pages("search", [reread(inputUrl=explore)], {**tabbed, canon(explore): {"name": "Town page", "url": explore}})
     check(len(got) == 1 and got[0]["file"] == "events-1107906461871802" and got[0]["name"] == "Sunny Mary Meadow",
           "an Event read again that the town's events page returns too is its host's listing, as if read on its own")
-    check([("/explore/" in p["url"], p["day"]) for p in search_pages()] == [(False, "mon"), (True, "mon"), (True, "sat")],
-          "the words search is read on Mondays, the town's events page on Mondays and Saturdays")
-    g, kept, runs = globals(), [], {"s": "ds", "m": "dm"}
-    fakes = {"api": lambda m, path, body=None: {"data": {"items": [{"defaultDatasetId": runs[path.split("/")[2]]}]}},
-             "items": lambda d: {"ds": [{"id": "1107906461871802", "inputUrl": explore},
-                                        {"id": "1596047658468573", "inputUrl": "https://www.facebook.com/events/1596047658468573/"},
-                                        {"error": "no_results", "inputUrl": explore}], "dm": []}[d],
-             "by_name": lambda path: {"bp-weekly-sat-search": {"id": "s"}, "bp-weekly-mon-search": {"id": "m"},
-                                      "bp-busy-facebook": {"id": "b"}},
+    check([("/explore/" in p["url"], p["day"]) for p in worded] == [(False, "mon"), (True, "mon"), (True, "sat")]
+          and [("/explore/" in p["url"], p["day"]) for p in search_pages()] == [(True, "mon"), (True, "sat")],
+          "a town's words search is read on Mondays, its events page on Mondays and Saturdays; St. Joseph has no words "
+          "search (2026-11-17: 36 of its 43 events were past)")
+    g, kept, asked = globals(), [], []
+    fakes = {"api": lambda m, path, body=None: asked.append(path),
+             "by_name": lambda path: {"bp-weekly-sat-search": {"id": "s"}, "bp-weekly-mon-search": {"id": "m"}},
              "days_began": lambda: None, "page_lists": lambda root, missed, now, again: kept.append(again) or {}}
     saved = {k: g[k] for k in fakes}
     try:
         g.update(fakes)
         sync_tasks(None, {}, datetime(2026, 11, 15, tzinfo=LOCAL), again)
-        g["api"] = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("Apify down"))
-        sync_tasks(None, {}, datetime(2026, 11, 15, tzinfo=LOCAL), again)
     finally:
         g.update(saved)
-    check([(p["url"].split("/")[-2], p["day"]) for p in kept[0]] == [("1107906461871802", "mon"), ("1596047658468573", "mon"),
-                                                                    ("1596047658468573", "sat")] and kept[1] == again,
-          "an Event that day's search found last time isn't read again as well (one it read again doesn't count); "
-          "with Apify unreadable every Event is read again")
+    check(kept == [again] and asked == [],
+          "every Event is read again on both its days, with no look at the last search: Apify bills an event once a run "
+          "(watch-every-place 26, 2026-11-17)")
+    # watch-every-place 36: the store is found with a read, so an account Apify turned off keeps its marks; made once
+    stores, posted = {"data": {"items": [{"name": STORE, "id": "s1"}, {"name": "other", "id": "o"}]}}, []
+    def store_api(m, path, body=None):
+        if m == "POST":
+            return posted.append(path) or {"data": {"id": "new"}}
+        return stores if path.startswith("/key-value-stores?") else None
+    saved = g["api"]
+    try:
+        g["api"] = store_api
+        found = _store_id()
+        stores["data"]["items"] = []
+        made = _store_id()
+    finally:
+        g["api"] = saved
+    check(found == "s1" and made == "new" and posted == [f"/key-value-stores?name={STORE}"],
+          "the marks' store is found by name with a read; it is made only when it isn't there")
+    me = lambda on, why=None: {"data": {"effectivePlatformFeatures": {"ACTORS": {"isEnabled": on, "disabledReason": why}}}}
+    saved = g["api"]
+    try:
+        g["api"] = lambda m, path, body=None: me(False, "Too many outstanding invoices")
+        off = blocked()
+        g["api"] = lambda m, path, body=None: me(True)
+        on = blocked()
+        g["api"] = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("Apify down"))
+        unknown = blocked()
+    finally:
+        g["api"] = saved
+    check((off, on, unknown) == ("Too many outstanding invoices", None, None),
+          "Apify turned the account off: why; on, or Apify can't say: nothing")
     got, _ = post_pages("search", [reread(isCanceled=True), reread(isPast=True, id="2")], tabbed)
     check(got == [{"file": "cancelled-1107906461871802", "cancelled": True, "name": "Sunny Mary Meadow",
                    "url": "https://www.facebook.com/events/1107906461871802/"}],
@@ -1315,10 +1389,14 @@ def selftest():
     check(spend_line(30, 40) == "Apify: $30.00 of $40 this month. Heads-up: past 3/4 of the cap.", "at 3/4: the heads-up")
     check("Heads-up" in spend_line(39.5, 40), "above 3/4: the heads-up")
     check("cap is reached" in spend_line(40, 40) and "Heads-up" not in spend_line(40, 40), "at the cap: the cap line alone")
-    blocked = ("import sys; sys.modules['PIL'] = None; import social; social.limits = lambda: "
-               "{'current': {'monthlyUsageUsd': 8.4}, 'limits': {'maxMonthlyUsageUsd': 25}}; print(social.spend())")
-    r = subprocess.run([sys.executable, "-c", blocked], cwd=Path(__file__).resolve().parent, capture_output=True, text=True)
-    check(r.stdout == "Apify: $8.40 of $25 this month\n", f"spend runs with Pillow blocked: {r.stdout}{r.stderr[-300:]}")
+    no_pil = ("import sys; sys.modules['PIL'] = None; import social; social.limits = lambda: "
+              "{'current': {'monthlyUsageUsd': 8.4}, 'limits': {'maxMonthlyUsageUsd': 25}}; social.blocked = lambda: None; "
+              "print(social.spend()); social.blocked = lambda: 'Too many outstanding invoices'; print(social.spend())")
+    r = subprocess.run([sys.executable, "-c", no_pil], cwd=Path(__file__).resolve().parent, capture_output=True, text=True)
+    check(r.stdout.split("\n")[0] == "Apify: $8.40 of $25 this month", f"spend runs with Pillow blocked: {r.stdout}{r.stderr[-300:]}")
+    check(r.stdout.split("\n")[1] == "Apify: $8.40 of $25 this month. Apify refuses every run: Too many outstanding invoices. "
+                                     "Facebook and Instagram are read again once that is settled in Apify's console (Billing).",
+          f"an account Apify turned off is on the spend line, which the routine's Ready step reads: {r.stdout}")
     for cond, what in in_parts():
         check(cond, what)
     for cond, what in set_aside_reads():
@@ -1411,7 +1489,7 @@ def set_aside_reads():
             tasks[body.get("name") or bits[2]] = json.loads(json.dumps(body["input"]))
             return {"data": {"id": body.get("name") or bits[2]}}
         if path.startswith("/key-value-stores?"):
-            return {"data": {"id": "s"}}
+            return {"data": {"id": "s", "items": [{"name": STORE, "id": "s"}]}}
         if bits[1] == "key-value-stores":
             return store.update({bits[-1]: body}) if method == "PUT" else store.get(bits[-1])
         return data[bits[2]][0]  # a run's INPUT
@@ -1593,7 +1671,7 @@ def setup_alone():
             schedules[body["name"]] = dict(body, id=body["name"])
             return {"data": {"id": body["name"]}}
         if path.startswith("/key-value-stores?"):
-            return {"data": {"id": "s"}}
+            return {"data": {"id": "s", "items": [{"name": STORE, "id": "s"}]}}
         return store.update({bits[-1]: body}) if method == "PUT" else store.get(bits[-1])
     saved = {k: g[k] for k in ("api", "find_root", "load", "read_missed", "search_pages", "rereads")}
     try:
@@ -1669,7 +1747,7 @@ def in_parts():
             said.append(out.getvalue())
         return said, {f.name: f.read_text() for f in (folder / "batches").iterdir()} if (folder / "batches").exists() else {}
     fakes = {"api": apify, "items": lambda d: rows, "sync_tasks": lambda root, *a: None, "fetch_picture": picture,
-             "rereads": lambda db, today: [],
+             "rereads": lambda db, today: [], "blocked": lambda: None,
              "read_missed": dict,
              "last_read": lambda run: datetime(2026, 10, 28, 2, 40, tzinfo=timezone.utc), "time": clock,
              "page_lists": lambda root, *a: {("busy", "facebook"): [page]}}
@@ -1691,6 +1769,10 @@ def in_parts():
             with contextlib.redirect_stdout(again):  # run again once done, before `done`: nothing read again
                 prepare(Run(folder, day, check="busy", minutes=2), at)
             again = (again.getvalue(), flags.exists())
+            off, g["blocked"] = io.StringIO(), lambda: "Too many outstanding invoices"
+            with contextlib.redirect_stdout(off):  # an account Apify turned off: why, and nothing read
+                prepare(Run(Path(tmp) / "off", day, check="busy", minutes=2), at)
+            off = (off.getvalue(), sorted(p.name for p in (Path(tmp) / "off").glob("**/*")))
     finally:
         g.update(saved[0])
         runner.time, write_judged.interest_ids = saved[1:]
@@ -1707,6 +1789,10 @@ def in_parts():
          "a run that never ends is waited for 8 minutes over every part, then left for the next check"),
         (again[0].startswith("[social] prepared already") and again[0].endswith(never[3]) and again[1],
          "prepare run again once done says its summary again and starts nothing over"),
+        (off[0] == "[social] FAILED Apify refuses every run: Too many outstanding invoices. Facebook and Instagram are "
+                   "read again once that is settled in Apify's console (Billing)\n[social] nothing read or marked: answer "
+                   "with the line above and stop\n" and not any(n in ("social-part.json", "prepare.json") for n in off[1]),
+         f"an account Apify turned off: prepare says why and reads nothing, so no old run is judged again: {off}"),
     ]
 
 

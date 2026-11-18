@@ -376,6 +376,9 @@ struct SearchPage: View {
             }
         }
         .frame(height: SearchMetric.sportsFieldHeight)
+        // The whole pill takes the tap, not only the text line (Clear keeps its own).
+        .contentShape(shape)
+        .onTapGesture { fieldFocused = true }
         // Sports' glass on every pill, ink at 7% (Jesse: "all the search bars have the glass effect the sports page
         // do", search-titles Check-in 2).
         .glassEffect(.regular.tint(Hue.ink.opacity(SearchMetric.sportsFieldGlass)), in: shape)

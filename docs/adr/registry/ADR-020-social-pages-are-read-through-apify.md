@@ -126,6 +126,15 @@ each month until it posts.
   were paid twice. The "Collegeville, Minnesota" words search is dropped (16 of its 28 events were past and billed
   every week), and Facebook's events page for the town, the cheapest source of new Events (4 cents each), is read on
   Mondays and Saturdays.
+**Amended 2026-11-17 (Jesse, "yes to all", after checking the first runs; BP app watch-every-place 26 and 36):**
+- Every upcoming Event linked to a Facebook event is read again on both Monday and Saturday, with no skip. Apify bills an
+  event once a run however many of the run's pages return it (Nov 16: 103 rows, 103 events), so the 34 of 41 were never
+  paid twice, and the skip saved money only when the search stopped returning an Event, the read that matters.
+- The "St. Joseph, Minnesota" words search is dropped too: on Nov 16, 36 of its 43 events were past, and it found 4 the
+  town's events page didn't, 2 of them out of town. The town's events page is the one search left.
+- When Apify turns the account off (Nov 16 to 17: an unpaid invoice), the spend line, the routines and the morning
+  report's email line say so and why, and a check reads nothing: for two days the checks had blamed the network secret
+  and judged days of old posts again.
 **Date:** 2026-10-05
 **Decided by:** Jesse, 2026-10-05, in a grilling session on how to use Apify. His reason:
 live posts from businesses are Block Party's essential feature, and taking them straight
