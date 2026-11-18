@@ -32,8 +32,6 @@ struct FeedEventCardActionRow: View {
     let onLike: ((Bool) -> Void)?
     let onComment: () -> Void
     let onShare: (() -> Void)?
-    /// The Town card's •••, after the send (found-posts).
-    var onMenu: (() -> Void)? = nil
 
     @State private var heartScale: CGFloat = 1
     @State private var heartGeneration = 0
@@ -46,7 +44,6 @@ struct FeedEventCardActionRow: View {
     private enum Metric {
         static let glyph: CGFloat = 22
         static let pillHeight: CGFloat = 40
-        static let pillMinWidth: CGFloat = 48
         static let pillPadding: CGFloat = 14
         static let pillSpacing: CGFloat = 8
         static let countGap: CGFloat = 6
@@ -70,10 +67,6 @@ struct FeedEventCardActionRow: View {
 
             pill(action: { onShare?() }) { icon("Tabler/share-3") }
                 .accessibilityLabel("Share")
-            if let onMenu {
-                pill(action: onMenu) { icon("Lucide/ellipsis") }
-                    .accessibilityLabel("More options")
-            }
         }
         .frame(height: Metric.rowHeight)
         .onChange(of: autoplayStep) { _, step in
@@ -132,9 +125,11 @@ struct FeedEventCardActionRow: View {
         Button(action: action) {
             HStack(spacing: Metric.countGap) { label() }
                 .padding(.horizontal, Metric.pillPadding)
-                .frame(minWidth: Metric.pillMinWidth, minHeight: Metric.pillHeight)
+                .frame(height: Metric.pillHeight)
                 .background(Hue.actionPill, in: Capsule())
-                .contentShape(Capsule())
+                // The row's full 44 pt answers a tap, not just the 40 pt pill.
+                .padding(.vertical, (Metric.rowHeight - Metric.pillHeight) / 2)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.press(.squish))
     }
