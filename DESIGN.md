@@ -46,12 +46,6 @@ It is not a background wash, not body copy, not a card, not a category colour. T
 disc was the one; the tab icon the second and the saved bookmark the third, each scoped in
 by Jesse (the tab icon and the bookmark have since gone). More yellow is Jesse's call to scope, not an agent's to spread.
 
-**The one yellow ground: the top of Daily** (Jesse, 2026-10-01). The Daily page is
-`brandDisc` from under the clock down to just under the Spotlight's business line, so the
-card rides the yellow's edge, half on yellow and half on paper. It is the exact yellow in
-both appearances; the clock's frosted edge stays away at rest and fades in with the
-first bit of scroll, since both its haze and its blur make a near-yellow. The "Spotlight" label on it is `onBrandDisc`.
-
 **What sits ON the yellow is not a free choice.** #FCE804 has a relative luminance of
 0.784 — nearly as bright as paper. White on it measures **1.26:1** and the dark ramp's
 `Hue.ink` **1.11:1**; only the light ink clears, at **15.0:1**. So the map disc's
@@ -111,7 +105,7 @@ survives the monochrome system, because the map is content rather than chrome.
 
 ## Typography
 
-**Inter Tight for headers and button words, BP Event Heading for event titles, BP Body for everything else** (Jesse, 2026-11-02). Helpers live in `BlockPartyFont.swift`, whose header lists every face:
+**Inter Tight for headers and button words, BP Event Heading for event titles, Apple's SF Pro for everything else** (Jesse, 2026-11-02; SF Pro in place of BP Body since 2026-11-18, when BP Body, Fraunces and Jost left the app: BP app backlog 35). Helpers live in `BlockPartyFont.swift`, whose header lists every face:
 
 | Helper | Maps to | Use |
 |---|---|---|
@@ -124,10 +118,10 @@ survives the monochrome system, because the map is content rather than chrome.
 
 - **Numbers are always tabular** (`.monospacedDigit()` at the call site). This is a house rule — times, temps, counts.
 - Small labels/eyebrows use `Font.mono(11)` with `.tracking(1.5)` in `Hue.inkSecondary` (e.g. `TODAY IN ST. JOE`). This tracked-mono micro-label is an established in-app pattern, not the banned generic eyebrow.
-- **Jost is left only in `Font.logo`, and its PostScript names are inconsistent upstream** — `JostRoman-SemiBold`. Use it exactly; a wrong name falls back to the system font **silently**, with no error.
+- **PostScript names must be exact** — `InterTight-Bold`, `InterTight-SemiBold`, `BPEventHeading-Regular`. A wrong name falls back to the system font **silently**, with no error; `testEveryFaceIsBundled` catches it.
 - **Text takes a role, never a raw point size.** `BlockPartyFont` is the ONLY file in the app allowed to name a size, because the two ways of naming one behave oppositely: `Font.system(size:)` is frozen and never grows, while `Font.custom(_:size:)` grows with no ceiling. Mixing them is what broke text scaling app-wide — at AX5 a 22pt Jost title reached ~55pt and truncated mid-word while the 13pt SF body beside it did not move at all. Every helper now scales against a shared text style, so the two faces move together. `TypographyScalingGuardTests` fails the build if a raw size appears anywhere else, and separately proves at render time that body text actually grows at AX5.
-- **The SF helpers snap to the nearest system step** (caption2 11, caption 12, footnote 13, subheadline 15, callout 16, body 17, title3 20, title2 22, title 28, largeTitle 34), because SwiftUI has no `system(size:relativeTo:)` — so `Font.sans(14)` renders at 15. Jost keeps its exact size and uses the step only as its growth rate. Ties round up: this file serves the user who asked for larger text.
-- **Two helpers do not scale, and each says why in its own doc comment.** `Font.logo` is `JostRoman-SemiBold` at a fixed size — a logo is a mark, not text. `Font.glyph(_:weight:)` is for ARTWORK: a symbol centred in a fixed-diameter map marker, the double-tap heart burst over a photo, a placeholder inside a circular avatar, the tab bar icons. Text reaching for `glyph` is a bug. The tab bar has no labels since 2026-09-27. Anything using them owes the reader an alternative — `accessibilityHidden` if decorative, a label if it carries meaning, `.accessibilityShowsLargeContentViewer()` on map chrome and on every tab.
+- **The SF helpers snap to the nearest system step** (caption2 11, caption 12, footnote 13, subheadline 15, callout 16, body 17, title3 20, title2 22, title 28, largeTitle 34), because SwiftUI has no `system(size:relativeTo:)` — so `Font.sans(14)` renders at 15. Inter Tight and BP Event Heading keep their exact size and use the step only as their growth rate. Ties round up: this file serves the user who asked for larger text.
+- **One helper does not scale, and says why in its own doc comment.** `Font.glyph(_:weight:)` is for ARTWORK: a symbol centred in a fixed-diameter map marker, the double-tap heart burst over a photo, a placeholder inside a circular avatar, the tab bar icons. Text reaching for `glyph` is a bug. The tab bar has no labels since 2026-09-27. Anything using them owes the reader an alternative — `accessibilityHidden` if decorative, a label if it carries meaning, `.accessibilityShowsLargeContentViewer()` on map chrome and on every tab.
 - Do not add a third family.
 
 ## Layout, radii & elevation
@@ -204,9 +198,8 @@ in-app world stays ink on paper; the icon is the front door.
 - **The yellow field stays on the loader mark.** The loader shows the actual icon,
   background and all — decided, not an oversight. The header is the other case: there
   the logo belongs *to the page*, so it is the alpha wordmark in ink.
-- Jost set as "Block Party" is now only a *typographic* stand-in, where the logo art
-  is not what is wanted (`BlockPartyLogoBadge`, loading covers). Where the logo itself
-  is meant, ship `BlockPartyWordmark` — the art, not a face imitating it.
+- Where the logo is meant, ship `BlockPartyWordmark` — the art, never a face imitating it.
+  Jost, the old stand-in, left the app on 2026-11-18 (BP app backlog 35).
 
 ## Voice
 

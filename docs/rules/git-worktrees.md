@@ -31,7 +31,7 @@ A branch from before 2026-11-01 still has `GooglePlacesService.swift` and fails 
 
 - **Never `git add -A` or `git commit -a` here.** `[hook]` A blanket stage takes another
   session's in-flight work; it swept 45 foreign files on 2026-09-19. Stage explicit paths,
-  and read `git show --stat` before pushing.
+  and read `git show --stat` before pushing. `-A` is allowed only with named paths.
 - **Re-check the branch immediately before every commit and push.** `[hook]` A parallel
   session can move this worktree onto a different branch mid-task; on 2026-09-19 a commit
   landed on a sibling's `feat/dynamic-type`. `git-guard.sh` refuses a commit or push on a

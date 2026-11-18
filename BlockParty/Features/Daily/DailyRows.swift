@@ -14,7 +14,7 @@ nonisolated enum DailyRowMetric {
     static let friendsSize = CGSize(width: 280, height: 300)
     static let suggestionSize = CGSize(width: 200, height: 250)
     static let gap: CGFloat = 12
-    /// The page's own margin, so the cards line up with the Spotlight and the titles.
+    /// The page's own margin, so the cards line up with the titles.
     static let side = DailyMetric.side
     /// The Town card's corner and its fade: clear to 45% of the way down, then to black 62%.
     static let radius: CGFloat = 20
@@ -32,7 +32,7 @@ nonisolated enum DailyRowMetric {
     static let facesGap: CGFloat = 7
     static let friendsTitle: CGFloat = 21
     static let suggestionTitle: CGFloat = 18
-    /// The row's title, in the logo's face as "Spotlight" is, 18 in and 10 over the cards.
+    /// The row's title, Inter Tight Bold, 18 in and 10 over the cards.
     static let titleSize: CGFloat = 24
     static let titleInset = DailyMetric.side
     static let titleToCards: CGFloat = 10
@@ -76,13 +76,13 @@ extension DailyEvent {
     }
 }
 
-/// A row's title in the logo's face, as "Spotlight" is set (Jesse at Check-in 1). Working words.
+/// A row's title, a header, so Inter Tight Bold (Fraunces until 2026-11-18, BP app backlog 35). Working words.
 struct DailyRowTitle: View {
     let title: String
 
     var body: some View {
         Text(title)
-            .font(.logoSerif(DailyRowMetric.titleSize))
+            .font(.display(DailyRowMetric.titleSize))
             .foregroundStyle(Hue.ink)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, DailyRowMetric.titleInset)
