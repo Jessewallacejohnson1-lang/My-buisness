@@ -135,8 +135,8 @@ Business has no slot.
   holds only your read position and your Leave and admits no one: a new kind of room must stay out of `private.in_chat`'s
   member branch and `get_chats`' `others`, or everyone who ever opened it stays in and is listed.
 - **The Block Party tab** (`Features/Daily/DailyPage.swift`) shows its page
-  when it has something real to show and `BlankTab` otherwise: DEBUG shows a sample
-  Spotlight, release keeps the placeholder until the Spotlight read exists. Its spec is
+  when it has something real to show and `BlankTab` otherwise (Spotlight left the page
+  on 2026-11-18, BP app backlog 35). Its spec is
   `docs/plans/daily-tab/SPEC.md` in the BP app folder; sections join one at a time.
 - **The bar is five slots built from `Tab.allCases`** `[test]`, pinned by
   `TabBarTests`. The centre Create disc was removed on 2026-09-24. Posting came back on

@@ -201,8 +201,8 @@ number, or a test name. "Looked fine" is not evidence and will get the item re-r
 These are on the record rather than forgotten. Each returns to **Run before ship** the day
 the page it names is finished.
 
-- **Search** — a real page since 2026-10-02, not yet opened by the audit. **Daily** keeps a
-  `BlankTab` placeholder in release until its Spotlight read exists: a title and one line.
+- **Search** — a real page since 2026-10-02, not yet opened by the audit. **Daily** shows a
+  `BlankTab` placeholder when it has nothing to show: a title and one line.
 - **You / profile** — `ProfileView` is real but still moving. Its unfinished states ("No
   plans yet", "a neighbor", "Around town") were what the auditor kept reporting. High
   priority the day it settles: a profile is user-generated text of any length.
