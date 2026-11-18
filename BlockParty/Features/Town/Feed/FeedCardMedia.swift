@@ -306,9 +306,12 @@ final class FeedCardImageLoader {
     }
 
     fileprivate func image(for request: FeedCardImageRequest) async -> CGImage? {
-        if let cached = cache[request] {
-            touch(request)
-            return cached
+        // Its own size, else the smallest one decoded at least as big: a photo read ahead for its card
+        // (BP app tab-lag 03) is drawn as it is, never decoded a second time.
+        if let hit = cache.filter({ $0.key.url == request.url && Self.serves($0.value, request) })
+            .min(by: { $0.value.width < $1.value.width }) {
+            touch(hit.key)
+            return hit.value
         }
         guard let thumbnail = await Self.decode(request) else { return nil }
         // Before it shows, so it never jumps. A small square one (a face in its circle) has nothing to cut.
@@ -400,6 +403,35 @@ final class FeedCardImageLoader {
         } catch {
             // No signal: the copy on the phone, however old, rather than a card losing its photo.
             return try? await photos.data(for: URLRequest(url: url, cachePolicy: .returnCacheDataDontLoad)).0
+        }
+    }
+
+    /// Whether a bitmap already decoded can be drawn for `request` with no more than 2% stretch: one that fills
+    /// its frame (or, for a flyer, fills it along one side) at its own size or larger.
+    nonisolated static func serves(width: Int, height: Int, for box: (width: Int, height: Int), fit: Bool) -> Bool {
+        guard width > 0, height > 0 else { return false }
+        let wide = Double(box.width) / Double(width), tall = Double(box.height) / Double(height)
+        return (fit ? min(wide, tall) : max(wide, tall)) <= 1.02
+    }
+
+    private static func serves(_ image: CGImage, _ request: FeedCardImageRequest) -> Bool {
+        serves(width: image.width, height: image.height, for: (request.width, request.height), fit: request.fit)
+    }
+
+    /// Reads ahead in flight, so a list asking again as it scrolls asks once.
+    private var reading: Set<FeedCardImageRequest> = []
+
+    /// Downloads and decodes a photo for a frame `box` points big before its view exists, so the view draws
+    /// it in its first frame (BP app tab-lag 03). A photo already decoded big enough, or on its way, is left.
+    func readAhead(_ url: URL, box: CGSize, scale: CGFloat, fit: Bool = false) {
+        let request = FeedCardImageRequest(url: url, width: FeedCardURLPhoto.pixelWidth(points: box.width, scale: scale),
+                                           height: FeedCardURLPhoto.pixelWidth(points: box.height, scale: scale), fit: fit)
+        guard !reading.contains(request),
+              !cache.contains(where: { $0.key.url == url && Self.serves($0.value, request) }) else { return }
+        reading.insert(request)
+        Task {
+            _ = await image(for: request)
+            reading.remove(request)
         }
     }
 
