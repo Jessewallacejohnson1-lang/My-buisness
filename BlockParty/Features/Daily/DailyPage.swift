@@ -400,7 +400,7 @@ struct DailyPage: View {
             Color.clear.frame(height: DailyMetric.emptyHeight)
         } else if empty {
             // Nothing that day: Daily's named, reserved slot, under the week.
-            BlankTab(tab: .blockParty)
+            BlankTab()
                 .frame(height: DailyMetric.emptyHeight)
         } else {
             VStack(spacing: DailyMetric.eventSectionTop) {
@@ -582,6 +582,27 @@ private struct SpotlightCardFace: View {
                 .animation(Motion.select, value: pressed)
                 // Sunset and sunrise swing it a long way in one tick of the clock.
                 .animation(Motion.smooth, value: sun)
+        }
+    }
+}
+
+/// A day with nothing in it: the tab's name and one line on what lives here. Deliberately quiet: a named,
+/// empty room reads as reserved, where a bare screen reads as broken.
+private struct BlankTab: View {
+    var body: some View {
+        ZStack {
+            Hue.paper.ignoresSafeArea()
+            VStack(spacing: 8) {
+                Text(Tab.blockParty.title)
+                    .font(.display(22))
+                    .foregroundStyle(Hue.ink)
+                Text(verbatim: "Your paper — the town, filtered to what you follow.")
+                    .font(.sans(14))
+                    .foregroundStyle(Hue.inkSecondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 44)
+            }
+            .accessibilityElement(children: .combine)
         }
     }
 }

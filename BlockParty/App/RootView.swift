@@ -57,18 +57,6 @@ enum Tab: Int, CaseIterable, Identifiable {
     /// Daily's Bp! is a logo with no outline form, so it stays solid and the grey
     /// bubble alone shows it's picked (Jesse, 2026-10-29).
     var selectedSymbol: String { self == .search || self == .blockParty ? symbol : symbol + ".fill" }
-
-    /// One line on what the slot is for — shown by the placeholder screens, so an
-    /// unbuilt tab reads as reserved rather than broken.
-    var promise: String {
-        switch self {
-        case .town:     return "Everything happening on the block."
-        case .blockParty:    return "Your paper — the town, filtered to what you follow."
-        case .friends:  return "Your neighbors, and what they're going to."
-        case .search:   return "Find a place, a happening, or someone on the block."
-        case .you:      return "Your three weeks, and your profile."
-        }
-    }
 }
 
 struct RootView: View {

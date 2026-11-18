@@ -25,6 +25,7 @@ struct EditProfileView: View {
     @State private var pick: PhotosPickerItem?
     @State private var bio = ""
     @FocusState private var nameFocused: Bool
+    @FocusState private var bioFocused: Bool
     @State private var cover: UIImage?
     @State private var coverPick: PhotosPickerItem?
     /// A photo just picked, in Adjust before it lands (backlog 32): the profile photo's circle, the cover's shape.
@@ -297,9 +298,13 @@ struct EditProfileView: View {
             TextField("Tell your neighbors a little about yourself", text: $bio, axis: .vertical)
                 .font(.sans(17)).foregroundStyle(Hue.ink)
                 .lineLimit(3...5)
+                .focused($bioFocused)
                 .padding(.horizontal, 14).padding(.vertical, 13)
                 .background(Hue.surface, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).stroke(Hue.hairline, lineWidth: 1))
+                // The whole box takes the tap, as the name's does.
+                .contentShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                .onTapGesture { bioFocused = true }
                 .onChange(of: bio) { _, v in
                     if ProfileModel.bioLength(v) > ProfileModel.bioLimit { bio = ProfileModel.clampBio(v) }
                 }
