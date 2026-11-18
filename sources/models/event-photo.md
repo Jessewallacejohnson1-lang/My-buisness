@@ -96,6 +96,10 @@ neighbour's feed, the way the post's best picture would on Instagram:
   (the sale's own flyer for the sale, the new menu's graphic for the new menu; Jesse, 2026-11-08: "never a flyer"
   allow). Never one that is mostly small print, never a logo, and none of the rest of the "never" list above; with
   none of these, pick none and the News stays a card with words.
+- Mark every pick with words laid over it `"flyer": true`, a photo under a sale's title included: its card then
+  shows it with no headline of ours, since its own words say it (BP app town-feed 77; Jesse, 2026-11-17, of WELL's
+  "Black Friday at WELL" over its staff photo: "there is already text ... we can just remove" our headline).
+  You see the post's first 3 pictures; every picture of the post is kept after your pick for its page's swipe.
 
 ## Answer
 
