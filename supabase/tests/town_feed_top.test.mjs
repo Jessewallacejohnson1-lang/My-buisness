@@ -78,9 +78,9 @@ test('a roll leads with the real happenings of the next 7 days, the big ones the
     assert.deepEqual(rows.slice(0, 2).map((r) => r.top), [1, 2], 'the top comes first');
     firsts[rows[0].title] += 1;
   }
-  // Big Saturday weighs 2^3 × 0.5^(5.3 / 14) = 6.2, Trivia 2^2 = 4: first about 6 times in 10.
-  assert.ok(firsts['Big Saturday'] > firsts.Trivia, JSON.stringify(firsts));
-  assert.ok(firsts.Trivia > 10, `a smaller one still leads now and then: ${JSON.stringify(firsts)}`);
+  // Big Saturday weighs 2^3 × 0.5^(5.3 / 14) = 6.2, Trivia 2^2 = 4: each moved up to a quarter either way, Trivia could
+  // lead only near the ends of both moves.
+  assert.ok(firsts['Big Saturday'] >= 57, JSON.stringify(firsts));
 });
 
 test('the same roll draws the same five, and the last roll\'s first never leads the next (town-feed 73)', async () => {
@@ -115,7 +115,7 @@ test('yours counts one draw step, at most 3 of the 5 are yours, one per creator 
   for (const seed of seeds(30)) {
     const top = topOf(await rolled(seed));
     assert.equal(top.length, 5);
-    assert.ok(top.filter((t) => t.startsWith('Poetry')).length <= 3, top.join());
+    assert.equal(top.filter((t) => t.startsWith('Poetry')).length, 3, `yours always make it, 3 at most: ${top}`);
     assert.ok(top.filter((t) => t.startsWith('Brewery')).length <= 1, top.join());
   }
 });
