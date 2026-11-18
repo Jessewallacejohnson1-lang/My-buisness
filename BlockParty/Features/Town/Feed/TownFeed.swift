@@ -8,8 +8,10 @@
 //  relaunches, lets an event go once its leaves-at passes, and reads again then.
 //
 //  When the order may change is ticket 11's: a fresh order on pull to refresh, or on
-//  coming back after 30 minutes or more away (a launch counts), and then only while
-//  the screen is still at the top, so nothing moves under a finger. Any other read
+//  coming back after 10 minutes or more away (a launch counts), and then only while
+//  the screen is still at the top, so nothing moves under a finger. After an hour or
+//  more away (town-feed 73) the open rolls a new top five (`TownTop`), and the screen
+//  goes to the top for it. Any other read
 //  keeps the order on screen: cards update in place, ones that went drop out, and new
 //  ones wait for the next fresh order.
 //
@@ -76,6 +78,12 @@ final class TownFeed {
     /// When the feed went off screen; a launch counts as long away.
     @ObservationIgnored private var awaySince: Date? = .distantPast
     @ObservationIgnored private var freshDue = false
+    /// The top five's roll (town-feed 73); nil, no top.
+    private let top: TownTop?
+    /// Goes up each time a roll's new top lands: the screen goes to the top with it.
+    private(set) var rolls = 0
+    /// A roll's read is due: it lands wherever the screen is, unless a finger is on it, and takes the screen up.
+    @ObservationIgnored private var rollDue = false
     @ObservationIgnored private var keptChecked = false
     /// Numbers each read, so only the newest one's answer is kept.
     @ObservationIgnored private var latestRead = 0
@@ -140,7 +148,9 @@ final class TownFeed {
          opened: @escaping () -> [String] = { [] },
          deletePost: @escaping (TownPost) async throws -> Void = { _ in },
          postersShown: [String] = [],
-         keepPosters: @escaping ([String]) -> Void = { _ in }) {
+         keepPosters: @escaping ([String]) -> Void = { _ in },
+         top: TownTop? = nil) {
+        self.top = top
         self.keepPosters = keepPosters
         self.postersShown = Set(postersShown)
         postersGone = Set(postersShown)
@@ -191,7 +201,8 @@ final class TownFeed {
         // GitHub's check builds with, gave up on that (red from 2026-10-13).
         let testRun = AuthStore.isTestRun
         let api = CommunityAPI(supabase)
-        self.init(read: { try await api.getTownFeed().map(TownFeed.entry) }, kept: Self.keptOnDisk,
+        let top = TownTop()
+        self.init(read: { try await api.getTownFeed(top: top.args).map(TownFeed.entry) }, kept: Self.keptOnDisk,
                   keptLater: { await Self.keptLines()?.map(TownFeed.entry) }, actions: actions,
                   send: { batch in if !testRun { try await api.recordFeedActions(batch) } },
                   choose: { try await api.feedChoice($0) },
@@ -202,7 +213,8 @@ final class TownFeed {
                   opened: { OpenedPlaces.ids },
                   deletePost: { try await api.deletePost($0.id, photos: $0.photos.count) },
                   postersShown: TownFeedCache.postersShown(),
-                  keepPosters: { TownFeedCache.save(postersShown: $0) })
+                  keepPosters: { TownFeedCache.save(postersShown: $0) },
+                  top: top)
     }
 
     /// What's still on, events and news, in the database's order: not an event you hid, nor
@@ -339,6 +351,7 @@ final class TownFeed {
         if let top = topOnScreen { returnCard = top }
         if viewGone { onScreen = [:] }
         awaySince = now
+        top?.leftAt = now
         returnY = scrollY
         holdGames(at: now)
     }
@@ -398,6 +411,11 @@ final class TownFeed {
             freshDue = true
             returnY = 0
         }
+        // An hour or more since the feed was last on screen, a relaunch too: a new top five, from the top.
+        if let top, now.timeIntervalSince(max(since, top.leftAt ?? .distantPast)) >= TownTop.after {
+            top.roll()
+            rollDue = true
+        }
         holdGames(at: now)
     }
 
@@ -413,9 +431,9 @@ final class TownFeed {
         await readAgain(at: now, freshOrder: false)
     }
 
-    /// The finger's off a list a fresh order was waiting on.
+    /// The finger's off a list a fresh order, or a roll's new top, was waiting on.
     func fingerLifted(at now: Date = Date()) async {
-        guard freshDue, atTop else { return }
+        guard (freshDue && atTop) || rollDue else { return }
         await refresh(at: now)
     }
 
@@ -483,7 +501,13 @@ final class TownFeed {
             actions?.read(new.compactMap(\.card))
             actions?.read(posts: new.compactMap(\.post))
             actions?.read(news: new.compactMap(\.news))
-            if entries == nil || freshOrder || (freshDue && atTop && !fingerDown) {
+            let rolled = rollDue && !fingerDown
+            if entries == nil || freshOrder || rolled || (freshDue && atTop && !fingerDown) {
+                if rollDue {
+                    top?.landed(new.map(\.id))
+                    rollDue = false
+                    rolls += 1
+                }
                 entries = new
                 viewed = []  // a new feed load: each card may count once more
                 clearMore()
