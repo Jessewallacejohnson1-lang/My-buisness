@@ -498,7 +498,6 @@ private struct ChatRow: View {
                                 .foregroundStyle(chat.unread ? Hue.ink : Hue.chatGrey)
                                 .lineLimit(1)
                             Text(" · \(ago)")
-                                .accessibilityLabel(ChatWords.agoSpoken(chat.lastDate))
                                 .appleFont(14)
                                 .foregroundStyle(Hue.chatGrey)
                                 .fixedSize()
@@ -519,7 +518,8 @@ private struct ChatRow: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.press(.row))
-            .accessibilityLabel([chat.title, tag, chat.unread ? "Unread" : nil, ChatWords.preview(chat), ago]
+            .accessibilityLabel([chat.title, tag, chat.unread ? "Unread" : nil, ChatWords.preview(chat),
+                                 ChatWords.agoSpoken(chat.lastDate)]
                 .compactMap { $0 }.joined(separator: ", "))
         }
     }
