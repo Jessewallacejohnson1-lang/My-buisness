@@ -48,12 +48,11 @@ struct TownNewsCard: View {
             }
             .buttonStyle(FeedCardLinkStyle())
             .gesture(FeedTouchDownTracker(isPressed: $pressed))
-            .accessibilityElement(children: .ignore)
-            // The title first, then when, as on an Event card.
+            // The title first, then when, as on an Event card. On the button itself: a container around it made
+            // VoiceOver's list hold the card twice, this and the button's own words (backlog 20).
             .accessibilityLabel([news.place.isEmpty ? "News" : "News from \(news.place)", news.headline, news.facts,
                                  news.published?.formatted(.relative(presentation: .named))]
                 .compactMap { $0 }.joined(separator: ". "))
-            .accessibilityAddTraits(.isButton)
             .accessibilityHint(opensPage ? "Opens the story" : "Opens the post")
             // The heart in the card's bottom right corner, its own button over the post's, riding the corner
             // in as the card sinks, as an Event card's does.
