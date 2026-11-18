@@ -346,6 +346,8 @@ final class SearchModel {
     /// A calendar read is in flight: a place's page waits on it rather than start another (place-pages 05).
     @ObservationIgnored private var calendarReading = false
     @ObservationIgnored private var latestCalendar = 0
+    /// The rows the calendar on screen was made from.
+    @ObservationIgnored private var calendarRows: [UpcomingEvent] = []
     /// What the tab was showing, kept across tab switches as Instagram keeps it.
     var chip = SearchChip.all
     var words = ""
@@ -393,8 +395,12 @@ final class SearchModel {
         do {
             let rows = try await readCalendar()
             guard mine == latestCalendar else { return }
-            show(calendar: rows.compactMap(YouCalendar.event(from:)))
             calendarFailed = false
+            // The same year as on screen: nothing to redraw. Re-reading it on every visit to the pill
+            // froze the calendar for a fifth of a second a moment after it opened (BP app tab-lag 02).
+            guard calendar == nil || rows != calendarRows else { return }
+            calendarRows = rows
+            show(calendar: rows.compactMap(YouCalendar.event(from:)))
         } catch {
             // Leaving the pill mid-read cancels it; that says nothing about the network.
             guard mine == latestCalendar, !Task.isCancelled, !(error is CancellationError) else { return }

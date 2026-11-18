@@ -114,6 +114,13 @@ enum EventCalendar {
         return abs(a - b) <= 1
     }
 
+    /// How tall `month`'s grid stands: its weeks of day circles and the gaps between them, so a month drawn as
+    /// nothing until it comes near takes the room its grid will (tab-lag 02).
+    static func gridHeight(_ month: Date) -> CGFloat {
+        let weeks = CGFloat((grid(month).count + 6) / 7)
+        return weeks * YouMetric.day + (weeks - 1) * YouMetric.rowGap
+    }
+
     /// "Friday, November 13, 3 Events"; "Today, …" for today. No count before the read is in (nil).
     static func spoken(_ date: Date, events: Int?, today: Bool) -> String {
         let name = (today ? "Today, " : "") + Town.format(date, "EEEEMMMMd")
@@ -149,11 +156,15 @@ struct EventCalendarView: View {
                     .padding(.top, CalendarMetric.weekdaysTop)
                 AgendaPager(pages: months, day: month, pick: { go(to: $0, today: today, day: day, planned: planned) },
                             jump: reduceMotion ? nil : Motion.smooth) { page in
-                    // Only this month and the two beside it ask for their photos: a year of them at once kept
-                    // the month on screen waiting behind the other eleven.
-                    grid(page, byDay: EventCalendar.near(page, month, in: months) ? byDay : [:], today: today, day: day,
-                         loaded: events != nil)
-                        .padding(.horizontal, CalendarMetric.gridInset)
+                    // Only this month and the two beside it are drawn, the only ones a swipe can bring in: the
+                    // year at once held the pill's first frame for half a second (BP app tab-lag 02). A month
+                    // further off stands in as its own height until a move brings it beside.
+                    if EventCalendar.near(page, month, in: months) {
+                        grid(page, byDay: byDay, today: today, day: day, loaded: events != nil)
+                            .padding(.horizontal, CalendarMetric.gridInset)
+                    } else {
+                        Color.clear.frame(height: EventCalendar.gridHeight(page))
+                    }
                 }
                 .padding(.top, CalendarMetric.gridTop)
                 dayCards(events, byDay: byDay, months: months, today: today, day: day, now: now, planned: planned)
@@ -274,8 +285,13 @@ struct EventCalendarView: View {
         if let events {
             let pages = YouCalendar.pages(events, days: EventCalendar.days(months), today: today, day: day)
             AgendaPager(pages: pages, day: day, pick: { pick($0, from: day) }) { page in
-                dayCard(page, events: EventCalendar.near(page, day, in: pages) ? byDay[page] ?? [] : [],
-                        today: today, now: now, planned: planned)
+                // The picked day and the two beside it, as the months: a card for every day of the year held
+                // the pill's first frame (tab-lag 02). A day further off is drawn once a move brings it beside.
+                if EventCalendar.near(page, day, in: pages) {
+                    dayCard(page, events: byDay[page] ?? [], today: today, now: now, planned: planned)
+                } else {
+                    Color.clear.frame(height: 0)
+                }
             }
         } else {
             dayCard(day, events: nil, today: today, now: now, planned: planned)
