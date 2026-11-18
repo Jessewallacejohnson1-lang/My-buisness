@@ -807,7 +807,7 @@ def post_pages(kind, rows, by_url):
         posted = None  # only a post's own time is kept (town-feed 70); a story or an event page has none
         src = src_of(r)
         page = page_of(src, by_url)
-        if kind == "search" and r.get("id"):  # an Event the search found that is read again: its host's listing (searched)
+        if kind == "search" and r.get("id"):  # an Event the search found that is read again: its host's listing (rereads)
             page = by_url.get(canon(f"https://www.facebook.com/events/{r['id']}")) or page
         if kind == "instagram":  # a collab post shows on each author's page: its owner hosts it, read from either
             page = ig_page(r.get("ownerUsername"), by_url) or page
@@ -1043,7 +1043,7 @@ def finish(run):
             # undo the other's comeback. Save only the pages this check changed if they ever overlap.
             save_missed(prep["missed"])
     except Exception as e:  # the next check then reads these runs again; the writer merges repeats
-        return print(f"[social] FAILED marking {prep['run']} read ({e}): the next check reads these runs again")
+        return print(f"[social] FAILED marking {prep['run']} read ({e})")
     print(f"[social] {prep['run']}: {prep['apify_runs']} runs marked read, up to "
           f"{datetime.fromisoformat(prep['read_until']).astimezone(LOCAL):%a %b %-d %-I:%M %p}")
 
@@ -1059,11 +1059,15 @@ def missed_checks(now=None):
            ("weekly", "yesterday afternoon's check", yesterday.replace(hour=WEEKLY_AT))]
     why = blocked()
     out = [block_line(why)] if why else []
-    for run, name, by in due:
-        mark = last_read(run)
-        if not mark or mark < by:
-            read = f"read up to {mark.astimezone(LOCAL):%a %b %-d %-I:%M %p}" if mark else "never read"
-            out.append(f"{name} didn't finish ({read})")
+    try:
+        for run, name, by in due:
+            mark = last_read(run)
+            if not mark or mark < by:
+                read = f"read up to {mark.astimezone(LOCAL):%a %b %-d %-I:%M %p}" if mark else "never read"
+                out.append(f"{name} didn't finish ({read})")
+    except Exception:  # an account Apify turned off is said even when its marks can't be read
+        if not out:
+            raise
     return out
 
 
@@ -1112,6 +1116,14 @@ def selftest():
           == ["Apify refuses every run: Too many outstanding invoices. Facebook and Instagram are read again once that is "
               "settled in Apify's console (Billing)"],
           "an account Apify turned off is said first, with why, so the 8 AM email carries it (watch-every-place 36)")
+    def unreadable(run):
+        raise RuntimeError("HTTP Error 429")
+    globals()["last_read"], globals()["blocked"] = unreadable, lambda: "Too many outstanding invoices"
+    try:
+        said = missed_checks(thu)
+    finally:
+        globals()["last_read"], globals()["blocked"] = real_last_read, real_blocked
+    check(said == [block_line("Too many outstanding invoices")], "the account turned off is said even when its marks can't be read")
     check(actor_input("facebook", ["u"], "2026-11-11T14:30:00")["onlyPostsNewerThan"] == "2026-11-11T14:30:00",
           "a task reads back to a time")
     check([s for s in SCHEDULES if s[2] == "busy"] == [("bp-busy-7pm", "0 19 * * *", "busy")]
