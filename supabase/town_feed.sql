@@ -947,7 +947,8 @@ as $$
   union all
   -- A news item's row: its own columns, nulls and zeros for the rest. Its post's own photo, when the photo step
   -- kept one (town-feed 53), is its image_url, and its shape rides in poster as {"aspect": w / h}, so the card
-  -- takes the photo's shape before it loads.
+  -- takes the photo's shape before it loads; with "flyer" when it is the post's own graphic and "photos" when the
+  -- post has several (private.news_photo, town-feed 77).
   select n.id, n.title, null::text, np.url, n.source_name, n.published_at,
          null::text, n.leaves_at,
          case when n.matched is not null then 'interest' end, n.matched[1],
@@ -959,11 +960,11 @@ as $$
          private.entry_picture(n.place_entry_id),
          n.blurb, null::uuid, false,
          'news'::text, n.source_url,
-         case when np.url is not null then jsonb_build_object('aspect', np.width::float8 / nullif(np.height, 0)) end,
+         np.poster,
          null::jsonb, s.spot
   from news_scored n
   join placed s on s.id = n.id
-  left join public.place_photos np on np.news_id = n.id and np.status = 'live' and np.kind = 'news'
+  left join lateral private.news_photo(n.id) np on true
   union all
   -- A post's row (town-feed 29): its words as the title, its Place and photo, its hearts, and who
   -- posted it; nulls and zeros for the rest.
