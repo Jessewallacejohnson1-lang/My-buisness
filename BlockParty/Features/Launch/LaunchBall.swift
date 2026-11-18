@@ -1,19 +1,16 @@
 //
 //  LaunchBall.swift
-//  Block Party — the launch (Jesse, 2026-11-01; BP app references/launch-ball, taste.md's
-//  launch lines). On a fresh start the Town's round logo drops onto the still's BlockParty.,
-//  bounces off its B and P, squeezing the word into Bp (Jesse, 2026-11-17; BP app
-//  references/launch-squeeze), lands on the full stop as the !'s dot, the ! hops as the Daily
-//  tab's does, and Bp! lands on the tab bar's own Bp!, or zooms through when Welcome is up. It
-//  plays over the app, which loads underneath and never waits on it. A tap skips it. Only the
-//  day's first cold start plays it; every other open, a link's and Reduce Motion's too, shows the
-//  still's BlockParty. wordmark and fades into the app (Jesse, 2026-11-14; `LaunchMotion.Kind`,
-//  BP app references/splash-wordmark).
+//  Block Party — the launch (Jesse, 2026-11-18; BP app references/splash-fork, taste's launch
+//  lines). A fresh start shows a black dot in the middle of the yellow. On the day's first open the
+//  dot writes BlockParty. as The Fork's splash writes its name and stops as the full stop, which
+//  opens as a circle into the app. On every later open the dot hops, B and p pop out from under
+//  it, it drops in as the !'s dot, and Bp! leaps into the tab bar's own Bp! while the yellow opens
+//  as a circle, or zooms through when Welcome is up (`LaunchMotion.Kind`). It plays over the app,
+//  which loads underneath and never waits on it. A tap does nothing.
 //
 //  `LaunchMotion` holds the numbers; this file draws them, one frame at a time, from a
-//  `TimelineView`, so a tap can redirect it at any instant. No `phaseAnimator`: the splash
-//  deleted on 2026-09-18 used one and left the app black on every cold start
-//  (docs/rules/swift-traps.md).
+//  `TimelineView`. No `phaseAnimator`: the splash deleted on 2026-09-18 used one and left the app
+//  black on every cold start (docs/rules/swift-traps.md).
 //
 
 import CoreMotion
@@ -28,26 +25,18 @@ import SwiftUI
     /// Whether this process start plays the launch: always, except under UI tests that don't ask
     /// for it (`-launch-play`), or every test would wait it out.
     let plays: Bool
-    /// DEBUG: a moment to hold (`-launch-at <ms>`) and a tap (`-launch-skip <ms>`), in the
-    /// mock's simulation time, so frames line up with the mock's `#at-<ms>` ones.
+    /// DEBUG: a moment to hold (`-launch-at <ms>`), so frames line up with the mock's `#at-<ms>` ones.
     let frozenAt: Double?
-    let skipAt: Double?
-    /// DEBUG: a link arrives this many ms (real time) after the first frame (`-launch-link-at`),
-    /// for a recording of the link open: the simulator's "Open in Block Party?" question keeps a
-    /// real `simctl openurl` from reaching the app.
-    let linkAt: Double?
     /// The launch is over and gone.
     private(set) var finished: Bool
     /// The tab bar's own Daily Bp! shows: the launch's has landed on it, so two never show.
     private(set) var landed: Bool
     /// Welcome's logo and headline may rise: the zoom through is half done.
     private(set) var headerUp: Bool
-    /// Which launch this start plays: the full show on the day's first cold start, the
-    /// wordmark after them and with Reduce Motion (`LaunchShows`), DEBUG `-launch-kind` naming one;
-    /// a link opened while signed in turns the full show into the wordmark as the URL arrives
-    /// (`openedLink`).
-    private(set) var kind: LaunchMotion.Kind
-    /// Reduce Motion: the wordmark open only fades, and nothing under it moves.
+    /// Which show this start plays: the dot writing BlockParty. on the day's first cold start,
+    /// Bp! after it (`LaunchShows`), DEBUG `-launch-kind` naming one.
+    let kind: LaunchMotion.Kind
+    /// Reduce Motion: the word fades in and the yellow fades, and nothing under it moves.
     let reduceMotion: Bool
     /// The tab bar's Daily Bp! in `space`, while it is on screen and the launch heads for it.
     var dailyMark: CGRect?
@@ -59,33 +48,22 @@ import SwiftUI
 
     private init() {
         frozenAt = LaunchFlags.value(.launchAt).flatMap(Double.init).map { $0 / 1000 }
-        skipAt = LaunchFlags.value(.launchSkip).flatMap(Double.init).map { $0 / 1000 }
-        linkAt = LaunchFlags.value(.launchLinkAt).flatMap(Double.init).map { $0 / 1000 }
         // Back after iOS shut the app down, the restart doesn't show (`LeftOff`).
         plays = (!LaunchFlags.has(.uiTests) || LaunchFlags.has(.launchPlay) || frozenAt != nil) && LeftOff.current == nil
-        // Reduce Motion: no ball show, only the wordmark and its fade, and nothing under it moves.
         let reduceMotion = UIAccessibility.isReduceMotionEnabled || LaunchFlags.has(.launchReduce)
         self.reduceMotion = reduceMotion
         finished = !plays
         let named = LaunchFlags.value(.launchKind).flatMap(LaunchMotion.Kind.init(rawValue:))
-        // Only a real cold start counts toward the day's full shows: not a held frame, a test or
-        // Reduce Motion, which only ever shows the wordmark.
-        let kind = named ?? (reduceMotion ? .word
-            : plays && frozenAt == nil && !LaunchFlags.has(.uiTests) ? LaunchShows.kind() : .full)
+        // Only a real cold start counts as the day's first open: not a held frame, a test or
+        // Reduce Motion, which only ever fades the word in.
+        let kind = named ?? (reduceMotion ? .first
+            : plays && frozenAt == nil && !LaunchFlags.has(.uiTests) ? LaunchShows.kind() : .first)
         self.kind = kind
-        // The wordmark has no Bp! to land: the tab bar's own shows under the yellow throughout.
-        landed = !plays || kind == .word
+        // Only a later open has a Bp! to land: on the others the tab bar's own shows under the
+        // yellow throughout.
+        landed = !plays || kind == .first || reduceMotion
         headerUp = !plays || reduceMotion
         townSettles = !plays || reduceMotion
-    }
-
-    /// A link opened while signed in: the full show, before its ending, becomes the wordmark open
-    /// over the page the link opened (Jesse, 2026-11-14), fading what it had drawn back into
-    /// BlockParty. first. Once the ending has begun, the show finishes over the page.
-    func openedLink() {
-        guard plays, !finished, frozenAt == nil, kind == .full, !townSettles else { return }
-        kind = .word
-        landed = true
     }
 
     func raiseHeader() { headerUp = true }
@@ -112,7 +90,6 @@ struct LaunchHost<Content: View>: View {
     private let stage = LaunchStage.shared
     @State private var clock = LaunchClock()
     @State private var tilt = LaunchTilt()
-    @State private var skip: Double?
     /// The launch's own frame on screen (full screen), and the top left of the app's space
     /// (`LaunchStage.space`): together they put the tab bar's Bp! in the launch's space. Both are
     /// the screen's top left while the launch plays, but without this reading of the app's
@@ -146,16 +123,13 @@ struct LaunchHost<Content: View>: View {
             // pick up the tab bar's Bp! once the bar has measured it.
             TimelineView(.animation(paused: stage.finished)) { context in
                 let moment = self.moment(at: context.date)
-                LaunchMark(frame: moment.frame, origin: moment.origin, tilt: tilt.value)
+                LaunchMark(frame: moment.frame, motion: moment.motion, tilt: tilt.value)
                     .contentShape(Rectangle())
-                    // On touch-down, as every touch in BP answers.
-                    .gesture(DragGesture(minimumDistance: 0).onChanged { _ in tap() })
+                    // A touch on the yellow is the launch's and does nothing (Jesse, 2026-11-18).
+                    .gesture(DragGesture(minimumDistance: 0))
                     .allowsHitTesting(moment.frame.takesTaps)
                     .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { screen = $0 }
-                    .sensoryFeedback(trigger: moment.frame.buzzes) { _, count in
-                        let kinds = LaunchMotion.buzzKinds(stage.kind)
-                        return kinds.indices.contains(count - 1) ? kinds[count - 1] : nil
-                    }
+                    .sensoryFeedback(LaunchMotion.buzz, trigger: moment.frame.buzzes) { _, count in count > 0 }
                     .onChange(of: backTarget(moment.frame), initial: true) { _, target in
                         settleBack(to: target, moment.frame)
                     }
@@ -181,30 +155,17 @@ struct LaunchHost<Content: View>: View {
             backScale = 1
             tilt.stop()
         }
-        // A link turns the full show into the wordmark open: it starts over from the show's last
-        // frame, fading it back into BlockParty., and a tap before the link is forgotten.
-        .onChange(of: stage.kind) { _, kind in
-            guard kind == .word else { return }
-            if clock.t == 0 { clock.last = nil }   // still on the still: nothing to fade back
-            skip = nil
-            clock.reset()
-        }
         .onAppear {
-            if stage.plays, !stage.finished, stage.kind == .full, stage.frozenAt == nil { tilt.start() }
+            if stage.plays, !stage.finished, !stage.reduceMotion, stage.frozenAt == nil { tilt.start() }
             guard stage.plays || LeftOff.current != nil, UIAccessibility.isVoiceOverRunning else { return }
             AccessibilityNotification.Announcement("Block Party").post()
         }
         // Whatever stalls it, the app shows within 6 s: the splash deleted on 2026-09-18 left
-        // the app black on every cold start (swift-traps). It plays in 3.8, the yellow gone by 2.7.
+        // the app black on every cold start (swift-traps). It plays in under 2.
         .task {
             guard stage.plays, stage.frozenAt == nil else { return }
             try? await Task.sleep(for: .seconds(6))
             stage.finish()
-        }
-        .task {
-            guard let at = stage.linkAt, stage.plays else { return }
-            try? await Task.sleep(for: .seconds(at))
-            stage.openedLink()
         }
     }
 
@@ -222,23 +183,14 @@ struct LaunchHost<Content: View>: View {
         withAnimation(.spring(spring)) { backScale = target }
     }
 
-    private func moment(at date: Date) -> (frame: LaunchMotion.Frame, origin: CGPoint) {
-        let t = stage.frozenAt ?? clock.time(at: date, pace: LaunchMotion.pace(for: stage.kind))
+    private func moment(at date: Date) -> (frame: LaunchMotion.Frame, motion: LaunchMotion) {
+        let t = stage.frozenAt ?? clock.time(at: date)
         var ending = LaunchMotion.Ending.zoom
-        if let mark = stage.dailyMark, stage.kind == .full {
+        if let mark = stage.dailyMark, stage.kind == .later {
             ending = .tab(mark.offsetBy(dx: appOrigin.x - screen.minX, dy: appOrigin.y - screen.minY))
         }
-        let motion = LaunchMotion(screen: screen.size, skip: skip ?? stage.skipAt, ending: ending,
-                                  kind: stage.kind, before: stage.kind == .word ? clock.last : nil,
-                                  reduceMotion: stage.reduceMotion)
-        let frame = motion.frame(at: t)
-        if stage.kind == .full { clock.last = frame }
-        return (frame, motion.origin)
-    }
-
-    private func tap() {
-        guard skip == nil else { return }
-        skip = stage.frozenAt ?? clock.t
+        let motion = LaunchMotion(screen: screen.size, ending: ending, kind: stage.kind, reduceMotion: stage.reduceMotion)
+        return (motion.frame(at: t), motion)
     }
 
     private static var windowInsets: EdgeInsets {
@@ -278,45 +230,34 @@ struct LaunchHost<Content: View>: View {
     }
 }
 
-/// The launch's clock, in the mock's simulation time. A stalled frame slows it rather than
-/// skipping ahead (the mock's 50 ms cap), so a slow first second on a cold start can't jump
-/// the ball past a bounce.
+/// The launch's clock, in the mock's time. A stalled frame slows it rather than skipping ahead
+/// (the mock's 50 ms cap), so a slow first second on a cold start can't jump the dot past a beat.
 final class LaunchClock {
     private(set) var t = 0.0
     private var lastDate: Date?
-    /// The full show's latest frame, for a link that turns it into the wordmark open.
-    var last: LaunchMotion.Frame?
 
-    func time(at date: Date, pace: Double) -> Double {
+    func time(at date: Date) -> Double {
         if let lastDate, date > lastDate {
-            t += min(0.05, date.timeIntervalSince(lastDate)) * pace
+            t += min(0.05, date.timeIntervalSince(lastDate))
         }
         if lastDate.map({ date > $0 }) ?? true { lastDate = date }
         return t
     }
-
-    /// Back to the start: a link starts the launch over as the wordmark open.
-    func reset() {
-        t = 0
-        lastDate = nil
-    }
 }
 
-/// One frame of the launch: the yellow, its light when the phone tilts, then Bp! with the ball,
-/// all on the Daily mark's canvas.
-/// The yellow is the app icon's glass, its edge at 2.5x, and Bp! casts the icon's soft shade on
-/// it (Jesse, 2026-11-02; BP app references/launch-ball, mock round 6). Both fade with the yellow.
+/// One frame of the launch: the yellow with its light when the phone tilts, the dot and the word
+/// on it, then Bp! over it.
+/// The yellow is the app icon's glass, its edge at 2.5x, and the ink casts the icon's soft shade on
+/// it (Jesse, 2026-11-02; BP app references/launch-ball, mock round 6). Both go with the yellow.
 private struct LaunchMark: View {
     let frame: LaunchMotion.Frame
-    /// Where the canvas's top left sits at rest; the ball is placed from it.
-    let origin: CGPoint
+    /// This screen's geometry: where the word and Bp! sit.
+    let motion: LaunchMotion
     /// The phone's tilt from how it was held as the launch began, each way -1 to 1.
     var tilt = CGVector.zero
 
     private static let box = CGSize(width: LaunchMotion.canvas.width * LaunchMotion.scale,
                                     height: LaunchMotion.canvas.height * LaunchMotion.scale)
-    /// The tab bar's hop is in its own points, for a Bp! 39.15 pt wide: these are its points here.
-    private static let hopPoints = box.width / TabBarMetric.dailyMarkWidth
     /// The glass picture's corners, which keep their shape on any screen; its middle stretches.
     /// The same 90 pt as the 270 px cap insets in LaunchGlass.imageset (drawn at 62 pt corners by
     /// BP app references/launch-ball/make_still.py): change one, change both.
@@ -330,6 +271,10 @@ private struct LaunchMark: View {
     private static let shade = 0.21
     private static let shadeDrop = 9 * LaunchMotion.scale
     private static let shadeBlur = 12 * LaunchMotion.scale
+    /// The same shade at the word's size, as the still's picture of the dot has it (BP app
+    /// references/splash-fork/make_still.py): change one, change both.
+    private static let wordShadeDrop: CGFloat = 3.4
+    private static let wordShadeBlur: CGFloat = 4.5
 
     /// Bp! is drawn at its size on screen, never drawn at full size and shrunk: shrunk 6x into the
     /// tab bar, its edges went jagged, and turned smooth only as the tab bar's own took over
@@ -339,11 +284,10 @@ private struct LaunchMark: View {
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            // The yellow: fading for a zoom, or falling off the bottom of the screen as a curtain
-            // into the tab bar (Jesse, 2026-11-08), its pictures dropping together.
+            // The yellow and what is on it: opening as a circle, or fading (a zoom, Reduce Motion).
             ZStack(alignment: .topLeading) {
-                // Plain yellow under the glass picture, filling its rounded corners, so the
-                // curtain's top edge is straight as it falls (the screen's own corners clip it at rest).
+                // Plain yellow under the glass picture, filling its rounded corners (the screen's
+                // own corners clip it).
                 Rectangle()   // a shape, not `Color`: a Color here reached 120 pt above the screen (measured, 2026-11-08)
                     .fill(Hue.brandDisc)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -359,126 +303,113 @@ private struct LaunchMark: View {
                                                  endPoint: .center),
                                   lineWidth: 10)
                     .blur(radius: 5)
-                // Jesse's signature, set as Bending Spoons' splash sets theirs (Jesse, 2026-11-02:
-                // "the bottom copy the written font spacing and size but put block party. made by
-                // jesse"; "make BP larger than my name"): the launch screen's own picture, so the
-                // still and this frame are one.
+                // Jesse's signature, set as Bending Spoons' splash sets theirs (Jesse, 2026-11-02;
+                // "Made by Jesse" alone since 2026-11-14): the launch screen's own picture.
                 Image("LaunchFooter")
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                     .padding(.bottom, Self.footerLift)
                     .accessibilityHidden(true)
+                // The still's dot with its shade, in the screen's middle: the launch screen's own
+                // picture, until the dot first moves.
+                Image("LaunchStill")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .opacity(frame.still ? 1 : 0)
+                    .accessibilityHidden(true)
+                word
             }
-            .offset(y: frame.yellowDrop)
+            .mask {
+                // The hole: a circle cut out of the yellow, the word and the dot with it.
+                Rectangle()
+                    .overlay {
+                        let hole = frame.hole ?? LaunchMotion.Hole(centre: .zero, radius: 0)
+                        Circle()
+                            .frame(width: 2 * hole.radius, height: 2 * hole.radius)
+                            .position(hole.centre)
+                            .blendMode(.destinationOut)
+                    }
+                    .compositingGroup()
+            }
             .opacity(frame.yellowOpacity)
-            // The still's BlockParty. wordmark with Bp!'s shade, in the screen's middle: the launch
-            // screen's own picture, so the still and this frame are one (Jesse, 2026-11-14). Over the
-            // yellow rather than in it, so it shoots out at its own pace while the yellow fades.
-            Image("LaunchStill")
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .scaleEffect(frame.zoom)
-                .opacity(frame.word)
-                .accessibilityHidden(true)
-            ZStack(alignment: .topLeading) {
-                // The wordmark's letters, under B and p, which take them in (Jesse, 2026-11-17).
-                ForEach(Array(frame.pieces.enumerated()), id: \.offset) { index, piece in
-                    wordPiece(LaunchMotion.wordPieces[index], piece)
-                }
-                // Both shrink toward the !, so Bp! never splits (Jesse, 2026-11-08).
-                piece("LaunchMarkB")
-                    .scaleEffect(x: frame.b.width, y: frame.b.height, anchor: Self.unit(LaunchMotion.letterAnchor))
-                    .offset(x: frame.bShift.width * frame.markScale,
-                            y: frame.bShift.height * frame.markScale + frame.lift * Self.hopPoints * k)
-                    .opacity(frame.bShown ? frame.letters : 0)
-                piece("LaunchMarkP")
-                    .scaleEffect(x: frame.p.width, y: frame.p.height, anchor: Self.unit(LaunchMotion.letterAnchor))
-                    .offset(x: frame.pShift.width * frame.markScale,
-                            y: frame.pShift.height * frame.markScale + frame.lift * Self.hopPoints * k)
-                    .opacity(frame.pShown ? frame.letters : 0)
-                bang
-                ballShade
-                ball
-            }
-            .frame(width: box.width, height: box.height, alignment: .topLeading)
-            .foregroundStyle(Hue.onBrandDisc)
-            .compositingGroup()
-            .shadow(color: Hue.onBrandDisc.opacity(Self.shade * frame.yellow), radius: Self.shadeBlur * k, y: Self.shadeDrop * k)
-            .scaleEffect(frame.zoom)
-            .scaleEffect(x: frame.markSquash.width, y: frame.markSquash.height, anchor: .bottom)
-            .rotationEffect(.degrees(frame.markTilt), anchor: .bottom)
-            .offset(x: frame.markOrigin.x, y: frame.markOrigin.y)
-            .opacity(frame.markOpacity)
+            mark
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
-    /// The ! : at rest, or jumping with B and p, its line growing out of the dot during the
-    /// crouch since it isn't there before.
-    @ViewBuilder private var bang: some View {
-        piece("DailyMarkBangLine")
-            .scaleEffect(x: frame.line.width, y: frame.line.height, anchor: DailyMarkGlyph.lineFoot)
-            .offset(y: frame.lift * Self.hopPoints * k)
-            .opacity(frame.lineOpacity)
-        piece("DailyMarkBangDot")
-            .scaleEffect(x: frame.dot.width, y: frame.dot.height, anchor: DailyMarkGlyph.dotBase)
-            .offset(y: frame.lift * Self.hopPoints * k)
-            .opacity(frame.dotShown ? 1 : 0)
+    /// The first open: BlockParty.'s letters coming out behind the dot, and the dot, which ends as
+    /// the wordmark's own full stop.
+    private var word: some View {
+        ZStack(alignment: .topLeading) {
+            ZStack(alignment: .topLeading) {
+                ForEach(Array(frame.letters.enumerated()), id: \.offset) { index, letter in
+                    wordPiece(LaunchMotion.wordPieces[index], letter.transform)
+                        .opacity(letter.shown ? 1 : 0)
+                }
+            }
+            .opacity(frame.wordOpacity)
+            wordPiece(LaunchMotion.wordStop)
+                .opacity(frame.stopShown ? 1 : 0)
+            dot(frame.dot)
+                .opacity(frame.dotShown && !frame.still && !frame.markShown ? 1 : 0)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .foregroundStyle(Hue.onBrandDisc)
+        .compositingGroup()
+        .shadow(color: Hue.onBrandDisc.opacity(Self.shade * frame.yellow), radius: Self.wordShadeBlur, y: Self.wordShadeDrop)
     }
 
-    /// The ball's shadow on the glass (Jesse, 2026-11-02, "ball shadow"). SwiftUI's blur radius is
-    /// twice the mock's CSS blur, which is a standard deviation.
-    private var ballShade: some View {
-        let b = frame.ball
-        return Circle()
-            .frame(width: 2 * b.r * k, height: 2 * b.r * k)
-            .blur(radius: 2 * frame.shadeBlur * k)
-            .position(x: (b.x - origin.x) * k, y: (b.y - origin.y + frame.shadeDrop) * k)
-            .opacity(frame.shadeOpacity)
+    /// A later open: Bp! on the Daily mark's canvas, the hopping dot in front of its letters.
+    private var mark: some View {
+        ZStack(alignment: .topLeading) {
+            // B and p pop out from under the still's dot: they grow about the screen's middle.
+            piece("LaunchMarkB").scaleEffect(frame.pop, anchor: popAnchor)
+            piece("LaunchMarkP").scaleEffect(frame.pop, anchor: popAnchor)
+            // The ! : its line grows out of the dot once the dot has dropped in.
+            piece("DailyMarkBangLine")
+                .scaleEffect(x: frame.line.width, y: frame.line.height, anchor: DailyMarkGlyph.lineFoot)
+                .opacity(frame.bangShown ? 1 : 0)
+            piece("DailyMarkBangDot")
+                .opacity(frame.bangShown ? 1 : 0)
+            dot(frame.dot, from: motion.origin)
+                .opacity(frame.dotShown && !frame.still ? 1 : 0)
+        }
+        .frame(width: box.width, height: box.height, alignment: .topLeading)
+        .foregroundStyle(Hue.onBrandDisc)
+        .compositingGroup()
+        .shadow(color: Hue.onBrandDisc.opacity(Self.shade * frame.yellow), radius: Self.shadeBlur * k, y: Self.shadeDrop * k)
+        .scaleEffect(frame.zoom)
+        .scaleEffect(x: frame.markSquash.width, y: frame.markSquash.height, anchor: .bottom)
+        .rotationEffect(.degrees(frame.markTilt), anchor: .bottom)
+        .offset(x: frame.markOrigin.x, y: frame.markOrigin.y)
+        .opacity(frame.markShown ? frame.markOpacity : 0)
+    }
+
+    /// The screen's middle as a point of Bp!'s canvas's box at rest.
+    private var popAnchor: UnitPoint {
+        UnitPoint(x: (motion.middle.x - motion.origin.x) / Self.box.width, y: (motion.middle.y - motion.origin.y) / Self.box.height)
     }
 
     private static func lean(_ tilt: CGVector) -> Double { min(1, Double(hypot(tilt.dx, tilt.dy))) }
 
-    /// The Town's round logo, or Block Party's own crest in a Town that has none yet (Jesse,
-    /// 2026-11-08: "bp crest").
-    private static let ballImage = UIImage(named: Town.logo) == nil ? "LaunchCrest" : Town.logo
-
-    /// The Town's round logo: rolling, stretched along its speed, squashed on a hit, and going
-    /// black as it lands.
-    private var ball: some View {
-        let b = frame.ball
-        return Image(Self.ballImage)
-            .resizable()
-            .scaledToFill()
-            .frame(width: 2 * b.r * k, height: 2 * b.r * k)
-            .overlay { Circle().fill(Hue.onBrandDisc).opacity(frame.ballBlack) }
-            .clipShape(Circle())
-            .rotationEffect(.degrees(b.roll - b.heading))
-            .scaleEffect(x: b.sx, y: b.sy)
-            .rotationEffect(.degrees(b.heading))
-            .position(x: (b.x - origin.x) * k, y: (b.y - origin.y) * k)
-            .opacity(frame.ballOpacity)
+    /// The dot, stretched along its speed or squashed where it lands, placed from `origin`.
+    private func dot(_ d: LaunchMotion.Dot, from origin: CGPoint = .zero) -> some View {
+        Circle()
+            .frame(width: d.d, height: d.d)
+            .scaleEffect(x: d.sx, y: d.sy)
+            .rotationEffect(.degrees(d.heading))
+            .position(x: d.x - origin.x, y: d.y - origin.y)
     }
 
     private func piece(_ name: String) -> some View {
         Image(name).resizable().frame(width: box.width, height: box.height)
     }
 
-    /// One of the wordmark's pieces, where the still's wordmark sits, moved as the squeeze has it.
-    private func wordPiece(_ name: String, _ piece: LaunchMotion.Frame.Piece) -> some View {
-        let s = frame.markScale, word = LaunchMotion.wordBox, canvas = LaunchMotion.canvas
-        var move = piece.transform
-        move.tx *= s
-        move.ty *= s
-        return Image(name).resizable()
-            .frame(width: word.width * s, height: word.height * s)
-            .transformEffect(move)
-            .offset(x: (word.minX - canvas.minX) * s, y: (word.minY - canvas.minY) * s)
-            .opacity(piece.opacity)
-    }
-
-    /// A canvas point as a point of the canvas's box.
-    private static func unit(_ p: CGPoint) -> UnitPoint {
-        UnitPoint(x: (p.x - LaunchMotion.canvas.minX) / LaunchMotion.canvas.width,
-                  y: (p.y - LaunchMotion.canvas.minY) / LaunchMotion.canvas.height)
+    /// One of the wordmark's pictures, each the whole word's size, moved about its own top left,
+    /// where the word sits.
+    private func wordPiece(_ name: String, _ transform: CGAffineTransform = .identity) -> some View {
+        Image(name).resizable()
+            .frame(width: motion.wordBox.width, height: motion.wordBox.height)
+            .transformEffect(transform)
+            .offset(x: motion.wordBox.minX + frame.wordShift, y: motion.wordBox.minY)
     }
 }
 
