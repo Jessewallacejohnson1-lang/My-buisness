@@ -45,9 +45,12 @@ struct TownFeedColumn: View {
     var loadingMore = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.displayScale) private var displayScale
     /// The Town feed, for a hidden card's Undo line (ticket 21); nil elsewhere.
     @Environment(TownFeed.self) private var feed: TownFeed?
     @State private var revealedIDs: Set<String> = []
+    /// The column's width, for the size each card below the screen draws its photo at.
+    @State private var width: CGFloat = 0
 
     /// How many cards get the entrance cascade. Past this the delay would outlast
     /// the scroll that reveals them, so the rest simply appear.
@@ -73,8 +76,12 @@ struct TownFeedColumn: View {
                         .onScrollVisibilityChange(threshold: 0.5) { visible in
                             if let id = item.seenID { onCardOnScreen?(id, visible) }
                         }
-                        // Five from the end, so the next round is in before the last card.
-                        .onAppear { if index >= items.count - Self.nearEnd { onNearEnd?() } }
+                        // Five from the end, so the next round is in before the last card. The pictures of the
+                        // two screens below it are asked for now, so they come on drawn (BP app tab-lag 03).
+                        .onAppear {
+                            if index >= items.count - Self.nearEnd { onNearEnd?() }
+                            FeedReadAhead.read(items, after: index, width: width, scale: displayScale)
+                        }
                 }
                 if loadingMore {
                     // The next card's shape, as the feed's own skeleton draws one (never a spinner).
@@ -88,6 +95,11 @@ struct TownFeedColumn: View {
         // NO horizontal inset: the cards' media runs edge to edge. Each card insets
         // its own copy and controls by `TownFeedMetric.contentInset`.
         .padding(.top, 12)
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { new in
+            // The first cards appear before the column is measured: they ask once it is.
+            if width == 0 { FeedReadAhead.read(items, after: -1, width: new, scale: displayScale) }
+            width = new
+        }
     }
 
     @ViewBuilder
