@@ -1,5 +1,5 @@
 -- The same creator never twice in a row (BP app town-feed 66, Jesse 2026-11-13). Takes the Town feed's cards in their
--- order, each as its creator (a number per creator) and its lane (0 live on top, 1 Events and posts, 2 News), and gives
+-- order, each as its creator (a number per creator) and its lane (0 live and the top five on top, 1 Events and posts, 2 News), and gives
 -- back the order to show them in, as places in that list. Every spot keeps its lane, so live stays on top and News keeps
 -- its spots. Each spot takes the first card of its lane not yet placed whose creator isn't the one above, so a card
 -- moves down only past the next creator's card. A pair still touching after that (one creator all that's left at the
@@ -101,9 +101,14 @@ revoke execute on function private.never_two_in_a_row(int[], int[]) from public;
 grant execute on function private.never_two_in_a_row(int[], int[]) to anon, authenticated;
 
 drop function if exists private.town_feed(timestamptz, boolean, uuid[], boolean);
+drop function if exists private.town_feed(timestamptz, boolean, uuid[], boolean, int, uuid);
 
+-- p_top_seed (town-feed 73): the open's roll, which the app makes new after an hour or more away. With one, the feed
+-- starts with the top five (`top_pick`), the same five for every read with that roll; none (an older app, the Block
+-- Party tab, Later Events), no top. p_last_top: the last roll's first card, which never leads the next one.
 create function private.town_feed(p_now timestamptz, p_news boolean, p_only uuid[] default null,
-                                             p_later boolean default false)
+                                             p_later boolean default false, p_top_seed int default null,
+                                             p_last_top uuid default null)
 returns table (
   id uuid,
   title text,
@@ -138,7 +143,7 @@ set search_path = public
 as $$
   with weights as (
     -- The recipe's weights (town-feed 36, 41). Changing one is a migration.
-    select '{"interest":3,"friend":3,"follow":3,"new":2,"draw":1.5,"soonHalf":7,"newHalf":24,"acted":0.4,"notInterested":0.3,"repeatHost":0.5,"repeatCampus":0.8,"repeatKind":0.8,"seen":0.6,"seenFloor":0,"town":1.5,"townMiles":4.5,"meeting":0.3,"liveMax":3,"liveHours":12,"newsEvery":5}'::jsonb as w
+    select '{"interest":3,"friend":3,"follow":3,"new":2,"draw":1.5,"soonHalf":7,"newHalf":24,"acted":0.4,"notInterested":0.3,"repeatHost":0.5,"repeatCampus":0.8,"repeatKind":0.8,"seen":0.6,"seenFloor":0,"town":1.5,"townMiles":4.5,"meeting":0.3,"liveMax":3,"liveHours":12,"newsEvery":5,"top":5,"topFrom":8,"topMine":3,"topDays":7,"topSoonHalf":14}'::jsonb as w
   ),
   town as (
     select 'America/Chicago'::text as zone,
@@ -181,6 +186,17 @@ as $$
           where s.user_id = auth.uid() and s.created_at > p_now - interval '90 days') t
     join public.club_events e on e.id = t.event_id
     where coalesce(e.club_id::text, e.source_name) is not null and coalesce(e.draw, 2) > 1
+  ),
+  -- The kinds of Events the caller went Going to in those 90 days (town-feed 73): their tagger's interests, not where
+  -- they were (a campus or a school says where, not what). They make the top five's Events of that kind yours.
+  my_kinds as (
+    select coalesce(array_agg(distinct k), '{}'::text[]) as kinds
+    from public.event_rsvps r
+    join public.club_events e on e.id = r.event_id
+    cross join lateral unnest(case when e.interests_tagged_at is not null then e.interests
+                                   else array[e.category] end) as k
+    where r.user_id = auth.uid() and r.created_at > p_now - interval '90 days' and coalesce(e.draw, 2) > 1
+      and k not in ('campus', 'college', 'high_school', 'middle_school')
   ),
   -- A school's or a club's own Events: a game you tapped isn't one of them (town-feed 39).
   taps as (
@@ -742,19 +758,61 @@ as $$
     from totals t
     where t.live_ok or t.soon_ok
   ),
+  -- The top five (town-feed 73; Jesse, 2026-11-17: "feel like there's big events going on", "make it personable", "mixed
+  -- up a little bit too. Each time"). Real happenings from today to 7 days ahead, not on top as live already. Big first:
+  -- the draw, a friend Going and the Going count, each a doubling; yours (an interest, or a kind you went Going to) one
+  -- draw step more; soonest a little. Going, seen, Not interested and a meeting sink it as they sink the rest.
+  top_pool as (
+    select t.id, x.mine,
+           lower(btrim(coalesce(nullif(t.card->>'club_name', ''), nullif(t.card->>'source_name', ''), t.host))) as creator,
+           power(2, coalesce(t.draw, 2) + case when x.mine then 1 else 0 end + case when t.friends_n > 0 then 1 else 0 end
+                    + coalesce(t.going_n, 0)::float8 / (coalesce(t.going_n, 0) + 10))
+             * power(0.5, t.days_away / (w->>'topSoonHalf')::float8)
+             * t.acted * t.hidden_x * t.meeting_x * t.town_x * t.seen_x as weight
+    from totals t
+    cross join weights
+    cross join town
+    cross join lateral (select t.matched is not null or t.tags && (select k.kinds from my_kinds k) as mine) x
+    where p_top_seed is not null and p_only is null and not p_later
+      and t.live_kind and t.final_score is null
+      and t.event_date <= town.today + (w->>'topDays')::int
+      and not exists (select 1 from live_now l where l.id = t.id and l.nth <= (w->>'liveMax')::int)
+  ),
+  -- The best 8, one per creator, each drawn by the roll: the better, the likelier to come first (each one's key is an
+  -- exponential draw over its weight; the smallest wins). The same roll draws the same.
+  top_best as (
+    select b.*, -ln((('x' || substr(md5(b.id::text || ':' || p_top_seed), 1, 8))::bit(32)::bigint + 1)::float8
+                    / 4294967297) / b.weight as key
+    from (select p.*, row_number() over (partition by p.creator order by p.weight desc, p.id) as of_creator
+          from top_pool p) b
+    where b.of_creator = 1 and b.weight > 0
+    order by b.weight desc, b.id
+    limit (select (w->>'topFrom')::int from weights)
+  ),
+  -- Five of them, at most 3 yours, so the town's biggest stay in sight; the last roll's first goes to the back.
+  top_pick as (
+    select y.id, row_number() over (order by y.id = p_last_top, y.key, y.id) as top
+    from (select y.* from (select b.*, row_number() over (partition by b.mine order by b.key, b.id) as of_mine
+                           from top_best b) y
+          where not y.mine or y.of_mine <= (select (w->>'topMine')::int from weights)
+          order by y.key, y.id
+          limit (select (w->>'top')::int from weights)) y
+  ),
   pool as (
     -- The campus's Events space as one host's (onboarding 21): Campus lifts them, and CSB and SJU's
     -- dozen calendars can't fill the top of the feed between them.
     select t.id, case when 'campus' = any(t.tags) then 'campus' else t.host end as host, t.base, t.sort_at, t.title,
-           coalesce(t.category, t.id::text) as kind, l.nth as live,
+           coalesce(t.category, t.id::text) as kind, l.nth as live, tp.top,
            -- Who the card says made it (town-feed 66): its group, else its source, else the neighbour who posted it.
            lower(btrim(coalesce(nullif(t.card->>'club_name', ''), nullif(t.card->>'source_name', ''), t.host))) as creator
     from totals t
     left join live_now l on l.id = t.id and l.nth <= (select (w->>'liveMax')::int from weights)
+    left join top_pick tp on tp.id = t.id
     union all
     -- Posts among the Events, their poster as their host, so a second one from the same neighbour
     -- counts half (the spacing rule below).
-    select p.id, p.submitted_by::text, p.base, p.created_at, p.title, p.id::text, null::bigint, p.submitted_by::text
+    select p.id, p.submitted_by::text, p.base, p.created_at, p.title, p.id::text, null::bigint, null::bigint,
+           p.submitted_by::text
     from posts_scored p
   ),
   -- The spacing rules (town-feed 36, 41): each further item from a host counts half, each further one of a kind
@@ -772,26 +830,37 @@ as $$
     from pool p
   ),
   ordered as (
-    select s.id, s.spacing, s.live, s.creator,
-           -- Later Events (town-feed 23) by their start, not their points.
-           row_number() over (order by case when p_later then s.sort_at end, s.live nulls last, s.base * s.spacing desc,
+    select s.id, s.spacing, s.live, s.top, s.creator,
+           -- Later Events (town-feed 23) by their start, not their points. Live, then the top five (town-feed 73).
+           row_number() over (order by case when p_later then s.sort_at end, s.live nulls last, s.top nulls last,
+                                       s.base * s.spacing desc,
                                        s.sort_at, s.title, s.id) as nth
     from spaced s
   ),
-  -- Events and posts leave every 5th spot open for News you haven't seen; with none left the next card moves up.
+  first_cards as (
+    select (select (w->>'newsEvery')::int from weights) as every, (select count(*) from ordered) as events,
+           -- With no roll, none: live cards count toward the 5th spot, as they always have.
+           case when exists (select 1 from ordered o where o.top is not null)
+                then (select count(*) from ordered o where o.live is not null or o.top is not null) else 0 end as k
+  ),
+  -- Events and posts leave every 5th spot open for News you haven't seen; with none left the next card moves up. Live
+  -- cards and the top five (`k` of them, town-feed 73) come first with no News between them, and the count starts
+  -- after them. They share the live lane, so the creator rule below never moves one out of the top.
   spots as (
     select x.id, x.spacing, x.lane, x.creator, row_number() over (order by x.place, x.id)::int as spot
     from (
-      select o.id, o.spacing, case when o.live is null then 1 else 0 end as lane, o.creator,
-             o.nth + (o.nth - 1) / ((select (w->>'newsEvery')::int from weights) - 1) as place
+      select o.id, o.spacing, case when o.live is null and o.top is null then 1 else 0 end as lane, o.creator,
+             case when o.nth <= c.k then o.nth
+                  else o.nth + (o.nth - c.k - 1) / (c.every - 1) end as place
       from ordered o
+      cross join first_cards c
       union all
       -- Only as many as the Events leave spots for, so never two together; the rest wait for a later open. A
       -- town with next to no Events shows what it has.
-      select n.id, 1::float8, 2, lower(btrim(n.source_name)), n.nth * c.every
+      select n.id, 1::float8, 2, lower(btrim(n.source_name)), c.k + n.nth * c.every
       from news_scored n
-      cross join (select (select (w->>'newsEvery')::int from weights) as every, (select count(*) from ordered) as events) c
-      where c.events < c.every - 1 or n.nth <= c.events / (c.every - 1)
+      cross join first_cards c
+      where c.events - c.k < c.every - 1 or n.nth <= (c.events - c.k) / (c.every - 1)
     ) x
   ),
   -- The same creator never twice in a row (town-feed 66, Jesse 2026-11-13): the Town feed only. The Block Party tab
@@ -837,6 +906,8 @@ as $$
            'acted', e.acted, 'notInterested', e.hidden_x, 'spacing', p.spacing,
            'newSpot', e.is_new, 'pool', case when e.yours then 'yours' when not e.yours then 'discovery' end,
            'total', round((e.base * p.spacing)::numeric, 4),
+           -- The top five's (town-feed 73): its place among them, and its weight there.
+           'top', tk.top, 'topWeight', round(tw.weight::numeric, 4),
            'spot', p.spot, 'of', count(*) over ())
          end,
          -- The Heart is the card's now (inside-cards 16); these two stay for builds that read them here.
@@ -860,6 +931,8 @@ as $$
          p.spot
   from totals e
   join placed p on p.id = e.id
+  left join top_pick tk on tk.id = e.id
+  left join top_pool tw on tw.id = e.id
   -- The group that posted it, else, for a found Event, the group it was found for.
   left join public.clubs c on c.id = e.group_id
   left join labels l on l.series = e.series
@@ -914,14 +987,18 @@ as $$
   from feed_rows r
   order by r.spot;
 $$;
-revoke execute on function private.town_feed(timestamptz, boolean, uuid[], boolean) from public;
-grant execute on function private.town_feed(timestamptz, boolean, uuid[], boolean) to anon, authenticated;
+revoke execute on function private.town_feed(timestamptz, boolean, uuid[], boolean, int, uuid) from public;
+grant execute on function private.town_feed(timestamptz, boolean, uuid[], boolean, int, uuid) to anon, authenticated;
 
 -- The Town feed, as every app reads it: the body is private.town_feed's.
 drop function if exists public.get_town_feed(timestamptz, boolean, boolean);
+drop function if exists public.get_town_feed(timestamptz, boolean, boolean, int, uuid);
 
+-- p_top_seed and p_last_top: the open's roll and the last roll's first card (town-feed 73); an app that sends neither
+-- gets the feed as before.
 create function public.get_town_feed(p_now timestamptz default now(), p_news boolean default false,
-                                      p_later boolean default false)
+                                      p_later boolean default false, p_top_seed int default null,
+                                      p_last_top uuid default null)
 returns table (
   id uuid,
   title text,
@@ -954,6 +1031,6 @@ stable
 security invoker
 set search_path = public
 as $$
-  select * from private.town_feed(p_now, p_news, null, p_later);
+  select * from private.town_feed(p_now, p_news, null, p_later, p_top_seed, p_last_top);
 $$;
-grant execute on function public.get_town_feed(timestamptz, boolean, boolean) to anon, authenticated;
+grant execute on function public.get_town_feed(timestamptz, boolean, boolean, int, uuid) to anon, authenticated;

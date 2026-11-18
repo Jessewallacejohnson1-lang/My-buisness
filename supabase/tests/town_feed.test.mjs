@@ -916,6 +916,8 @@ test('the score breakdown is filled for the admin and null for everyone else', a
     interest: 3, gender: 0, yours: 0, new: 0, friend: 0, follow: 0, tapped: 0, town: 1, seen: 1, live: false,
     popular: 0, size: 0, sizeStep: 1, draw: 1.5, daysAway: 1,
     soon: 0.9057, acted: 1, notInterested: 1, spacing: 1, newSpot: false, pool: 'discovery', total: 4.9815, spot: 1, of: 1,
+    // No roll, no top five (town-feed 73).
+    top: null, topWeight: null,
   });
 });
 
@@ -3505,8 +3507,8 @@ test('feed-load: get_town_feed is private.town_feed', async () => {
   await db.exec('reset role; reset request.jwt.claims');
   // A later migration that gives get_town_feed a body of its own again would leave Event of the day
   // reading the old one: change private.town_feed instead.
-  const { rows: [{ def }] } = await db.query(`select pg_get_functiondef('public.get_town_feed(timestamptz, boolean, boolean)'::regprocedure) as def`);
-  assert.match(def, /private\.town_feed\(p_now, p_news, null, p_later\)/);
+  const { rows: [{ def }] } = await db.query(`select pg_get_functiondef('public.get_town_feed(timestamptz, boolean, boolean, int, uuid)'::regprocedure) as def`);
+  assert.match(def, /private\.town_feed\(p_now, p_news, null, p_later, p_top_seed, p_last_top\)/);
 });
 
 // Calls to each function during one read, counted by Postgres itself (track_functions): the counts
