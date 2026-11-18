@@ -48,11 +48,8 @@ allowlist of the palettes named below). A call split across lines is still caugh
     declared but no longer drawn — it went mustard over photographs.
     The Town's Event of the day poster prints its date in `brandDisc`, as DICE does (Jesse,
     2026-10-19, BP app event-card 03), on the poster's own dark, `Hue.poster`.
-    **The one yellow ground** is the top of the Daily page (Jesse, 2026-10-01): `brandDisc`
-    down to just under the Spotlight's business line. The status edge is gone at rest and fades
-    in over the first 20pt of scroll (`statusEdge(opacity:)`): both its haze and its blur
-    turn the yellow under the clock into a near-yellow. Never put a SwiftUI `.mask` over that edge: masking its UIKit blur kept
-    the app from going idle and the UI tests waited minutes per step (2026-10-01).
+    Never put a SwiftUI `.mask` over the status edge: masking its UIKit blur kept the app from
+    going idle and the UI tests waited minutes per step (2026-10-01).
   - The rule is **white ground + small yellow accents, every yellow derived from
     `brandYellowHex`** — never a second yellow, never a call-site hex. These are scoped
     surface tints, not second accents.
