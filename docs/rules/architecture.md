@@ -43,8 +43,8 @@ seeder, and mounts `RootView` inside `LaunchHost`.
   2026-11-01, reversing 2026-09-18's no splash): a fresh process start shows a black dot in the
   middle of BP yellow. On the day's first cold start the dot writes BlockParty. as The Fork's
   splash writes its name and stops as the full stop, which opens as a circle into the app. On
-  every later open the dot drops into Bp!, which lands on the tab bar's own while the yellow
-  opens as a circle (or zooms through over Welcome). Reduce Motion: the word fades in, then the
+  every later open the dot pops into Bp, the Town's round logo drops in as the !'s dot, and Bp!
+  lands on the tab bar's own while the yellow opens as a circle (or zooms through over Welcome). Reduce Motion: the word fades in, then the
   yellow fades. `LaunchScreen.storyboard` is the first frame of all three: the dot alone. The app
   loads underneath from the first frame and never waits on it; a tap does nothing, UI tests skip
   it (`-ui-tests`) unless they ask (`-launch-play`), and the app shows within 6 s whatever

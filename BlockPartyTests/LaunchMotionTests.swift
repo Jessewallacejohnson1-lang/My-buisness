@@ -48,9 +48,11 @@ final class LaunchMotionTests: XCTestCase {
         XCTAssertEqual(m.origin.x, 61.292993, accuracy: 1e-4)
         XCTAssertEqual(m.origin.y, 342.193110, accuracy: 1e-4)
         XCTAssertEqual(LaunchMotion.canvas.width * LaunchMotion.scale, 320, accuracy: 1e-9)
-        XCTAssertEqual(m.bang.x, 335.594, accuracy: 1e-3)
-        XCTAssertEqual(m.bang.y, 462.033, accuracy: 1e-3)
-        XCTAssertEqual(m.bang.d, 42.823, accuracy: 1e-3)
+        XCTAssertEqual(m.bang.x, 335.700, accuracy: 1e-3)
+        XCTAssertEqual(m.bang.y, 461.820, accuracy: 1e-3)
+        XCTAssertEqual(m.bang.d, 43.035936, accuracy: 1e-4)
+        XCTAssertEqual(LaunchMotion.ball, 49.491327, accuracy: 1e-4)
+        XCTAssertEqual(LaunchMotion.letterAnchor, CGPoint(x: 781, y: 627))
     }
 
     /// The first open's dot is on the Reference's path, 402/512 of its pixels: left by 0.40 s,
@@ -147,45 +149,95 @@ final class LaunchMotionTests: XCTestCase {
         XCTAssertEqual(gone.buzzes, 1)
     }
 
-    /// A later open: the dot hops 70 pt up off the middle and drops in as the !'s dot, shrinking
-    /// on the way and squashing where it lands, while B and p pop out; then the line grows.
-    func testLaterOpensDropTheDotIntoBp() {
+    /// A later open is the short cut of 2026-11-08 behind the still's 0.10 s: the still's dot goes as
+    /// Bp pops out from under it, and the Town's ball falls straight into the !'s dot, spinning,
+    /// shrinking and stretched along its speed, squashes there, and goes black in 0.12 s.
+    func testLaterOpensDropTheTownsBall() {
         let m = later
-        XCTAssertEqual(m.landAt, 0.393866, accuracy: 1e-5)
-        XCTAssertEqual(m.lineAt, 0.443866, accuracy: 1e-5)
-        XCTAssertEqual(m.endAt, 0.663866, accuracy: 1e-5)
-        XCTAssertTrue(m.frame(at: 0.2).markShown)
-        let top = m.hop(at: 0.10 + 0.135724)
-        XCTAssertEqual(top.y, 437 - 70, accuracy: 1e-3)
-        XCTAssertLessThan(top.d, 85)
-        let lands = m.hop(at: m.landAt)
-        XCTAssertEqual(lands.x, m.bang.x, accuracy: 1e-6)
+        XCTAssertEqual(m.landAt, 0.389523, accuracy: 1e-4)
+        XCTAssertEqual(m.popAt, m.landAt + 0.12, accuracy: 1e-9)
+        XCTAssertEqual(m.endAt, m.popAt + 0.49, accuracy: 1e-9)
+        let goes = m.frame(at: 0.10 + 0.075)
+        XCTAssertTrue(goes.markShown)
+        XCTAssertTrue(goes.dotShown)
+        XCTAssertEqual(goes.dot.d, 85 * 0.125, accuracy: 1e-6, "the still's dot, an eighth left half way")
+        XCTAssertEqual(goes.dot.x, 201)
+        XCTAssertFalse(m.frame(at: 0.26).dotShown)
+        XCTAssertGreaterThan(m.frame(at: 0.25).pop, 0.9, "Bp is out before the ball lands")
+        XCTAssertLessThan(m.frame(at: 0.25).pop, 1.06, "a soft pop, not a big one")
+        XCTAssertEqual(m.frame(at: 0.3).letter.width, 0.9, accuracy: 1e-9, "B and p at the still's 90%")
+        XCTAssertEqual(m.frame(at: 0.3).letter.height, 0.9, accuracy: 1e-9)
+
+        let start = m.ball(at: 0.10)
+        XCTAssertEqual(start.x, m.bang.x)
+        XCTAssertEqual(start.y, -44.900, accuracy: 1e-3, "above the screen")
+        XCTAssertEqual(start.r, LaunchMotion.ball / 2, accuracy: 1e-9)
+        XCTAssertEqual(start.roll, -120, accuracy: 1e-9)
+        let falling = m.ball(at: 0.30)
+        XCTAssertEqual(falling.x, m.bang.x, "straight down")
+        XCTAssertEqual(falling.heading, 90)
+        XCTAssertEqual(falling.sx, 1 + 0.18 * 2170 / 2200, accuracy: 1e-6)
+        XCTAssertEqual(falling.sx * falling.sy, 1, accuracy: 1e-9)
+        let lands = m.ball(at: m.landAt)
         XCTAssertEqual(lands.y, m.bang.y, accuracy: 1e-6)
-        XCTAssertEqual(lands.d, m.bang.d, accuracy: 1e-6)
-        let squashed = m.hop(at: m.landAt + 0.025)
+        XCTAssertEqual(lands.r, m.bang.d / 2, accuracy: 1e-6)
+        XCTAssertEqual(lands.roll, 360, accuracy: 1e-6)
+        let squashed = m.ball(at: m.landAt + 0.025)
         XCTAssertEqual(squashed.sy, 0.68, accuracy: 1e-6)
-        XCTAssertEqual(squashed.sx, 1.16, accuracy: 1e-6)
-        XCTAssertEqual(squashed.y + squashed.d * squashed.sy / 2, m.bang.y + m.bang.d / 2, accuracy: 1e-6, "its foot stays on the line")
+        XCTAssertEqual(squashed.sx, 1.368, accuracy: 1e-6)
+        XCTAssertEqual(squashed.y + squashed.r * squashed.sy, m.bang.y + m.bang.d / 2, accuracy: 1e-6, "its foot stays on the line")
+
+        let air = m.frame(at: 0.2)
+        XCTAssertTrue(air.ballShown)
+        XCTAssertEqual(air.ballBlack, 0)
+        XCTAssertGreaterThan(air.shadeDrop, 20, "high up, its shadow is far off and faint")
+        XCTAssertFalse(m.frame(at: 0.05).ballShown, "not during the still")
         XCTAssertEqual(m.frame(at: m.landAt - 0.001).buzzes, 0)
         XCTAssertEqual(m.frame(at: m.landAt).buzzes, 1)
-        let before = m.frame(at: m.lineAt - 0.001)
-        XCTAssertTrue(before.dotShown)
-        XCTAssertFalse(before.bangShown)
-        let grown = m.frame(at: m.lineAt + 0.12)
-        XCTAssertFalse(grown.dotShown)
-        XCTAssertTrue(grown.bangShown, "the dot is the !'s own")
-        XCTAssertEqual(grown.line.width, 1, accuracy: 1e-6)
-        XCTAssertEqual(grown.line.height, 1, accuracy: 1e-6)
-        XCTAssertGreaterThan(m.frame(at: 0.25).pop, 0.9, "B and p are out before the dot lands")
-        XCTAssertLessThan(m.frame(at: 0.25).pop, 1.06, "a soft pop, not a big one")
-        XCTAssertEqual(m.frame(at: m.endAt).pop, 1, accuracy: 0.01)
+        XCTAssertLessThan(m.frame(at: m.landAt + 0.01).shadeDrop, 6)
+        let black = m.frame(at: m.popAt)
+        XCTAssertFalse(black.ballShown)
+        XCTAssertTrue(black.bangShown, "the ball is the !'s own dot")
+        XCTAssertEqual(black.ballBlack, 1, accuracy: 1e-6)
         XCTAssertEqual(m.frame(at: m.endAt - 0.01).backScale, 0.985, accuracy: 1e-9)
         XCTAssertTrue(m.frame(at: m.endAt - 0.01).letters.isEmpty, "no word on a later open")
+        XCTAssertEqual(LaunchMotion.buzzKinds(.later).count, 3)
+        XCTAssertEqual(LaunchMotion.buzzKinds(.first).count, 1)
+    }
+
+    /// Once the ball is the dot, B, p and the ! jump as one, without the hang at the top: a crouch
+    /// while the !'s line grows out of the dot, up the Daily tab's 4 pt with B and p growing to
+    /// full size, and down on one beat 0.35 s in, with one firm buzz.
+    func testBpJumpsWithoutTheHang() {
+        let m = later, pop = m.popAt
+        XCTAssertEqual(m.frame(at: pop - 0.001).lineOpacity, 0)
+        XCTAssertEqual(m.frame(at: pop + 0.02).lineOpacity, 0.5, accuracy: 1e-6)
+        XCTAssertEqual(m.frame(at: pop + 0.035).line.height, 0.86 * CGFloat(UnitCurve.easeOut.value(at: 0.5)), accuracy: 1e-6)
+        let crouched = m.frame(at: pop + 0.07)
+        XCTAssertEqual(crouched.bang.height, 0.86, accuracy: 1e-6)
+        XCTAssertEqual(crouched.bang.width, 1.10, accuracy: 1e-6)
+        XCTAssertEqual(crouched.letter.height, 0.9 * 0.86, accuracy: 1e-6, "B and p still at 90%")
+        XCTAssertEqual(crouched.lift, 0, accuracy: 1e-6)
+        let top = m.frame(at: pop + 0.07 + 0.16)
+        XCTAssertEqual(top.lift, -4, accuracy: 1e-6)
+        XCTAssertEqual(top.letter.width, 0.95, accuracy: 1e-6, "full size at the top")
+        XCTAssertEqual(top.line.height, 0.94, accuracy: 1e-6, "the line alone, 6% short")
+        XCTAssertEqual(m.frame(at: pop + 0.35 - 0.001).buzzes, 1)
+        XCTAssertEqual(m.frame(at: pop + 0.35).buzzes, 2, "one firm buzz as it lands")
+        XCTAssertEqual(m.frame(at: pop + 0.35).lift, 0, accuracy: 1e-6)
+        // The landing's last rebound plays out under the leap's crouch, as it shipped.
+        XCTAssertEqual(m.frame(at: m.endAt).letter.width, 0.97, accuracy: 1e-6)
+        let rest = m.frame(at: m.endAt + 0.1)
+        XCTAssertEqual(rest.letter.width, 1, accuracy: 1e-6)
+        XCTAssertEqual(rest.letter.height, 1, accuracy: 1e-6)
+        XCTAssertEqual(rest.bang, CGSize(width: 1, height: 1))
+        XCTAssertEqual(rest.line.height, 1, accuracy: 1e-6)
+        XCTAssertEqual(rest.pop, 1, accuracy: 0.01)
     }
 
     /// Bp! leaps into the tab bar's Bp!: it crouches onto its foot, is tossed up and down into the
     /// slot leaning 12°, lands with a squash as the tab bar dips with it, and the launch is done
-    /// 1.81 s after the still, once the squash has played out. Meanwhile the yellow opens as a
+    /// 2.15 s after the still, once the squash has played out. Meanwhile the yellow opens as a
     /// circle from its middle, gone in 0.36 s. A touch belongs to the launch until then.
     func testLeapsIntoTheTabBarsBp() {
         let m = later, endAt = m.endAt
@@ -212,34 +264,36 @@ final class LaunchMotionTests: XCTestCase {
         XCTAssertEqual(landed.yellowOpacity, 0)
         var t = 0.0
         while !m.frame(at: t).done && t < 5 { t += 1.0 / 480 }
-        XCTAssertEqual(t, 1.81, accuracy: 0.01)
+        XCTAssertEqual(t, 2.146, accuracy: 0.01)
         let last = m.frame(at: t)
         XCTAssertEqual(last.tabDip, 0, accuracy: 0.5, "the rest eases out once it's done")
         XCTAssertEqual(last.yellow, 0, accuracy: 0.001)
         XCTAssertEqual(last.backScale, 1, accuracy: 0.001)
-        XCTAssertEqual(last.buzzes, 1)
+        XCTAssertEqual(last.buzzes, 3, "the third, light, as it lands in the tab bar")
+        XCTAssertEqual(m.frame(at: endAt + 0.07 + 0.26 - 0.001).buzzes, 2)
         XCTAssertFalse(last.headerUp)
         XCTAssertTrue(m.frame(at: endAt).takesTaps)
         XCTAssertFalse(m.frame(at: endAt + 0.32).takesTaps, "the yellow is mostly gone 0.32 s into the circle")
-        // LaunchBallTests holds 0.3 to tap the yellow, and 1.1 to tap through: the yellow gone,
+        // LaunchBallTests holds 0.3 to tap the yellow, and 1.5 to tap through: the yellow gone,
         // the launch still on screen.
         XCTAssertTrue(m.frame(at: 0.3).takesTaps)
-        XCTAssertFalse(m.frame(at: 1.1).takesTaps)
-        XCTAssertFalse(m.frame(at: 1.1).done)
+        XCTAssertFalse(m.frame(at: 1.5).takesTaps)
+        XCTAssertFalse(m.frame(at: 1.5).done)
     }
 
-    /// Nothing on Bp! jumps in one frame of a 120 Hz screen: the crouch lets go and the !'s line
+    /// Nothing on Bp! snaps in one frame of a 120 Hz screen: the crouch lets go and the !'s line
     /// grows over several frames, and the launch ends only once the landing's squash has died
     /// down, not as it swings through rest (2026-11-07, BP app references/launch-glitch).
     func testNothingJumpsInOneFrame() throws {
         let m = later
         let step = 1.0 / 120
-        var last = m.frame(at: m.lineAt), t = m.lineAt + step, done: Double?
+        var last = m.frame(at: m.popAt), t = m.popAt + step, done: Double?
         while t < 5 && done == nil {
             let f = m.frame(at: t)
             // 6%: the landing's first frame, now that the leap plays at full speed (under 5% at ¾).
             XCTAssertLessThan(abs(f.markSquash.height - last.markSquash.height), 0.06, "Bp!'s squash at \(t)")
-            XCTAssertLessThan(abs(f.line.height - last.line.height), 0.15, "the !'s line at \(t)")
+            // 20%: the line's first frame at full speed, as the short cut shipped (under 15% at ¾).
+            XCTAssertLessThan(abs(f.line.height - last.line.height), 0.20, "the !'s line at \(t)")
             if f.done { done = t }
             last = f
             t += step
@@ -312,6 +366,6 @@ final class LaunchMotionTests: XCTestCase {
         XCTAssertEqual(m.dot(at: 1.0).x, m.stop.x, accuracy: 1e-9)
         XCTAssertTrue(m.frame(at: 1.71).done)
         let drops = LaunchMotion(screen: CGSize(width: 440, height: 956), ending: .tab(tab), kind: .later)
-        XCTAssertEqual(drops.hop(at: drops.landAt).x, drops.bang.x, accuracy: 1e-6)
+        XCTAssertEqual(drops.ball(at: drops.landAt).y, drops.bang.y, accuracy: 1e-6)
     }
 }

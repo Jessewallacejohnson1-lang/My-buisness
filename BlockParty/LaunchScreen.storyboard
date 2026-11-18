@@ -6,7 +6,7 @@
      the word's soft shade, in the screen's middle (`LaunchStill`, a 120 x 120 pt picture). It is the
      first frame of every launch (`LaunchBall` draws the same picture until the dot first moves), so
      the hand-off can't be seen: the day's first open has the dot write BlockParty., and every later
-     one drops it into Bp!. The glass is drawn by BP app references/launch-ball/make_still.py, the
+     one pops it into Bp for the Town's ball to drop in. The glass is drawn by BP app references/launch-ball/make_still.py, the
      dot by references/splash-fork/make_still.py, the signature by
      references/splash-wordmark/make_still.py. At the bottom, Jesse's signature, "Made by Jesse"
      (`LaunchFooter`, 64 pt above the screen's bottom, Bending Spoons' sizes; mock round 12; its

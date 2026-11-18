@@ -1019,10 +1019,10 @@ open by changing the content's padding off the scroll's own offset, the loop `sw
 ## Decided 2026-11-18 — a new launch: the dot writes BlockParty., later opens drop it into Bp! (BP app references/splash-fork)
 
 Jesse: "i wanna create a completly new spash screen thats super similar" to The Fork's, then "for
-fast opens let it be BP! with drop in dot and moves to tab bar". The ball show, the squeeze, Bp!'s
-jump, the wordmark shooting out, the link's turn into it (`openedLink`, `-launch-link-at`) and tap
-to skip (`-launch-skip`) are gone, with `LaunchCrest`. Both shows now play at full speed (the ball
-show played at ¾, the leap with it), from one still, an 85 pt dot (`LaunchStill`).
+fast opens let it be BP! with drop in dot and moves to tab bar". The ball show's squeeze and
+bounces on B and p, the wordmark shooting out, the link's turn into it (`openedLink`,
+`-launch-link-at`) and tap to skip (`-launch-skip`) are gone. Both shows play at full speed (the
+ball show played at ¾, the leap with it), from one still, an 85 pt dot (`LaunchStill`).
 
 `LaunchMotion.Kind.first`, the day's first cold start (`LaunchShows.firstOpensADay`; the key stays
 `launch.fullShows`, so nobody's count resets): the dot follows the Reference's mark frame by frame
@@ -1034,7 +1034,11 @@ start between the Reference's first and last (0.617 to 0.750 s), never before th
 their left edge; `LaunchWordDot` takes over from the dot at 1.00 s. The word holds 0.35 s and the
 full stop opens as a circle to the far corner in 0.36 s (`Frame.hole`, a mask).
 
-`Kind.later`: the dot hops, B and p pop out about the screen's middle, the dot becomes the !'s own,
-and Bp! leaps into the tab bar on 2026-11-02's numbers while the yellow opens from its middle.
-Guessed, with no Reference: a letter's 45% and 12° and 0.20 s, the hop's 70 pt, the pop's spring
-(0.30, 0.70), the line's 0.12 s, the 0.10 s rest, and Reduce Motion's 0.15 s fade-in.
+`Kind.later` is the short cut of 2026-11-08, back from commit 09debdf7 (Jesse, 2026-11-18: "no
+for the later one i wanted our already made joetown falls down ball"): the Town's ball falls
+straight into the !'s dot, goes black, B, p and the ! jump without the hang (`jumpLands` 0.35,
+`jumpEnds` 0.49), and Bp! leaps into the tab bar on 2026-11-02's numbers, all at full speed as it
+shipped then. New around it: the still's dot goes as Bp pops out about the screen's middle in the
+first 0.15 s (`stillGoes`, `burst`), and the yellow opens from its middle in place of the curtain.
+Guessed, with no Reference: a letter's 45% and 12° and 0.20 s, the burst's 0.15 s and its spring
+(0.30, 0.70), and Reduce Motion's 0.15 s fade-in.

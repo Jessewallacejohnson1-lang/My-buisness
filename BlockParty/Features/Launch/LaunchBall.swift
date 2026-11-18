@@ -3,9 +3,10 @@
 //  Block Party — the launch (Jesse, 2026-11-18; BP app references/splash-fork, taste's launch
 //  lines). A fresh start shows a black dot in the middle of the yellow. On the day's first open the
 //  dot writes BlockParty. as The Fork's splash writes its name and stops as the full stop, which
-//  opens as a circle into the app. On every later open the dot hops, B and p pop out from under
-//  it, it drops in as the !'s dot, and Bp! leaps into the tab bar's own Bp! while the yellow opens
-//  as a circle, or zooms through when Welcome is up (`LaunchMotion.Kind`). It plays over the app,
+//  opens as a circle into the app. On every later open the dot pops into Bp, the Town's round
+//  logo falls into the !'s dot (the short cut of 2026-11-08), B, p and the ! jump, and Bp! leaps
+//  into the tab bar's own Bp! while the yellow opens as a circle, or zooms through when Welcome is
+//  up (`LaunchMotion.Kind`). It plays over the app,
 //  which loads underneath and never waits on it. A tap does nothing.
 //
 //  `LaunchMotion` holds the numbers; this file draws them, one frame at a time, from a
@@ -129,7 +130,10 @@ struct LaunchHost<Content: View>: View {
                     .gesture(DragGesture(minimumDistance: 0))
                     .allowsHitTesting(moment.frame.takesTaps)
                     .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { screen = $0 }
-                    .sensoryFeedback(LaunchMotion.buzz, trigger: moment.frame.buzzes) { _, count in count > 0 }
+                    .sensoryFeedback(trigger: moment.frame.buzzes) { _, count in
+                        let kinds = LaunchMotion.buzzKinds(stage.kind)
+                        return kinds.indices.contains(count - 1) ? kinds[count - 1] : nil
+                    }
                     .onChange(of: backTarget(moment.frame), initial: true) { _, target in
                         settleBack(to: target, moment.frame)
                     }
@@ -258,6 +262,8 @@ private struct LaunchMark: View {
 
     private static let box = CGSize(width: LaunchMotion.canvas.width * LaunchMotion.scale,
                                     height: LaunchMotion.canvas.height * LaunchMotion.scale)
+    /// The tab bar's hop is in its own points, for a Bp! 39.15 pt wide: these are its points here.
+    private static let hopPoints = box.width / TabBarMetric.dailyMarkWidth
     /// The glass picture's corners, which keep their shape on any screen; its middle stretches.
     /// The same 90 pt as the 270 px cap insets in LaunchGlass.imageset (drawn at 62 pt corners by
     /// BP app references/launch-ball/make_still.py): change one, change both.
@@ -357,18 +363,28 @@ private struct LaunchMark: View {
         .shadow(color: Hue.onBrandDisc.opacity(Self.shade * frame.yellow), radius: Self.wordShadeBlur, y: Self.wordShadeDrop)
     }
 
-    /// A later open: Bp! on the Daily mark's canvas, the hopping dot in front of its letters.
+    /// A later open: Bp! on the Daily mark's canvas, with the Town's ball and the still's dot.
     private var mark: some View {
         ZStack(alignment: .topLeading) {
-            // B and p pop out from under the still's dot: they grow about the screen's middle.
-            piece("LaunchMarkB").scaleEffect(frame.pop, anchor: popAnchor)
-            piece("LaunchMarkP").scaleEffect(frame.pop, anchor: popAnchor)
-            // The ! : its line grows out of the dot once the dot has dropped in.
+            // B and p shrink toward the !, so Bp! never splits (Jesse, 2026-11-08), and pop out
+            // from under the still's dot, about the screen's middle.
+            ForEach(["LaunchMarkB", "LaunchMarkP"], id: \.self) { name in
+                piece(name)
+                    .scaleEffect(x: frame.letter.width, y: frame.letter.height, anchor: Self.unit(LaunchMotion.letterAnchor))
+                    .offset(y: frame.lift * Self.hopPoints * k)
+                    .scaleEffect(frame.pop, anchor: popAnchor)
+            }
+            // The ! : jumping with B and p, its line growing out of the dot during the crouch.
             piece("DailyMarkBangLine")
                 .scaleEffect(x: frame.line.width, y: frame.line.height, anchor: DailyMarkGlyph.lineFoot)
-                .opacity(frame.bangShown ? 1 : 0)
+                .offset(y: frame.lift * Self.hopPoints * k)
+                .opacity(frame.bangShown ? frame.lineOpacity : 0)
             piece("DailyMarkBangDot")
+                .scaleEffect(x: frame.bang.width, y: frame.bang.height, anchor: DailyMarkGlyph.dotBase)
+                .offset(y: frame.lift * Self.hopPoints * k)
                 .opacity(frame.bangShown ? 1 : 0)
+            ballShade
+            ball
             dot(frame.dot, from: motion.origin)
                 .opacity(frame.dotShown && !frame.still ? 1 : 0)
         }
@@ -381,6 +397,38 @@ private struct LaunchMark: View {
         .rotationEffect(.degrees(frame.markTilt), anchor: .bottom)
         .offset(x: frame.markOrigin.x, y: frame.markOrigin.y)
         .opacity(frame.markShown ? frame.markOpacity : 0)
+    }
+
+    /// The ball's shadow on the glass (Jesse, 2026-11-02, "ball shadow"). SwiftUI's blur radius is
+    /// twice the mock's CSS blur, which is a standard deviation.
+    private var ballShade: some View {
+        let b = frame.ball
+        return Circle()
+            .frame(width: 2 * b.r, height: 2 * b.r)
+            .blur(radius: 2 * frame.shadeBlur)
+            .position(x: b.x - motion.origin.x, y: b.y - motion.origin.y + frame.shadeDrop)
+            .opacity(frame.ballShown ? frame.shadeOpacity : 0)
+    }
+
+    /// The Town's round logo, or Block Party's own crest in a Town that has none yet (Jesse,
+    /// 2026-11-08: "bp crest").
+    private static let ballImage = UIImage(named: Town.logo) == nil ? "LaunchCrest" : Town.logo
+
+    /// The Town's round logo: rolling, stretched along its speed, squashed where it lands, and
+    /// going black as it does.
+    private var ball: some View {
+        let b = frame.ball
+        return Image(Self.ballImage)
+            .resizable()
+            .scaledToFill()
+            .frame(width: 2 * b.r, height: 2 * b.r)
+            .overlay { Circle().fill(Hue.onBrandDisc).opacity(frame.ballBlack) }
+            .clipShape(Circle())
+            .rotationEffect(.degrees(b.roll - b.heading))
+            .scaleEffect(x: b.sx, y: b.sy)
+            .rotationEffect(.degrees(b.heading))
+            .position(x: b.x - motion.origin.x, y: b.y - motion.origin.y)
+            .opacity(frame.ballShown ? 1 : 0)
     }
 
     /// The screen's middle as a point of Bp!'s canvas's box at rest.
@@ -401,6 +449,12 @@ private struct LaunchMark: View {
 
     private func piece(_ name: String) -> some View {
         Image(name).resizable().frame(width: box.width, height: box.height)
+    }
+
+    /// A canvas point as a point of the canvas's box.
+    private static func unit(_ p: CGPoint) -> UnitPoint {
+        UnitPoint(x: (p.x - LaunchMotion.canvas.minX) / LaunchMotion.canvas.width,
+                  y: (p.y - LaunchMotion.canvas.minY) / LaunchMotion.canvas.height)
     }
 
     /// One of the wordmark's pictures, each the whole word's size, moved about its own top left,

@@ -1,7 +1,7 @@
 //
 //  LaunchShows.swift
 //  Block Party — which launch a cold start plays. The day's first open has the dot write
-//  BlockParty.; every later one plays Bp! with the dot dropping in (Jesse, 2026-11-18: "for fast
+//  BlockParty.; every later one plays Bp! with the Town's ball dropping in (Jesse, 2026-11-18: "for fast
 //  opens let it be BP! with drop in dot and moves to tab bar"). Kept on the phone as "yyyy-mm-dd n".
 //
 
