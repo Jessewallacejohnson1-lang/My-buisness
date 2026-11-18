@@ -1,13 +1,16 @@
 //
 //  TodayBubbles.swift
-//  Block Party — today's events on the map as liquid-glass photo bubbles.
+//  Block Party — today's events on the map as glass-ringed photo bubbles.
 //
 //  Jesse's map-today idea (2026-10-22; References and the approved mock in BP app
 //  `references/map-today/`, pulse.html). One bubble per place with an event today:
-//  the event's photo, else the place's photo, else its logo, under Apple's Liquid
-//  Glass, the middle bent toward you like a dome and the photo fading into the clear
-//  glass at the rim. Every bubble counts down to its start all day; in the last hour
-//  a black ring empties around it. While an event is on (EventWhen.isOn), the
+//  the event's photo, else the place's photo, else its logo. Since map-glass-ring
+//  (2026-11-17, BP app `references/map-glass-ring/`, SPEC.md) it is the iPhone Camera's
+//  record button: a ring of Apple's Liquid Glass, dark like the Camera's, with the photo
+//  flat in the middle (0.845 of the button, Jesse's screenshot measured), and the ring
+//  turns the Now dot's green while the event is on. In the last hour before its start a
+//  bubble counts down and a black ring empties around it; further out it is the plain grey
+//  ring, no tag (Jesse, 2026-11-17). While an event is on (EventWhen.isOn), the
 //  bubble breathes 4% every 2.4 s with a dark shadow bleeding out, and its tag says
 //  "Now" behind Apple's green dot (taste/town.md, 2026-10-20). The shadow bleed
 //  replaces the plum live pulse for places that have a bubble (Jesse at Check-in 1).
@@ -58,10 +61,15 @@ enum TodayBubbleRules {
         event.when.flatMap { $0.timed ? $0.start : nil } ?? .distantFuture
     }
 
-    /// "1h 23m" an hour or more out, "8:05" inside the last hour.
-    static func countdown(_ secondsLeft: Int) -> String {
+    /// The last hour before a start, in seconds: the only time a bubble counts down, with its ring
+    /// (Jesse, 2026-11-17: "only do the countdown when it's under 1 hour").
+    static let lastHour = 3600
+
+    /// "8:05" in the last hour, as its ring empties; nil further out, where the bubble is its
+    /// plain grey ring.
+    static func countdown(_ secondsLeft: Int) -> String? {
+        guard secondsLeft < lastHour else { return nil }
         let s = max(0, secondsLeft)
-        if s >= 3600 { return "\(s / 3600)h \(String(format: "%02d", s % 3600 / 60))m" }
         return "\(s / 60):\(String(format: "%02d", s % 60))"
     }
 
@@ -77,8 +85,14 @@ enum TodayBubbleRules {
 
     /// How much of the ring is left: full an hour out, empty at the start; nil before the last hour.
     static func ringLeft(_ secondsLeft: Int) -> Double? {
-        guard secondsLeft <= 3600 else { return nil }
-        return max(0, Double(secondsLeft) / 3600)
+        guard secondsLeft < lastHour else { return nil }
+        return max(0, Double(secondsLeft) / Double(lastHour))
+    }
+
+    /// A bubble's next redraw after `date`: once a minute until `fast`, the start of its last hour
+    /// (landing on it exactly), then every second, as the countdown shows seconds only then.
+    static func nextTick(after date: Date, fast: Date) -> Date {
+        date < fast ? min(date.addingTimeInterval(60), fast) : date.addingTimeInterval(1)
     }
 
     /// A spot's events in the order its bubble and card show them: the ones on now (earliest
@@ -147,15 +161,17 @@ enum TodayBubbleRules {
 
 enum TodayBubbleClock {
     /// Now. In DEBUG, `-map-now HH:MM` pins the map's clock there at launch and lets it
-    /// tick on, so recordings can show a live bubble and a countdown at any hour.
+    /// tick on, so recordings can show a live bubble and a countdown at any hour; `HH:MM+1`
+    /// is that time a day on, for tomorrow's real Events when today's are over.
     static func now(_ real: Date = Date()) -> Date { real.addingTimeInterval(offset) }
 
     private static let offset: TimeInterval = {
         #if DEBUG
         guard let now = LaunchFlags.value(.mapNow) else { return 0 }
-        let parts = now.split(separator: ":").compactMap { Int($0) }
+        let day = now.split(separator: "+")
+        let parts = (day.first ?? "").split(separator: ":").compactMap { Int($0) }
         guard parts.count == 2 else { return 0 }
-        let target = parts[0] * 3600 + parts[1] * 60
+        let target = (day.count == 2 ? Int(day[1]) ?? 0 : 0) * 86_400 + parts[0] * 3600 + parts[1] * 60
         return Town.gregorian.startOfDay(for: Date()).addingTimeInterval(TimeInterval(target)).timeIntervalSinceNow
         #else
         return 0
@@ -217,12 +233,15 @@ struct TodayEventBubble: View {
     @State private var dragStart: Date?
 
     private static let bead: CGFloat = 46
+    /// The photo's share of the button: the record button's red, 0.845 of it (BP app
+    /// references/map-glass-ring/SPEC.md), so the glass ring is 3.5 pt wide at 46.
+    private static let window: CGFloat = 0.845
     private static let ring: CGFloat = 53
     private static let breath: Double = 2.4       // seconds per breath (Jesse's pick on the mock)
     private static let swell: CGFloat = 0.04      // 4% bigger at the peak
 
     var body: some View {
-        // Drawn at 46 pt and scaled as a whole, so a pinch never redraws the photo's dome.
+        // Drawn at 46 pt and scaled as a whole, so a pinch never redraws the photo.
         let scale = zoom.bead / Self.bead * (selected ? 1.12 : 1)
         let friends = TodayBubbleRules.friends(bubble.events)
         // Where the bubble's rim crosses its top right, at 45 degrees.
@@ -230,7 +249,7 @@ struct TodayEventBubble: View {
         // Room for the shadow bleed to spread (2.1x the bead) and the faces to reach past the rim
         // without being clipped by the annotation's frame; only the bead and faces take touches.
         let room = max(104 * scale, friends.isEmpty ? 0 : 2 * (rim + BubbleFaces.reach))
-        TimelineView(.periodic(from: .now, by: tickSeconds)) { tick in
+        TimelineView(BubbleTicks(fast: fastFrom)) { tick in
             let now = TodayBubbleClock.now(tick.date)
             let phase = TodayBubbleRules.phase(bubble.event, now: now)
             // Another day's Event, its page's ask (inside-cards 19): its day, unless it's on now.
@@ -265,18 +284,20 @@ struct TodayEventBubble: View {
         }
     }
 
-    /// The countdown only shows seconds in the last hour (and the ring only moves then),
-    /// so before that the bubble redraws once a minute, not every second.
-    private var tickSeconds: TimeInterval {
-        if case .upcoming(let left) = TodayBubbleRules.phase(bubble.event, now: TodayBubbleClock.now()),
-           left > 3600 + 60 { return 60 }
-        return 1
+    /// When the bubble starts redrawing every second: the start of its last hour (the countdown
+    /// shows seconds only then, and the ring only moves then); on, untimed or over, now. Before
+    /// that it redraws once a minute (`BubbleTicks`).
+    private var fastFrom: Date {
+        let real = Date()
+        guard case .upcoming(let left) = TodayBubbleRules.phase(bubble.event, now: TodayBubbleClock.now(real))
+        else { return real }
+        return real.addingTimeInterval(TimeInterval(left - TodayBubbleRules.lastHour))
     }
 
     // MARK: Parts
 
-    /// The bead: a Liquid Glass disc with the photo on it, bent like a dome and fading
-    /// into the clear glass at the rim, squished and stretched by the finger.
+    /// The bead: the Camera's record button, a Liquid Glass disc with the photo set flat in
+    /// its middle so the glass shows only as the ring, squished and stretched by the finger.
     private func gel(_ phase: TodayBubbleRules.Phase, scale: CGFloat) -> some View {
         let angle = Angle(radians: atan2(pull.height, pull.width))
         // At least 44 pt to the finger however small the zoom draws it.
@@ -294,7 +315,11 @@ struct TodayEventBubble: View {
                 // Plain, not .interactive(): the interactive glass swells and whitens under
                 // the finger on top of our own squish, which washed the photo out (frames
                 // 2026-10-22). The squish below is the touch response Jesse tuned.
-                .glassEffect(.regular, in: Circle())
+                // Dark like the Camera's, and the Now dot's green while it's on (Jesse, 2026-11-17).
+                // It turns at the start, with the tag's Now: the glass's tint doesn't animate (frames 2026-11-17).
+                .glassEffect(.regular.tint(phase == .live ? MapBubbleInk.live : MapBubbleInk.glass), in: Circle())
+                // The simulator's glass draws no edge light; the Camera's ring has one (frames 2026-11-17).
+                .overlay { RecordRim() }
                 // The glass never takes the touch itself: when it did, iOS lit it up and
                 // swelled it white over the photo and the ring (frames 2026-10-22). The
                 // clear disc on top takes the drag instead.
@@ -329,38 +354,31 @@ struct TodayEventBubble: View {
         let picture = bubble.picture
         let image = picture.flatMap { images.image(for: $0.url) }
         let isLogo = picture?.isLogo ?? false
+        let side = Self.bead * Self.window
         ZStack {
-            if let image {
+            if let image, !isLogo {
                 Image(uiImage: image)
                     .resizable()
-                    .aspectRatio(contentMode: isLogo ? .fit : .fill)
-                    .padding(isLogo ? 7 : 0)
-                    .frame(width: Self.bead, height: Self.bead)
-                    .visualEffect { content, proxy in
-                        content.distortionEffect(
-                            ShaderLibrary.bpDome(.float2(proxy.size)),
-                            maxSampleOffset: CGSize(width: proxy.size.width * 0.2, height: proxy.size.height * 0.2)
-                        )
-                    }
-                // The sides fall away a little, so the middle reads nearest.
-                RadialGradient(stops: [
-                    .init(color: .clear, location: 0.50),
-                    .init(color: MapBubbleInk.ink.opacity(0.18), location: 0.78),
-                    .init(color: MapBubbleInk.ink.opacity(0.26), location: 1),
-                ], center: UnitPoint(x: 0.5, y: 0.55), startRadius: 0, endRadius: Self.bead / 2)
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: side, height: side)
             } else {
-                Image(systemName: (bubble.event.category ?? .other).glyph)
-                    .font(.sans(17).weight(.semibold))
-                    .foregroundStyle(MapBubbleInk.ink)
+                // A logo, or no picture at all, sits on white, as on the Camera's button the red does.
+                Circle().fill(MapBubbleInk.paper)
+                if let image {
+                    Image(uiImage: image)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .padding(4)
+                } else {
+                    Image(systemName: (bubble.event.category ?? .other).glyph)
+                        .font(.sans(17).weight(.semibold))
+                        .foregroundStyle(MapBubbleInk.ink)
+                }
             }
         }
-        .frame(width: Self.bead, height: Self.bead)
-        // Solid in the middle, fading into the clear glass near the rim.
-        .mask(RadialGradient(stops: [
-            .init(color: .black, location: 0.70),
-            .init(color: .black.opacity(0.5), location: 0.82),
-            .init(color: .clear, location: 0.92),
-        ], center: .center, startRadius: 0, endRadius: Self.bead / 2))
+        .frame(width: side, height: side)
+        // Cut clean, as the record button's red: no fade, no bend.
+        .clipShape(Circle())
     }
 
     @ViewBuilder
@@ -391,9 +409,11 @@ struct TodayEventBubble: View {
                 }
                 .modifier(BubbleTag())
             case .upcoming(let left):
-                Text(TodayBubbleRules.countdown(left))
-                    .monospacedDigit()
-                    .modifier(BubbleTag())
+                if let countdown = TodayBubbleRules.countdown(left) {
+                    Text(countdown)
+                        .monospacedDigit()
+                        .modifier(BubbleTag())
+                }
             case .untimed, .ended:
                 EmptyView()
             }
@@ -531,6 +551,39 @@ private struct LiveBleed: View {
     }
 }
 
+/// A bubble's redraws: once a minute until `fast`, then every second (`TodayBubbleRules.nextTick`).
+/// Fixed times, so a bubble crossing into its last hour counts seconds even if nothing redraws it.
+private struct BubbleTicks: TimelineSchedule {
+    let fast: Date
+
+    func entries(from start: Date, mode: TimelineScheduleMode) -> AnyIterator<Date> {
+        var next = start
+        return AnyIterator {
+            defer { next = TodayBubbleRules.nextTick(after: next, fast: fast) }
+            return next
+        }
+    }
+}
+
+/// The record button's edge: a thin light on the outer rim, bright top and bottom and faint at the
+/// sides, and a hairline just outside it, as measured off Jesse's Camera screenshot (BP app
+/// references/map-glass-ring/SPEC.md: the light's strength every 30 degrees from the top).
+private struct RecordRim: View {
+    private static let light: [Double] = [0.72, 0.42, 0.2, 0.05, 0.08, 0.36, 0.72, 0.33, 0.06, 0.05, 0.2, 0.42, 0.72]
+
+    var body: some View {
+        ZStack {
+            Circle().strokeBorder(
+                AngularGradient(stops: Self.light.enumerated().map { i, a in
+                    .init(color: MapBubbleInk.paper.opacity(a), location: Double(i) / 12)
+                }, center: .center, startAngle: .degrees(-90), endAngle: .degrees(270)),
+                lineWidth: 1)
+            Circle().stroke(MapBubbleInk.ink.opacity(0.45), lineWidth: 0.5)
+        }
+        .allowsHitTesting(false)
+    }
+}
+
 /// The time tag under a bubble: a small glass capsule, ink text.
 private struct BubbleTag: ViewModifier {
     func body(content: Content) -> some View {
@@ -548,4 +601,10 @@ private struct BubbleTag: ViewModifier {
 /// The map is drawn light in both appearances, so the bubble's ink is the light-canvas ink.
 private enum MapBubbleInk {
     static let ink = Hue.ink.onLightCanvas
+    /// The record button's dark glass ring (BP app references/map-glass-ring).
+    static let glass = Hue.ink.onLightCanvas.opacity(0.66)
+    /// The ring while the event is on: the Now dot's green (Jesse, 2026-11-17).
+    static let live = Hue.now.onLightCanvas.opacity(0.85)
+    /// Under a logo, or a bubble with no picture.
+    static let paper = Hue.surface.onLightCanvas
 }

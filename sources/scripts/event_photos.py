@@ -39,7 +39,9 @@ like any Event (event-photos 22).
 A News found in a Facebook or Instagram post gets the same look (BP app town-feed 53; Jesse, 2026-11-08: "yes" to News
 showing its post's own photo): its own post's pictures only, never its place's other posts, down to NEWS_MIN_WIDTH, a
 real photo first, else its own flyer (Jesse, 2026-11-08: "never a flyer" allow). `keep` saves the pick as a place_photos row of kind 'news' tied to the News, and marks every
-News laid out as looked at (board_items.photo_checked_at).
+News laid out as looked at (board_items.photo_checked_at). The helper sees a News's first social.PICTURES; `keep` saves
+the pick at position 0 (whole when it is a flyer, so its card drops the headline) and the post's other pictures after it
+in the post's order, up to NEWS_PICTURES, for the News page's swipe (BP app town-feed 77).
 
 An Event is looked at again when its host gives it a new cover (apply_judged empties photo_checked_at when its Facebook
 event's cover changes) or a post about it is first seen since its last look (BP app watch-every-place 24; Jesse,
@@ -79,6 +81,7 @@ SMALL_MOST = 2                 # small pictures laid out for one Event, beside (
 # A News's own picture: Jesse took JoeTown's 720 px group shot of its new merch over the post's sharp portrait
 # ("the other ones get attention of users more", 2026-11-08, town-feed 53).
 NEWS_MIN_WIDTH = 720
+NEWS_PICTURES = 10             # a News keeps every picture of its post, up to Instagram's carousel's 10 (town-feed 77)
 PER_SHEET = 4                  # Events on one sheet, so a helper sees each picture big enough
 TILE = 300
 TOWN = TOWNS[DEFAULT]["photo_slug"]  # the photo store's folder and place_photos.town; --town sets it
@@ -234,11 +237,12 @@ def kind_of(row):
     return "instagram" if row.get("_task", "").endswith("instagram") or row.get("shortCode") else "facebook"
 
 
-def pictures(row):
-    """A row's pictures as [{url, about}]: a post's (social.picture_urls, full size), an Events tab's cover."""
+def pictures(row, most=social.PICTURES):
+    """A row's pictures as [{url, about}]: a post's (social.picture_urls, full size, at most `most`), an Events tab's
+    cover."""
     if row.get("imageUrl") and not row.get("media"):
         return [{"url": row["imageUrl"], "about": row.get("imageCaption") or ""}]
-    return [{**p, "url": full_size(p["url"])} for p in social.picture_urls(kind_of(row), row)]
+    return [{**p, "url": full_size(p["url"])} for p in social.picture_urls(kind_of(row), row, most)]
 
 
 def social_rows(now):
@@ -266,7 +270,7 @@ def said(row):
     return " ".join(str(row.get("text") or row.get("caption") or "").split())[:200]
 
 
-def from_posts(group, rows, share=None, more=PLACE_MORE):
+def from_posts(group, rows, share=None, more=PLACE_MORE, most=social.PICTURES):
     """A post's own pictures, then its page's other photos: [{url, about, from, page}]. An Event a post links
     to (facebook.com/events/<n>) takes that post's pictures, or the Events tab's cover. A post that shares a
     link to a story (CSB's post on Emily Sheehan's show, 2026-11-03) comes with Facebook's 139 px preview only:
@@ -286,7 +290,7 @@ def from_posts(group, rows, share=None, more=PLACE_MORE):
     link = own[0].get("link") or ""
     story = (share or share_picture)(link) if link.startswith("http") and not POST.search(link) else None
     out = ([{"url": story, "about": "", "from": "page", "page": link}] if story else []) \
-        + [{**p, "from": "post", "page": page, "posted": posted(own[0])[:10], "words": said(own[0])} for p in pictures(own[0])]
+        + [{**p, "from": "post", "page": page, "posted": posted(own[0])[:10], "words": said(own[0])} for p in pictures(own[0], most)]
     mine = len(out)
     seen = {post_key(r.get("url")) for r in own}
     for r in rows:
@@ -357,8 +361,9 @@ def candidates(groups, rows, banners, share=share_picture, read=None):
     for g in groups:
         src = g["source_url"]
         if POST.search(src):
-            # A News takes only its own post's pictures (Jesse, 2026-11-08).
-            g["cands"] = from_posts(g, rows, share, more=0 if g.get("news") else PLACE_MORE)
+            # A News takes only its own post's pictures (Jesse, 2026-11-08), every one of them (town-feed 77).
+            g["cands"] = (from_posts(g, rows, share, more=0, most=NEWS_PICTURES) if g.get("news")
+                          else from_posts(g, rows, share))
         elif CAMPUS_PAGE.search(src):
             pic = banners.get(CAMPUS_PAGE.search(src).group(1))
             g["cands"] = [{"url": pic, "about": "", "from": "listing", "page": src}] if pic else []
@@ -421,9 +426,12 @@ def sheets(groups, folder):
     import place_photos
     from PIL import Image, ImageDraw
     shown = [g for g in groups if g["cands"]]
+    # A News's helper sees its post's first social.PICTURES, as the morning judge does (its cost); keep saves the rest
+    # after its pick (town-feed 77).
+    laid = lambda g: g["cands"][:social.PICTURES] if g.get("news") else g["cands"]
     for i in range(0, len(shown), PER_SHEET):
         part, k = shown[i:i + PER_SHEET], i // PER_SHEET + 1
-        cols = max(len(g["cands"]) for g in part)
+        cols = max(len(laid(g)) for g in part)
         sheet = Image.new("RGB", (cols * TILE + 20, len(part) * (TILE + 80) + 10), "white")
         d, big, small = ImageDraw.Draw(sheet), place_photos.font(22), place_photos.font(16)
         lines = [f"Sheet: {folder / f'sheet-{k}.png'}", ""]
@@ -445,8 +453,8 @@ def sheets(groups, folder):
                                                    **({"posted": c["posted"]} if c.get("posted") else {}),
                                                    **({"small": True} if c.get("small") else {}),
                                                    **({"words": c["words"]} if c.get("words") else {})}
-                                                  for c in g["cands"]]}, ensure_ascii=False))
-            for col, c in enumerate(g["cands"]):
+                                                  for c in laid(g)]}, ensure_ascii=False))
+            for col, c in enumerate(laid(g)):
                 im = Image.open(c["file"])
                 im.thumbnail((TILE - 10, TILE - 10))
                 x = col * TILE + 10
@@ -613,11 +621,22 @@ def keep(out, dry_run=False, db=None, now=None):
                                "return=minimal")
             g, (c, shows, flyer) = by_key[what], picks[what]
             if g.get("news"):
+                # The pick leads at 0, marked whole when it is the post's own graphic (its card then drops the
+                # headline); the post's other pictures follow in the post's order, each saved on its own, so one
+                # an earlier run saved skips only itself (town-feed 77).
                 n = g["news"]
-                return place_photos.save_picture(db, Image.open(c["file"]), "news", c["page"], town=TOWN,
-                                                 events=[(n["id"], entry_of(n))], description=shows,
-                                                 credit=n.get("source_name") if POST.search(c["page"]) else None,
-                                                 proposed_by=OWN)
+                rest = [o for o in g["cands"] if o["from"] == "post" and o["n"] != c["n"]][:NEWS_PICTURES - 1]
+                for at, pic in enumerate([c] + rest):
+                    try:
+                        place_photos.save_picture(db, Image.open(pic["file"]), "news", pic["page"], town=TOWN,
+                                                  events=[(n["id"], entry_of(n))], description=shows if at == 0 else None,
+                                                  credit=n.get("source_name") if POST.search(pic["page"]) else None,
+                                                  position=at or None, whole=True if at == 0 and flyer else None,
+                                                  proposed_by=OWN)
+                    except DbError as e:
+                        if e.status != 409:
+                            raise
+                return
             if c["from"] == "now showing":
                 return  # it stays
             im = image_of(c)
@@ -1482,14 +1501,55 @@ def selftest():
         said = keep(out, db=fake, now=datetime(2026, 11, 8, 11, tzinfo=timezone.utc))
         put = [p for m, p, b in fake.calls if m == "PUT"]
         sent = [r for m, p, b in fake.calls if p == "place_photos" for r in b]
-        check(len(put) == 1 and put[0].startswith(f"places/{TOWN}/news/news-") and len(sent) == 1
-              and {k: sent[0].get(k) for k in ("news_id", "event_id", "entry_id", "kind", "credit", "description", "source_url")}
+        check(len(put) == 2 and put[0].startswith(f"places/{TOWN}/news/news-") and len(sent) == 2
+              and {k: sent[0].get(k) for k in ("news_id", "event_id", "entry_id", "kind", "credit", "description", "source_url",
+                                               "position", "whole")}
               == {"news_id": "news1", "event_id": None, "entry_id": "joetown", "kind": "news", "credit": "JoeTown",
-                  "description": "Four friends in the new tees", "source_url": "https://www.instagram.com/p/MERCH/"},
+                  "description": "Four friends in the new tees", "source_url": "https://www.instagram.com/p/MERCH/",
+                  "position": None, "whole": None},
               "keep saves a News's pick as its own kind, tied to the News, credited to its place, linking its post")
+        check({k: sent[1].get(k) for k in ("news_id", "kind", "position", "description", "whole")}
+              == {"news_id": "news1", "kind": "news", "position": 1, "description": None, "whole": None},
+              "town-feed 77: the post's other picture follows the pick at position 1")
         check([(m, p) for m, p, b in fake.calls if m == "PATCH"] == [("PATCH", "board_items?id=eq.news1")]
               and said.endswith("; 1 of 1 new News from posts got their post's photo"),
               f"the News is marked looked at, and the line counts it: {said}")
+        # town-feed 77: a flyer pick leads, marked whole, and the post's other pictures follow in the post's order;
+        # one an earlier run saved (409) skips only itself.
+        (out / "event_photos.jsonl").write_text('{"event": "n1", "pick": "c2", "flyer": true, "shows": "Tee sale graphic"}\n')
+
+        class Saved(place_photos.Unsent):
+            def rest(self, method, path, body=None, prefer=None):
+                if method == "POST" and path == "place_photos" and body and body[0].get("position") == 1:
+                    self.calls.append((method, path, body))
+                    raise DbError(method, path, 409, "duplicate key value violates unique constraint place_photos_one_per_news")
+                return super().rest(method, path, body, prefer)
+        fake = Saved("https://db.example")
+        (out / "photos" / "kept.json").unlink()  # a fresh run's, as prepare leaves it
+        keep(out, db=fake, now=datetime(2026, 11, 8, 11, tzinfo=timezone.utc))
+        sent = [r for m, p, b in fake.calls if p == "place_photos" for r in b]
+        check([(r.get("position"), r.get("whole"), r.get("description")) for r in sent]
+              == [(None, True, "Tee sale graphic"), (1, None, None)]
+              and [m for m, p, b in fake.calls if m == "PATCH"] == ["PATCH"],
+              "town-feed 77: a flyer pick leads marked whole, the group shot follows; a 409 skips only itself")
+    # town-feed 77: a News reads up to NEWS_PICTURES of its post, an Event still social.PICTURES; its sheet shows the first
+    # social.PICTURES only.
+    many = [f"https://x.cdninstagram.com/slide{i}.jpg" for i in range(12)]
+    ng = news_groups([{**merch, "source_url": "https://www.instagram.com/p/MANY/"}])
+    candidates(ng, [ig("MANY", many)], {}, share=lambda u: 1 / 0)
+    eg = [{"source_url": "https://www.instagram.com/p/MANY/", "title": "x", "events": [{}], "key": "e1"}]
+    candidates(eg, [ig("MANY", many)], {}, share=lambda u: 1 / 0)
+    check(len(ng[0]["cands"]) == NEWS_PICTURES and len([c for c in eg[0]["cands"] if c["from"] == "post"]) == social.PICTURES,
+          f"a News reads {NEWS_PICTURES} of its post's pictures, an Event {social.PICTURES}")
+    with tempfile.TemporaryDirectory() as tmp:
+        out = Path(tmp)
+        check(not download(ng, out / "photos", lambda c, dest: Image.effect_noise((800, 1000), 40 + int(c["url"][-5:-4], 16) * 3)
+                                                                    .convert("RGB").save(dest) or (800, 1000))
+              and len(ng[0]["cands"]) == NEWS_PICTURES, "every picture downloads for the News")
+        sheets(ng, out / "photos")
+        said = json.loads((out / "photos" / "batch-1.txt").read_text().splitlines()[2])
+        check(len(said["pictures"]) == social.PICTURES and Image.open(out / "photos" / "sheet-1.png").width == social.PICTURES * TILE + 20,
+              "the helper's sheet shows a News's first 3 only")
 
     # dig-deeper 22: the daily dig's free rungs
     named = {"event": "d1", "pages": [{"from": "news", "url": "https://thenewsleaders.com/choir"},

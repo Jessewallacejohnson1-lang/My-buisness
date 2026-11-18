@@ -7,7 +7,7 @@
 //  the counts as numbers over words, your two black buttons, then Going as the Group page's
 //  "Coming up" date tiles and Groups, each list in a white card on the grey. The cover's round
 //  buttons are glass that never changes with the photo. The text under the name is SF Pro
-//  (`Font.apple`), the one screen off BP Body (Jesse: "use same font as group page").
+//  (`Font.apple`) (Jesse: "use same font as group page"); since 2026-11-18 all body text is.
 //
 //  Going is per Event, never a person's agenda (friends spec, 2026-10-13): your own is your full
 //  Calendar and Agenda, which only you see; a friend's only the Events you're both Going to, a

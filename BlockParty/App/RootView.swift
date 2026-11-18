@@ -809,10 +809,10 @@ struct MainTabsView: View {
         // day with nothing in it.
         case .blockParty:
             Group {
-                if DailySpotlight.today != nil || eventOfTheDay.events != nil {
+                if eventOfTheDay.events != nil {
                     // The Town feed's list, worked out once for the page (daily-tab 25).
                     let feed = townFeed.shown
-                    DailyPage(spotlight: DailySpotlight.today, events: eventOfTheDay.events ?? [],
+                    DailyPage(events: eventOfTheDay.events ?? [],
                               picked: $dailyDay, dayPicks: dayPicks, friends: dailyFriends,
                               cards: feed.compactMap(\.card), posts: feed.compactMap(\.post),
                               // A story you hid or whose place you muted goes here too.

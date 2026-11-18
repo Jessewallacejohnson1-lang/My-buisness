@@ -34,6 +34,9 @@ final class POILogoCache: ObservableObject {
         let cfg = URLSessionConfiguration.default
         cfg.urlCache = URLCache(memoryCapacity: memoryCacheBytes, diskCapacity: diskCacheBytes)
         cfg.requestCachePolicy = .returnCacheDataElseLoad   // logos are immutable per URL
+        #if DEBUG
+        if LaunchFlags.has(.forgetPhotos) { cfg.urlCache?.removeAllCachedResponses() }  // `-forget-photos` (tab-lag 03)
+        #endif
         return URLSession(configuration: cfg)
     }()
 

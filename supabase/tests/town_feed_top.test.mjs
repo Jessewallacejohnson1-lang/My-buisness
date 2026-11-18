@@ -1,6 +1,6 @@
 // The top five (BP app town-feed 73): an open after an hour or more away rolls a new top, and the Town feed starts
 // with five real happenings from the next 7 days, big first, made yours by your interests and the kinds of Events you
-// went Going to, at most 3 of them yours, drawn by chance from the best 8. Run: `npm test` in this folder.
+// went Going to, yours before big (town-feed 76), at most 4 of them yours, drawn by chance from the best 8 of each. Run: `npm test` in this folder.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { realDatabase, adminClaims } from './fixture.mjs';
@@ -101,22 +101,23 @@ test('the same roll draws the same five, and the last roll\'s first never leads 
   assert.ok(tops.size > 5, `rolls mix it up: ${tops.size} different tops in 15`);
 });
 
-test('yours counts one draw step, at most 3 of the 5 are yours, one per creator (town-feed 73)', async () => {
+test('yours counts two draw steps and comes first, at most 4 of the 5, the fifth the best not yours, one per creator (town-feed 76)', async () => {
   await reset();
-  for (const n of [1, 2, 3, 4, 5]) await add(`Poetry ${n}`, '2026-10-10', { tags: ['books'] });
+  // Nine of yours: the best 8 are all yours, and the spot yours can't take still fills.
+  for (const n of [1, 2, 3, 4, 5, 6, 7, 8, 9]) await add(`Poetry ${n}`, '2026-10-10', { tags: ['books'] });
   for (const n of [1, 2, 3]) await add(`Concert ${n}`, '2026-10-10', { tags: ['live_music'] });
   await add('Brewery night', '2026-10-10', { source: 'Brewery', draw: 3 });
   await add('Brewery trivia', '2026-10-10', { source: 'Brewery', draw: 3 });
   await signIn(['books']);
   const rows = await rolled(1);
   const weight = Object.fromEntries(rows.map((r) => [r.title, r.weight]));
-  near(weight['Poetry 1'], 2 * weight['Concert 1'], 'yours weighs one draw step more');
-  near(weight['Poetry 1'], weight['Brewery night']);
+  near(weight['Poetry 1'], 4 * weight['Concert 1'], 'yours weighs two draw steps more');
+  near(weight['Poetry 1'], 2 * weight['Brewery night'], 'yours comes before big');
   for (const seed of seeds(30)) {
     const top = topOf(await rolled(seed));
-    assert.equal(top.length, 5);
-    assert.equal(top.filter((t) => t.startsWith('Poetry')).length, 3, `yours always make it, 3 at most: ${top}`);
-    assert.ok(top.filter((t) => t.startsWith('Brewery')).length <= 1, top.join());
+    assert.equal(top.length, 5, `five, though the best 8 are all yours: ${top}`);
+    assert.ok(top.slice(0, 4).every((t) => t.startsWith('Poetry')), `yours first, 4 at most: ${top}`);
+    assert.ok(top[4].startsWith('Brewery'), `the fifth is the biggest not yours, one per creator: ${top}`);
   }
 });
 
@@ -131,7 +132,7 @@ test('a kind you went Going to is yours; where it was (a campus) is not (town-fe
   await add('Bingo', '2026-10-10');
   await signIn();
   const weight = Object.fromEntries((await rolled(1)).map((r) => [r.title, r.weight]));
-  near(weight['Novelist talk'], 2 * weight.Bingo);
+  near(weight['Novelist talk'], 4 * weight.Bingo);
   near(weight['Campus concert'], weight.Bingo);
 });
 

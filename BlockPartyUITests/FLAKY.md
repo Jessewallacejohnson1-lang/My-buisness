@@ -55,6 +55,8 @@ flake moves to Fixed, dated, and stays there.
   on feat/review-queue-details just after merging a941d5e7, a change with no Town card
   code: the card never moved (659 not under 609) · passed 3 of 3 alone straight after, at load 16 to 26 · no fix
   yet: a 0.05 s press before the drag may read as a hold on a loaded Mac
+  · red again 2026-11-18 in a full run on feat/map-glass-ring just after merging 9a6a0f2 (Town feed read-ahead),
+  load about 17 over 15 minutes: same 659 not under 609 · passed 3 of 3 alone straight after, at load 4 to 5
 
 - 2026-11-07 · `morning.py --selftest` "finish once more writes nothing new but the report's one row, and
   says the same" · red once on the Mac on feat/never-blind (a change to `live_lines` only), green on the next

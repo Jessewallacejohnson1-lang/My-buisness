@@ -4593,6 +4593,44 @@ test("a News shows its post's own live photo and its shape, in the feed and Foll
   await db.exec('delete from public.place_photos');
 });
 
+test("a News with several pictures is one card: its first, flagged when it's the post's graphic, every one for its page (town-feed 77)", async () => {
+  await reset();
+  await db.exec('delete from public.place_photos');
+  await followPlace(ME);
+  const peony = { source_name: PEONY, place_entry_id: 'white-peony' };
+  await news('Black Friday at Peony', '2026-10-08 09:00', peony);
+  const id = (await db.query("select id from public.board_items where title = 'Black Friday at Peony'")).rows[0].id;
+  const photo = (url, position, whole = false) => db.query(
+    `insert into public.place_photos (entry_id, url, source_url, kind, status, news_id, credit, width, height, position, whole)
+     values ('white-peony', $1, 'https://www.facebook.com/p/x/', 'news', 'live', $2, $3, 1080, 1350, $4, $5)`,
+    [url, id, PEONY, position, whole]);
+  await photo('https://x/news/slide-1.webp', 0, true);
+  await photo('https://x/news/slide-3.webp', 2);
+  await photo('https://x/news/slide-2.webp', 1);
+  await assert.rejects(photo('https://x/news/again.webp', 1), /place_photos_one_per_news/, 'one live picture per position');
+  const read = async () => {
+    await signIn(ME);
+    const feed = (await db.query(
+      `select title, image_url, poster from public.flat_town_feed(('2026-10-08 12:00'::timestamp at time zone 'America/Chicago'), true)
+       where kind = 'news'`)).rows.map((r) => [r.title, r.image_url, r.poster]);
+    const following = (await db.query(
+      `select title, image_url, poster from public.get_following_news(('2026-10-08 12:00'::timestamp at time zone 'America/Chicago'))`
+    )).rows.map((r) => [r.title, r.image_url, r.poster]);
+    await db.exec('reset role; reset request.jwt.claim.sub');
+    return { feed, following };
+  };
+  const slides = ['https://x/news/slide-1.webp', 'https://x/news/slide-2.webp', 'https://x/news/slide-3.webp'];
+  const card = [['Black Friday at Peony', slides[0], { aspect: 0.8, flyer: true, photos: slides }]];
+  assert.deepEqual(await read(), { feed: card, following: card }, 'one row, the first picture, flagged, all three in order');
+  await db.query("update public.place_photos set status = 'retired' where url = $1", [slides[0]]);
+  const next = [['Black Friday at Peony', slides[1], { aspect: 0.8, photos: slides.slice(1) }]];
+  assert.deepEqual(await read(), { feed: next, following: next }, 'the graphic taken down: the next picture leads, a photo');
+  await db.query("update public.place_photos set status = 'retired' where url = $1", [slides[2]]);
+  const one = [['Black Friday at Peony', slides[1], { aspect: 0.8 }]];
+  assert.deepEqual(await read(), { feed: one, following: one }, 'one left: no swipe');
+  await db.exec('delete from public.place_photos');
+});
+
 test('News from the places you follow: 10 at most, the newest', async () => {
   await reset();
   await followPlace(ME);

@@ -38,7 +38,8 @@ struct SJMapView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(TownFeed.self) private var townFeed
     @Environment(LiveGames.self) private var liveGames
-    @StateObject private var model = MapModel()
+    // The map's clock decides which day is today, so `-map-now` can move it in DEBUG.
+    @StateObject private var model = MapModel(now: { TodayBubbleClock.now() })
 
     /// The zoom the map opens at: downtown and Saint Ben's fill the screen, so their bubbles
     /// don't pile up (Jesse at Check-in 1).

@@ -48,11 +48,8 @@ allowlist of the palettes named below). A call split across lines is still caugh
     declared but no longer drawn — it went mustard over photographs.
     The Town's Event of the day poster prints its date in `brandDisc`, as DICE does (Jesse,
     2026-10-19, BP app event-card 03), on the poster's own dark, `Hue.poster`.
-    **The one yellow ground** is the top of the Daily page (Jesse, 2026-10-01): `brandDisc`
-    down to just under the Spotlight's business line. The status edge is gone at rest and fades
-    in over the first 20pt of scroll (`statusEdge(opacity:)`): both its haze and its blur
-    turn the yellow under the clock into a near-yellow. Never put a SwiftUI `.mask` over that edge: masking its UIKit blur kept
-    the app from going idle and the UI tests waited minutes per step (2026-10-01).
+    Never put a SwiftUI `.mask` over the status edge: masking its UIKit blur kept the app from
+    going idle and the UI tests waited minutes per step (2026-10-01).
   - The rule is **white ground + small yellow accents, every yellow derived from
     `brandYellowHex`** — never a second yellow, never a call-site hex. These are scoped
     surface tints, not second accents.
@@ -66,19 +63,19 @@ allowlist of the palettes named below). A call split across lines is still caugh
   `Font.system(size:)` is FROZEN while `Font.custom(_:size:)` scales unbounded, and mixing
   them broke Dynamic Type across every screen. Both faces now scale against a shared text
   style. The SF helpers snap to the nearest system step, so `Font.sans(14)` renders at 15;
-  Jost keeps its exact size. `Font.logo` and `Font.glyph(_:weight:)` are the deliberate
-  frozen exceptions — **`glyph` is for ARTWORK only** (map markers, the heart burst, avatar
+  Inter Tight and BP Event Heading keep their exact size. `Font.glyph(_:weight:)` is the one
+  deliberate frozen exception — **ARTWORK only** (map markers, the heart burst, avatar
   placeholders, tab bar icons), and text reaching for it is a bug. The tab bar has no
   labels (2026-09-27).
   - **Faces.** Headers and button words are **Inter Tight** via `Font.display`/`displaySemi`
     (static Bold and SemiBold, OFL licence alongside; Jesse, 2026-11-02); event, news and game
-    card titles are **BP Event Heading** via `Font.eventDisplay`; body/UI/data are **BP Body**
-    via `Font.sans*`/`Font.mono*`, with numbers tabular via `.monospacedDigit()`. Jost is left
-    only in the frozen `Font.logo` word. **Onboarding is the exception:** every word in
+    card titles are **BP Event Heading** via `Font.eventDisplay`; body/UI/data are Apple's **SF
+    Pro** via `Font.sans*`/`Font.mono*`, with numbers tabular via `.monospacedDigit()` (BP Body,
+    Fraunces and Jost left the app on 2026-11-18, BP app backlog 35). **Onboarding is the exception:** every word in
     `Features/Onboarding/`, the Welcome and Done included, is Apple's system font via
     `Font.apple`/`appleFont` (Jesse, 2026-11-09; BP app onboarding 34).
   - **PostScript names must be used exactly** `[prose]` — `InterTight-Bold`,
-    `InterTight-SemiBold`, and Jost's `JostRoman-SemiBold`. A wrong name falls back to the
+    `InterTight-SemiBold`, `BPEventHeading-Regular`. A wrong name falls back to the
     system font **silently**; `testEveryFaceIsBundled` catches it.
     `registerBlockPartyFonts()` registers every bundled ttf, so each face self-registers.
 - **Brand artwork** `[prose]` — the app icon is Jesse's Icon Composer file

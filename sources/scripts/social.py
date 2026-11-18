@@ -562,8 +562,8 @@ def needs_pictures(text):
     return len(text.split()) < SHORT_WORDS or not CLOCK.search(text)
 
 
-def picture_urls(kind, row):
-    """A post's pictures, at most PICTURES, as Apify saved them: Facebook's `media` (a video's
+def picture_urls(kind, row, most=PICTURES):
+    """A post's pictures, at most `most` (PICTURES unless asked), as Apify saved them: Facebook's `media` (a video's
     is its still), Instagram's `displayUrl` then a carousel's `images` and `childPosts`. With
     Meta's own description of each where it has one ("May be an image of text that says …")."""
     if kind == "facebook":
@@ -578,7 +578,7 @@ def picture_urls(kind, row):
         if key and url.startswith("http") and key not in seen:  # one picture under two signed addresses
             seen.add(key)
             out.append({"url": url, "about": (about or "").strip()})
-    return out[:PICTURES]
+    return out[:most]
 
 
 def picture_tokens(w, h):
