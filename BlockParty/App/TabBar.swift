@@ -499,27 +499,3 @@ struct TabBarCompactKey: PreferenceKey {
         value = value || nextValue()
     }
 }
-
-/// What a reserved tab shows until its screen is built: the slot's name and the one
-/// line describing what will live there. Deliberately quiet — a named, empty room
-/// reads as reserved, where a bare screen reads as broken.
-struct BlankTab: View {
-    let tab: Tab
-
-    var body: some View {
-        ZStack {
-            Hue.paper.ignoresSafeArea()
-            VStack(spacing: 8) {
-                Text(tab.title)
-                    .font(.display(22))
-                    .foregroundStyle(Hue.ink)
-                Text(tab.promise)
-                    .font(.sans(14))
-                    .foregroundStyle(Hue.inkSecondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 44)
-            }
-            .accessibilityElement(children: .combine)
-        }
-    }
-}
