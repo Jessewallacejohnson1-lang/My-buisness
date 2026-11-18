@@ -8,7 +8,8 @@ starting point: interests, friends and follows move each person's feed from ther
 
 Each message gives the interest list, then the Events, one JSON object per line: its `id`,
 `title`, `host` (who puts it on), `place`, `about` (the start of its description, often
-empty) and `category` (one interest the writer already gave it, or null).
+empty), `category` (one interest the writer already gave it, or null) and `weekly: true` when the
+same Event comes back every week.
 
 ## How to tag
 
@@ -63,14 +64,20 @@ What some interests cover (BP app docs/plans/onboarding, tickets 14, 15 and 21):
 
 ## How much it draws
 
-The `draw` is how many neighbours would make a point of going, not whether it's worthy:
+The `draw` is how many neighbours would make a point of going, not whether it's worthy. The
+Town feed opens to the 3s (BP app town-feed 74), and a weekly Event is never one:
 
-- **3**: an outing many would plan around. A festival, fair, homecoming, parade, big concert,
-  holiday market, a fundraiser dinner the town turns out for, a big game.
-- **2**: a normal public event for whoever's into it. A class, talk, trivia night, recital,
-  service open to visitors, club night, a regular game, a sale.
-- **1**: routine business most people skip. City council, board, commission and committee
-  meetings, school picture retakes, "the trimester ends", staff or members-only dates.
+- **3**: what the town turns out for or plans a day around. A festival, fair, parade, homecoming,
+  a concert (a band, choir or orchestra; not one student's recital), a big game (a rivalry,
+  homecoming, playoff or college football game), a farmers, holiday or Christmas market, a craft
+  fair, a fundraiser dinner the town turns out for.
+- **2**: a one-off Event for whoever's into it. A talk, workshop, one-time class, trivia night,
+  recital, play, a regular game, a sale, a club night.
+- **1**: what comes back every week, and routine business. A `weekly` class, session, service,
+  drop-in, bingo night, meat raffle or open gym; city council, board, commission and committee
+  meetings; school picture retakes, "the trimester ends"; staff or members-only dates. A city's
+  own class, sport or program (Pilates at City Hall, youth volleyball) is 2 even when weekly: from
+  a city, 1 means a meeting, which the feed shows only to those who follow it.
 
 When unsure, 2.
 

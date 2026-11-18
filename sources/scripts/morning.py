@@ -810,15 +810,50 @@ def to_tag(db, today):
     """Approved Events no tagger has read or rated, or with no words saying what they are, still to
     come or still running, as the tagger reads them. `tagged`: read and rated before, so only its
     words are written."""
-    rows = db.rest("GET", "club_events?select=id,title,location,description,category,source_name,"
+    rows = db.rest("GET", "club_events?select=id,title,location,description,category,source_name,club_id,submitted_by,"
                           "interests_tagged_at,draw,clubs(name)"
                    "&status=eq.approved&kind=eq.event"
                    f"&and={quote(f'(or(interests_tagged_at.is.null,draw.is.null,what.is.null),or(event_date.gte.{today},end_at.gte.{today}))')}"
                    "&order=event_date&limit=1000")
+    weeks = weekly_series(db, today) if rows else set()
     return [{"id": r["id"], "title": r["title"], "host": (r.get("clubs") or {}).get("name") or r.get("source_name") or "",
              "place": r.get("location") or "", "about": " ".join((r.get("description") or "").split())[:300],
-             "category": r.get("category"),
+             "category": r.get("category"), **({"weekly": True} if series_key(r) in weeks else {}),
              "tagged": bool(r.get("interests_tagged_at") and r.get("draw"))} for r in rows]
+
+
+def series_key(r):
+    """An Event's series as the Town feed keys it: its title and who puts it on."""
+    return (" ".join((r.get("title") or "").split()).lower(),
+            r.get("club_id") or r.get("source_name") or r.get("submitted_by") or "")
+
+
+def is_weekly(days):
+    """A series that comes back every week (a weekly class, bingo night): 3 or more dates over 3 weeks or more, most of
+    them a week or less apart. A show's run of nights spans less; a monthly meeting's dates are further apart."""
+    days = sorted(set(days))
+    if len(days) < 3 or (days[-1] - days[0]).days < 21:
+        return False
+    gaps = sorted((b - a).days for a, b in zip(days, days[1:]))
+    return gaps[len(gaps) // 2] <= 9
+
+
+def weekly_series(db, today):
+    """The series with dates every week, from 4 weeks back to 4 weeks ahead, so the tagger rates a weekly class 1 (BP
+    app town-feed 74). Read in pages: the window holds about 1,000 Events."""
+    path = ("club_events?select=title,club_id,source_name,submitted_by,event_date&status=eq.approved&kind=eq.event"
+            f"&event_date=gte.{today - timedelta(days=28)}&event_date=lte.{today + timedelta(days=28)}&order=id")
+    rows = []
+    while True:
+        got = db.rest("GET", f"{path}&limit=1000&offset={len(rows)}") or []
+        rows += got
+        if len(got) < 1000:
+            break
+    days = collections.defaultdict(list)
+    for r in rows:
+        if r.get("event_date"):
+            days[series_key(r)].append(date.fromisoformat(r["event_date"][:10]))
+    return {k for k, d in days.items() if is_weekly(d)}
 
 
 def tag_message(events, interests):
@@ -1766,6 +1801,17 @@ def selftest():
                    "the model never sees the tagged mark"))
     checks.append(("Interests: dining, faith" in tag_message([{"id": "e1"}], ["dining", "faith"]),
                    "each batch carries the interest list"))
+    d = lambda *n: [date(2026, 11, 1) + timedelta(days=k) for k in n]
+    checks.append((is_weekly(d(0, 7, 14, 21)) and is_weekly(d(0, 3, 7, 10, 14, 17, 21, 24))
+                   and not is_weekly(d(0, 1, 7, 8)) and not is_weekly(d(0, 28, 56)) and not is_weekly(d(0, 7, 14)),
+                   "weekly: 3 or more dates over 3 weeks, mostly a week apart; not a show's run, a monthly meeting or 2 weeks"))
+    rows = [{"id": "b", "title": "Bingo  Night", "source_name": "Sal's", "event_date": "2026-11-17"},
+            {"id": "f", "title": "Fall Festival", "club_id": "c1", "event_date": "2026-11-18"}]
+    series = [{"title": "bingo night", "source_name": "Sal's", "event_date": f"2026-11-{n:02}"} for n in (3, 10, 17, 24)]
+    tagdb = FakeDb(answers={"club_events?select=id,": rows, "club_events?select=title,": series})
+    checks.append(([e.get("weekly") for e in to_tag(tagdb, date(2026, 11, 17))] == [True, None]
+                   and '"weekly": true' in tag_message(to_tag(tagdb, date(2026, 11, 17)), ["games"]),
+                   "the tagger is told which Events come back every week"))
     today = [{"id": "g"}, {"id": "t"}, {"id": "b"}]
     rows = plan_standouts([{"id": "g", "why": " Rivals,  under the lights "}, {"id": "zz", "why": "not today"},
                            {"id": "t", "why": ""}, "unreadable line: {", {"id": "g", "why": "again"},
