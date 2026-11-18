@@ -443,12 +443,19 @@ final class FrameGapLog {
     private var frames = 0
     private var dropped = 0
     private var worstMs = 0.0
+    /// The last tap's finger lift (`UITouch.timestamp`, the display link's clock), until its line prints.
+    private var tapUp: TimeInterval?
+    private var tapWorstMs = 0.0
+    private var tapStallMs = 0.0
 
     func start() {
         guard link == nil else { return }
         let l = CADisplayLink(target: self, selector: #selector(tick))
         l.add(to: .main, forMode: .common)
         link = l
+        let clock = TapClock { [weak self] up in self?.tapUp = up; self?.tapWorstMs = 0; self?.tapStallMs = 0 }
+        UIApplication.shared.connectedScenes.compactMap { ($0 as? UIWindowScene)?.keyWindow }.first?
+            .addGestureRecognizer(clock)
     }
 
     @objc private func tick(_ l: CADisplayLink) {
@@ -465,6 +472,51 @@ final class FrameGapLog {
         if frames % 300 == 0 {
             print("FrameGapLog: \(frames) frames, \(dropped) drops, worst \(Int(worstMs))ms")
         }
+        // A tap: the longest freeze in the 0.6 s after the finger's lift (the screen can't start to move
+        // before it ends) and all the time lost to freezes there (tab-lag 02).
+        if let up = tapUp {
+            let now = CACurrentMediaTime()
+            tapWorstMs = max(tapWorstMs, gapMs)
+            if gapMs > budgetMs { tapStallMs += gapMs - l.duration * 1000 }
+            if now - up > 0.6 {
+                print("FrameGapLog: TAP worst=\(Int(tapWorstMs))ms stall=\(Int(tapStallMs))ms")
+                tapUp = nil
+            }
+        }
+    }
+}
+
+/// Sees every finger lift in the window without taking part: it never recognizes, cancels nothing and
+/// lets every other recognizer run. A finger that moved over 10 pt was a scroll, not a tap.
+private final class TapClock: UIGestureRecognizer, UIGestureRecognizerDelegate {
+    private let lifted: (TimeInterval) -> Void
+    private var down: CGPoint?
+
+    init(lifted: @escaping (TimeInterval) -> Void) {
+        self.lifted = lifted
+        super.init(target: nil, action: nil)
+        cancelsTouchesInView = false
+        delaysTouchesBegan = false
+        delaysTouchesEnded = false
+        delegate = self
+    }
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+        down = touches.first?.location(in: view)
+    }
+
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) {
+        if let touch = touches.first, let down, hypot(touch.location(in: view).x - down.x,
+                                                      touch.location(in: view).y - down.y) < 10 {
+            lifted(touch.timestamp)
+        }
+        state = .failed
+    }
+
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent) { state = .failed }
+
+    func gestureRecognizer(_ g: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool {
+        true
     }
 }
 #endif
