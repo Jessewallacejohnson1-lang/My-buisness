@@ -146,6 +146,9 @@ struct EventCalendarView: View {
     @State private var picked: Date?
     /// The furthest month shown so far, as an index into the months: they stay drawn.
     @State private var furthest = 0
+    /// Off until the page has come in: the tap draws this month and the picked day's card, and the month and
+    /// days a swipe reaches next come a moment later, so the pill's first frame waits on less (tab-lag 02).
+    @State private var settled = false
     @Namespace private var ring
 
     var body: some View {
@@ -168,7 +171,7 @@ struct EventCalendarView: View {
                     // there: the year at once held the pill's first frame for half a second (BP app tab-lag 02).
                     // A month past that stands in as its own height. Only this month and the two beside it ask
                     // for their photos: a year of them at once kept the month on screen waiting behind the rest.
-                    if EventCalendar.drawn(page, shown: month, furthest: furthest, in: months) {
+                    if EventCalendar.drawn(page, shown: month, furthest: furthest, in: months) && (settled || page == month) {
                         grid(page, byDay: EventCalendar.near(page, month, in: months) ? byDay : [:], today: today,
                              day: day, loaded: events != nil)
                             .padding(.horizontal, CalendarMetric.gridInset)
@@ -186,6 +189,10 @@ struct EventCalendarView: View {
         }
         // On every visit and a new account; the list on screen stays meanwhile.
         .task(id: auth.accountKey) { await model.loadCalendar() }
+        .task {
+            try? await Task.sleep(for: .milliseconds(400))
+            settled = true
+        }
     }
 
     // MARK: The month
@@ -300,7 +307,7 @@ struct EventCalendarView: View {
             AgendaPager(pages: pages, day: day, pick: { pick($0, from: day) }) { page in
                 // The picked day and the two beside it, as the months: a card for every day of the year held
                 // the pill's first frame (tab-lag 02). A day further off is drawn once a move brings it beside.
-                if EventCalendar.near(page, day, in: pages) {
+                if EventCalendar.near(page, day, in: pages) && (settled || page == day) {
                     dayCard(page, events: byDay[page] ?? [], today: today, now: now, planned: planned)
                 } else {
                     Color.clear.frame(height: 0)
