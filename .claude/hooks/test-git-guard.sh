@@ -28,6 +28,17 @@ expect "git add -A ':(top)'"           "git add -A ':(top)'" deny
 expect "git add -A ':!secret'"         "git add -A ':!secret'" deny
 expect "git add -A './*'"              "git add -A './*'" deny
 expect "git add -A '**'"               "git add -A '**'" deny
+# A redirection or a comment is not a path (review check, 2026-11-18).
+expect "git add -A 2>/dev/null"        'git add -A 2>/dev/null' deny
+expect "git add -A >/dev/null"         'git add -A >/dev/null' deny
+expect "git add -A # stage"            'git add -A # stage' deny
+# Spellings of the whole tree.
+expect "git add -A \\."                'git add -A \.' deny
+expect "git add -A ./."                'git add -A ./.' deny
+expect "git add -A .//"                'git add -A .//' deny
+expect "git add -A <dir>/.."           'git add -A BlockParty/..' deny
+expect "git add -A ~/<repo>"           'git add -A ~/Documents/bp-ag-24' deny
+expect "git add -A {.,a.swift}"        'git add -A {.,a.swift}' deny
 expect "git add -A <file> *.swift"     'git add -A a.swift "*.swift"' deny
 expect "git add -A a?.swift"           'git add -A a?.swift' deny
 expect "git add -A [ab].swift"         'git add -A [ab].swift' deny

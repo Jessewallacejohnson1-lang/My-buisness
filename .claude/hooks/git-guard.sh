@@ -48,13 +48,19 @@ blanket_add() {
         all=0 paths=0 wide=0
         set -f
         for a in $args; do
-            a="${a//\"/}"; a="${a//\'/}"
+            case "$a" in '#'*) break ;; [0-9]'>'*|'>'*|'<'*) continue ;; esac  # a comment or a redirection, not a path
+            [ "$a" = '>' ] && continue
+            a="${a//\"/}"; a="${a//\'/}"; a="${a//\\/}"
+            case "$a" in --*|-*) ;; *)  # ./x is x, x/ is x: so ./. and .// read as .
+                while [[ $a == ./?* ]]; do a="${a#./}"; done
+                while [[ $a == ?*/ ]]; do a="${a%/}"; done ;;
+            esac
             case "$a" in
                 --all) all=1 ;;
                 --*|'') ;;
                 -*A*) all=1 ;;
                 -*) ;;
-                .|./|..*|/*|:*|*[*?[]*|*'$'*|*'`'*) paths=1 wide=1 ;;  # pathspec magic, a glob, a variable or $(…), absolute
+                .|./|..*|*/..|*/../*|/*|'~'*|:*|*[*?[{]*|*'$'*|*'`'*) paths=1 wide=1 ;;  # the tree, x/.., absolute or ~, pathspec magic, a glob or {,}, a variable or $(…)
                 *) paths=1 ;;
             esac
         done
