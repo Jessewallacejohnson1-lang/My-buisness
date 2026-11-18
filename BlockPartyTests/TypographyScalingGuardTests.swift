@@ -56,8 +56,7 @@ final class TypographyScalingGuardTests: XCTestCase {
     func testEveryFaceIsBundled() {
         registerBlockPartyFonts()
         for face in [Face.displaySemi, Face.displayBold,
-                     Face.logo, Face.eventHeadline, Face.logoSerif,
-                     Face.bodyRegular, Face.bodyMedium, Face.bodySemi, Face.bodyBold] {
+                     Face.eventHeadline] {
             XCTAssertNotNil(UIFont(name: face, size: 17), face)
         }
     }

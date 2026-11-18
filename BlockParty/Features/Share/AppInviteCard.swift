@@ -20,8 +20,8 @@ struct AppInviteCard: View {
             Rectangle().fill(Hue.hairline).frame(height: 1).padding(.top, 2)
             HStack(spacing: 9) {
                 BlockPartyMark(side: 30)
-                Text("Block Party")
-                    .font(.logo(20)).foregroundStyle(Hue.ink)
+                // The logo art, not a face imitating it (Jost until 2026-11-18, BP app backlog 35).
+                BlockPartyWordmark(height: 18).foregroundStyle(Hue.ink)
             }
         }
         .padding(24)

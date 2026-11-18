@@ -2,16 +2,16 @@
 //  BlockPartyFont.swift
 //  Block Party — design tokens (typography)
 //
-//  Inter Tight is the header and button-word face (`display`, `displaySemi`; Jesse,
-//  2026-11-02: "all headers besides events"); BP Body is the body, UI, and data face
-//  through the sans and mono helpers; BP Event Heading is scoped to the one role it was
-//  drawn for, the event headline (`eventDisplay`); Jost is left only in the frozen `logo`
-//  word, and Fraunces Black in the one word that stands in for the logo (`logoSerif`). Numbers keep tabular figures by
-//  pairing the mono helpers with `.monospacedDigit()` at the call site (BP Body
-//  carries a `tnum` feature for it). SF Pro is left only in `glyph`, for symbols.
+//  Two bundled faces and Apple's. Inter Tight is the header and button-word face (`display`,
+//  `displaySemi`; Jesse, 2026-11-02: "all headers besides events"); BP Event Heading is scoped
+//  to the one role it was drawn for, the event headline (`eventDisplay`); everything else is SF
+//  Pro, Apple's face, through the sans, mono and apple helpers and `glyph` for symbols. BP Body,
+//  Fraunces and Jost left the app on 2026-11-18 (Jesse: "cut bp body frauces and jost", BP app
+//  backlog 35). Numbers keep tabular figures by pairing the mono helpers with
+//  `.monospacedDigit()` at the call site.
 //
-//  EVERY helper here scales with Dynamic Type except the three that say, in their
-//  own doc comment, why they must not. That is the whole point of this file, and
+//  EVERY helper here scales with Dynamic Type except `glyph`, which says, in its
+//  own doc comment, why it must not. That is the whole point of this file, and
 //  `TypographyScalingGuardTests` is what keeps it true: no other file in the app
 //  may name a raw point size, because the two ways of naming one behave oppositely
 //  and mixing them is what broke text scaling app-wide.
@@ -35,22 +35,9 @@ enum Face {
     /// Fonts variable font with fontTools' instancer: headers and button words.
     static let displaySemi    = "InterTight-SemiBold"
     static let displayBold    = "InterTight-Bold"
-    /// Jost's PostScript names are inconsistent upstream: `JostRoman-SemiBold`, exactly.
-    static let logo           = "JostRoman-SemiBold"
 
     /// BP Event Heading — the event headline, and nothing else.
     static let eventHeadline  = "BPEventHeading-Regular"
-
-    /// Fraunces at Black, fully soft, its 144 pt cut: one static instance of the OFL
-    /// variable font (`Fraunces-OFL.txt`), made with fontTools' instancer.
-    static let logoSerif      = "Fraunces-144ptSuperSoftBlackNonWonky"
-
-    /// BP Body, traced from Jesse's sheet (`scripts/body-font/`). Four weights;
-    /// the sheet has one, the rest are grown from it.
-    static let bodyRegular    = "BPBody-Regular"
-    static let bodyMedium     = "BPBody-Medium"
-    static let bodySemi       = "BPBody-SemiBold"
-    static let bodyBold       = "BPBody-Bold"
 }
 
 /// Register every bundled .ttf so its PostScript name resolves. Idempotent.
@@ -76,8 +63,7 @@ extension Font {
     ///
     /// Display faces keep their exact size and use this only as the rate at which
     /// they grow. The body helpers land on the step instead — `sans(14)` renders
-    /// at 15 — because they were SF Pro, which can only name a style, and every
-    /// screen was approved at those sizes.
+    /// at 15 — because SF Pro can only name a style.
     ///
     /// ponytail: the app currently spends 22 distinct sizes across these 10 steps,
     /// so the argument is closer to a hint than a measurement. Collapsing the call
@@ -117,8 +103,7 @@ extension Font {
 
     /// Event headline face — BP Event Heading, the app's own.
     ///
-    /// The third face in a file whose header says there are two, so it is scoped on
-    /// purpose: the headline that sits ON an event photograph, and the same headline
+    /// Scoped on purpose: the headline that sits ON an event photograph, and the same headline
     /// on the event's detail page. Neither of the faces already here was right for it
     /// — SF Pro Bold and Jost SemiBold both read light over a picture — and neither
     /// was a released typeface the reference could be matched to. Measured, the
@@ -134,34 +119,15 @@ extension Font {
         .custom(Face.eventHeadline, size: size, relativeTo: style ?? nearestTextStyle(to: size))
     }
 
-    /// The logo's face for a word: Fraunces Black, soft. The logo itself is drawn art
-    /// with no font behind it; letter by letter this is the closest released face to
-    /// its heavy rounded serif. Scoped to Daily's "Spotlight" over the yellow (Jesse,
-    /// 2026-10-19).
-    static func logoSerif(_ size: CGFloat, relativeTo style: TextStyle? = nil) -> Font {
-        .custom(Face.logoSerif, size: size, relativeTo: style ?? nearestTextStyle(to: size))
-    }
+    // MARK: - UI / body — SF Pro
 
-    // MARK: - UI / body — BP Body
-
-    /// BP Body at the nearest text style's size, scaling with it. The sheet has
-    /// no light weight, so `sansLight` is Regular.
-    private static func body(_ face: String, _ size: CGFloat) -> Font {
-        let style = nearestTextStyle(to: size)
-        return .custom(face, size: stepSize[style] ?? size, relativeTo: style)
-    }
-
-    /// Apple's sizes for each step at the default content size.
-    private static let stepSize: [TextStyle: CGFloat] = [
-        .caption2: 11, .caption: 12, .footnote: 13, .subheadline: 15, .callout: 16,
-        .body: 17, .title3: 20, .title2: 22, .title: 28, .largeTitle: 34,
-    ]
-
-    static func sansLight(_ size: CGFloat) -> Font { body(Face.bodyRegular, size) }
-    static func sans(_ size: CGFloat) -> Font { body(Face.bodyRegular, size) }
-    static func sansMedium(_ size: CGFloat) -> Font { body(Face.bodyMedium, size) }
-    static func sansSemibold(_ size: CGFloat) -> Font { body(Face.bodySemi, size) }
-    static func sansBold(_ size: CGFloat) -> Font { body(Face.bodyBold, size) }
+    /// SF Pro at the nearest text style, scaling with it: body, labels and data (BP Body until
+    /// 2026-11-18, at the same sizes and weights). `sansLight` stays Regular, as it always drew.
+    static func sansLight(_ size: CGFloat) -> Font { apple(size) }
+    static func sans(_ size: CGFloat) -> Font { apple(size) }
+    static func sansMedium(_ size: CGFloat) -> Font { apple(size, weight: .medium) }
+    static func sansSemibold(_ size: CGFloat) -> Font { apple(size, weight: .semibold) }
+    static func sansBold(_ size: CGFloat) -> Font { apple(size, weight: .bold) }
 
     /// SF Pro at the nearest text style, scaling with it: Profile's text under the name (Jesse,
     /// 2026-10-25: "use same font as group page", the Group page's SF Pro before BP Body; BP app
@@ -175,14 +141,10 @@ extension Font {
     // Data — paired with `.monospacedDigit()` at the call site for tabular figures
     // (was Geist Mono). Same metrics as the sans helpers by design; the separate
     // name records the intent at the call site.
-    static func mono(_ size: CGFloat) -> Font { body(Face.bodyRegular, size) }
-    static func monoMedium(_ size: CGFloat) -> Font { body(Face.bodyMedium, size) }
+    static func mono(_ size: CGFloat) -> Font { sans(size) }
+    static func monoMedium(_ size: CGFloat) -> Font { sansMedium(size) }
 
-    // MARK: - The three that must not scale
-
-    /// Logo — Jost SemiBold, frozen; the one place Jost is left. A logo is a mark, not text: it holds its
-    /// proportions against the artwork beside it at every content size.
-    static func logo(_ size: CGFloat) -> Font { .custom(Face.logo, fixedSize: size) }
+    // MARK: - The one that must not scale
 
     /// A glyph drawn at a fixed size because it is ARTWORK, not text.
     ///
