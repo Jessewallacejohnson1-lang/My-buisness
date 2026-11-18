@@ -369,7 +369,7 @@ struct ChatPage: View {
             if !empty, ready {
                 Button { send(thread) } label: {
                     FeedActionGlyphView(glyph: .send, size: ChatMetric.sendGlyph)
-                        .foregroundStyle(Hue.surface)
+                        .foregroundStyle(.white)
                         .frame(width: ChatMetric.sendWidth, height: ChatMetric.sendHeight)
                         .background { ChatMineFill(screen: screen).clipShape(Capsule()) }
                         .contentShape(TapArea())
@@ -881,7 +881,7 @@ private struct ChatBubble: View {
         case .text(let words):
             Text(words)
                 .appleFont(16)
-                .foregroundStyle(mine ? Hue.surface : Hue.ink)
+                .foregroundStyle(mine ? .white : Hue.ink)
                 .padding(.horizontal, ChatMetric.bubbleX)
                 .padding(.vertical, ChatMetric.bubbleY)
                 .background {
@@ -1159,7 +1159,7 @@ private struct ChatRequestBar: View {
             HStack(spacing: ChatMetric.chipGap) {
                 pill("Block", fill: Hue.chatButton, ink: Hue.chatBlock, action: block)
                 pill("Delete", fill: Hue.chatButton, ink: Hue.ink) { act { try await chats.decline(chat); done(true) } }
-                pill("Accept", fill: Hue.chatBlue, ink: Hue.surface) { act { try await chats.accept(chat); done(false) } }
+                pill("Accept", fill: Hue.chatBlue, ink: .white) { act { try await chats.accept(chat); done(false) } }
             }
             .turnBackShake(failures: failures, shakes: !reduceMotion)
         }

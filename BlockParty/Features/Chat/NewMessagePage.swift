@@ -185,7 +185,7 @@ struct NewMessagePage: View {
             Button { open() } label: {
                 Text(picked.count > 1 ? "Start group of \(picked.count + 1)" : "Chat")
                     .appleFont(14, weight: .semibold)
-                    .foregroundStyle(Hue.surface)
+                    .foregroundStyle(.white)
                     .frame(maxWidth: .infinity, minHeight: ChatMetric.pickButton)
                     .background(Hue.chatBlue, in: RoundedRectangle(cornerRadius: ChatMetric.pickButtonCorner, style: .continuous))
                     .contentShape(Rectangle())

@@ -297,27 +297,28 @@ nonisolated enum Hue {
     static let rinkBlue      = Color(hex: 0x4D8DFF)
 
     // MARK: Messages (Instagram's chat, measured: BP app references/messages-instagram/SPEC.md)
+    // The mock is the light look only. The dark partners are the app's own dark greys, a step up from `surface`, guessed.
 
     /// Their bubble, the search fields, a row's tag and the host's card.
-    static let chatFill      = Color(hex: 0xF4F5F7)
+    static let chatFill      = Color(light: 0xF4F5F7, dark: 0x2A2A27)
     /// The grey words: a row's last words, "Requests", a bar's second line, the composer's prompt.
-    static let chatGrey      = Color(hex: 0x6A6F75)
+    static let chatGrey      = Color(light: 0x6A6F75, dark: 0x9C9A93)
     /// A time stamp, a time at the side and a name over a bubble.
-    static let chatStamp     = Color(hex: 0x74787C)
-    static let chatComposer  = Color(hex: 0xF6F6F6)
+    static let chatStamp     = Color(light: 0x74787C, dark: 0x9C9A93)
+    static let chatComposer  = Color(light: 0xF6F6F6, dark: 0x2A2A27)
     /// Accept, New message's button and "1 request".
     static let chatBlue      = Color(hex: 0x4A5DF7)
     /// An unread chat's dot.
     static let chatDot       = Color(hex: 0x5364FC)
     static let chatClearAll  = Color(hex: 0x4E5EE5)
     /// Block, Delete and "View profile".
-    static let chatButton    = Color(hex: 0xF1F2F6)
-    static let chatViewProfile = Color(hex: 0xEEF2F5)
+    static let chatButton    = Color(light: 0xF1F2F6, dark: 0x2A2A27)
+    static let chatViewProfile = Color(light: 0xEEF2F5, dark: 0x2A2A27)
     static let chatBlock     = Color(hex: 0xED4956)
     /// The line under a chat's bar and over a request's buttons.
-    static let chatLine      = Color(hex: 0xEDEDED)
+    static let chatLine      = Color(light: 0xEDEDED, dark: 0x33332E)
     /// An empty tick's ring and a chip's outline.
-    static let chatRing      = Color(hex: 0xDBDFE4)
+    static let chatRing      = Color(light: 0xDBDFE4, dark: 0x45443D)
     static let chatTypingDot = Color(hex: 0x9DA2A8)
 
     /// Your bubble's colour at a height on Instagram's 852 pt screen: violet at the top to blue at the bottom.
