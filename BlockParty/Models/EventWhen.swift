@@ -9,6 +9,7 @@
 //
 
 import Foundation
+import os
 
 nonisolated struct EventWhen: Hashable {
     /// When it starts; Town midnight when it isn't `timed`.
@@ -72,6 +73,21 @@ extension EventWhen {
     /// bare "7:00", which could be either); then "noon" or "midnight". A word before any
     /// digit wins over all of them.
     nonisolated static func minutes(_ raw: String?) -> Int? {
+        guard let raw else { return nil }
+        if let known = read.withLock({ $0[raw] }) { return known }
+        let minutes = reading(raw)
+        read.withLock { kept in
+            if kept.count >= 2000 { kept.removeAll() }
+            kept[raw] = minutes
+        }
+        return minutes
+    }
+
+    /// Each start already read, and what it read as: a year of Events has the same few dozen, and the patterns
+    /// below took half the Event calendar's read of its year on the main thread (BP app tab-lag 02).
+    private static let read = OSAllocatedUnfairLock(initialState: [String: Int?]())
+
+    private nonisolated static func reading(_ raw: String?) -> Int? {
         guard let text = raw?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(), !text.isEmpty
         else { return nil }
         // A word ahead of any digit starts it: "noon-2pm" is noon, "midnight to 2 AM" midnight.
