@@ -8,8 +8,9 @@
 //  (2026-11-17, BP app `references/map-glass-ring/`, SPEC.md) it is the iPhone Camera's
 //  record button: a ring of Apple's Liquid Glass, dark like the Camera's, with the photo
 //  flat in the middle (0.845 of the button, Jesse's screenshot measured), and the ring
-//  turns the Now dot's green while the event is on. Every bubble counts down to its start all day; in the last hour
-//  a black ring empties around it. While an event is on (EventWhen.isOn), the
+//  turns the Now dot's green while the event is on. In the last hour before its start a
+//  bubble counts down and a black ring empties around it; further out it is the plain grey
+//  ring, no tag (Jesse, 2026-11-17). While an event is on (EventWhen.isOn), the
 //  bubble breathes 4% every 2.4 s with a dark shadow bleeding out, and its tag says
 //  "Now" behind Apple's green dot (taste/town.md, 2026-10-20). The shadow bleed
 //  replaces the plum live pulse for places that have a bubble (Jesse at Check-in 1).
@@ -60,10 +61,11 @@ enum TodayBubbleRules {
         event.when.flatMap { $0.timed ? $0.start : nil } ?? .distantFuture
     }
 
-    /// "1h 23m" an hour or more out, "8:05" inside the last hour.
-    static func countdown(_ secondsLeft: Int) -> String {
+    /// "8:05" in the last hour, as its ring empties; nil further out, where the bubble is its
+    /// plain grey ring (Jesse, 2026-11-17: "only do the countdown when it's under 1 hour").
+    static func countdown(_ secondsLeft: Int) -> String? {
+        guard secondsLeft <= 3600 else { return nil }
         let s = max(0, secondsLeft)
-        if s >= 3600 { return "\(s / 3600)h \(String(format: "%02d", s % 3600 / 60))m" }
         return "\(s / 60):\(String(format: "%02d", s % 60))"
     }
 
@@ -393,9 +395,11 @@ struct TodayEventBubble: View {
                 }
                 .modifier(BubbleTag())
             case .upcoming(let left):
-                Text(TodayBubbleRules.countdown(left))
-                    .monospacedDigit()
-                    .modifier(BubbleTag())
+                if let countdown = TodayBubbleRules.countdown(left) {
+                    Text(countdown)
+                        .monospacedDigit()
+                        .modifier(BubbleTag())
+                }
             case .untimed, .ended:
                 EmptyView()
             }

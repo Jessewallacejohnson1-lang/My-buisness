@@ -28,9 +28,12 @@ final class TodayBubblesTests: XCTestCase {
         XCTAssertEqual(TodayBubbleRules.phase(ev("all", "All day"), now: sevenPM), .untimed)
     }
 
-    func testCountdownReadsHoursThenMinutesAndSeconds() {
-        XCTAssertEqual(TodayBubbleRules.countdown(5 * 3600 + 3 * 60 + 59), "5h 03m")
-        XCTAssertEqual(TodayBubbleRules.countdown(3600), "1h 00m")
+    /// Only the last hour counts down, with the ring; further out the bubble is its plain grey ring
+    /// (Jesse, 2026-11-17: "only do the countdown when it's under 1 hour").
+    func testCountdownOnlyInTheLastHour() {
+        XCTAssertNil(TodayBubbleRules.countdown(5 * 3600 + 3 * 60 + 59))
+        XCTAssertNil(TodayBubbleRules.countdown(3601))
+        XCTAssertEqual(TodayBubbleRules.countdown(3600), "60:00", "with the full ring")
         XCTAssertEqual(TodayBubbleRules.countdown(3599), "59:59")
         XCTAssertEqual(TodayBubbleRules.countdown(485), "8:05")
         XCTAssertEqual(TodayBubbleRules.countdown(-3), "0:00")
