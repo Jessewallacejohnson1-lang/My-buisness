@@ -68,11 +68,13 @@ The `draw` is how many neighbours would make a point of going, not whether it's 
 Town feed opens to the 3s (BP app town-feed 74), and a weekly Event is never one:
 
 - **3**: what the town turns out for or plans a day around. A festival, fair, parade, homecoming,
-  a concert (a band, choir or orchestra; not one student's recital), a big game (a rivalry,
-  homecoming, playoff or college football game), a farmers, holiday or Christmas market, a craft
+  a concert by a college, community, semi-professional or touring band, choir or orchestra
+  (wherever it is listed), a big game (a rivalry, homecoming, playoff or college football game), a
+  farmers, holiday or Christmas market or a vendor market (at a farm, brewery or bar too), a craft
   fair, a fundraiser dinner the town turns out for.
 - **2**: a one-off Event for whoever's into it. A talk, workshop, one-time class, trivia night,
-  recital, play, a regular game, a sale, a club night.
+  recital, play, a concert by a school's own students (mostly their families go), a regular game,
+  a sale, a club night.
 - **1**: what comes back every week, and routine business. A `weekly` class, session, service,
   drop-in, bingo night, meat raffle or open gym; city council, board, commission and committee
   meetings; school picture retakes, "the trimester ends"; staff or members-only dates. A city's
