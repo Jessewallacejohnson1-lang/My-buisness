@@ -3,7 +3,7 @@
 # PreToolUse (Bash): block the two git commands that have gone wrong in this
 # shared checkout, with the reason attached so the next attempt is the right one.
 #
-#   git add -A / --all with no path (or ., :/, *, ../…), git add . , git commit -a
+#   git add -A / --all with no path (or ., :/, *, $…, ../…), git add . , git commit -a
 #       Several Claude sessions work this tree at once. A blanket stage sweeps
 #       whatever another session has in flight into the commit; on 2026-09-19 it
 #       took 45 foreign files and was caught only by reading the diff before the
@@ -36,7 +36,8 @@ deny() {
 # git and its global options, values included (-C <dir>, -c <key=value>).
 git_pre='git +((-[Cc] +("[^"]*"|[^ ]+)|-[^ ]+) +)*'
 
-# `git add -A` / `--all` with no path, or a path meaning everything (., :/, *, ../…).
+# `git add -A` / `--all` with no path, or a path that can mean everything: ., ./, ../…, /…, :… (pathspec
+# magic), a glob (* ? [), or $ / ` (a variable or a command's output, unknown until the shell runs it).
 # With named paths it passes, wherever the flag sits: that is how a deletion is staged.
 blanket_add() {
     local seg args a all paths wide
@@ -53,7 +54,7 @@ blanket_add() {
                 --*|'') ;;
                 -*A*) all=1 ;;
                 -*) ;;
-                .|./|:/|'*'|..*) paths=1 wide=1 ;;
+                .|./|..*|/*|:*|*[*?[]*|*'$'*|*'`'*) paths=1 wide=1 ;;  # pathspec magic, a glob, a variable or $(…), absolute
                 *) paths=1 ;;
             esac
         done

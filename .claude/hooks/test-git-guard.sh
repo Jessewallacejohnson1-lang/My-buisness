@@ -24,6 +24,19 @@ expect "git add -A :/"                 'git add -A :/' deny
 expect "git add -A *"                  'git add -A "*"' deny
 expect "git add -A ../other"           'git add -A ../other' deny
 expect "git add -A <file> ../other"    'git add -A a.swift ../other' deny
+expect "git add -A ':(top)'"           "git add -A ':(top)'" deny
+expect "git add -A ':!secret'"         "git add -A ':!secret'" deny
+expect "git add -A './*'"              "git add -A './*'" deny
+expect "git add -A '**'"               "git add -A '**'" deny
+expect "git add -A <file> *.swift"     'git add -A a.swift "*.swift"' deny
+expect "git add -A a?.swift"           'git add -A a?.swift' deny
+expect "git add -A [ab].swift"         'git add -A [ab].swift' deny
+expect "git add -A \"\$PWD\""           'git add -A "$PWD"' deny
+expect "git add -A \$(git ls-files -m)" 'git add -A $(git ls-files -m)' deny
+expect "git add -A \`git ls-files\`"   'git add -A `git ls-files -m`' deny
+expect "git add -A <absolute path>"    'git add -A /Users/owner/Documents/bp-ag-24' deny
+expect "git add -A ./"                 'git add -A ./' deny
+expect "git add -A .."                 'git add -A ..' deny
 expect "git -C <dir> add -A"           'git -C /tmp/wt add -A' deny
 expect "git add -A after cd &&"        'cd /tmp/wt && git add -A' deny
 expect "git commit -a"                 'git commit -a' deny
@@ -32,6 +45,7 @@ expect "git commit -am \"x\""          'git commit -am "x"' deny
 # Named paths pass, wherever -A sits: the way to stage a deletion too.
 expect "git add -A <file> <file>"      'git add -A BlockParty/A.swift docs/debug-flags.md' allow
 expect "git add <file> -A"             'git add BlockParty/A.swift -A' allow
+expect "git add -A ./<file>"           'git add -A ./BlockParty/A.swift' allow
 expect "git add --all <dir>"           'git add --all BlockParty BlockPartyTests' allow
 expect "git -C <dir> add -A <file>"    'git -C /tmp/wt add -A BlockParty/A.swift' allow
 expect "git add -A <file> && commit"   'git add -A a.swift && git commit -m "fix: x"' allow
