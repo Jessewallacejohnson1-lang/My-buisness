@@ -1131,13 +1131,15 @@ struct GameScoring: View {
         if !game.plays.isEmpty {
             section("Scoring plays") {
                 // Basketball's newest 5 until "Show all" (game-card 09; Jesse, 2026-11-01: yes to the mock's pick).
+                let newest = Set(game.plays.suffix(Game.newestPlays).map(\.id))
                 ForEach(game.listedPlays(all: all)) { play in
                     row(play)
                         // A rewrite's words fill in with the scorers' cross-fade (game-card 13).
                         .animation(reduceMotion ? nil : Motion.smooth, value: play.text)
                         // A new play slides in on top; basketball's oldest of the 5 fades where it is, not
-                        // sliding up over the rest.
-                        .transition(reduceMotion ? .opacity
+                        // sliding up over the rest. The plays "Show all" opens fade in where they are too: sliding,
+                        // each one's words crossed the row above it (game-card 34).
+                        .transition(reduceMotion || (game.foldsPlays && !newest.contains(play.id)) ? .opacity
                                     : .asymmetric(insertion: .move(edge: .top).combined(with: .opacity), removal: .opacity))
                 }
                 if game.foldsPlays { showAll }
