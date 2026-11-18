@@ -61,10 +61,14 @@ enum TodayBubbleRules {
         event.when.flatMap { $0.timed ? $0.start : nil } ?? .distantFuture
     }
 
+    /// The last hour before a start, in seconds: the only time a bubble counts down, with its ring
+    /// (Jesse, 2026-11-17: "only do the countdown when it's under 1 hour").
+    static let lastHour = 3600
+
     /// "8:05" in the last hour, as its ring empties; nil further out, where the bubble is its
-    /// plain grey ring (Jesse, 2026-11-17: "only do the countdown when it's under 1 hour").
+    /// plain grey ring.
     static func countdown(_ secondsLeft: Int) -> String? {
-        guard secondsLeft <= 3600 else { return nil }
+        guard secondsLeft < lastHour else { return nil }
         let s = max(0, secondsLeft)
         return "\(s / 60):\(String(format: "%02d", s % 60))"
     }
@@ -81,8 +85,14 @@ enum TodayBubbleRules {
 
     /// How much of the ring is left: full an hour out, empty at the start; nil before the last hour.
     static func ringLeft(_ secondsLeft: Int) -> Double? {
-        guard secondsLeft <= 3600 else { return nil }
-        return max(0, Double(secondsLeft) / 3600)
+        guard secondsLeft < lastHour else { return nil }
+        return max(0, Double(secondsLeft) / Double(lastHour))
+    }
+
+    /// A bubble's next redraw after `date`: once a minute until `fast`, the start of its last hour
+    /// (landing on it exactly), then every second, as the countdown shows seconds only then.
+    static func nextTick(after date: Date, fast: Date) -> Date {
+        date < fast ? min(date.addingTimeInterval(60), fast) : date.addingTimeInterval(1)
     }
 
     /// A spot's events in the order its bubble and card show them: the ones on now (earliest
@@ -239,7 +249,7 @@ struct TodayEventBubble: View {
         // Room for the shadow bleed to spread (2.1x the bead) and the faces to reach past the rim
         // without being clipped by the annotation's frame; only the bead and faces take touches.
         let room = max(104 * scale, friends.isEmpty ? 0 : 2 * (rim + BubbleFaces.reach))
-        TimelineView(.periodic(from: .now, by: tickSeconds)) { tick in
+        TimelineView(BubbleTicks(fast: fastFrom)) { tick in
             let now = TodayBubbleClock.now(tick.date)
             let phase = TodayBubbleRules.phase(bubble.event, now: now)
             // Another day's Event, its page's ask (inside-cards 19): its day, unless it's on now.
@@ -274,12 +284,14 @@ struct TodayEventBubble: View {
         }
     }
 
-    /// The countdown only shows seconds in the last hour (and the ring only moves then),
-    /// so before that the bubble redraws once a minute, not every second.
-    private var tickSeconds: TimeInterval {
-        if case .upcoming(let left) = TodayBubbleRules.phase(bubble.event, now: TodayBubbleClock.now()),
-           left > 3600 + 60 { return 60 }
-        return 1
+    /// When the bubble starts redrawing every second: the start of its last hour (the countdown
+    /// shows seconds only then, and the ring only moves then); on, untimed or over, now. Before
+    /// that it redraws once a minute (`BubbleTicks`).
+    private var fastFrom: Date {
+        let real = Date()
+        guard case .upcoming(let left) = TodayBubbleRules.phase(bubble.event, now: TodayBubbleClock.now(real))
+        else { return real }
+        return real.addingTimeInterval(TimeInterval(left - TodayBubbleRules.lastHour))
     }
 
     // MARK: Parts
@@ -304,8 +316,8 @@ struct TodayEventBubble: View {
                 // the finger on top of our own squish, which washed the photo out (frames
                 // 2026-10-22). The squish below is the touch response Jesse tuned.
                 // Dark like the Camera's, and the Now dot's green while it's on (Jesse, 2026-11-17).
+                // It turns at the start, with the tag's Now: the glass's tint doesn't animate (frames 2026-11-17).
                 .glassEffect(.regular.tint(phase == .live ? MapBubbleInk.live : MapBubbleInk.glass), in: Circle())
-                .animation(reduceMotion ? nil : .easeInOut(duration: 0.4), value: phase == .live)
                 // The simulator's glass draws no edge light; the Camera's ring has one (frames 2026-11-17).
                 .overlay { RecordRim() }
                 // The glass never takes the touch itself: when it did, iOS lit it up and
@@ -536,6 +548,20 @@ private struct LiveBleed: View {
     static func ease(_ p: Double) -> Double {
         UnitCurve.bezier(startControlPoint: UnitPoint(x: 0.2, y: 0.6),
                          endControlPoint: UnitPoint(x: 0.35, y: 1)).value(at: p)
+    }
+}
+
+/// A bubble's redraws: once a minute until `fast`, then every second (`TodayBubbleRules.nextTick`).
+/// Fixed times, so a bubble crossing into its last hour counts seconds even if nothing redraws it.
+private struct BubbleTicks: TimelineSchedule {
+    let fast: Date
+
+    func entries(from start: Date, mode: TimelineScheduleMode) -> AnyIterator<Date> {
+        var next = start
+        return AnyIterator {
+            defer { next = TodayBubbleRules.nextTick(after: next, fast: fast) }
+            return next
+        }
     }
 }
 
