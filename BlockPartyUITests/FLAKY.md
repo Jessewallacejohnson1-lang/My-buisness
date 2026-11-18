@@ -19,7 +19,8 @@ flake moves to Fixed, dated, and stays there.
 - 2026-11-15 · `AtNamesUITests.testTypingAtShowsTheRowAndAPickWritesTheName` · red once on the Mac in a full run on
   feat/search-titles (no New post code) at load about 18: "typing @dal showed no row" · passed alone straight after,
   and in the full run before it · red again 2026-11-16 in a full run on feat/town-live-midnight (fixtures only),
-  passed alone straight after · no fix yet
+  passed alone straight after · red again 2026-11-17 in a full run on feat/launch-squeeze (launch only), passed alone
+  straight after · no fix yet
 - 2026-11-08 · `YouCalendarTests.testRealLifeActionsDriveLiked` (red at 0b154f22, a three-number
   shadow change in `CastLogo` that can't reach it; the test is heart-replaces-save's, c573cbba, the
   same day) · `["card"]` still shown where `[]` was expected after two heart toggles behind a fixed
