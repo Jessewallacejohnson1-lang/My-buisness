@@ -78,6 +78,7 @@ All values are sRGB hex from `Hue` (`BlockPartyColor.swift`). Six tokens, and no
 | `Hue.inkSecondary` | `#6E6E6E` | Secondary text, captions, inactive states |
 | `Hue.hairline` | `#E7E7E4` | Borders, dividers |
 | `Hue.fill` | `#F1F1EF` | Inert fills — placeholders, skeletons, disabled |
+| `Hue.actionPill` | `#EEF0F3` | A post's heart, comment and share pills, Nextdoor's cool grey (BP app like-comment-share) |
 | `Hue.brandYellowHex` | `#FCE804` | **The accent**, sampled from the logo's field. Tints derive from it |
 | `Hue.brandDisc` | `#FCE804` | The Town bar's map disc, Daily's top and the poster's date — the same yellow, solid, each scoped in by Jesse |
 | `Hue.onBrandDisc` | `#111111` | Ink ON the map disc, pinned to the light ramp (the disc is a fixed canvas) |
