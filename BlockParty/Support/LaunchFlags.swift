@@ -66,6 +66,7 @@ nonisolated enum LaunchFlags {
         case openProfile = "-open-profile"
         case openTab = "-open-tab"
         case openTeam = "-open-team"
+        case pillCycle = "-pill-cycle"
         case profileBottom = "-profile-bottom"
         case profileEdit = "-profile-edit"
         /// `-profile-adjust photo|cover`: Edit profile's Adjust on a bundled photo (BP app backlog 32).

@@ -18,6 +18,7 @@ a flag the app reads isn't here, or one here is read by nothing (move it to the 
   - `-header-collapsed` pins Today's bar to its scrolled-away state — the wordmark, the map disc and the bell all gone, the band left to the feed and its soft edge gradient. There is no scroll automation here, so without it that state cannot be screenshotted at all; pair with `-feed-scrolled` for content under the band. (The flag was briefly deleted on 2026-09-21, while the bar was locked in place and had no scrolled-away state, and came back with the scroll-direction behaviour the same day.)
   - `-open-tab town|blockparty|friends|search|you` (`daily` still opens the Block Party tab) — **`-open-tab map` is dead**, the map is no longer a tab.
   - `-tab-cycle` steps forward through the bar every 1.4s, wrapping, so the tab motion can be recorded headlessly (there is no tap automation here).
+  - `-frame-gap-log` also times each tap: one `TAP` line per finger lift, the longest freeze in the 0.6 s after it and all the time lost to freezes there (BP app tab-lag 02). `-pill-cycle` (with `-open-tab search`) taps Search's pills in turn every 2.5 s, each timed the same way, so the phone can be measured with no hand on it.
   - `-open-map` raises the map cover on launch and is now the only headless way into the map, since the real entry is a tap on Today's top-bar map button.
   - `-show-skeletons`. Loading is a skeleton, and `-show-skeletons` is the flag that shows it.
   - `-share-demo`.

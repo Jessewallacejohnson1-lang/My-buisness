@@ -445,6 +445,7 @@ final class FrameGapLog {
     private var worstMs = 0.0
     /// The last tap's finger lift (`UITouch.timestamp`, the display link's clock), until its line prints.
     private var tapUp: TimeInterval?
+    private var tapName = "touch"
     private var tapWorstMs = 0.0
     private var tapStallMs = 0.0
 
@@ -453,9 +454,22 @@ final class FrameGapLog {
         let l = CADisplayLink(target: self, selector: #selector(tick))
         l.add(to: .main, forMode: .common)
         link = l
-        let clock = TapClock { [weak self] up in self?.tapUp = up; self?.tapWorstMs = 0; self?.tapStallMs = 0 }
+        let clock = TapClock { [weak self] up in self?.timeTap("touch", from: up) }
         UIApplication.shared.connectedScenes.compactMap { ($0 as? UIWindowScene)?.keyWindow }.first?
             .addGestureRecognizer(clock)
+    }
+
+    /// A tap made by code (`-pill-cycle`), timed as a finger's lift is.
+    func tapped(_ name: String) {
+        start()
+        timeTap(name, from: CACurrentMediaTime())
+    }
+
+    private func timeTap(_ name: String, from up: TimeInterval) {
+        tapUp = up
+        tapName = name
+        tapWorstMs = 0
+        tapStallMs = 0
     }
 
     @objc private func tick(_ l: CADisplayLink) {
@@ -479,7 +493,7 @@ final class FrameGapLog {
             tapWorstMs = max(tapWorstMs, gapMs)
             if gapMs > budgetMs { tapStallMs += gapMs - l.duration * 1000 }
             if now - up > 0.6 {
-                print("FrameGapLog: TAP worst=\(Int(tapWorstMs))ms stall=\(Int(tapStallMs))ms")
+                print("FrameGapLog: TAP \(tapName) worst=\(Int(tapWorstMs))ms stall=\(Int(tapStallMs))ms")
                 tapUp = nil
             }
         }

@@ -250,6 +250,7 @@ struct SearchPage: View {
             if let debug = Self.debugChip { model.chip = debug }
             if let debug = Self.debugWords { model.words = debug }
             if Self.debugSearching { model.searching = true }
+            if LaunchFlags.has(.pillCycle) { cyclePills(1) }
             #endif
         }
         .onChange(of: fieldFocused) { _, focused in
@@ -597,6 +598,16 @@ struct SearchPage: View {
     /// `-search-focus`: opens on the recents, as after a tap on the field.
     private static var debugSearching: Bool {
         LaunchFlags.has(.searchFocus) || debugWords != nil
+    }
+    /// `-pill-cycle`: the pills tapped in turn every 2.5 s, each timed by `-frame-gap-log` (BP app tab-lag 02).
+    private func cyclePills(_ index: Int) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+            let chips = model.chips
+            let chip = chips[index % chips.count]
+            FrameGapLog.shared.tapped("pill-\(chip)")
+            Self.pick(chip, in: model, reduceMotion: reduceMotion)
+            cyclePills(index + 1)
+        }
     }
     /// `-search-chip <all|calendar|businesses|sports|events>`: opens on that filter.
     private static var debugChip: SearchChip? {
