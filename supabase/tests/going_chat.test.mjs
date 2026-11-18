@@ -252,7 +252,7 @@ test('It closes a week after the Event and when the Event is hidden', async () =
   assert.equal((await list(ANA)).length, 0);
 });
 
-test('A list row carries its Event and names no one; a banned sender goes unnamed', async () => {
+test('A list row carries its Event and names no one', async () => {
   await reset();
   await going(ANA); await going(BEN);
   const chat = await join(ANA);
@@ -262,8 +262,21 @@ test('A list row carries its Event and names no one; a banned sender goes unname
   assert.equal(row.event.title, 'Holiday Market');
   assert.equal(row.event.going_count, 2);
   assert.deepEqual(row.others, []);
+});
+
+test("A banned person's words leave the chat and its row while the ban lasts, and come back after", async () => {
+  await reset();
+  await going(ANA); await going(BEN); await going(CAL);
+  const chat = await join(ANA);
+  await say(CAL, chat, 'see you there');
+  await say(BEN, chat, 'buy my stuff');
   await db.query(`update auth.users set banned_until = now() + interval '1 day' where id = $1`, [BEN]);
-  assert.equal((await read(ANA, chat))[0].sender, null);
+  assert.deepEqual((await read(ANA, chat)).map((m) => m.body), ['see you there']);
+  assert.equal((await list(ANA))[0].last_body, 'see you there', "Messages' row skips them too");
+  assert.equal((await as(ANA, 'select count(*)::int as n from public.chat_messages where chat_id = $1', [chat]))[0].n, 1,
+    'and the table read live updates come through');
+  await db.query(`update auth.users set banned_until = now() - interval '1 minute' where id = $1`, [BEN]);
+  assert.deepEqual((await read(ANA, chat)).map((m) => m.body), ['buy my stuff', 'see you there']);
 });
 
 test('Friends and groups of friends read as before: no Event, and lights is their unread', async () => {
