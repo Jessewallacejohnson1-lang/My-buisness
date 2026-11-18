@@ -144,7 +144,7 @@ set search_path = public
 as $$
   with weights as (
     -- The recipe's weights (town-feed 36, 41). Changing one is a migration.
-    select '{"interest":3,"friend":3,"follow":3,"new":2,"draw":1.5,"soonHalf":7,"newHalf":24,"acted":0.4,"notInterested":0.3,"repeatHost":0.5,"repeatCampus":0.8,"repeatKind":0.8,"seen":0.6,"seenFloor":0,"town":1.5,"townMiles":4.5,"meeting":0.3,"liveMax":3,"liveHours":12,"newsEvery":5,"top":5,"topFrom":8,"topMine":3,"topDays":7,"topSoonHalf":14,"topRepeat":0.5}'::jsonb as w
+    select '{"interest":3,"friend":3,"follow":3,"new":2,"draw":1.5,"soonHalf":7,"newHalf":24,"acted":0.4,"notInterested":0.3,"repeatHost":0.5,"repeatCampus":0.8,"repeatKind":0.8,"seen":0.6,"seenFloor":0,"town":1.5,"townMiles":4.5,"meeting":0.3,"liveMax":3,"liveHours":12,"newsEvery":5,"top":5,"topFrom":8,"topMine":4,"topYours":2,"topDays":7,"topSoonHalf":14,"topRepeat":0.5}'::jsonb as w
   ),
   town as (
     select 'America/Chicago'::text as zone,
@@ -761,13 +761,14 @@ as $$
   ),
   -- The top five (town-feed 73; Jesse, 2026-11-17: "feel like there's big events going on", "make it personable", "mixed
   -- up a little bit too. Each time"). Real happenings from today to 7 days ahead, not on top as live already. Big first:
-  -- the draw, a friend Going and the Going count, each a doubling; yours (an interest, or a kind you went Going to) one
-  -- draw step more; soonest a little; one that repeats (a weekly class, bingo night) counts half, as no big night out.
+  -- the draw, a friend Going and the Going count, each a doubling; yours (an interest, or a kind you went Going to) two
+  -- draw steps more (town-feed 76; Jesse, 2026-11-17: "doesn't necessarily have to be a big event. just meant for that
+  -- person"), so what you like comes before what's big; soonest a little; one that repeats (a weekly class, bingo night) counts half, as no big night out.
   -- Going, seen, Not interested and a meeting sink it as they sink the rest.
   top_pool as (
     select t.id, x.mine,
            lower(btrim(coalesce(nullif(t.card->>'club_name', ''), nullif(t.card->>'source_name', ''), t.host))) as creator,
-           power(2, coalesce(t.draw, 2) + case when x.mine then 1 else 0 end + case when t.friends_n > 0 then 1 else 0 end
+           power(2, coalesce(t.draw, 2) + case when x.mine then (w->>'topYours')::float8 else 0 end + case when t.friends_n > 0 then 1 else 0 end
                     + coalesce(t.going_n, 0)::float8 / (coalesce(t.going_n, 0) + 10))
              * power(0.5, t.days_away / (w->>'topSoonHalf')::float8)
              * t.acted * t.hidden_x * t.meeting_x * t.town_x * t.seen_x
@@ -782,20 +783,21 @@ as $$
       and t.event_date <= town.today + (w->>'topDays')::int
       and not exists (select 1 from live_now l where l.id = t.id and l.nth <= (w->>'liveMax')::int)
   ),
-  -- The best 8, one per creator, each mixed up a little by the roll: its weight moves up to a quarter either way, so
+  -- The best 8 yours and the best 8 not yours (town-feed 76: when the best 8 were all yours, the spot yours can't take
+  -- stood empty), one per creator, each mixed up a little by the roll: its weight moves up to a quarter either way, so
   -- Events about as good trade places from roll to roll, and one twice as good (big, or yours) always stays ahead of
   -- one that isn't. The same roll mixes the same.
   top_best as (
     select b.*, b.weight * (0.75 + 0.5 * ('x' || substr(md5(b.id::text || ':' || p_top_seed), 1, 8))::bit(32)::bigint
                                       / 4294967296.0) as key
-    from (select p.*, row_number() over (partition by p.creator order by p.weight desc, p.id) as of_creator
-          from top_pool p) b
-    where b.of_creator = 1 and b.weight > 0
-    order by b.weight desc, b.id
-    limit (select (w->>'topFrom')::int from weights)
+    from (select c.*, row_number() over (partition by c.mine order by c.weight desc, c.id) as nth
+          from (select p.*, row_number() over (partition by p.creator order by p.weight desc, p.id) as of_creator
+                from top_pool p) c
+          where c.of_creator = 1 and c.weight > 0) b
+    where b.nth <= (select (w->>'topFrom')::int from weights)
   ),
-  -- Five of them, the highest after the mix, at most 3 yours, so the town's biggest stay in sight; the last roll's
-  -- first goes to the back.
+  -- Five of them, the highest after the mix, at most 4 yours, so one spot is the town's biggest (town-feed 76); the
+  -- last roll's first goes to the back.
   top_pick as (
     select y.id, row_number() over (order by coalesce(y.id = any(p_last_top), false), y.key desc, y.id) as top
     from (select y.* from (select b.*, row_number() over (partition by b.mine order by b.key desc, b.id) as of_mine
