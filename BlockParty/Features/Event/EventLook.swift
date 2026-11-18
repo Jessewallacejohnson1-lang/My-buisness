@@ -109,7 +109,7 @@ enum EventLook {
     static let followCorner: CGFloat = 8
     /// The Schedule (happening-now 06), off mock A's CSS: 26 under the buttons, its heading as About's, 6 to the rows;
     /// rows 48 tall, the time in a 96 pt column (the mock's 78 wrapped "Tue 3:50 PM"), 12 to the name; a part ended today
-    /// at 40%. Its words' sizes are at the call (BP Body, `Font.sans`): 15, 16, "See all" 15.
+    /// at 40%. Its words' sizes are at the call (SF Pro, `Font.sans`): 15, 16, "See all" 15.
     static let scheduleTop: CGFloat = 26
     static let scheduleHeadingGap: CGFloat = 6
     static let scheduleRow: CGFloat = 48
@@ -135,7 +135,7 @@ enum EventLook {
     static let aboutGap: CGFloat = 8
     static let aboutWords: CGFloat = 17
     /// The Attend bar (inside-cards 18), off the approved mock's CSS: faces 14 pt in (words alone 24, today's), 8 pt
-    /// from the words; the words Inter Tight Bold 15 over BP Body 13; a 46 pt see-through send with a 20 pt glyph,
+    /// from the words; the words Inter Tight Bold 15 over SF Pro 13; a 46 pt see-through send with a 20 pt glyph,
     /// 6 pt from Attend, folding 60 pt right into Invite as it shrinks to 40% and fades.
     static let barFacesInset: CGFloat = 14
     static let barFacesGap: CGFloat = 8

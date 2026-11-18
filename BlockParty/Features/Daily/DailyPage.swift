@@ -5,90 +5,20 @@
 //
 //  Top to bottom (`docs/plans/daily-tab/SPEC.md` in the BP app folder): the wordmark and the
 //  Town's logo, the week, the topics (daily-tab 19, `DailyTop.swift`), Event of the
-//  day as the Town tab's poster, then the Spotlight under its label, Suggestions and Following,
+//  day as the Town tab's poster, then Friends are going, Suggestions, Following and For you,
 //  on plain paper (no yellow: Jesse, 2026-10-21). Tap a day in the week and the page turns to it
 //  (daily-tab 16).
-//  A section with nothing in it is left out; the Spotlight is today's alone. What you're Going
+//  A section with nothing in it is left out. Spotlight left the page on 2026-11-18 (Jesse: "remove
+//  spotlight from app for now", BP app backlog 35). What you're Going
 //  to lives on the You tab (BP app docs/plans/you-tab).
 //
 
 import SwiftUI
 
-/// Today's Spotlight: one local person or business and their story, the same for
-/// everyone in the Town and new each day.
-struct DailySpotlight {
-    var name: String
-    /// What they do, or their business.
-    var about: String
-    var portrait: URL?
-    /// More photos, for the story page; the card shows `portrait` alone.
-    var photos: [URL]
-
-    /// Today's story. There is no backend for it yet, so there is none, and Daily opens on
-    /// Event of the day; DEBUG `-daily-samples` gets the sample. When the read exists, this is
-    /// the one property that changes.
-    static var today: DailySpotlight? {
-        #if DEBUG
-        return DailySamples.on ? .sample : nil
-        #else
-        return nil
-        #endif
-    }
-
-    #if DEBUG
-    /// INVENTED: a made-up neighbour and business, over the warm photos from Jesse's
-    /// Reference (the old onboarding interest images). A real Spotlight's photo is the
-    /// person; the sample has no real face to show.
-    static let sample = DailySpotlight(
-        name: "Marta Reyes",
-        about: "Northside Coffee",
-        portrait: asset("interest-coffee"),
-        photos: [asset("interest-dining"), asset("interest-books")].compactMap { $0 }
-    )
-
-    /// The card loads photos by URL and these live in the asset catalog, so each is
-    /// written out once to Caches.
-    private static func asset(_ name: String) -> URL? {
-        let url = URL.cachesDirectory.appending(path: "daily-sample-\(name).jpg")
-        if !FileManager.default.fileExists(atPath: url.path()),
-           let data = UIImage(named: name)?.jpegData(compressionQuality: 0.9) {
-            try? data.write(to: url)
-        }
-        return FileManager.default.fileExists(atPath: url.path()) ? url : nil
-    }
-    #endif
-}
-
-/// The Spotlight card's sizes are MEASURED from Jesse's Reference, App Store's card with
-/// its words over a blurred bottom (`references/spotlight-card/SPEC.md` in the BP app
-/// folder, 2026-10-19); its corner stays `Radius.bento` (Jesse, 2026-09-30). The low sun
-/// and the tilt are the depth page Jesse picked on 2026-10-01 (ideas "Low sun" and
-/// "Tilt"); their values were picked there, in a browser mockup, not measured from
-/// another app. Its CSS blurs are halved here: a SwiftUI shadow radius blurs about as
-/// much as a CSS blur twice its size.
+/// Daily's page sizes. The low sun, the tilt and the Spotlight card's sizes left with Spotlight
+/// (BP app backlog 35).
 nonisolated enum DailyMetric {
     static let side: CGFloat = 18
-    /// "Spotlight" in the logo's face, and from it to the card. Picked
-    /// in the Check-in mock (BP app `references/spotlight-card/mock.html`).
-    static let wordSize: CGFloat = 28
-    static let wordTracking: CGFloat = -0.6
-    static let wordToCard: CGFloat = 14
-    /// The photo is the card, 4:5 (picked on the drafts board).
-    static let cardAspect: CGFloat = 4.0 / 5.0
-    /// The words sit 16 in from the card's left edge, and the business line's baseline
-    /// 16 over its bottom edge, as App Store's do: the face's descent is the rest.
-    static let wordsInset: CGFloat = 16
-    static let wordsBottom: CGFloat = 11
-    /// The bottom fade starts this far over the name, as App Store's starts over its
-    /// label. The photo's blurred copy is solid by `fadeSolid` of the way down.
-    static let fadeAboveWords: CGFloat = 24
-    static let fadeSolid: CGFloat = 0.75
-    /// GUESSED: a still can't show App Store's blur, only that the photo's detail is gone
-    /// by the card's bottom edge.
-    static let fadeBlur: CGFloat = 10
-    /// Black at the card's bottom edge. App Store's darkens about 37%; our photos run
-    /// brighter than its art, so 45 (picked).
-    static let fadeShade: Double = 0.45
     /// Clears the floating tab bar: the same 96 the other tab scrollers reserve.
     static let tabBarClearance: CGFloat = 96
 
@@ -105,31 +35,6 @@ nonisolated enum DailyMetric {
     /// The clock's frosted edge comes in over this much scroll, as the week slides under the
     /// clock. At rest and pulled down it is gone. Picked.
     static let edgeFade: CGFloat = 20
-
-    /// The low sun's shadow. Sideways it reaches `sunReach` at sunrise and sunset and
-    /// nothing at midday; down it drops `sunDrop` at midday and up to `sunDropLong` more
-    /// at the ends of the day, and blurs the same way.
-    static let sunReach: CGFloat = 46
-    static let sunDrop: CGFloat = 12
-    static let sunDropLong: CGFloat = 24
-    static let sunBlur: CGFloat = 4
-    static let sunBlurLong: CGFloat = 4
-    static let sunOpacity: Double = 0.26
-    /// Pressed, the card sinks toward the page, so its shadow pulls in this much.
-    static let sunPressed: CGFloat = 0.7
-    /// The Town hours the sun is up; outside them the shadow is the midday one, short
-    /// and straight down, like a streetlight overhead (Jesse, 2026-10-01).
-    static let sunrise: Double = 6
-    static let sunset: Double = 21
-
-    /// At a full lean: the card turns this many degrees and its shadow slides this far
-    /// the other way.
-    static let tiltLean: Double = 8
-    /// The mockup's 900pt camera for a card about 360pt wide; SwiftUI's default of 1
-    /// puts the camera a card's width away, which turned a full lean into a skew.
-    static let tiltPerspective: CGFloat = 0.4
-    static let tiltShadowX: CGFloat = 16
-    static let tiltShadowY: CGFloat = 12
 
     /// Between the sections, and from a section's label to what it labels: MEASURED from
     /// Airbnb's trips page (the gap between one trip's card and the next city's heading,
@@ -154,34 +59,8 @@ nonisolated enum DailyMetric {
     static let followingCardGap: CGFloat = 12
 }
 
-/// The low sun over the page: morning light from the east throws the Spotlight's
-/// shadow right, dinner light throws it left, and midday drops it straight down.
-nonisolated enum DailySun {
-    struct Shadow: Equatable {
-        var x: CGFloat
-        var y: CGFloat
-        var blur: CGFloat
-    }
-
-    static func shadow(hour: Double) -> Shadow {
-        let up = (DailyMetric.sunrise...DailyMetric.sunset).contains(hour)
-        let day = (hour - DailyMetric.sunrise) / (DailyMetric.sunset - DailyMetric.sunrise)
-        let side = up ? cos(day * .pi) : 0
-        return Shadow(x: side * DailyMetric.sunReach,
-                      y: DailyMetric.sunDrop + abs(side) * DailyMetric.sunDropLong,
-                      blur: DailyMetric.sunBlur + abs(side) * DailyMetric.sunBlurLong)
-    }
-
-    /// The hour in the Town, with minutes as a fraction, wherever the phone is.
-    static func hour(at date: Date) -> Double {
-        let calendar = Town.gregorian
-        let parts = calendar.dateComponents([.hour, .minute], from: date)
-        return Double(parts.hour ?? 12) + Double(parts.minute ?? 0) / 60
-    }
-}
-
 #if DEBUG
-/// `-daily-samples`: Daily's sample Spotlight, Event of the day, Suggestions and Following, for
+/// `-daily-samples`: Daily's sample Event of the day, Suggestions and Following, for
 /// design work. Without it a test build shows only what's real, as the App Store build does
 /// (Jesse, 2026-10-20).
 nonisolated enum DailySamples {
@@ -274,8 +153,6 @@ struct DailyLists {
 }
 
 struct DailyPage: View {
-    /// None until stories exist. It is today's story, so another day opens on Event of the day.
-    let spotlight: DailySpotlight?
     /// Today's Event of the day picks as read (`EventOfTheDay`); the page leaves out what's over.
     let events: [DailyEvent]
     /// The day picked in the week, nil for today. Kept in `MainTabsView`, so it stays while you
@@ -295,22 +172,12 @@ struct DailyPage: View {
     var feed: [TownFeedEntry] = []
     @Environment(RealLifeActions.self) private var actions
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var tilt = PhoneTilt()
     /// How far the page has scrolled, held only up to `edgeFade`.
     @State private var scrolled: CGFloat = 0
     /// The topic picked under the week (daily-tab 19), nil for "Best of": everything.
     @State private var topic: String?
 
     var body: some View {
-        // The phone's tilt only leans the Spotlight; with none it stays off.
-        if spotlight != nil {
-            timeline.following(tilt)
-        } else {
-            timeline
-        }
-    }
-
-    private var timeline: some View {
         TimelineView(.everyMinute) { context in
             let now = DailyClock.now(context.date)
             let days = DailyWeek.days(from: now)
@@ -333,11 +200,9 @@ struct DailyPage: View {
         let topics = DailyTopic.topics(for: all.items, mine: interests)
         let topic = self.topic.flatMap { topics.contains($0) ? $0 : nil }
         let onPage = topic == nil ? all : lists(topic)
-        // The Spotlight is a person, not an event: a topic leaves it out (picked).
-        let spotlight = isToday && topic == nil ? self.spotlight : nil
         // A day whose pick is still being read shows paper, not the reserved slot.
         let loading = !isToday && dayPicks.picks[day.id] == nil
-        let empty = !loading && spotlight == nil && onPage.items.isEmpty && onPage.following.isEmpty
+        let empty = !loading && onPage.items.isEmpty && onPage.following.isEmpty
             && onPage.followingCards.isEmpty && onPage.forYou.isEmpty
         return ZStack {
             Hue.paper.ignoresSafeArea()
@@ -364,8 +229,7 @@ struct DailyPage: View {
                     ZStack(alignment: .top) {
                         // The cards' chips count from now ("In 3 days"), though the day's are
                         // picked from its midnight.
-                        sections(spotlight: spotlight, lists: onPage, empty: empty, loading: loading,
-                                 now: now)
+                        sections(lists: onPage, empty: empty, loading: loading, now: now)
                             .id("\(day.id) \(topic ?? "")")
                             .transition(reduceMotion ? .identity : .asymmetric(
                                 insertion: .opacity.animation(.easeOut(duration: DailyMetric.dayFade).delay(DailyMetric.dayFadeOut)),
@@ -394,8 +258,7 @@ struct DailyPage: View {
     }
 
     @ViewBuilder
-    private func sections(spotlight: DailySpotlight?, lists: DailyLists, empty: Bool,
-                          loading: Bool, now: Date) -> some View {
+    private func sections(lists: DailyLists, empty: Bool, loading: Bool, now: Date) -> some View {
         if loading {
             Color.clear.frame(height: DailyMetric.emptyHeight)
         } else if empty {
@@ -404,20 +267,8 @@ struct DailyPage: View {
                 .frame(height: DailyMetric.emptyHeight)
         } else {
             VStack(spacing: DailyMetric.eventSectionTop) {
-                // Event of the day first, Spotlight under it (Jesse, daily-tab 18).
+                // Event of the day first (Jesse, daily-tab 18).
                 if !lists.events.isEmpty { EventOfTheDaySection(events: lists.events, now: now) }
-                if let spotlight {
-                    VStack(spacing: DailyMetric.wordToCard) {
-                        // The logo's face, standing in for the small caps label (Jesse, 2026-10-19).
-                        Text("Spotlight")
-                            .font(.logoSerif(DailyMetric.wordSize))
-                            .tracking(DailyMetric.wordTracking)
-                            .foregroundStyle(Hue.ink)
-                            .accessibilityAddTraits(.isHeader)
-                        SpotlightCard(spotlight: spotlight, tilt: tilt)
-                            .padding(.horizontal, DailyMetric.side)
-                    }
-                }
                 if !lists.friendsGoing.isEmpty { FriendsGoingSection(events: lists.friendsGoing, now: now) }
                 if lists.showsSuggestions, !lists.suggestions.isEmpty {
                     SuggestionsSection(events: lists.suggestions, now: now)
@@ -443,146 +294,6 @@ struct DailySectionLabel: View {
             .font(.monoMedium(11).monospaced()).tracking(1.5)
             .foregroundStyle(ink)
             .accessibilityAddTraits(.isHeader)
-    }
-}
-
-/// The Spotlight card: the photo is the card, the name and business over a bottom fade
-/// where the photo blurs and darkens, as App Store's card sets its words.
-private struct SpotlightCard: View {
-    let spotlight: DailySpotlight
-    let tilt: PhoneTilt
-
-    var body: some View {
-        // The story page is the next piece; until then a press only squishes.
-        Button {} label: { SpotlightCardFace(spotlight: spotlight, tilt: tilt) }
-            .buttonStyle(SpotlightPressStyle())
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("\(spotlight.name), \(spotlight.about)")
-    }
-}
-
-/// The squish, telling the card inside that it is pressed so its shadow can pull in as it sinks.
-private struct SpotlightPressStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .press(.squish, down: configuration.isPressed)
-            .environment(\.spotlightPressed, configuration.isPressed)
-    }
-}
-
-private extension EnvironmentValues {
-    @Entry var spotlightPressed = false
-}
-
-private struct SpotlightCardFace: View {
-    let spotlight: DailySpotlight
-    let tilt: PhoneTilt
-    @Environment(\.spotlightPressed) private var pressed
-    /// The words' height, so the fade starts `fadeAboveWords` over the name however many
-    /// lines it takes.
-    @State private var wordsHeight: CGFloat = 0
-    /// The photo once it has decoded. The fade's blurred copy waits for it, so it draws from
-    /// the cache instead of loading the same photo a second time alongside.
-    @State private var shownPhoto: URL?
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    private var photo: URL? { spotlight.portrait ?? spotlight.photos.first }
-    private var shape: RoundedRectangle { RoundedRectangle(cornerRadius: Radius.bento, style: .continuous) }
-
-    var body: some View {
-        let lean = tilt.lean
-        // Ink under the photo, as the photo's own loading fill: the white words read on it
-        // while it loads, and on a Spotlight with no photo at all.
-        Hue.ink
-            .aspectRatio(DailyMetric.cardAspect, contentMode: .fit)
-            .overlay {
-                if let photo {
-                    // Faded in with the photo, as the Town card brings in its photo.
-                    FeedCardURLPhoto(url: photo, onReady: {
-                        withAnimation(reduceMotion ? nil : Motion.smooth) { shownPhoto = photo }
-                    })
-                }
-            }
-            .overlay { if let photo, photo == shownPhoto { fade(photo) } }
-            .overlay(alignment: .bottomLeading) { words }
-            .clipShape(shape)
-            .overlay { shape.strokeBorder(Hue.hairline, lineWidth: 0.5) }
-            // Shadows go on shapes alone: on the card they would also be cast by the words.
-            .background {
-                ZStack {
-                    sunShadow(lean: lean)
-                    shape.fill(Hue.surface).spotlightEdge()
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .rotation3DEffect(.degrees(lean.x * DailyMetric.tiltLean), axis: (x: 0, y: 1, z: 0),
-                              perspective: DailyMetric.tiltPerspective)
-            .rotation3DEffect(.degrees(-lean.y * DailyMetric.tiltLean), axis: (x: 1, y: 0, z: 0),
-                              perspective: DailyMetric.tiltPerspective)
-    }
-
-    private var words: some View {
-        // No spacing: BP Event Heading's tall line box alone puts the name's baseline 11
-        // over the business line's capitals, as App Store's title sits over its subtitle.
-        VStack(alignment: .leading, spacing: 0) {
-            Text(spotlight.name)
-                .font(.display(28))
-                // The Town card title's line gap: its -2, less Inter Tight's 7 pt taller line.
-                .lineSpacing(-9)
-                .lineLimit(3)
-                .foregroundStyle(.white)
-            // Body text, so BP Body (Jesse, 2026-11-02: headers are Inter Tight, body stays BP Body).
-            Text(spotlight.about)
-                .font(.sansMedium(15))
-                .foregroundStyle(.white.opacity(0.85))
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .feedCardPhotoTypeShadow()
-        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { wordsHeight = $0 }
-        .padding([.horizontal, .top], DailyMetric.wordsInset)
-        .padding(.bottom, DailyMetric.wordsBottom)
-    }
-
-    /// App Store's bottom fade: the photo's own blurred copy faded in from over the name,
-    /// and black deepening to the edge. Public SwiftUI, not the UIKit blur the Town bar
-    /// stacks: that blur blurs what is behind the view, and under a mask it kept the app
-    /// from going idle (`statusEdge`).
-    private func fade(_ photo: URL) -> some View {
-        let height = wordsHeight + DailyMetric.wordsBottom + DailyMetric.fadeAboveWords
-        return ZStack(alignment: .bottom) {
-            FeedCardURLPhoto(url: photo)
-                .blur(radius: DailyMetric.fadeBlur, opaque: true)
-                .mask(alignment: .bottom) {
-                    LinearGradient(stops: [.init(color: .clear, location: 0),
-                                           .init(color: .black, location: DailyMetric.fadeSolid)],
-                                   startPoint: .top, endPoint: .bottom)
-                        .frame(height: height)
-                }
-            LinearGradient(colors: [.black.opacity(0), .black.opacity(DailyMetric.fadeShade)],
-                           startPoint: .top, endPoint: .bottom)
-                .frame(height: height)
-        }
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
-    }
-
-    /// One shadow for the card, thrown across the page by the Town's sun and slid the
-    /// other way by the lean. Its shape sits exactly under the card, so only the shadow
-    /// shows.
-    private func sunShadow(lean: CGPoint) -> some View {
-        TimelineView(.everyMinute) { context in
-            let sun = DailySun.shadow(hour: DailySun.hour(at: DailyClock.now(context.date)))
-            let sink = pressed ? DailyMetric.sunPressed : 1
-            shape
-                .fill(Hue.surface)
-                .shadow(color: .black.opacity(DailyMetric.sunOpacity),
-                        radius: sun.blur * sink,
-                        x: (sun.x - lean.x * DailyMetric.tiltShadowX) * sink,
-                        y: (sun.y - lean.y * DailyMetric.tiltShadowY) * sink)
-                .animation(Motion.select, value: pressed)
-                // Sunset and sunrise swing it a long way in one tick of the clock.
-                .animation(Motion.smooth, value: sun)
-        }
     }
 }
 

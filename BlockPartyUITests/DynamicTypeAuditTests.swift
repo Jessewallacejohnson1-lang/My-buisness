@@ -57,8 +57,8 @@ final class DynamicTypeAuditTests: XCTestCase {
     /// returns to `surfaces` the day the page it names is finished, and the reason
     /// says what finished means for it.
     ///
-    ///  • `daily` — its first section only (the date line and the Spotlight card);
-    ///    Event of the day, Agenda, Suggestions and Following are still to come.
+    ///  • `daily` — its first section only (the week and Event of the day);
+    ///    Agenda, Suggestions and Following are still to come.
     ///  • `search` — a `BlankTab` placeholder. A title and one promise line: there
     ///    is no layout here to hold or break yet.
     ///  • `you` — `ProfileView`, your Profile since five-tabs 03. A real screen, but still moving,

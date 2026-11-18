@@ -1,7 +1,7 @@
 //
 //  PhoneTilt.swift
 //  Block Party — how the phone is held, for the things that lean or catch the light with it:
-//  Daily's Spotlight card and Search's logo shine.
+//  Search's logo shine.
 //
 
 import CoreMotion

@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-/// The time's one look on the photo card, the poster, the white card, News and the game card: BP Body
+/// The time's one look on the photo card, the poster, the white card, News and the game card: SF Pro
 /// SemiBold 14, white over a picture (under the title's shadow, which the caller's words carry), the small
 /// line's grey on white, BP yellow on the poster. On now, "Now" behind Apple's green dot cross-fades in at
 /// the start minute, as the chip did. At accessibility sizes it may take a second line: never cut off.

@@ -43,10 +43,6 @@
 	<string>Block Party uses your location to show what's happening close by in St. Joseph.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Block Party saves the share card to your Photos when you tap Save image.</string>
-	<key>UIAppFonts</key>
-	<array>
-		<string>Jost-VariableFont_wght.ttf</string>
-	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
