@@ -51,7 +51,7 @@ carry on with the rest.
    *Keep everything (Jesse, 2026-10-22).* Social posts follow one rule that overrides
    `flag.md`'s and `judge.md`'s "standing menu, product, ad or sales post" exclusions: every
    post with something a neighbour could know or do is kept, because people who care about it
-   will want it. Only a plain ad is dropped, in judging (below). Add this to each cheap-model helper's prompt: "These pages are a place's
+   will want it. Only a plain ad is dropped, in judging (below). Add this, and no date (morning.md), to each cheap-model helper's prompt: "These pages are a place's
    social posts. Flag every post with anything to know or do, including specials, deals, sales,
    new products, menu and seasonal items, pre-orders, contests and hours; only a post with
    nothing to know or do is none. When the post shows a town that `place` doesn't name, a hashtag

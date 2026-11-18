@@ -20,8 +20,11 @@ command's output and your answer.
 - For each batch file, start one helper on the cheap model (Haiku), at most 10 running at once
   (the cloud refuses more: Oct 29's 53 at once lost six), each with: "Read
   `sources/models/flag.md` and follow it for the pages in `.runs/morning/batches/batch-N.txt`.
-  Answer with the JSON lines only." Write their lines to `.runs/morning/flags.jsonl` (no
-  batches: an empty file).
+  Answer with the JSON lines only." Add no date of your own: each batch's first line has today's
+  date in Chicago, and the cloud's clock runs on UTC, a day ahead from 6 PM Chicago (7 PM in
+  summer). Nov 17's 7:38 PM social check told its first helpers it was Nov 18 (BP app
+  watch-every-place 37). Write their lines to `.runs/morning/flags.jsonl` (no batches: an
+  empty file).
 - Read `sources/models/judge.md` and follow it: every flag becomes an item in
   `.runs/morning/judged.jsonl` or is dropped.
 - `.runs/morning/seasons.txt` lists each seasonal place whose page changed, with the app's
