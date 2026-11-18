@@ -98,6 +98,22 @@ final class EventCalendarTests: XCTestCase {
         XCTAssertFalse(EventCalendar.near(day("2026-11-20"), day("2026-11-13"), in: pages))
     }
 
+    /// The pill opens with this month and the next drawn, not the year; a month once shown stays drawn, and so does
+    /// every month a slide back to it passes (BP app tab-lag 02).
+    func testOnlyMonthsASlideCanReachAreDrawn() {
+        let months = EventCalendar.months(now: town("2026-11-13 12:00"))
+        XCTAssertEqual(months.filter { EventCalendar.drawn($0, shown: months[0], furthest: 0, in: months) }, Array(months[0...1]))
+        XCTAssertEqual(months.filter { EventCalendar.drawn($0, shown: months[4], furthest: 0, in: months) }, Array(months[0...5]))
+        XCTAssertEqual(months.filter { EventCalendar.drawn($0, shown: months[0], furthest: 6, in: months) }, Array(months[0...7]))
+        XCTAssertTrue(EventCalendar.drawn(months[11], shown: months[11], furthest: 0, in: months))
+    }
+
+    /// A month not yet drawn stands in at its grid's height: five weeks for November 2026, six for May 2027.
+    func testAMonthsStandInIsItsGridsHeight() {
+        XCTAssertEqual(EventCalendar.gridHeight(day("2026-11-01")), 5 * YouMetric.day + 4 * YouMetric.rowGap)
+        XCTAssertEqual(EventCalendar.gridHeight(day("2027-05-01")), 6 * YouMetric.day + 5 * YouMetric.rowGap)
+    }
+
     /// What VoiceOver reads on a day, in Search's own words.
     func testSpokenDays() {
         XCTAssertEqual(EventCalendar.spoken(day("2026-11-13"), events: 3, today: true), "Today, Friday, November 13, 3 Events")

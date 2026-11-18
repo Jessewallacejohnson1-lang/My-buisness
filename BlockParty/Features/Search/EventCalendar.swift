@@ -114,6 +114,12 @@ enum EventCalendar {
         return abs(a - b) <= 1
     }
 
+    /// Whether the month pager draws `page`: up to the month after the furthest one shown (`furthest`, an index into
+    /// `months`, or `shown` when that is further), so every month a slide can pass is there (tab-lag 02).
+    static func drawn(_ page: Date, shown: Date, furthest: Int, in months: [Date]) -> Bool {
+        (months.firstIndex(of: page) ?? 0) <= max(furthest, months.firstIndex(of: shown) ?? 0) + 1
+    }
+
     /// How tall `month`'s grid stands: its weeks of day circles and the gaps between them, so a month drawn as
     /// nothing until it comes near takes the room its grid will (tab-lag 02).
     static func gridHeight(_ month: Date) -> CGFloat {
@@ -138,6 +144,8 @@ struct EventCalendarView: View {
     /// The month on screen and the day picked; nil is this month and today.
     @State private var shown: Date?
     @State private var picked: Date?
+    /// The furthest month shown so far, as an index into the months: they stay drawn.
+    @State private var furthest = 0
     @Namespace private var ring
 
     var body: some View {
@@ -156,11 +164,13 @@ struct EventCalendarView: View {
                     .padding(.top, CalendarMetric.weekdaysTop)
                 AgendaPager(pages: months, day: month, pick: { go(to: $0, today: today, day: day, planned: planned) },
                             jump: reduceMotion ? nil : Motion.smooth) { page in
-                    // Only this month and the two beside it are drawn, the only ones a swipe can bring in: the
-                    // year at once held the pill's first frame for half a second (BP app tab-lag 02). A month
-                    // further off stands in as its own height until a move brings it beside.
-                    if EventCalendar.near(page, month, in: months) {
-                        grid(page, byDay: byDay, today: today, day: day, loaded: events != nil)
+                    // Drawn up to the month after the furthest one shown, so every month a slide can pass is
+                    // there: the year at once held the pill's first frame for half a second (BP app tab-lag 02).
+                    // A month past that stands in as its own height. Only this month and the two beside it ask
+                    // for their photos: a year of them at once kept the month on screen waiting behind the rest.
+                    if EventCalendar.drawn(page, shown: month, furthest: furthest, in: months) {
+                        grid(page, byDay: EventCalendar.near(page, month, in: months) ? byDay : [:], today: today,
+                             day: day, loaded: events != nil)
                             .padding(.horizontal, CalendarMetric.gridInset)
                     } else {
                         Color.clear.frame(height: EventCalendar.gridHeight(page))
@@ -170,6 +180,9 @@ struct EventCalendarView: View {
                 dayCards(events, byDay: byDay, months: months, today: today, day: day, now: now, planned: planned)
                     .padding(.top, CalendarMetric.cardTop)
             }
+        }
+        .onChange(of: shown) { _, month in
+            if let month, let index = EventCalendar.months(now: .now).firstIndex(of: month) { furthest = max(furthest, index) }
         }
         // On every visit and a new account; the list on screen stays meanwhile.
         .task(id: auth.accountKey) { await model.loadCalendar() }
