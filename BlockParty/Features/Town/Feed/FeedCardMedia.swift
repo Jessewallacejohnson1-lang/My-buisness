@@ -313,6 +313,15 @@ final class FeedCardImageLoader {
             touch(hit.key)
             return hit.value
         }
+        // One read ahead and still on its way is waited for rather than downloaded again.
+        if let ahead = reading.first(where: { $0.key.url == request.url })?.value,
+           let image = await ahead.value, Self.serves(image, request) {
+            return image
+        }
+        return await load(request)
+    }
+
+    private func load(_ request: FeedCardImageRequest) async -> CGImage? {
         guard let thumbnail = await Self.decode(request) else { return nil }
         // Before it shows, so it never jumps. A small square one (a face in its circle) has nothing to cut.
         if focuses[request.url] == nil, request.side > Self.smallPixels || thumbnail.width != thumbnail.height,
@@ -418,20 +427,22 @@ final class FeedCardImageLoader {
         serves(width: image.width, height: image.height, for: (request.width, request.height), fit: request.fit)
     }
 
-    /// Reads ahead in flight, so a list asking again as it scrolls asks once.
-    private var reading: Set<FeedCardImageRequest> = []
+    /// Reads ahead on their way: a list asking again as it scrolls asks once, and a view that comes on before
+    /// its photo has landed waits for that read.
+    private var reading: [FeedCardImageRequest: Task<CGImage?, Never>] = [:]
 
     /// Downloads and decodes a photo for a frame `box` points big before its view exists, so the view draws
-    /// it in its first frame (BP app tab-lag 03). A photo already decoded big enough, or on its way, is left.
+    /// it in its first frame (BP app tab-lag 03), behind what's on screen. A photo already decoded big enough,
+    /// or on its way, is left.
     func readAhead(_ url: URL, box: CGSize, scale: CGFloat, fit: Bool = false) {
         let request = FeedCardImageRequest(url: url, width: FeedCardURLPhoto.pixelWidth(points: box.width, scale: scale),
                                            height: FeedCardURLPhoto.pixelWidth(points: box.height, scale: scale), fit: fit)
-        guard !reading.contains(request),
+        guard !reading.keys.contains(where: { $0.url == url }),
               !cache.contains(where: { $0.key.url == url && Self.serves($0.value, request) }) else { return }
-        reading.insert(request)
-        Task {
-            _ = await image(for: request)
-            reading.remove(request)
+        reading[request] = Task(priority: .utility) {
+            let image = await load(request)
+            reading[request] = nil
+            return image
         }
     }
 

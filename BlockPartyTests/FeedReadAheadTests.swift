@@ -12,14 +12,20 @@ final class FeedReadAheadTests: XCTestCase {
     /// Two screens of a 402 pt column (iPhone 16 Pro): six 300 pt photo cards, or thirteen short white ones; one
     /// screen with Low Data Mode; near the list's end, what's left.
     func testTwoScreensBelow() {
-        let photos = [CGFloat](repeating: 300, count: 20), white = [CGFloat](repeating: 140, count: 20)
-        XCTAssertEqual(FeedReadAhead.ahead(photos, after: 0, width: 402, screens: 2), 1..<7)
-        XCTAssertEqual(FeedReadAhead.ahead(white, after: 0, width: 402, screens: 2), 1..<14)
-        XCTAssertEqual(FeedReadAhead.ahead(photos, after: 0, width: 402, screens: 1), 1..<4)
-        XCTAssertEqual(FeedReadAhead.ahead(Array(photos.prefix(5)), after: 3, width: 402, screens: 2), 4..<5)
-        XCTAssertEqual(FeedReadAhead.ahead(Array(photos.prefix(5)), after: 4, width: 402, screens: 2), 5..<5)
+        func ahead(_ count: Int, after index: Int, screens: CGFloat = 2, height: CGFloat = 300) -> Range<Int> {
+            FeedReadAhead.ahead(count: count, after: index, width: 402, screens: screens) { _ in height }
+        }
+        XCTAssertEqual(ahead(20, after: 0), 1..<7)
+        XCTAssertEqual(ahead(20, after: 0, height: 140), 1..<14)
+        XCTAssertEqual(ahead(20, after: 0, screens: 1), 1..<4)
+        XCTAssertEqual(ahead(5, after: 3), 4..<5)
+        XCTAssertEqual(ahead(5, after: 4), 5..<5)
         // Before the column is measured the first cards ask from the top.
-        XCTAssertEqual(FeedReadAhead.ahead(photos, after: -1, width: 402, screens: 2), 0..<6)
+        XCTAssertEqual(ahead(20, after: -1), 0..<6)
+        // Only the cards it reads ahead for are looked at.
+        var looked: [Int] = []
+        _ = FeedReadAhead.ahead(count: 100, after: 10, width: 402, screens: 2) { looked.append($0); return 300 }
+        XCTAssertEqual(looked, Array(11..<17))
     }
 
     /// A bitmap serves a frame it fills at its own size or larger (2% stretch at most); a flyer shown whole only has

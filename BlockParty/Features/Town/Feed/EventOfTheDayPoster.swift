@@ -26,7 +26,7 @@ struct EventOfTheDayPoster: View {
     let now: Date
 
     /// The approved Round 3 page's numbers, at 370 pt wide on a 402 pt phone.
-    enum Metric {
+    private enum Metric {
         /// 370 x 470: one shape for every photo.
         static let aspect: CGFloat = 370.0 / 470.0
         /// The chip from the photo's top left corner, and the words from the poster's edges.

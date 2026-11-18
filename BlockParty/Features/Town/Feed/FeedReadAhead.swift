@@ -34,11 +34,10 @@ struct FeedPictures: Equatable {
             pictures.logos += game.teams.compactMap(\.logo)
             pictures.height = 196 + 60
         } else if let url = item.image.url {
-            let box = CGSize(width: width, height: width / CGFloat(aspect ?? item.image.cardAspect))
-            pictures.photos.append(Photo(url: url, box: box))
-            if item.whole {
-                pictures.photos.append(Photo(url: url, box: CGSize(width: width, height: width / CGFloat(item.image.flyerAspect)), fit: true))
-            }
+            // A flyer shows whole, and its blurred wash draws that same bitmap at once.
+            let box = item.whole ? CGSize(width: width, height: width / CGFloat(item.image.flyerAspect))
+                : CGSize(width: width, height: width / CGFloat(aspect ?? item.image.cardAspect))
+            pictures.photos.append(Photo(url: url, box: box, fit: item.whole))
             pictures.height = box.height + 60
         } else if case .placeLogo(let picture) = item.image {
             pictures.logos.append(picture.url)
@@ -61,7 +60,8 @@ extension TownFeedItem {
         case .event(let item), .again(.event(let item), _):
             return .of(item, width: inset)
         case .eventOfTheDay(let event):
-            return .of(event.item, width: inset, aspect: EventOfTheDayPoster.Metric.aspect)
+            // The poster's photo is square (a flyer whole, as on a card).
+            return .of(event.item, width: inset, aspect: 1)
         case .news(let news), .again(.news(let news), _):
             var pictures = FeedPictures()
             if let photo = news.photoSource, let url = photo.url {
@@ -74,7 +74,8 @@ extension TownFeedItem {
         case .post(let post), .again(.post(let post), _):
             var pictures = FeedPictures()
             let box = CGSize(width: inset, height: inset / CGFloat(post.photoAspect))
-            pictures.photos = post.photos.map { .init(url: $0, box: box) }
+            // The first photo only: the rest wait for a swipe.
+            pictures.photos = post.photos.prefix(1).map { .init(url: $0, box: box) }
             pictures.faces = [post.posterPhoto].compactMap { $0 }
             if !post.photos.isEmpty { pictures.height = box.height + 120 }
             return pictures
@@ -100,12 +101,14 @@ enum FeedReadAhead {
     /// A screen's height over its width on every iPhone this app runs on (19.5:9).
     static let screen: CGFloat = 2.17
 
-    /// The cards after `index` whose pictures to ask for: as many as fill `screens` screens of a `width`-point column.
-    nonisolated static func ahead(_ heights: [CGFloat], after index: Int, width: CGFloat, screens: CGFloat) -> Range<Int> {
-        let start = min(index + 1, heights.count)
+    /// The cards after `index`, of `count`, whose pictures to ask for: as many as fill `screens` screens of a
+    /// `width`-point column, `height` saying how tall each stands. Only those cards are looked at.
+    nonisolated static func ahead(count: Int, after index: Int, width: CGFloat, screens: CGFloat,
+                                  height: (Int) -> CGFloat) -> Range<Int> {
+        let start = min(max(index + 1, 0), count)
         var end = start, room = screens * screen * width
-        while end < heights.count, room > 0 {
-            room -= heights[end]
+        while end < count, room > 0 {
+            room -= height(end)
             end += 1
         }
         return start..<end
@@ -113,13 +116,19 @@ enum FeedReadAhead {
 
     static func read(_ items: [TownFeedItem], after index: Int, width: CGFloat, scale: CGFloat) {
         guard width > 0 else { return }
-        let pictures = items.map { $0.pictures(width: width) }
-        for card in pictures[ahead(pictures.map(\.height), after: index, width: width, screens: screens)] {
+        var cards: [Int: FeedPictures] = [:]
+        let range = ahead(count: items.count, after: index, width: width, screens: screens) { at in
+            let card = items[at].pictures(width: width)
+            cards[at] = card
+            return card.height
+        }
+        for card in range.compactMap({ cards[$0] }) {
             for photo in card.photos {
                 FeedCardImageLoader.shared.readAhead(photo.url, box: photo.box, scale: scale, fit: photo.fit)
             }
             for face in card.faces { FeedCardImageLoader.shared.readAhead(face, box: FeedPictures.face, scale: scale) }
-            POILogoCache.shared.prefetch(card.logos)
+            // A logo that failed (a missing file) isn't asked again on every card that comes on.
+            POILogoCache.shared.prefetch(card.logos.filter { !POILogoCache.shared.failed.contains($0) })
         }
     }
 
