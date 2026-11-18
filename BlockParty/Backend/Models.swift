@@ -351,6 +351,11 @@ nonisolated struct TownNews: Hashable, Identifiable, Sendable {
     /// card; nil keeps the white card.
     var photo: URL? = nil
     var photoAspect: Double? = nil
+    /// Its photo is the post's own graphic, whose words already say the story: the Town card shows it with no
+    /// headline of ours (BP app town-feed 77; Jesse, 2026-11-17).
+    var photoIsFlyer = false
+    /// Every picture of its post in order, its photo first, when it has several (town-feed 77): its page swipes them.
+    var photos: [URL] = []
 
     /// What the Town card sets as its title: the headline, else the facts stand in for it.
     var headline: String {
@@ -363,6 +368,10 @@ nonisolated struct TownNews: Hashable, Identifiable, Sendable {
     var facts: String? {
         words == headline || !NewsWords.adds(words, to: "\(headline) \(place)") ? nil : words
     }
+
+    /// The words under a graphic with no headline over it (town-feed 77): its facts whole, as nothing above says
+    /// them; nil when it has only its title.
+    var flyerWords: String? { words == headline ? nil : words }
 }
 
 /// Whether News's second line says something its headline doesn't (Jesse, 2026-11-06, BP app
