@@ -213,14 +213,14 @@ nonisolated struct LaunchMotion {
     var kind: Kind = .first
     var reduceMotion = false
 
-    // MARK: Worked out once per screen
+    // MARK: Worked out for this screen
 
     /// The screen's middle, where the still's dot sits.
     let middle: CGPoint
     /// BlockParty. on screen, and its full stop.
     let wordBox: CGRect
     let stop: Dot
-    /// When each letter starts.
+    /// When each letter starts, on the first open.
     let letterStarts: [Double]
     /// Bp!'s canvas's top left on screen, and the !'s dot.
     let origin: CGPoint
@@ -256,7 +256,12 @@ nonisolated struct LaunchMotion {
         popAt = landAt + Self.blacken
         endAt = popAt + Self.jumpEnds
 
-        // Each letter starts on its turn, and never before the dot has passed its left edge.
+        // Each letter starts on its turn, and never before the dot has passed its left edge. Only
+        // the first open writes the word: this runs every frame, so the others skip the search.
+        guard kind == .first, !reduceMotion else {
+            letterStarts = []
+            return
+        }
         let travel = Self.travel(screen: screen, to: stop)
         letterStarts = Self.wordLefts.enumerated().map { i, left in
             var t = Self.firstLetter + (Self.lastLetter - Self.firstLetter) * Double(i) / Double(Self.wordLefts.count - 1)
@@ -267,10 +272,10 @@ nonisolated struct LaunchMotion {
 
     // MARK: The dot
 
-    /// The dot's middle, size, stretch along `heading` (degrees), in screen points.
+    /// The dot's middle, size and stretch along its path, in screen points.
     struct Dot: Equatable {
         var x: CGFloat, y: CGFloat, d: CGFloat
-        var sx: CGFloat = 1, sy: CGFloat = 1, heading: CGFloat = 0
+        var sx: CGFloat = 1, sy: CGFloat = 1
     }
 
     /// The first open's dot: their mark's path and size until it shoots; then their path stretched
@@ -598,7 +603,7 @@ nonisolated struct LaunchMotion {
         var f = Frame(dot: Dot(x: lerp(middle.x, stop.x, v), y: lerp(middle.y, stop.y, v), d: lerp(Self.dotSize, stop.d, v)),
                       markOrigin: origin)
         f.still = t <= 0
-        f.letters = letterStarts.map { _ in Letter(shown: true) }
+        f.letters = Self.wordPieces.map { _ in Letter(shown: true) }
         f.wordOpacity = Double(v)
         let fadeAt = Self.wordSwap + Self.wordHold
         guard t >= fadeAt else { return f }

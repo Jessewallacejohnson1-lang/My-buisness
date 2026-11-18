@@ -3,7 +3,8 @@
      The launch's still (Jesse, 2026-11-18; BP app references/splash-fork): BP yellow with the app
      icon's glass edge (`LaunchGlass`, 2.5x the icon's own rim, at an iPhone 16 Pro's 62 pt display
      corners, its middle stretching on other screens), and a black dot, 85 pt across, in its ink with
-     the word's soft shade, in the screen's middle (`LaunchStill`, a 120 x 120 pt picture). It is the
+     the word's soft shade, in the screen's middle (`LaunchDot`, a 120 x 120 pt picture; a new name, so a phone that updates
+     doesn't keep the old still's picture). It is the
      first frame of every launch (`LaunchBall` draws the same picture until the dot first moves), so
      the hand-off can't be seen: the day's first open has the dot write BlockParty., and every later
      one pops it into Bp for the Town's ball to drop in. The glass is drawn by BP app references/launch-ball/make_still.py, the
@@ -39,7 +40,7 @@
                                     <constraint firstAttribute="height" constant="60" id="launch-footer-h"/>
                                 </constraints>
                             </imageView>
-                            <imageView userInteractionEnabled="NO" contentMode="scaleToFill" image="LaunchStill" translatesAutoresizingMaskIntoConstraints="NO" id="launch-still">
+                            <imageView userInteractionEnabled="NO" contentMode="scaleToFill" image="LaunchDot" translatesAutoresizingMaskIntoConstraints="NO" id="launch-still">
                                 <rect key="frame" x="141" y="377" width="120" height="120"/>
                                 <constraints>
                                     <constraint firstAttribute="width" constant="120" id="launch-still-w"/>
@@ -68,7 +69,7 @@
     </scenes>
     <resources>
         <image name="LaunchGlass" width="402" height="874"/>
-        <image name="LaunchStill" width="120" height="120"/>
+        <image name="LaunchDot" width="120" height="120"/>
         <image name="LaunchFooter" width="240" height="60"/>
     </resources>
 </document>

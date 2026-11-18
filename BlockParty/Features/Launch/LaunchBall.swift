@@ -193,7 +193,15 @@ struct LaunchHost<Content: View>: View {
         if let mark = stage.dailyMark, stage.kind == .later {
             ending = .tab(mark.offsetBy(dx: appOrigin.x - screen.minX, dy: appOrigin.y - screen.minY))
         }
-        let motion = LaunchMotion(screen: screen.size, ending: ending, kind: stage.kind, reduceMotion: stage.reduceMotion)
+        var motion = LaunchMotion(screen: screen.size, ending: ending, kind: stage.kind, reduceMotion: stage.reduceMotion)
+        // The ending is the one in place as it starts: a tab bar measured after that would turn a
+        // zoom under way into a leap, a snap (review, 2026-11-18). A held DEBUG frame keeps looking,
+        // to pick up the tab bar's Bp! once the bar has measured it.
+        if let kept = clock.ending {
+            motion.ending = kept
+        } else if stage.frozenAt == nil, t >= motion.endAt {
+            clock.ending = ending
+        }
         return (motion.frame(at: t), motion)
     }
 
@@ -239,6 +247,8 @@ struct LaunchHost<Content: View>: View {
 final class LaunchClock {
     private(set) var t = 0.0
     private var lastDate: Date?
+    /// How a later open ends, kept from the moment its ending starts.
+    var ending: LaunchMotion.Ending?
 
     func time(at date: Date) -> Double {
         if let lastDate, date > lastDate {
@@ -317,7 +327,7 @@ private struct LaunchMark: View {
                     .accessibilityHidden(true)
                 // The still's dot with its shade, in the screen's middle: the launch screen's own
                 // picture, until the dot first moves.
-                Image("LaunchStill")
+                Image("LaunchDot")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .opacity(frame.still ? 1 : 0)
                     .accessibilityHidden(true)
@@ -438,12 +448,11 @@ private struct LaunchMark: View {
 
     private static func lean(_ tilt: CGVector) -> Double { min(1, Double(hypot(tilt.dx, tilt.dy))) }
 
-    /// The dot, stretched along its speed or squashed where it lands, placed from `origin`.
+    /// The dot, stretched along its path, placed from `origin`.
     private func dot(_ d: LaunchMotion.Dot, from origin: CGPoint = .zero) -> some View {
         Circle()
             .frame(width: d.d, height: d.d)
             .scaleEffect(x: d.sx, y: d.sy)
-            .rotationEffect(.degrees(d.heading))
             .position(x: d.x - origin.x, y: d.y - origin.y)
     }
 

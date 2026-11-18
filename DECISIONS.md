@@ -1022,7 +1022,8 @@ Jesse: "i wanna create a completly new spash screen thats super similar" to The 
 fast opens let it be BP! with drop in dot and moves to tab bar". The ball show's squeeze and
 bounces on B and p, the wordmark shooting out, the link's turn into it (`openedLink`,
 `-launch-link-at`) and tap to skip (`-launch-skip`) are gone. Both shows play at full speed (the
-ball show played at ¾, the leap with it), from one still, an 85 pt dot (`LaunchStill`).
+ball show played at ¾, the leap with it), from one still, an 85 pt dot (`LaunchDot`: a new name,
+so a phone that updates over the old build doesn't keep the old still's cached picture).
 
 `LaunchMotion.Kind.first`, the day's first cold start (`LaunchShows.firstOpensADay`; the key stays
 `launch.fullShows`, so nobody's count resets): the dot follows the Reference's mark frame by frame
@@ -1042,3 +1043,6 @@ shipped then. New around it: the still's dot goes as Bp pops out about the scree
 first 0.15 s (`stillGoes`, `burst`), and the yellow opens from its middle in place of the curtain.
 Guessed, with no Reference: a letter's 45% and 12° and 0.20 s, the burst's 0.15 s and its spring
 (0.30, 0.70), and Reduce Motion's 0.15 s fade-in.
+A later open's ending (the leap, or the zoom with no tab bar) is the one in place as it starts
+(`LaunchClock.ending`): the ending now starts about 1 s in, not 3, and a tab bar measured after
+that would have turned a zoom under way into a leap.
