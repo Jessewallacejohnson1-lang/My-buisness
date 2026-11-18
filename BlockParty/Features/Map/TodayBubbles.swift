@@ -1,12 +1,14 @@
 //
 //  TodayBubbles.swift
-//  Block Party — today's events on the map as liquid-glass photo bubbles.
+//  Block Party — today's events on the map as glass-ringed photo bubbles.
 //
 //  Jesse's map-today idea (2026-10-22; References and the approved mock in BP app
 //  `references/map-today/`, pulse.html). One bubble per place with an event today:
-//  the event's photo, else the place's photo, else its logo, under Apple's Liquid
-//  Glass, the middle bent toward you like a dome and the photo fading into the clear
-//  glass at the rim. Every bubble counts down to its start all day; in the last hour
+//  the event's photo, else the place's photo, else its logo. Since map-glass-ring
+//  (2026-11-17, BP app `references/map-glass-ring/`, SPEC.md) it is the iPhone Camera's
+//  record button: a ring of Apple's Liquid Glass, dark like the Camera's, with the photo
+//  flat in the middle (0.845 of the button, Jesse's screenshot measured), and the ring
+//  turns the Now dot's green while the event is on. Every bubble counts down to its start all day; in the last hour
 //  a black ring empties around it. While an event is on (EventWhen.isOn), the
 //  bubble breathes 4% every 2.4 s with a dark shadow bleeding out, and its tag says
 //  "Now" behind Apple's green dot (taste/town.md, 2026-10-20). The shadow bleed
@@ -219,12 +221,15 @@ struct TodayEventBubble: View {
     @State private var dragStart: Date?
 
     private static let bead: CGFloat = 46
+    /// The photo's share of the button: the record button's red, 0.845 of it (BP app
+    /// references/map-glass-ring/SPEC.md), so the glass ring is 3.5 pt wide at 46.
+    private static let window: CGFloat = 0.845
     private static let ring: CGFloat = 53
     private static let breath: Double = 2.4       // seconds per breath (Jesse's pick on the mock)
     private static let swell: CGFloat = 0.04      // 4% bigger at the peak
 
     var body: some View {
-        // Drawn at 46 pt and scaled as a whole, so a pinch never redraws the photo's dome.
+        // Drawn at 46 pt and scaled as a whole, so a pinch never redraws the photo.
         let scale = zoom.bead / Self.bead * (selected ? 1.12 : 1)
         let friends = TodayBubbleRules.friends(bubble.events)
         // Where the bubble's rim crosses its top right, at 45 degrees.
@@ -277,8 +282,8 @@ struct TodayEventBubble: View {
 
     // MARK: Parts
 
-    /// The bead: a Liquid Glass disc with the photo on it, bent like a dome and fading
-    /// into the clear glass at the rim, squished and stretched by the finger.
+    /// The bead: the Camera's record button, a Liquid Glass disc with the photo set flat in
+    /// its middle so the glass shows only as the ring, squished and stretched by the finger.
     private func gel(_ phase: TodayBubbleRules.Phase, scale: CGFloat) -> some View {
         let angle = Angle(radians: atan2(pull.height, pull.width))
         // At least 44 pt to the finger however small the zoom draws it.
@@ -296,7 +301,9 @@ struct TodayEventBubble: View {
                 // Plain, not .interactive(): the interactive glass swells and whitens under
                 // the finger on top of our own squish, which washed the photo out (frames
                 // 2026-10-22). The squish below is the touch response Jesse tuned.
-                .glassEffect(.regular, in: Circle())
+                // Dark like the Camera's, and the Now dot's green while it's on (Jesse, 2026-11-17).
+                .glassEffect(.regular.tint(phase == .live ? MapBubbleInk.live : MapBubbleInk.glass), in: Circle())
+                .animation(reduceMotion ? nil : .easeInOut(duration: 0.4), value: phase == .live)
                 // The glass never takes the touch itself: when it did, iOS lit it up and
                 // swelled it white over the photo and the ring (frames 2026-10-22). The
                 // clear disc on top takes the drag instead.
@@ -331,38 +338,31 @@ struct TodayEventBubble: View {
         let picture = bubble.picture
         let image = picture.flatMap { images.image(for: $0.url) }
         let isLogo = picture?.isLogo ?? false
+        let side = Self.bead * Self.window
         ZStack {
-            if let image {
+            if let image, !isLogo {
                 Image(uiImage: image)
                     .resizable()
-                    .aspectRatio(contentMode: isLogo ? .fit : .fill)
-                    .padding(isLogo ? 7 : 0)
-                    .frame(width: Self.bead, height: Self.bead)
-                    .visualEffect { content, proxy in
-                        content.distortionEffect(
-                            ShaderLibrary.bpDome(.float2(proxy.size)),
-                            maxSampleOffset: CGSize(width: proxy.size.width * 0.2, height: proxy.size.height * 0.2)
-                        )
-                    }
-                // The sides fall away a little, so the middle reads nearest.
-                RadialGradient(stops: [
-                    .init(color: .clear, location: 0.50),
-                    .init(color: MapBubbleInk.ink.opacity(0.18), location: 0.78),
-                    .init(color: MapBubbleInk.ink.opacity(0.26), location: 1),
-                ], center: UnitPoint(x: 0.5, y: 0.55), startRadius: 0, endRadius: Self.bead / 2)
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: side, height: side)
             } else {
-                Image(systemName: (bubble.event.category ?? .other).glyph)
-                    .font(.sans(17).weight(.semibold))
-                    .foregroundStyle(MapBubbleInk.ink)
+                // A logo, or no picture at all, sits on white, as on the Camera's button the red does.
+                Circle().fill(MapBubbleInk.paper)
+                if let image {
+                    Image(uiImage: image)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .padding(4)
+                } else {
+                    Image(systemName: (bubble.event.category ?? .other).glyph)
+                        .font(.sans(17).weight(.semibold))
+                        .foregroundStyle(MapBubbleInk.ink)
+                }
             }
         }
-        .frame(width: Self.bead, height: Self.bead)
-        // Solid in the middle, fading into the clear glass near the rim.
-        .mask(RadialGradient(stops: [
-            .init(color: .black, location: 0.70),
-            .init(color: .black.opacity(0.5), location: 0.82),
-            .init(color: .clear, location: 0.92),
-        ], center: .center, startRadius: 0, endRadius: Self.bead / 2))
+        .frame(width: side, height: side)
+        // Cut clean, as the record button's red: no fade, no bend.
+        .clipShape(Circle())
     }
 
     @ViewBuilder
@@ -550,4 +550,10 @@ private struct BubbleTag: ViewModifier {
 /// The map is drawn light in both appearances, so the bubble's ink is the light-canvas ink.
 private enum MapBubbleInk {
     static let ink = Hue.ink.onLightCanvas
+    /// The record button's dark glass ring (BP app references/map-glass-ring).
+    static let glass = Hue.ink.onLightCanvas.opacity(0.6)
+    /// The ring while the event is on: the Now dot's green (Jesse, 2026-11-17).
+    static let live = Hue.now.onLightCanvas.opacity(0.85)
+    /// Under a logo, or a bubble with no picture.
+    static let paper = Hue.surface.onLightCanvas
 }

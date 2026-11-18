@@ -38,7 +38,9 @@ the one Event an Event page or a held Town card asked for, whatever its day (BP 
 - **`TodayPlaces`** — one bubble per exact spot, its events ordered on-now first
   (`TodayBubbleRules.order`); events without a spot stay off. `merge` folds bubbles that touch on
   screen into one, run when the camera settles (`onMapIdle`).
-- **`TodayBubbles`** — the shipped liquid-glass photo bubble (2026-10-23), drawn at 46 pt and scaled
+- **`TodayBubbles`** — the photo bubble, since 2026-11-17 the iPhone Camera's record button (BP app
+  `references/map-glass-ring/`): a dark Liquid Glass ring, green while the event is on, the photo flat
+  in its middle at 0.845 of the button, a logo on white. Drawn at 46 pt and scaled
   by the zoom: 36 pt zoomed out, 46 at the opening zoom (14.6), 72 two steps in. `MapZoom` carries
   the zoom so a pinch redraws only the bubbles; the time tag keeps its size.
 - **`MapEventCard`** — Airbnb's map card, measured off Mobbin: photo, then title (with Now), place,
@@ -89,5 +91,6 @@ map no longer reads them for pins.
   bottom sheet are gone (map reset). **Supersedes** the pin states, Google categories, black cluster
   bubbles and the Flighty pin card below the line in the archive.
 - Keep the light Mapbox style in Uber's colours. **Do not switch to satellite imagery.**
-- References: Airbnb's map card (map reset), and the map-today bubble mock
-  (`references/map-today/pulse.html`).
+- References: Airbnb's map card (map reset), the map-today bubble mock
+  (`references/map-today/pulse.html`) for its motion, and the record button (`references/map-glass-ring/`)
+  for its look.
