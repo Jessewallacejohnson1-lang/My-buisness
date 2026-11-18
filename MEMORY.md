@@ -125,6 +125,11 @@ or its `docs/rules/` file and leaves here.
   keeps its Apple Maps id (`places.apple_place_id`); the morning finish reads its Apple Maps page and
   hides a place Apple calls Permanently Closed (`places.closed_at`, `sources/scripts/apple_maps.py`),
   telling Jesse after. Google's closed list, goodbye posts and news stories are only hints.
+- 2026-11-18 — **A business run on its own inside another one is a place, not a double** (Jesse: "joetown
+  burgers is a place"): Joetown Burgers, one of the restaurants inside The House, was hidden on 2026-11-16 as
+  "the kitchen inside The House" and came back. Before a place is called a double, gone or not a place, read
+  its registry entry's `Notes:`: Jesse's word there outranks Google Maps and web research. A hidden page
+  (`places.closed_at`) is not proof a place closed: read why it was hidden.
 - 2026-10-26 — From Google, store only the place id, a place's weekly hours and whether it is
   still open (Jesse: "its a fact were not copying", "lets do ur rec"; ADR-016). Hours go in
   `places.hours` via the map search (`sources/scripts/maps.py`), else the place's own site or Facebook, which

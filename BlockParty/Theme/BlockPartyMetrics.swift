@@ -11,11 +11,6 @@ enum Radius {
     static let tile: CGFloat = 16
     static let card: CGFloat = 20
 
-    /// A large slab's corner: Daily's Spotlight card (Jesse, 2026-09-30).
-    /// Deliberately OUTSIDE the 12/16/20 scale: 20 reads boxy at that footprint while
-    /// 24 starts to look like a pill.
-    static let bento: CGFloat = 22
-
     /// Search, measured from its References (mockup v7, 2026-10-02): iOS's search field
     /// and the round result avatars' squares (10), Photoroom's logo squares (11), and
     /// Airbnb's photo cards (13).
@@ -54,13 +49,6 @@ extension View {
             RoundedRectangle(cornerRadius: radius, style: .continuous)
                 .stroke(Hue.hairline, lineWidth: 1)
         )
-    }
-
-    // MARK: The Daily Spotlight (Jesse: the one card that pops out)
-
-    /// The Spotlight card's own crisp edge, under the low sun's shadow (`DailyPage`).
-    func spotlightEdge() -> some View {
-        shadow(color: .black.opacity(0.07), radius: 3, x: 0, y: 1.5)
     }
 
     // MARK: The Meetup pill (`MeetupPillStyle`)

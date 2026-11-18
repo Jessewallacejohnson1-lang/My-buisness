@@ -28,12 +28,24 @@ final class TodayBubblesTests: XCTestCase {
         XCTAssertEqual(TodayBubbleRules.phase(ev("all", "All day"), now: sevenPM), .untimed)
     }
 
-    func testCountdownReadsHoursThenMinutesAndSeconds() {
-        XCTAssertEqual(TodayBubbleRules.countdown(5 * 3600 + 3 * 60 + 59), "5h 03m")
-        XCTAssertEqual(TodayBubbleRules.countdown(3600), "1h 00m")
+    /// Only the last hour counts down, with the ring; further out the bubble is its plain grey ring
+    /// (Jesse, 2026-11-17: "only do the countdown when it's under 1 hour").
+    func testCountdownOnlyInTheLastHour() {
+        XCTAssertNil(TodayBubbleRules.countdown(5 * 3600 + 3 * 60 + 59))
+        XCTAssertNil(TodayBubbleRules.countdown(3600), "under an hour, not at it")
         XCTAssertEqual(TodayBubbleRules.countdown(3599), "59:59")
         XCTAssertEqual(TodayBubbleRules.countdown(485), "8:05")
         XCTAssertEqual(TodayBubbleRules.countdown(-3), "0:00")
+    }
+
+    /// Once a minute until the last hour, landing on its first second, then every second, so the
+    /// countdown never shows up late or counts in minutes.
+    func testTicksEveryMinuteThenEverySecondFromTheLastHour() {
+        let fast = Date(timeIntervalSince1970: 1_000_000)
+        XCTAssertEqual(TodayBubbleRules.nextTick(after: fast - 600, fast: fast), fast - 540)
+        XCTAssertEqual(TodayBubbleRules.nextTick(after: fast - 30, fast: fast), fast, "lands on it, never past it")
+        XCTAssertEqual(TodayBubbleRules.nextTick(after: fast, fast: fast), fast + 1)
+        XCTAssertEqual(TodayBubbleRules.nextTick(after: fast + 90, fast: fast), fast + 91)
     }
 
     func testVoiceOverSaysTheCountdownInWords() {
@@ -45,8 +57,8 @@ final class TodayBubblesTests: XCTestCase {
     }
 
     func testRingOnlyInTheLastHourAndEmptiesToTheStart() {
-        XCTAssertNil(TodayBubbleRules.ringLeft(3601))
-        XCTAssertEqual(TodayBubbleRules.ringLeft(3600), 1)
+        XCTAssertNil(TodayBubbleRules.ringLeft(3600))
+        XCTAssertEqual(TodayBubbleRules.ringLeft(3599)!, 1, accuracy: 0.001)
         XCTAssertEqual(TodayBubbleRules.ringLeft(1800)!, 0.5, accuracy: 0.0001)
         XCTAssertEqual(TodayBubbleRules.ringLeft(0), 0)
     }

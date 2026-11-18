@@ -9237,7 +9237,7 @@ Notes: Proposed on 2026-10-18 for BP app place-photos 04 (a picture for every ev
 ## Joetown Burgers
 ```yaml
 id: joetown-smashburger
-status: retired
+status: proposed
 tier: listed
 category: "restaurant"
 place_type: "Business"
@@ -9250,4 +9250,4 @@ sources:
     method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-18 for BP app place-photos 04: an app place (Search) that had no entry. One of four restaurants inside The House (13 2nd Ave NW), each run on its own (Jesse, 2026-10-18); Google Maps lists only The House Food and Tap there. Named Joetown Burgers, as its crest reads (Jesse, 2026-10-19); the id keeps the old name. Unreviewed — tier `listed`, so it publishes nothing until promoted. Retired 2026-11-16: a double: Joetown Smashburger is the kitchen inside The House Food and Tap (food-house-tap). Hidden in the app (`places.closed_at`); two separate checks agreed (Google Maps and web research), Jesse's yes (BP app watch-every-place 32).
+Notes: Proposed on 2026-10-18 for BP app place-photos 04: an app place (Search) that had no entry. One of four restaurants inside The House (13 2nd Ave NW), each run on its own (Jesse, 2026-10-18); Google Maps lists only The House Food and Tap there. Named Joetown Burgers, as its crest reads (Jesse, 2026-10-19); the id keeps the old name. Unreviewed — tier `listed`, so it publishes nothing until promoted. Retired 2026-11-16: a double: Joetown Smashburger is the kitchen inside The House Food and Tap (food-house-tap). Hidden in the app (`places.closed_at`); two separate checks agreed (Google Maps and web research), Jesse's yes (BP app watch-every-place 32). Back 2026-11-18 (Jesse: "joetown burgers is a place"): a place by his word, not a double; a sweep for closed places or doubles leaves it alone (BP app watch-every-place 38).
