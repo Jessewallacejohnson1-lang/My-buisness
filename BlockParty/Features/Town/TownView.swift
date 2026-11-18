@@ -400,6 +400,16 @@ struct TownView: View {
         .onAppear {
             if forcedScroll { feedPosition.scrollTo(y: Self.forcedScrollY) }
             #if DEBUG
+            if LaunchFlags.has(.feedScrollRun) {
+                Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(5))
+                    for step in 1...30 {
+                        withAnimation(.easeOut(duration: 0.35)) { feedPosition.scrollTo(y: CGFloat(step) * 700) }
+                        try? await Task.sleep(for: .seconds(1))
+                    }
+                    print("ReadAhead: run done")
+                }
+            }
             if LaunchFlags.has(.feedScrollSweep) {
                 Task { @MainActor in
                     try? await Task.sleep(for: .milliseconds(600))
@@ -465,6 +475,15 @@ final class FrameGapLog {
         if frames % 300 == 0 {
             print("FrameGapLog: \(frames) frames, \(dropped) drops, worst \(Int(worstMs))ms")
         }
+    }
+}
+
+/// `-read-ahead-log`: one line per photo or logo as it comes on, drawn in its first frame or not (BP app tab-lag 03).
+enum ReadAheadLog {
+    static let enabled = LaunchFlags.has(.readAheadLog)
+
+    static func cameOn(_ kind: String, ready: Bool) {
+        if enabled { print("ReadAhead: \(ready ? "READY" : "BLANK") \(kind)") }
     }
 }
 #endif

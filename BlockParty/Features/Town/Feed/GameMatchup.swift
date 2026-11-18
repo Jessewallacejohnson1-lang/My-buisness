@@ -1274,5 +1274,8 @@ struct LogoDisc: View {
         .clipShape(disc ? AnyShape(Circle()) : lift == nil ? AnyShape(Rectangle()) : AnyShape(Rectangle().inset(by: -logoSide)))
         .animation(Motion.smooth, value: image != nil)
         .task(id: logo) { if let logo { logos.prefetch([logo]) } }
+        #if DEBUG
+        .onAppear { if let logo { ReadAheadLog.cameOn("logo", ready: logos.images[logo] != nil) } }
+        #endif
     }
 }

@@ -154,6 +154,9 @@ private struct FeedCardDownsampledPhoto: View {
                 onFailure?()
             }
         }
+        #if DEBUG
+        .onAppear { ReadAheadLog.cameOn("photo", ready: image != nil) }
+        #endif
         // Off screen it lets go, or a long scroll holds every photo it passed: 473 MB on Town at
         // 40 swipes, and iOS shuts the biggest apps down first (BP app backlog 21). On the way back
         // the loader's newest draw at once.
