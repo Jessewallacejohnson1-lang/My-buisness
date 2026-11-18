@@ -24,8 +24,7 @@ struct EditProfileView: View {
     @State private var heldFollows: [FollowTarget: Bool] = [:]
     @State private var pick: PhotosPickerItem?
     @State private var bio = ""
-    @FocusState private var focus: Field?
-    private enum Field { case name }
+    @FocusState private var nameFocused: Bool
     @State private var cover: UIImage?
     @State private var coverPick: PhotosPickerItem?
     /// A photo just picked, in Adjust before it lands (backlog 32): the profile photo's circle, the cover's shape.
@@ -255,13 +254,13 @@ struct EditProfileView: View {
                 .font(.sans(17)).foregroundStyle(Hue.ink)
                 .textInputAutocapitalization(.words)
                 .submitLabel(.done)
-                .focused($focus, equals: .name)
+                .focused($nameFocused)
                 .padding(.horizontal, 14).padding(.vertical, 13)
                 .background(Hue.surface, in: RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: Radius.button, style: .continuous).stroke(Hue.hairline, lineWidth: 1))
                 // The whole box takes the tap, not only the text line.
                 .contentShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
-                .onTapGesture { focus = .name }
+                .onTapGesture { nameFocused = true }
                 .onChange(of: name) { _, v in if v.count > 24 { name = String(v.prefix(24)) } }
         }
     }
