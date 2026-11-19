@@ -10,6 +10,9 @@ flake moves to Fixed, dated, and stays there.
 
 ## Flaky
 
+- 2026-11-18 · `AppSessionTests.testLaunchRunsEachJobOnceAndStopsWithTheShell` · red once on the Mac in a full run on
+  feat/player-stats (a game page's player stats; no launch or Search code) at load about 19: XCTAssertTrue failed at
+  line 225 · passed alone straight after · no fix yet
 - 2026-11-15 · `EventCardPhotoTapTests.testEdgeSwipeOverTheHeroPopsAndTheRootStillPushes` · crashed (signal term)
   once on the Mac in a full run on feat/name-hint (the onboarding name box's hint text only) just after merging
   663ca83, at load 30 to 50 · passed alone straight after · no fix yet
