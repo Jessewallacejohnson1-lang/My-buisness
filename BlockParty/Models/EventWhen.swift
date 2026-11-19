@@ -85,7 +85,7 @@ extension EventWhen {
 
     /// Each start already read, and what it read as: a year of Events has the same few dozen, and the patterns
     /// below took half the Event calendar's read of its year on the main thread (BP app tab-lag 02).
-    private static let read = OSAllocatedUnfairLock(initialState: [String: Int?]())
+    private nonisolated static let read = OSAllocatedUnfairLock(initialState: [String: Int?]())
 
     private nonisolated static func reading(_ raw: String) -> Int? {
         let text = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
