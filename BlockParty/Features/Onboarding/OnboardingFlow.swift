@@ -811,8 +811,8 @@ struct OnboardingWelcome: View {
                 .foregroundStyle(.white)
                 .rise(up, delay: 0)
             Text(OnboardingStep.welcome.question)
-                .appleFont(36, weight: .bold)   // Apple's font, as every onboarding word (Jesse, 2026-11-09)
-                .lineSpacing(-3)   // SF's 43 pt line to the mock's 40
+                .font(.display(36))   // Inter Tight Bold, the app's header face (Jesse, 2026-11-18, onboarding 38)
+                .lineSpacing(-4)   // Inter Tight's 44 pt line to the mock's 40
                 .foregroundStyle(.white)
                 .padding(.top, 150 - 88 - mark)
                 .accessibilityAddTraits(.isHeader)

@@ -28,8 +28,8 @@ nothing uses them now.
 2026-11-08; approved 2026-11-09): the Reference for every screen is mock v8,
 https://claude.ai/artifact/MP8F7en27xmiB9Nz3d2k6J, source `docs/plans/onboarding/assets/33-new-look/mock/`
 (its sizes are in its CSS; the Luma screens it copies are in `mock/refs/`). Where it and an older
-mock or the spec's look differ, mock v8 wins. In short: Apple's font for every word, Welcome and
-Done included; Luma's pale grey canvas; a 52 pt grey icon circle above each question; the question
+mock or the spec's look differ, mock v8 wins. In short: Apple's font for every word, Done included,
+but the Welcome's headline is Inter Tight Bold 36 (onboarding 38, 2026-11-18); Luma's pale grey canvas; a 52 pt grey icon circle above each question; the question
 at 24 pt semibold on a 30 pt line; a 4 pt ink progress line that glides to each step and stops; Luma's
 flat 48 pt black pill 20 pt from each side, which sinks to 97% and dims when pressed, greys while not
 allowed and shakes; soft grey field boxes with a small label above. The Welcome keeps Nextdoor's
