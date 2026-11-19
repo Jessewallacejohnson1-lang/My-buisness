@@ -98,7 +98,7 @@ final class ChatBook {
         guard live, sockets, db.auth.hasAccount else { return }
         if socket == nil {
             let auth = db.auth
-            let socket = RealtimeClient(name: "chat", tables: ["chat_messages", "chat_reads"],
+            let socket = RealtimeClient(name: "chat", tables: ["chat_messages", "chat_reads", "chat_reactions"],
                                         tokenProvider: { try? await auth.validAccessToken() })
             socket.onChange = { [weak self] _ in self?.heard() }
             // Subscribed again after a drop: read what was missed.
@@ -336,8 +336,9 @@ final class ChatThread {
 
     // MARK: Sending
 
-    /// `id`: the phone's id for it, given by the page when the bubble comes up out of the composer.
-    func send(_ words: String, id: String = UUID().uuidString.lowercased()) async {
+    /// `id`: the phone's id for it, given by the page when the bubble comes up out of the composer. `replying`: the
+    /// message it answers, quoted over it at once.
+    func send(_ words: String, id: String = UUID().uuidString.lowercased(), replying: ChatMessage? = nil) async {
         // The database's own limit, kept here so a long message isn't refused whole.
         let words = String(words.trimmingCharacters(in: .whitespacesAndNewlines).prefix(ChatThread.longest))
         guard !words.isEmpty else { return }
@@ -345,7 +346,7 @@ final class ChatThread {
         // A host's update shows their face at once, from their last one when there is one.
         await deliver(ChatMessage(id: id, senderID: me, content: .text(words), at: .now,
                                   state: .sending, sender: isHost ? messages.last { $0.senderID == me }?.sender : nil,
-                                  host: isHost))
+                                  host: isHost, reply: replying?.quote))
     }
 
     func send(card: FeedCardItem) async {
@@ -376,7 +377,8 @@ final class ChatThread {
         }
         do {
             let draft = try await draft(for: message)
-            let sent = try await api.send(chat: chatID, to: chatID == nil ? person : nil, client: message.id, draft)
+            let sent = try await api.send(chat: chatID, to: chatID == nil ? person : nil, client: message.id,
+                                          reply: message.reply?.answers, draft)
             let first = chatID == nil
             chatID = sent.chatId
             if let i = messages.firstIndex(where: { $0.id == message.id }) {
@@ -422,6 +424,32 @@ final class ChatThread {
             return .photo(path: uploaded, width: width, height: height)
         }
     }
+
+    // MARK: Hearts (BP app messages 03)
+
+    /// Your emoji on a message, or yours taken back when it's the same one: it shows at once, and goes back with a
+    /// buzz if the server says no. A double tap is the heart.
+    func react(_ message: ChatMessage, _ emoji: String) async {
+        guard let serverID = message.serverID, let i = messages.firstIndex(where: { $0.id == message.id }) else { return }
+        let before = messages[i].reactions
+        let after = ChatLook.reacted(before, me: me, emoji)
+        // A read already on its way has the old ones: the socket's next read, after this write, is the one to keep.
+        latestRead &+= 1
+        withAnimation(ChatMotion.reaction) { messages[i].reactions = after }
+        Haptics.light()
+        do {
+            try await api.react(serverID, after.first { $0.userId == me }?.emoji)
+        } catch {
+            Log.network("ChatThread react: \(error)")
+            if let now = messages.firstIndex(where: { $0.id == message.id }) {
+                withAnimation(Motion.smooth) { messages[now].reactions = before }
+            }
+            Haptics.error()
+        }
+    }
+
+    /// You, by id: who wrote what a reply quotes, and whose emoji is whose.
+    func isMe(_ id: String?) -> Bool { id == me }
 
     // MARK: Typing
 
@@ -491,6 +519,15 @@ extension ChatMessage {
     var card: FeedCardItem? {
         if case .event(let card) = content { card } else { nil }
     }
+
+    /// What a reply to it quotes: its words, "Photo" or its Event's title.
+    var quote: ChatQuote {
+        switch content {
+        case .text(let words): ChatQuote(senderId: senderID, kind: "text", name: sender?.displayName, body: words, answers: serverID)
+        case .photo: ChatQuote(senderId: senderID, kind: "photo", name: sender?.displayName, answers: serverID)
+        case .event(let card): ChatQuote(senderId: senderID, kind: "event", name: sender?.displayName, body: card?.title, answers: serverID)
+        }
+    }
 }
 
 /// Chat's words, in one place (BP app five-tabs 05). Working words.
@@ -535,6 +572,25 @@ enum ChatWords {
     static func needsStamp(_ message: ChatMessage, after last: ChatMessage?) -> Bool {
         guard let last else { return true }
         return message.at.timeIntervalSince(last.at) >= 15 * 60
+    }
+
+    /// Over a reply: who answered whom. `quoted` is nil for yourself; a name is a whole name, of which the first is said.
+    static func replied(mine: Bool, by name: String?, to quoted: String?, quotedMine: Bool, sameSender: Bool) -> String {
+        let first = { (whole: String?) in whole?.split(separator: " ").first.map(String.init) ?? "someone" }
+        if mine { return quotedMine ? "You replied to yourself" : "You replied to \(first(quoted))" }
+        if quotedMine { return "\(first(name)) replied to you" }
+        if sameSender { return "\(first(name)) replied" }
+        return "\(first(name)) replied to \(first(quoted))"
+    }
+
+    /// The quoted words: a text's, "Photo", an Event's title, or that it's gone.
+    static func quoted(_ quote: ChatQuote) -> String {
+        if quote.gone { return "Message unavailable" }
+        switch quote.kind {
+        case "photo": return "Photo"
+        case "event": return quote.body ?? "Event"
+        default: return quote.body ?? ""
+        }
     }
 
     /// What the server's refusals mean to whoever tapped.
