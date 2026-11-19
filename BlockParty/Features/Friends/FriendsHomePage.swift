@@ -119,6 +119,7 @@ struct FriendsHomePage: View {
                            value: groups.mine.map(\.id) + ["|"] + groups.open.map(\.id))
             }
             .scrollDismissesKeyboard(.immediately)
+            .scrollRun()
             .onScrollGeometryChange(for: Bool.self) { geo in
                 geo.contentOffset.y + geo.contentInsets.top > FriendsMetric.titleLine
             } action: { _, under in

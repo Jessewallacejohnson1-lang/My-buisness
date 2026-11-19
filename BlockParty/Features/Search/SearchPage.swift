@@ -441,6 +441,7 @@ struct SearchPage: View {
                 .padding(.bottom, SearchMetric.tabBarClearance)
             }
             .scrollDismissesKeyboard(.immediately)
+            .scrollRun()
             // The Sports grid carries the header with it; every other view keeps it pinned.
             .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y + $0.contentInsets.top } action: { _, y in
                 travel.points = carries ? y : 0
