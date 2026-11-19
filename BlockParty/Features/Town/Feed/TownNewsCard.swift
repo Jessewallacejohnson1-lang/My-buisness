@@ -190,17 +190,22 @@ private struct NewsPhotoFace: View {
     }
 
     /// As an Event's over its photo: the headline, 4 pt under it when, then its words (2 lines; Jesse at town-feed 53's
-    /// Check-in 1), clear of the heart in the bottom right corner.
+    /// Check-in 1), clear of the heart in the bottom right corner. Over the post's own graphic, no headline: its words
+    /// say it (town-feed 77); the card's VoiceOver line still reads it. A graphic that never loads leaves plain ink, so
+    /// the headline comes back.
     private var words: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(news.headline)
-                .font(.eventDisplay(28))
-                .lineSpacing(-2)
-                .foregroundStyle(.white)
-                .lineLimit(!dynamicTypeSize.isAccessibilitySize && photo.cardAspect > 1.5 ? 2 : 3)
-                .fixedSize(horizontal: false, vertical: true)
+        let flyer = news.photoIsFlyer && !failed
+        return VStack(alignment: .leading, spacing: 4) {
+            if !flyer {
+                Text(news.headline)
+                    .font(.eventDisplay(28))
+                    .lineSpacing(-2)
+                    .foregroundStyle(.white)
+                    .lineLimit(!dynamicTypeSize.isAccessibilitySize && photo.cardAspect > 1.5 ? 2 : 3)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             CardTime(text: news.when(), color: .white)
-            if let facts = news.facts {
+            if let facts = flyer ? news.flyerWords : news.facts {
                 Text(facts)
                     .font(.sans(13))
                     .foregroundStyle(.white.opacity(0.85))
