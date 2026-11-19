@@ -197,9 +197,11 @@ async function wholeFile(url: string): Promise<unknown> {
   const res = await fetch(url, { headers: UA, signal: AbortSignal.timeout(10_000) })
   console.log(`[live-scores] ${url}: ${res.status}`)
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
-  const read = parsed(await res.text()) as { Game?: object; Plays?: unknown[] }
+  const read = parsed(await res.text()) as { Game?: object; Plays?: unknown[]; Stats?: object }
   if (!read.Game) throw new Error("no game in the file")
-  return { Game: { ...read.Game, ...(Array.isArray(read.Plays) ? { LastPlays: read.Plays } : {}) } }
+  // Stats: each player's line, which a basketball game's page lists (game-card 35).
+  return { Game: { ...read.Game, ...(Array.isArray(read.Plays) ? { LastPlays: read.Plays } : {}) },
+           ...(read.Stats ? { Stats: read.Stats } : {}) }
 }
 
 // sidearmstats.com asks one read per 10 minutes (Crawl-delay: 600), so one game's file, in the first minute of each 10:
