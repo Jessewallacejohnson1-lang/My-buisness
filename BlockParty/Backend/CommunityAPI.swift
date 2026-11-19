@@ -557,6 +557,15 @@ struct CommunityAPI {
         return rows?.first?.morePlaces ?? []
     }
 
+    /// A basketball game's player lines (BP app game-card 35), for its page; nil when it has none or the read fails.
+    func playerStats(event id: String) async -> [Game.Box]? {
+        struct Row: Decodable { let playerStats: [Game.Box]? }
+        let rows: [Row]? = try? Supabase.decode(await db.rest("club_events", [
+            ("select", "player_stats"), ("id", "eq.\(id)"),
+        ], anon: true))
+        return Game.Box.pair(rows?.first?.playerStats)
+    }
+
     /// A long Event's parts for its page's Schedule (BP app happening-now 06), finished by the server
     /// (`get_event_parts`): by start, each with its end and whether it is live. None when the read fails.
     func parts(event id: String) async -> [EventPart] {

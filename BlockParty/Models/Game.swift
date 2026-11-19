@@ -30,6 +30,10 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
     private(set) var shots: [Int]?
     /// SIDEARM's scoring plays, oldest first (ticket 05): every play that changed the score, in its words.
     private(set) var plays: [Play] = []
+    /// Each team's player lines in `teams` order (game-card 35): a college basketball game's, from SIDEARM's whole file
+    /// (`club_events.player_stats`, `private.sidearm_box`); nil until both teams have some. The Town feed sends none: a
+    /// game's page reads them, and a live game's realtime row brings them.
+    private(set) var players: [Box]?
     /// The side you follow, as its team's uuid (`Team.id`), when the Town feed lifted it for a school or activity
     /// you follow (BP app daily-tab 27); nil from any other read.
     var mine: String? = nil
@@ -56,6 +60,34 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
         var winner: Int { score[0] > score[1] ? 0 : 1 }
         /// "CSB wins 5–4", the winner's count first.
         var wins: String { "\(who) wins \(score[winner])–\(score[1 - winner])" }
+    }
+
+    /// One team's player lines, most points first, and its totals (game-card 35).
+    nonisolated struct Box: Decodable, Hashable, Sendable {
+        let rows: [Line]
+        let total: Line
+
+        /// A player's line, or the team's (no number, name or position).
+        nonisolated struct Line: Decodable, Hashable, Sendable {
+            var uni: String? = nil
+            var name: String? = nil
+            var pos: String? = nil
+            let pts: Int
+            let reb: Int
+            let ast: Int
+            /// Made and tried, "3-9".
+            let fg: String
+            let tp: String
+        }
+
+        /// Both teams' lines from `club_events.player_stats`, or nil unless there are two.
+        static func pair(from data: Data) -> [Box]? {
+            (try? JSONDecoder().decode([Box].self, from: data)).flatMap(pair)
+        }
+
+        static func pair(_ boxes: [Box]?) -> [Box]? {
+            boxes.flatMap { $0.count == 2 && $0.allSatisfy { !$0.rows.isEmpty } ? $0 : nil }
+        }
     }
 
     /// One scoring play as `club_events.scoring_plays` keeps it (`private.sidearm_scoring`).
@@ -331,7 +363,7 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
         }
     }
 
-    private enum CodingKeys: String, CodingKey { case sport, occasion, teams, final, live, plays, mine }
+    private enum CodingKeys: String, CodingKey { case sport, occasion, teams, final, live, plays, mine, players }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -339,15 +371,18 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
         occasion = try c.decodeIfPresent(String.self, forKey: .occasion)
         teams = try c.decode([Team].self, forKey: .teams)
         mine = try? c.decodeIfPresent(String.self, forKey: .mine)
+        players = Box.pair((try? c.decodeIfPresent([Box].self, forKey: .players)) ?? nil)
         let final = (try? c.decodeIfPresent([Int].self, forKey: .final)) ?? nil
         setScores(final: final, live: (try? c.decodeIfPresent(Live.self, forKey: .live)) ?? nil,
                   plays: ((try? c.decodeIfPresent([LenientItem<Play>].self, forKey: .plays)) ?? nil)?.compactMap(\.value) ?? [])
     }
 
-    /// The same game with a realtime update's scores (`club_events.final_score`, `live_score`, `scoring_plays`).
-    func with(final: [Int]?, live: Live?, plays: [Play]? = nil) -> Game {
+    /// The same game with a realtime update's scores (`club_events.final_score`, `live_score`, `scoring_plays`) and
+    /// player lines (`player_stats`), each kept as it was when the update has none.
+    func with(final: [Int]?, live: Live?, plays: [Play]? = nil, players: [Box]? = nil) -> Game {
         var game = self
         game.setScores(final: final, live: live, plays: plays ?? self.plays)
+        game.players = Box.pair(players) ?? self.players
         return game
     }
 

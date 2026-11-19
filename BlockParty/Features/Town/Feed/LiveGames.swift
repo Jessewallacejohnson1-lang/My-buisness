@@ -86,7 +86,8 @@ final class LiveGames {
         if change.kind == .update, let row = change.new, let id = row.id, let game = games[id] {
             let live = row.liveScore.flatMap { try? JSONDecoder().decode(Game.Live.self, from: $0) }
             let plays = row.scoringPlays.flatMap(Game.Play.list(from:))
-            let scored = game.with(final: row.finalScore, live: live, plays: plays)
+            let scored = game.with(final: row.finalScore, live: live, plays: plays,
+                                   players: row.playerStats.flatMap(Game.Box.pair(from:)))
             if scored != game {
                 games[id] = scored
                 if scored.final != nil { check(at: now) }
@@ -98,14 +99,15 @@ final class LiveGames {
     /// The newer of `kept` and `other`: the one with a final, else the one whose live score is later
     /// (one with no time is oldest). On a tie, `other`, the one that came in last (a corrected final, a
     /// logo found), unless `kept` has scoring plays it lacks: a change that only adds a play leaves the
-    /// live score's time where it was.
+    /// live score's time where it was. Nor player lines it lacks (game-card 35): the feed's game has none.
     nonisolated static func newer(_ kept: Game?, _ other: Game?) -> Game? {
         guard let kept else { return other }
         guard let other else { return kept }
         if (kept.final == nil) != (other.final == nil) { return kept.final != nil ? kept : other }
         let (keptAt, otherAt) = (kept.live?.at ?? .distantPast, other.live?.at ?? .distantPast)
         if keptAt != otherAt { return otherAt > keptAt ? other : kept }
-        return other.plays.count >= kept.plays.count ? other : kept
+        if other.plays.count != kept.plays.count { return other.plays.count > kept.plays.count ? other : kept }
+        return kept.players != nil && other.players == nil ? kept : other
     }
 
     /// The held cards with their games as they are now, those without a final.

@@ -41,6 +41,8 @@ final class RealtimeClient {
             var liveScore: Data? = nil
             /// Its scoring plays as JSON (game-card 05).
             var scoringPlays: Data? = nil
+            /// A basketball game's player lines as JSON (game-card 35).
+            var playerStats: Data? = nil
 
             /// Everything but the scores: an update that moved only a score changes nothing the map shows.
             var withoutScores: Row {
@@ -274,7 +276,8 @@ final class RealtimeClient {
         return Change.Row(id: str("id"), eventDate: str("event_date"),
                           startTime: str("start_time"), status: str("status"),
                           kind: str("kind"), title: str("title"), location: str("location"),
-                          finalScore: d["final_score"] as? [Int], liveScore: live, scoringPlays: json("scoring_plays"))
+                          finalScore: d["final_score"] as? [Int], liveScore: live, scoringPlays: json("scoring_plays"),
+                          playerStats: json("player_stats"))
     }
 
     // MARK: Reconnect (capped exponential backoff)
