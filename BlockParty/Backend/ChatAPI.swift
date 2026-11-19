@@ -198,7 +198,8 @@ struct ChatAPI {
             default: return nil
             }
             var reply = row.reply
-            reply?.senderId = reply?.senderId?.lowercased()
+            let quoted = reply?.senderId?.lowercased()
+            reply?.senderId = quoted
             return ChatMessage(id: row.clientId.lowercased(), serverID: row.id, senderID: row.senderId.lowercased(),
                                content: content, at: at, sender: row.sender, host: row.host ?? false,
                                reactions: (row.reactions ?? []).map { ChatReaction(userId: $0.userId.lowercased(), emoji: $0.emoji) },
