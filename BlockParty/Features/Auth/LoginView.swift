@@ -78,7 +78,7 @@ final class AccountForm {
         }
     }
 
-    private var mail: String { email.trimmingCharacters(in: .whitespaces) }
+    var mail: String { email.trimmingCharacters(in: .whitespaces) }
 
     nonisolated static func looksLikeEmail(_ text: String) -> Bool {
         text.trimmingCharacters(in: .whitespaces).wholeMatch(of: /[^@\s]+@[^@\s]+\.[^@\s]+/) != nil
@@ -103,6 +103,8 @@ final class AccountForm {
         case .forgot:
             refused = await auth.sendResetCode(email: mail)
             resent = false
+            // Back here and sent again: the old code no longer works, so its box starts empty.
+            if refused == nil { code = "" }
         case .code:
             refused = await auth.verifyResetCode(email: mail, code: code)
             // The new password's box starts empty, not with the one that didn't work.
@@ -120,6 +122,8 @@ final class AccountForm {
     /// The code screen's "Send code again".
     func resend(auth: AuthStore) async {
         guard !busy, !resent else { return }
+        busy = true
+        defer { busy = false }
         if let refused = await auth.sendResetCode(email: mail) { return refuse(refused) }
         resent = true
         AccessibilityNotification.Announcement("Code sent").post()
@@ -153,7 +157,7 @@ struct AccountFields: View {
         VStack(alignment: .leading, spacing: 0) {
             if way == .forgot { OnboardingSubline("We'll email you a code.") }
             if way == .code {
-                Text("We sent it to \(Text(form.email.trimmingCharacters(in: .whitespaces)).fontWeight(.semibold).foregroundStyle(Hue.ink)).")
+                Text("We sent it to \(Text(form.mail).fontWeight(.semibold).foregroundStyle(Hue.ink)).")
                     .font(.apple(15))
                     .foregroundStyle(Hue.inkSecondary)
                     .fixedSize(horizontal: false, vertical: true)
