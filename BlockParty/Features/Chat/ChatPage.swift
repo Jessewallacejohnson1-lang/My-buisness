@@ -269,7 +269,7 @@ struct ChatPage: View {
         let message = held.message, mine = thread.isMine(message)
         var items: [ChatHeldItem] = []
         if canReply(thread), message.serverID != nil {
-            items.append(ChatHeldItem(title: "Reply", icon: "arrowshape.turn.up.left", red: false) { reply(to: message) })
+            items.append(ChatHeldItem(title: "Reply", icon: "arrow.uturn.backward", red: false) { reply(to: message) })
         }
         if case .text(let words) = message.content {
             items.append(ChatHeldItem(title: "Copy", icon: "doc.on.doc", red: false) { UIPasteboard.general.string = words })
@@ -912,7 +912,7 @@ private struct ChatBubble: View {
         // replies.
         .overlay(alignment: .leading) {
             if pull > 0 {
-                Image(systemName: "arrowshape.turn.up.left")
+                Image(systemName: "arrow.uturn.backward")
                     .font(.glyph(ChatMetric.replyArrow - 3))
                     .foregroundStyle(Hue.ink)
                     .frame(width: ChatMetric.replyArrow, height: ChatMetric.replyArrow)
