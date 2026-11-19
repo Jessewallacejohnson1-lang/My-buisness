@@ -286,7 +286,8 @@ final class OnboardingStore {
         defaults.removeObject(forKey: HelloDrop.lastSeenKey)
         answersPending = false
         tooYoung = false
-        account = nil
+        // Log in stays up: someone on it is there to log in, as after backing out of a new password.
+        if account != .logIn { account = nil }
         welcoming = false
         finished = false
         finishedHere = false
@@ -475,7 +476,11 @@ struct OnboardingFlow: View {
 
             HStack(spacing: 4) {
                 // None on the first question: the account is made, there's no going back to make another.
-                OnboardingBackChevron(action: go { [store] in if store.account != nil { store.accountBack() } else { store.back() } })
+                OnboardingBackChevron(action: go { [store] in
+                    // The code signed the phone in for its new password: back out of it is a sign-out.
+                    if store.account == .newPassword { Task { await AuthStore.shared.signOut() } }
+                    if store.account != nil { store.accountBack() } else { store.back() }
+                })
                     .opacity(noBack ? 0 : 1)
                     // Nor while Log in or Create account waits on the server: its answer moves on.
                     .disabled(noBack || form.busy)
@@ -636,7 +641,7 @@ struct OnboardingFlow: View {
 
     /// No back chevron on the first question (the account is made, there's no going back to make
     /// another) nor on the new password (the code has signed the phone in).
-    private var noBack: Bool { store.account == nil ? store.step == .profile : store.account == .newPassword }
+    private var noBack: Bool { store.account == nil && store.step == .profile }
 
     /// What the step asks for, under its question; nothing yet on the placeholder steps.
     @ViewBuilder private var answer: some View {

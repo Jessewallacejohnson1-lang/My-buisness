@@ -94,7 +94,22 @@ final class OnboardingStoreTests: XCTestCase {
         XCTAssertEqual(store.account, .logIn)
         store.accountBack()
         XCTAssertNil(store.account, "Log in goes back to the Welcome")
-        XCTAssertNil(OnboardingAccount.newPassword.back, "the code signed the phone in: no going back")
+        XCTAssertEqual(OnboardingAccount.newPassword.back, .logIn)
+    }
+
+    func testBackingOutOfANewPasswordLandsOnLogInAfterTheSignOut() {
+        let store = OnboardingStore(defaults: defaults)
+        store.open(.logIn)
+        store.open(.forgot)
+        store.open(.code)
+        store.open(.newPassword)
+        store.accountBack()
+        store.reset()   // RootView's, as the code's sign-in ends
+        XCTAssertEqual(store.account, .logIn)
+        XCTAssertEqual(store.step, .welcome)
+        store.open(.create)
+        store.reset()
+        XCTAssertNil(store.account, "any other screen goes back to the Welcome")
     }
 
     func testTheServerStampWaitsForTheNewPassword() {

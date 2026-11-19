@@ -41,10 +41,11 @@ enum OnboardingAccount {
     var resets: Bool { self == .forgot || self == .code || self == .newPassword }
 
     /// Where the back chevron goes: Forgot password steps back through itself to Log in, the rest to
-    /// the Welcome (nil). The new password has none: the code has signed the phone in.
+    /// the Welcome (nil). The new password's goes to Log in too, dropping the code's sign-in (Jesse,
+    /// 2026-11-19: "add", the mock's chevron).
     var back: OnboardingAccount? {
         switch self {
-        case .forgot: .logIn
+        case .forgot, .newPassword: .logIn
         case .code: .forgot
         default: nil
         }
