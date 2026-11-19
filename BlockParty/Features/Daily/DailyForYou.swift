@@ -57,23 +57,41 @@ enum DailyForYou {
 struct ForYouSection: View {
     let entries: [TownFeedEntry]
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.displayScale) private var displayScale
+    @State private var width: CGFloat = 0
 
     var body: some View {
         VStack(spacing: DailyRowMetric.titleToCards) {
             DailyRowTitle(title: "For you")
             // Lazy, as Following's cards: a post's photo takes its height from its width.
             LazyVStack(spacing: DailyMetric.followingCardGap) {
-                ForEach(entries) { entry in
-                    switch entry.item {
-                    case .event(let card):
-                        FeedEventCard(item: card, onShare: { ShareCenter.shared.present(.event(card)) })
-                    case .news(let news): TownNewsCard(news: news)
-                    case .post(let post): FeedPostCard(post: post)
+                ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
+                    Group {
+                        switch entry.item {
+                        case .event(let card):
+                            FeedEventCard(item: card, onShare: { ShareCenter.shared.present(.event(card)) })
+                        case .news(let news): TownNewsCard(news: news)
+                        case .post(let post): FeedPostCard(post: post)
+                        }
                     }
+                    // The pictures of the two screens below come in before they scroll on, as on Town (BP app tab-lag 03).
+                    .onAppear { read(after: index) }
                 }
+            }
+            // The first cards ask once the column is measured.
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { new in
+                let first = width == 0
+                width = new
+                if first { read(after: -1) }
             }
         }
         // A card you hid closes up instead of vanishing.
         .animation(reduceMotion ? nil : Motion.smooth, value: entries.map(\.id))
+    }
+
+    private func read(after index: Int) {
+        FeedReadAhead.read(count: entries.count, after: index, width: width, scale: displayScale) {
+            entries[$0].item.pictures(width: width)
+        }
     }
 }

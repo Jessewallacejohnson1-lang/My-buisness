@@ -82,7 +82,10 @@ struct FriendsHomePage: View {
     @Environment(YouModel.self) private var you
     @Environment(RealLifeActions.self) private var actions
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.displayScale) private var displayScale
     @State private var search = NeighborSearch()
+    /// The list's width, for the faces and photos it reads ahead.
+    @State private var width: CGFloat = 0
     @State private var words = Self.debugWords
     /// The large title has gone under the bar: the bar shows the small one.
     @State private var titleUnder = false
@@ -114,6 +117,7 @@ struct FriendsHomePage: View {
                     if tab { Color.clear.frame(height: DailyMetric.tabBarClearance) }
                 }
                 .padding(.top, PageMetric.bar)
+                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
                 // A Group joined leaves Groups to join for your own row.
                 .animation(reduceMotion ? nil : Motion.smooth,
                            value: groups.mine.map(\.id) + ["|"] + groups.open.map(\.id))
@@ -181,22 +185,63 @@ struct FriendsHomePage: View {
                 // Suggested for you (Jesse, five-tabs mock round 1).
                 FriendsEmptyInvite()
             }
-            ForEach(book.loaded ? rows(groups: groups, going: going) : []) { row in
-                switch row {
-                case .accepted(let person): AcceptedLine(person: person)
-                case .title(let title, let more): FriendsSectionTitle(text: title, more: more)
-                case .person(let person, let waiting): PersonRow(person: person, waiting: waiting)
-                case .going:
-                    // Each minute, so a card's "In 20 min" counts down and turns Now (BP app happening-now 07).
-                    TimelineView(.everyMinute) { context in
-                        DailyCardRow(title: nil, events: going, size: DailyRowMetric.friendsSize,
-                                     titleSize: DailyRowMetric.friendsTitle, showsFriends: true, now: context.date,
-                                     side: FriendsMetric.side)
+            let list = book.loaded ? rows(groups: groups, going: going) : []
+            ForEach(Array(list.enumerated()), id: \.element.id) { index, row in
+                Group { self.row(row, going: going, groups: groups) }
+                    // The faces and photos of the two screens below come in before they scroll on (BP app tab-lag 03).
+                    .onAppear {
+                        FeedReadAhead.read(count: list.count, after: index, width: width, scale: displayScale) {
+                            pictures(list[$0], going: going, groups: groups)
+                        }
                     }
-                case .groups: groupsBlock(groups)
-                case .suggested: PeopleYouMayKnowSection(people: book.suggested, title: nil, side: FriendsMetric.side)
-                }
             }
+        }
+    }
+
+    @ViewBuilder private func row(_ row: Row, going: [DailyEvent], groups: (mine: [TownGroup], open: [TownGroup])) -> some View {
+        switch row {
+        case .accepted(let person): AcceptedLine(person: person)
+        case .title(let title, let more): FriendsSectionTitle(text: title, more: more)
+        case .person(let person, let waiting): PersonRow(person: person, waiting: waiting)
+        case .going:
+            // Each minute, so a card's "In 20 min" counts down and turns Now (BP app happening-now 07).
+            TimelineView(.everyMinute) { context in
+                DailyCardRow(title: nil, events: going, size: DailyRowMetric.friendsSize,
+                             titleSize: DailyRowMetric.friendsTitle, showsFriends: true, now: context.date,
+                             side: FriendsMetric.side)
+            }
+        case .groups: groupsBlock(groups)
+        case .suggested: PeopleYouMayKnowSection(people: book.suggested, title: nil, side: FriendsMetric.side)
+        }
+    }
+
+    /// What a row draws from the network, and about how tall it stands: a face at its own size, the first two
+    /// cards of a sideways row (the rest wait for a swipe), the Groups' logos.
+    private func pictures(_ row: Row, going: [DailyEvent], groups: (mine: [TownGroup], open: [TownGroup])) -> FeedPictures {
+        func faces(_ people: [Neighbor], side: CGFloat, height: CGFloat) -> FeedPictures {
+            FeedPictures(faces: people.compactMap { $0.avatarUrl.flatMap(URL.init(string:)) }, height: height, faceSide: side)
+        }
+        switch row {
+        case .accepted(let person):
+            return faces([person], side: FriendsMetric.acceptedFace, height: FriendsMetric.acceptedFace + 16)
+        case .title: return FeedPictures(height: FriendsMetric.titleLine)
+        case .person(let person, let waiting):
+            return faces([person], side: waiting ? FriendsMetric.requestFace : FriendsMetric.neighborFace,
+                         height: waiting ? FriendsMetric.requestFace + 16 : FriendsMetric.row)
+        case .going:
+            let size = DailyRowMetric.friendsSize
+            var pictures = FeedPictures(height: size.height)
+            for event in going.prefix(2) {
+                if let url = event.photo { pictures.photos.append(.init(url: url, box: size, fit: event.item.whole)) }
+                pictures.faces += event.item.friendsGoing.compactMap(\.photo)
+            }
+            return pictures
+        case .groups:
+            let shown = groups.mine + groups.open.prefix(FriendsMetric.groupsShown)
+            return FeedPictures(logos: shown.compactMap { $0.logo.flatMap { FeedCardImageSource($0).logo }?.url },
+                                height: CGFloat(shown.count) * FriendsMetric.row)
+        case .suggested:
+            return faces(Array(book.suggested.prefix(3)), side: DailyPeopleMetric.face, height: DailyPeopleMetric.card.height)
         }
     }
 

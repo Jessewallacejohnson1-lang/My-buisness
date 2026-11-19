@@ -313,8 +313,9 @@ final class FeedCardImageLoader {
             touch(hit.key)
             return hit.value
         }
-        // One read ahead and still on its way is waited for rather than downloaded again.
-        if let ahead = reading.first(where: { $0.key.url == request.url })?.value,
+        // One read ahead and still on its way is waited for rather than downloaded again: the largest, when a
+        // face is read at two sizes.
+        if let ahead = reading.filter({ $0.key.url == request.url }).max(by: { $0.key.side < $1.key.side })?.value,
            let image = await ahead.value, Self.serves(image, request) {
             return image
         }
@@ -433,11 +434,11 @@ final class FeedCardImageLoader {
 
     /// Downloads and decodes a photo for a frame `box` points big before its view exists, so the view draws
     /// it in its first frame (BP app tab-lag 03), behind what's on screen. A photo already decoded big enough,
-    /// or on its way, is left.
+    /// or on its way at this size or larger, is left: a face on its way at 56 pt doesn't hold back a 92 pt one.
     func readAhead(_ url: URL, box: CGSize, scale: CGFloat, fit: Bool = false) {
         let request = FeedCardImageRequest(url: url, width: FeedCardURLPhoto.pixelWidth(points: box.width, scale: scale),
                                            height: FeedCardURLPhoto.pixelWidth(points: box.height, scale: scale), fit: fit)
-        guard !reading.keys.contains(where: { $0.url == url }),
+        guard !reading.keys.contains(where: { $0.url == url && $0.width >= request.width && $0.height >= request.height }),
               !cache.contains(where: { $0.key.url == url && Self.serves($0.value, request) }) else { return }
         reading[request] = Task(priority: .utility) {
             let image = await load(request)

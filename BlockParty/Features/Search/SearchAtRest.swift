@@ -27,6 +27,9 @@ struct SearchAtRest: View {
     let seed: UInt64
     @Environment(SearchModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.displayScale) private var displayScale
+    /// Around town's width, for the photos it reads ahead.
+    @State private var width: CGFloat = 0
 
     var body: some View {
         // Each minute, so "This morning" turns into "This afternoon" and an Event that started says Now.
@@ -98,17 +101,35 @@ struct SearchAtRest: View {
                     .shimmering()
                     .accessibilityLabel("Loading")
                 } else {
-                    let blocks = stride(from: 0, to: tiles.count, by: ExploreBlock.tiles).map {
-                        Array(tiles[$0 ..< $0 + ExploreBlock.tiles])
-                    }
+                    let blocks = Self.blocks(tiles)
                     ForEach(Array(blocks.enumerated()), id: \.offset) { i, block in
                         // The tall tile on the right first, then the left, as Instagram's.
                         ExploreBlock(tallLeading: i % 2 == 1) {
                             ForEach(block) { ExploreTile(item: $0) }
                         }
+                        // The photos of the blocks below come in before they scroll on (BP app tab-lag 03).
+                        .onAppear { read(blocks, after: i) }
                     }
                 }
             }
+            // The first blocks ask once the grid is measured and its tiles are in.
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { new in
+                let first = width == 0
+                width = new
+                if first { read(Self.blocks(tiles), after: -1) }
+            }
+            .onChange(of: loading) { if !loading { read(Self.blocks(tiles), after: -1) } }
+        }
+    }
+
+    /// Around town's tiles in blocks of five.
+    private static func blocks(_ tiles: [SearchItem]) -> [[SearchItem]] {
+        stride(from: 0, to: tiles.count, by: ExploreBlock.tiles).map { Array(tiles[$0 ..< $0 + ExploreBlock.tiles]) }
+    }
+
+    private func read(_ blocks: [[SearchItem]], after index: Int) {
+        FeedReadAhead.read(count: blocks.count, after: index, width: width, scale: displayScale) {
+            ExploreBlock.pictures(blocks[$0], width: width)
         }
     }
 }
@@ -119,7 +140,25 @@ struct ExploreBlock: Layout {
     nonisolated static let tiles = 5
     let tallLeading: Bool
 
-    private nonisolated func side(_ width: CGFloat) -> CGFloat { max(0, (width - 2 * SearchMetric.exploreGap) / 3) }
+    private nonisolated func side(_ width: CGFloat) -> CGFloat { Self.side(width) }
+    private nonisolated static func side(_ width: CGFloat) -> CGFloat { max(0, (width - 2 * SearchMetric.exploreGap) / 3) }
+
+    /// The photos a block `width` points wide draws: its first tile two squares tall, the rest square, a flyer
+    /// whole (BP app tab-lag 03). A tile with no photo shows its logo, which Search reads up front.
+    static func pictures(_ block: [SearchItem], width: CGFloat) -> FeedPictures {
+        let side = side(width)
+        var pictures = FeedPictures(height: 2 * side + 2 * SearchMetric.exploreGap)
+        for (index, item) in block.enumerated() {
+            let box = CGSize(width: side, height: index == 0 ? 2 * side + SearchMetric.exploreGap : side)
+            switch item.photo {
+            case .saved(let picture): pictures.photos.append(.init(url: picture.url, box: box))
+            case .card(let source):
+                if let url = source.url { pictures.photos.append(.init(url: url, box: box, fit: item.card?.whole == true)) }
+            case .bundled, nil: break
+            }
+        }
+        return pictures
+    }
 
     nonisolated func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let width = proposal.width ?? 0

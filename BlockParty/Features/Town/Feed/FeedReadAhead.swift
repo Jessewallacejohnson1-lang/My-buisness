@@ -22,6 +22,8 @@ struct FeedPictures: Equatable {
     var faces: [URL] = []
     /// About how tall the card stands, for how many cards make two screens.
     var height: CGFloat = 140
+    /// The side its faces draw at: 56 on a Town card, a Friends row's 60 or 92 (one read serves every smaller one).
+    var faceSide: CGFloat = FeedPictures.face.width
 
     /// The largest face a card draws (the white card's 56 pt mark): one read serves every smaller one.
     static let face = CGSize(width: 56, height: 56)
@@ -49,6 +51,17 @@ struct FeedPictures: Equatable {
         pictures.faces += [item.hostAvatar].compactMap { $0 } + item.friendsGoing.compactMap(\.photo)
             + item.goingAvatars.prefix(3)
         return pictures
+    }
+}
+
+extension TownFeedEntry.Item {
+    /// The pictures this card draws as Town draws it, in a column `width` points wide (the Block Party tab's For you).
+    func pictures(width: CGFloat) -> FeedPictures {
+        switch self {
+        case .event(let item): TownFeedItem.event(item).pictures(width: width)
+        case .news(let news): TownFeedItem.news(news).pictures(width: width)
+        case .post(let post): TownFeedItem.post(post).pictures(width: width)
+        }
     }
 }
 
@@ -101,32 +114,49 @@ enum FeedReadAhead {
     /// A screen's height over its width on every iPhone this app runs on (19.5:9).
     static let screen: CGFloat = 2.17
 
+    /// The most photos one window asks for: the photo memory keeps 24 (`FeedCardImageLoader`), so a window
+    /// read ahead is never pushed out before it scrolls on. Search's Around town fills two screens with about 33.
+    nonisolated static let maxPhotos = 12
+
     /// The cards after `index`, of `count`, whose pictures to ask for: as many as fill `screens` screens of a
-    /// `width`-point column, `height` saying how tall each stands. Only those cards are looked at.
+    /// `width`-point column, and about `maxPhotos` photos at most, `card` saying how tall each stands and how many
+    /// photos it holds. Only those cards are looked at.
     nonisolated static func ahead(count: Int, after index: Int, width: CGFloat, screens: CGFloat,
-                                  height: (Int) -> CGFloat) -> Range<Int> {
+                                  maxPhotos: Int = maxPhotos,
+                                  card: (Int) -> (height: CGFloat, photos: Int)) -> Range<Int> {
         let start = min(max(index + 1, 0), count)
-        var end = start, room = screens * screen * width
-        while end < count, room > 0 {
-            room -= height(end)
+        var end = start, room = screens * screen * width, photos = 0
+        while end < count, room > 0, photos < maxPhotos {
+            let next = card(end)
+            room -= next.height
+            photos += next.photos
             end += 1
         }
         return start..<end
     }
 
     static func read(_ items: [TownFeedItem], after index: Int, width: CGFloat, scale: CGFloat) {
+        read(count: items.count, after: index, width: width, scale: scale) { items[$0].pictures(width: width) }
+    }
+
+    /// Any list's read ahead: `pictures` says what its row at an index draws, and only the rows in the window are
+    /// asked. A list calls it from each row's `onAppear` with the row's index, and with -1 once it is measured, so
+    /// its first rows ask too.
+    static func read(count: Int, after index: Int, width: CGFloat, scale: CGFloat,
+                     pictures: (Int) -> FeedPictures) {
         guard width > 0 else { return }
         var cards: [Int: FeedPictures] = [:]
-        let range = ahead(count: items.count, after: index, width: width, screens: screens) { at in
-            let card = items[at].pictures(width: width)
+        let range = ahead(count: count, after: index, width: width, screens: screens) { at in
+            let card = pictures(at)
             cards[at] = card
-            return card.height
+            return (card.height, card.photos.count)
         }
         for card in range.compactMap({ cards[$0] }) {
             for photo in card.photos {
                 FeedCardImageLoader.shared.readAhead(photo.url, box: photo.box, scale: scale, fit: photo.fit)
             }
-            for face in card.faces { FeedCardImageLoader.shared.readAhead(face, box: FeedPictures.face, scale: scale) }
+            let face = CGSize(width: card.faceSide, height: card.faceSide)
+            for url in card.faces { FeedCardImageLoader.shared.readAhead(url, box: face, scale: scale) }
             // A logo that failed (a missing file) isn't asked again on every card that comes on.
             POILogoCache.shared.prefetch(card.logos.filter { !POILogoCache.shared.failed.contains($0) })
         }
