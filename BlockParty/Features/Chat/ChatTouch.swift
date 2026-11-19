@@ -9,6 +9,7 @@
 //
 
 import SwiftUI
+import UIKit.UIGestureRecognizerSubclass
 
 /// A finger moving right across a message: the row follows it and a reply arrow comes in behind. It begins only for a
 /// finger moving right, more across than down, and not from the left edge, where the stack's swipe back stays; the
@@ -53,16 +54,34 @@ struct ChatReplyPan: UIGestureRecognizerRepresentable {
 }
 
 /// A finger held still on a message for `ChatMotion.hold`: the menu opens. A finger that moves first is a scroll's.
+/// `pressed` hears the finger go down and come up, so the bubble answers at once, before the menu.
 struct ChatHold: UIGestureRecognizerRepresentable {
     let began: () -> Void
+    let pressed: (Bool) -> Void
 
-    func makeUIGestureRecognizer(context: Context) -> UILongPressGestureRecognizer {
-        let press = UILongPressGestureRecognizer()
+    final class Recognizer: UILongPressGestureRecognizer {
+        var pressed: ((Bool) -> Void)?
+
+        override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+            super.touchesBegan(touches, with: event)
+            pressed?(true)
+        }
+
+        override func reset() {
+            super.reset()
+            pressed?(false)
+        }
+    }
+
+    func makeUIGestureRecognizer(context: Context) -> Recognizer {
+        let press = Recognizer()
         press.minimumPressDuration = ChatMotion.hold
         return press
     }
 
-    func handleUIGestureRecognizerAction(_ press: UILongPressGestureRecognizer, context: Context) {
+    func updateUIGestureRecognizer(_ press: Recognizer, context: Context) { press.pressed = pressed }
+
+    func handleUIGestureRecognizerAction(_ press: Recognizer, context: Context) {
         if press.state == .began { began() }
     }
 }

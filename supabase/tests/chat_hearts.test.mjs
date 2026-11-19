@@ -65,8 +65,10 @@ test('one emoji per person: a new one takes its place, null takes it back, both 
   await react(BEN, sent.id, null);
   assert.deepEqual((await one(ANA, sent.chat_id, sent.id)).reactions, [{ user_id: ANA, emoji: '👍' }]);
   await react(BEN, sent.id, null);
-  const rows = await db.query('select count(*)::int as n from public.chat_reactions');
-  assert.equal(rows.rows[0].n, 1, 'taken back: gone, and a second take-back changes nothing');
+  const rows = await db.query('select count(*)::int as n, count(emoji)::int as shown from public.chat_reactions');
+  assert.deepEqual(rows.rows[0], { n: 2, shown: 1 }, 'taken back: no emoji, the row kept so no DELETE goes to every phone');
+  await react(BEN, sent.id, '😮');
+  assert.equal((await one(ANA, sent.chat_id, sent.id)).reactions.length, 2, 'and it can come back');
 });
 
 test('only the six emoji, only from inside the chat, never from a request not yet accepted', async () => {

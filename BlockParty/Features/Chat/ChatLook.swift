@@ -61,8 +61,10 @@ enum ChatLook {
         return (Array(order.prefix(3)), reactions.count > 1 ? reactions.count : nil)
     }
 
-    /// How far a reply's drag has taken its row: with the finger to 64, then a fifth as fast, as the times' drag.
-    nonisolated static func replyShift(_ pull: CGFloat) -> CGFloat { timesShift(pull) }
+    /// A pressed bubble's scale: 5 pt off its width (taste, 2026-11-04), never under 88%.
+    nonisolated static func squish(_ width: CGFloat) -> CGFloat {
+        width > 0 ? max(0.88, (width - 5) / width) : 1
+    }
 }
 
 /// The moves' timing. Guessed: Mobbin has no Instagram recording, so Jesse judges them on his phone.

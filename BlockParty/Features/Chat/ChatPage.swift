@@ -223,6 +223,7 @@ struct ChatPage: View {
                          profile: isGroup ? nil : others.first,
                          answer: { answer($0, card: $1, thread) },
                          react: { message, emoji in Task { await thread.react(message, emoji) } },
+                         canReact: current?.request != true,
                          reply: canReply(thread) ? { reply(to: $0) } : nil,
                          hold: { hold($0) })
                 .scrollDismissesKeyboard(.interactively)
@@ -268,7 +269,7 @@ struct ChatPage: View {
     private func heldItems(_ held: ChatHeld, _ thread: ChatThread) -> [ChatHeldItem] {
         let message = held.message, mine = thread.isMine(message)
         var items: [ChatHeldItem] = []
-        if canReply(thread), message.serverID != nil {
+        if canReply(thread), message.serverID != nil, !message.host {
             items.append(ChatHeldItem(title: "Reply", icon: "arrow.uturn.backward", red: false) { reply(to: message) })
         }
         if case .text(let words) = message.content {
@@ -636,6 +637,7 @@ private struct ChatMessages: View {
     let profile: Neighbor?
     let answer: (String, FeedCardItem) -> Void
     let react: (ChatMessage, String) -> Void
+    let canReact: Bool
     let reply: ((ChatMessage) -> Void)?
     let hold: (ChatHeld) -> Void
     /// How far a finger has dragged the chat left, for its times.
@@ -703,7 +705,7 @@ private struct ChatMessages: View {
                                    names: names, showsName: isGroup && firstOfRun, showsFace: lastOfRun, isGroup: isGroup,
                                    joinsAbove: joinsAbove, joinsBelow: joinsBelow, screen: screen,
                                    risesFrom: rises ? composerWords : nil, timeShown: min(1, shift / ChatMetric.timesShown),
-                                   reduceMotion: reduceMotion, react: react, reply: reply, hold: hold)
+                                   reduceMotion: reduceMotion, react: react, canReact: canReact, reply: reply, hold: hold)
                             .padding(.top, message.host ? ChatMetric.updateAbove
                                      : firstOfRun && !stamped ? ChatMetric.groupGap : ChatMetric.runGap)
                             .id(message.id)
@@ -820,6 +822,8 @@ private struct ChatBubble: View {
     let timeShown: CGFloat
     let reduceMotion: Bool
     let react: (ChatMessage, String) -> Void
+    /// False in a request not yet accepted, where the server takes no reaction.
+    let canReact: Bool
     /// nil where there's no composer to reply from.
     let reply: ((ChatMessage) -> Void)?
     let hold: (ChatHeld) -> Void
@@ -827,8 +831,10 @@ private struct ChatBubble: View {
     @State private var up: Bool
     /// One more for each double tap that hearts it: its big heart's go.
     @State private var hearts = 0
-    /// Where the bubble is on the screen, for the hold's copy of it.
-    @State private var frame: CGRect = .zero
+    /// Where the bubble is on the screen, for the hold's copy of it: kept where a scroll's every frame redraws nothing.
+    @State private var frame = FrameBox()
+    /// A finger is down on it: it squishes until the hold opens or the finger goes.
+    @State private var pressed = false
     /// How far a swipe right has come.
     @State private var pull: CGFloat = 0
     /// The swipe has come far enough that letting go replies.
@@ -836,7 +842,7 @@ private struct ChatBubble: View {
 
     init(message: ChatMessage, thread: ChatThread, sender: Neighbor?, names: [String: Neighbor], showsName: Bool,
          showsFace: Bool, isGroup: Bool, joinsAbove: Bool, joinsBelow: Bool, screen: CGFloat, risesFrom: CGPoint?,
-         timeShown: CGFloat, reduceMotion: Bool, react: @escaping (ChatMessage, String) -> Void,
+         timeShown: CGFloat, reduceMotion: Bool, react: @escaping (ChatMessage, String) -> Void, canReact: Bool,
          reply: ((ChatMessage) -> Void)?, hold: @escaping (ChatHeld) -> Void) {
         self.message = message
         self.thread = thread
@@ -852,6 +858,7 @@ private struct ChatBubble: View {
         self.timeShown = timeShown
         self.reduceMotion = reduceMotion
         self.react = react
+        self.canReact = canReact
         self.reply = reply
         self.hold = hold
         _up = State(initialValue: risesFrom == nil)
@@ -867,7 +874,7 @@ private struct ChatBubble: View {
     /// A reply can start here: it's on the server, and isn't a host's update.
     private var replies: Bool { reply != nil && message.serverID != nil && !message.host }
 
-    private var shift: CGFloat { ChatLook.replyShift(pull) }
+    private var shift: CGFloat { ChatLook.timesShift(pull) }
 
     var body: some View {
         let row = VStack(alignment: message.host ? .center : mine ? .trailing : .leading, spacing: 2) {
@@ -952,24 +959,33 @@ private struct ChatBubble: View {
     /// The double tap, the hold and what VoiceOver offers in their place, on whatever the message draws.
     private func touches(_ view: some View) -> some View {
         view
-            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame = $0 }
+            .trackFrame(frame)
+            .scaleEffect(pressed ? ChatLook.squish(frame.rect.width) : 1)
+            .animation(pressed ? .easeOut(duration: 0.08) : Motion.snappy, value: pressed)
             .gesture(PhotoDoubleTap { _ in heart() })
-            .gesture(ChatHold { openHold() })
-            .accessibilityAction(named: yours == ChatLook.heart ? "Remove heart" : "Heart") { react(message, ChatLook.heart) }
-            .accessibilityAction(named: "Reply") { if replies, let reply { reply(message) } }
-            .accessibilityAction(named: "More") { openHold() }
+            .gesture(ChatHold { openHold() } pressed: { pressed = $0 })
+            .accessibilityActions {
+                if reacts {
+                    Button(yours == ChatLook.heart ? "Remove heart" : "Heart") { react(message, ChatLook.heart) }
+                }
+                if replies, let reply { Button("Reply") { reply(message) } }
+                Button("More") { openHold() }
+            }
     }
+
+    /// A reaction can go on it: it's on the server, and this isn't a request you haven't accepted.
+    private var reacts: Bool { message.serverID != nil && canReact }
 
     /// A double tap hearts it, with the big heart; on one you've hearted, it takes the heart back.
     private func heart() {
-        guard message.serverID != nil else { return }
+        guard reacts else { return }
         if yours != ChatLook.heart { hearts += 1 }
         react(message, ChatLook.heart)
     }
 
     private func openHold() {
-        guard message.serverID != nil || message.state == .sent else { return }
-        hold(ChatHeld(message: message, frame: frame, mine: mine, shape: shape, sender: sender))
+        pressed = false
+        hold(ChatHeld(message: message, frame: frame.rect, mine: mine, shape: shape, sender: sender, reacts: reacts))
     }
 
     @ViewBuilder private var bubble: some View {
@@ -1230,6 +1246,8 @@ struct ChatHeld {
     let mine: Bool
     let shape: UnevenRoundedRectangle
     let sender: Neighbor?
+    /// Its emoji row shows: it's on the server and not in a request you haven't accepted.
+    let reacts: Bool
 }
 
 /// One line of the held message's menu.
@@ -1276,12 +1294,14 @@ private struct ChatHeldView: View {
                     .frame(width: r.width, height: r.height)
                     .offset(x: r.minX, y: shown ? top : r.minY)
                     .animation(reduceMotion ? nil : ChatMotion.holdMove, value: shown)
-                emojiRow
-                    .scaleEffect(shown ? 1 : 0.5, anchor: UnitPoint(x: anchor.x, y: 1))
-                    .opacity(shown ? 1 : 0)
-                    .animation(reduceMotion ? nil : ChatMotion.holdRow, value: shown)
-                    .offset(x: side(rowWidth, r, page.width),
-                            y: top - ChatMetric.holdRowHeight - ChatMetric.holdRowAbove)
+                if held.reacts {
+                    emojiRow
+                        .scaleEffect(shown ? 1 : 0.5, anchor: UnitPoint(x: anchor.x, y: 1))
+                        .opacity(shown ? 1 : 0)
+                        .animation(reduceMotion ? nil : ChatMotion.holdRow, value: shown)
+                        .offset(x: side(rowWidth, r, page.width),
+                                y: top - ChatMetric.holdRowHeight - ChatMetric.holdRowAbove)
+                }
                 if !items.isEmpty {
                     menuView
                         .scaleEffect(shown ? 1 : 0.5, anchor: UnitPoint(x: anchor.x, y: 0))
@@ -1321,13 +1341,14 @@ private struct ChatHeldView: View {
         held.message.reactions.first { thread.isMe($0.userId) }?.emoji
     }
 
+    /// Each emoji's tap reaches halfway across the gaps beside it, 39 pt, while it draws in its 30.
     private var emojiRow: some View {
-        HStack(spacing: ChatMetric.holdRowGap) {
+        HStack(spacing: 0) {
             ForEach(ChatLook.emoji, id: \.self) { emoji in
                 Button { react(emoji) } label: {
                     Text(emoji)
                         .font(.glyph(ChatMetric.holdEmoji))
-                        .frame(width: ChatMetric.holdEmojiSlot, height: ChatMetric.holdRowHeight)
+                        .frame(width: ChatMetric.holdEmojiSlot + ChatMetric.holdRowGap, height: ChatMetric.holdRowHeight)
                         .background {
                             if emoji == yours {
                                 Circle().fill(Hue.chatFill).frame(width: ChatMetric.holdEmojiSlot + 6, height: ChatMetric.holdEmojiSlot + 6)
@@ -1339,7 +1360,7 @@ private struct ChatHeldView: View {
                 .accessibilityLabel(emoji == yours ? "Remove \(emoji)" : "React \(emoji)")
             }
         }
-        .padding(.horizontal, ChatMetric.holdRowPad)
+        .padding(.horizontal, ChatMetric.holdRowPad - ChatMetric.holdRowGap / 2)
         .frame(height: ChatMetric.holdRowHeight)
         .background(Hue.surface, in: Capsule())
         .modifier(ChatHoldLift(shape: Capsule()))
