@@ -812,6 +812,7 @@ struct OnboardingWelcome: View {
                 .rise(up, delay: 0)
             Text(OnboardingStep.welcome.question)
                 .font(.display(36))   // Inter Tight Bold, the app's header face (Jesse, 2026-11-18, onboarding 38)
+                .tracking(-0.36)   // the mock's -1%
                 .lineSpacing(-4)   // Inter Tight's 44 pt line to the mock's 40
                 .foregroundStyle(.white)
                 .padding(.top, 150 - 88 - mark)

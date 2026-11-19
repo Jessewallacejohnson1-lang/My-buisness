@@ -162,8 +162,8 @@ extension Font {
 }
 
 extension View {
-    /// Apple's font at an exact size between the ladder's steps (onboarding's 24 pt question, the
-    /// Welcome's 36 pt headline), growing with Dynamic Type at its nearest text style's rate, as the
+    /// Apple's font at an exact size between the ladder's steps (onboarding's 24 pt question),
+    /// growing with Dynamic Type at its nearest text style's rate, as the
     /// display faces do. A modifier, not a `Font`: SwiftUI has no scaling system font at a set size,
     /// so the size is a `@ScaledMetric` that follows the text size live.
     func appleFont(_ size: CGFloat, weight: Font.Weight = .regular) -> some View {
