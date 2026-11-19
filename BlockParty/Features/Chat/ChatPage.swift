@@ -959,9 +959,10 @@ private struct ChatBubble: View {
     /// The double tap, the hold and what VoiceOver offers in their place, on whatever the message draws.
     private func touches(_ view: some View) -> some View {
         view
-            .trackFrame(frame)
             .scaleEffect(pressed ? ChatLook.squish(frame.rect.width) : 1)
             .animation(pressed ? .easeOut(duration: 0.08) : Motion.snappy, value: pressed)
+            // Outside the squish, so the hold's copy has the bubble's own size.
+            .trackFrame(frame)
             .gesture(PhotoDoubleTap { _ in heart() })
             .gesture(ChatHold { openHold() } pressed: { pressed = $0 })
             .accessibilityActions {
