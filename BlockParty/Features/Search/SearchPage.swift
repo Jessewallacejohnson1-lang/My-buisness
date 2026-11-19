@@ -1012,6 +1012,8 @@ struct ItemRow: View {
     @Environment(BusinessOpener.self) private var opener
     @Environment(\.colorScheme) private var scheme
     @State private var avatarFrame = FrameBox()
+    /// Its photo couldn't load: the row shows what kind of thing it is, as a row with no photo does (backlog 20).
+    @State private var photoFailed = false
 
     /// An activity's star, on a result: a recent has its X instead (the run's review).
     private var star: FollowTarget? { removable ? nil : item.activity }
@@ -1100,8 +1102,8 @@ struct ItemRow: View {
             PlaceMark(item: item, side: SearchMetric.avatar)
                 .opacity(opener.isAway(item) ? 0 : 1)
                 .animation(nil, value: opener.isAway(item))
-        } else if item.rowPhoto != nil {
-            SearchPhoto(item: shown, credit: false)
+        } else if item.rowPhoto != nil, !photoFailed {
+            SearchPhoto(item: shown, credit: false, onFailure: { photoFailed = true })
                 .clipShape(RoundedRectangle(cornerRadius: Radius.searchField, style: .continuous))
                 .opacity(opener.isAway(item) ? 0 : 1)
                 .animation(nil, value: opener.isAway(item))
@@ -1256,6 +1258,8 @@ struct SearchPhoto: View {
     let item: SearchItem
     /// A result row's 44 pt photo has no room for its credit: the page it opens shows it (search-helpful 08).
     var credit = true
+    /// The photo couldn't load. Unset, it leaves the place looking like one with no photo, inside the frame.
+    var onFailure: (() -> Void)? = nil
     private var photo: SearchItem.Photo? { item.photo }
 
     var body: some View {
@@ -1266,12 +1270,13 @@ struct SearchPhoto: View {
                 case .bundled(let name):
                     if let url = Bundle.main.url(forResource: name, withExtension: "jpg") { FeedCardURLPhoto(url: url, loadingFill: .clear) }
                 case .saved(let picture):
-                    SavedPhoto(item: item, picture: picture, credit: credit)
+                    SavedPhoto(item: item, picture: picture, credit: credit, onFailure: onFailure)
                 case .card(let source):
                     // Only a photo is an Event's `.card` (`SearchModel.events`): a logo is its `logo`. A flyer
                     // shows whole over its blur, so its words aren't cut (BP app event-photos 18).
                     if let url = source.url {
-                        FeedCardURLPhoto(url: url, loadingFill: .clear, whole: item.card?.whole == true ? 0 : nil)
+                        FeedCardURLPhoto(url: url, onFailure: onFailure, loadingFill: .clear,
+                                         whole: item.card?.whole == true ? 0 : nil)
                         if credit, let credit = source.attribution {
                             PhotoCredit(names: [credit])
                                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
@@ -1292,6 +1297,7 @@ private struct SavedPhoto: View {
     let item: SearchItem
     let picture: PlacePicture
     var credit = true
+    var onFailure: (() -> Void)? = nil
     @State private var shown = false
     @State private var failed = false
 
@@ -1304,7 +1310,7 @@ private struct SavedPhoto: View {
             ZStack {
                 if !ready { Rectangle().fill(Hue.fill).shimmering() }
                 FeedCardURLPhoto(url: picture.url, onReady: { withAnimation(.easeOut(duration: 0.2)) { shown = true } },
-                                 onFailure: { failed = true }, loadingFill: .clear)
+                                 onFailure: { failed = true; onFailure?() }, loadingFill: .clear)
                 if ready, credit, let credit = picture.creditLine {
                     PhotoCredit(names: [credit])
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
