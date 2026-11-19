@@ -228,6 +228,8 @@ struct FollowingSection: View {
     var cards: [DailyFollowingCard] = []
     let now: Date
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.displayScale) private var displayScale
+    @State private var width: CGFloat = 0
 
     var body: some View {
         VStack(spacing: 0) {
@@ -244,18 +246,37 @@ struct FollowingSection: View {
             // page's end (seen in the first after recording).
             if !cards.isEmpty {
                 LazyVStack(spacing: DailyMetric.followingCardGap) {
-                    ForEach(cards) { card in
-                        switch card {
-                        case .post(let post): FeedPostCard(post: post)
-                        case .news(let news): TownNewsCard(news: news)
+                    ForEach(Array(cards.enumerated()), id: \.element.id) { index, card in
+                        Group {
+                            switch card {
+                            case .post(let post): FeedPostCard(post: post)
+                            case .news(let news): TownNewsCard(news: news)
+                            }
                         }
+                        // The pictures of the two screens below come in before they scroll on (BP app tab-lag 03).
+                        .onAppear { read(after: index) }
                     }
+                }
+                // The first cards ask once the column is measured.
+                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { new in
+                    let first = width == 0
+                    width = new
+                    if first { read(after: -1) }
                 }
                 .padding(.top, items.isEmpty ? 0 : DailyMetric.followingCardGap - DailyMetric.followingRowInset)
             }
         }
         // A finished event's row, or a card you hid, closes up instead of vanishing.
         .animation(reduceMotion ? nil : Motion.smooth, value: items.map(\.id) + cards.map(\.id))
+    }
+
+    private func read(after index: Int) {
+        FeedReadAhead.read(count: cards.count, after: index, width: width, scale: displayScale) {
+            switch cards[$0] {
+            case .post(let post): TownFeedItem.post(post).pictures(width: width)
+            case .news(let news): TownFeedItem.news(news).pictures(width: width)
+            }
+        }
     }
 }
 

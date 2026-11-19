@@ -96,6 +96,29 @@ struct ChatMessage: Identifiable, Hashable {
     var sender: Neighbor? = nil
     /// The host's: an update, drawn as a card.
     var host = false
+    /// Everyone's emoji on it, one each, oldest first (BP app messages 03).
+    var reactions: [ChatReaction] = []
+    /// The message it answers, quoted over it.
+    var reply: ChatQuote? = nil
+}
+
+/// One person's emoji on a message: one of `ChatLook.emoji`, one each.
+nonisolated struct ChatReaction: Hashable, Decodable {
+    let userId: String
+    let emoji: String
+}
+
+/// The message a reply answers, as the reply quotes it: who wrote it and its words, a photo, or an Event's title.
+/// `gone`: hidden since, or out of your sight.
+nonisolated struct ChatQuote: Hashable, Decodable {
+    var gone = false
+    var senderId: String?
+    var kind: String?
+    /// Its writer's name, as the server has it; the page prefers the name it already shows.
+    var name: String?
+    var body: String?
+    /// The server's id of the message it answers, on a reply sent from this phone: what a retry sends again.
+    var answers: String?
 }
 
 /// What a message sends.
@@ -162,6 +185,8 @@ struct ChatAPI {
             let createdAt: String
             let sender: Neighbor?
             let host: Bool?
+            let reply: ChatQuote?
+            let reactions: [ChatReaction]?
         }
         return try Supabase.decode(data, as: [Row].self).compactMap { row in
             guard let at = DateHelpers.timestamp(row.createdAt) else { return nil }
@@ -172,15 +197,21 @@ struct ChatAPI {
             case "event": content = .event(row.card?.value.map { FeedCardItem($0) })
             default: return nil
             }
+            var reply = row.reply
+            let quoted = reply?.senderId?.lowercased()
+            reply?.senderId = quoted
             return ChatMessage(id: row.clientId.lowercased(), serverID: row.id, senderID: row.senderId.lowercased(),
-                               content: content, at: at, sender: row.sender, host: row.host ?? false)
+                               content: content, at: at, sender: row.sender, host: row.host ?? false,
+                               reactions: (row.reactions ?? []).map { ChatReaction(userId: $0.userId.lowercased(), emoji: $0.emoji) },
+                               reply: reply)
         }
     }
 
     /// Sends into a chat, or to one person with none yet, which makes it. A retry with the same `client`
-    /// is the same message.
-    func send(chat: String?, to person: String?, client: String, _ draft: ChatDraft) async throws -> ChatSent {
+    /// is the same message. `reply`: the server's id of the message it answers.
+    func send(chat: String?, to person: String?, client: String, reply: String? = nil, _ draft: ChatDraft) async throws -> ChatSent {
         var args: [String: Any] = ["p_chat": chat ?? NSNull(), "p_to": person ?? NSNull(), "p_client": client]
+        if let reply { args["p_reply"] = reply }
         switch draft {
         case .text(let words): args["p_body"] = words
         case .photo(let path, let width, let height):
@@ -217,6 +248,11 @@ struct ChatAPI {
     /// A Group's chat, opened: made with its first person in, and your Leave undone.
     func joinGroup(_ club: String) async throws -> String {
         try Supabase.decode(await db.rpc("join_group_chat", ["p_club": club]))
+    }
+
+    /// Your emoji on a message (its server id), or nil to take yours back.
+    func react(_ message: String, _ emoji: String?) async throws {
+        try await db.rpc("react_chat_message", ["p_message": message, "p_emoji": emoji ?? NSNull()])
     }
 
     func markRead(_ chat: String) async throws { try await db.rpc("mark_chat_read", ["p_chat": chat]) }

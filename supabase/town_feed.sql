@@ -144,7 +144,7 @@ set search_path = public
 as $$
   with weights as (
     -- The recipe's weights (town-feed 36, 41). Changing one is a migration.
-    select '{"interest":3,"friend":3,"follow":3,"new":2,"draw":1.5,"soonHalf":7,"newHalf":24,"acted":0.4,"notInterested":0.3,"repeatHost":0.5,"repeatCampus":0.8,"repeatKind":0.8,"seen":0.6,"seenFloor":0,"town":1.5,"townMiles":4.5,"meeting":0.3,"liveMax":3,"liveHours":12,"newsEvery":5,"top":5,"topFrom":8,"topMine":4,"topYours":2,"topDays":7,"topSoonHalf":14,"topRepeat":0.5}'::jsonb as w
+    select '{"interest":3,"friend":3,"follow":3,"new":2,"draw":1.5,"soonHalf":7,"newHalf":24,"acted":0.4,"notInterested":0.3,"repeatHost":0.5,"repeatCampus":0.8,"repeatKind":0.8,"seen":0.6,"seenFloor":0,"town":1.5,"townMiles":4.5,"meeting":0.3,"liveMax":3,"liveHours":12,"newsEvery":5,"top":5,"topFrom":8,"topMine":4,"topYours":2,"topDays":7,"topSoonHalf":14,"topRepeat":0.5,"noAbout":0.5,"noPlace":0.5,"aboutMin":30}'::jsonb as w
   ),
   town as (
     select 'America/Chicago'::text as zone,
@@ -612,6 +612,12 @@ as $$
            case when c.going then (w->>'acted')::float8 else 1 end as acted,
            -- A City meeting, for those who follow its City or board, sits lower (town-feed 27).
            case when c.is_meeting then (w->>'meeting')::float8 else 1 end as meeting_x,
+           -- What it is and where (town-feed 78; Jesse, 2026-11-19: "things don't have information ... are lower in the
+           -- feed"): no About to speak of, × 0.5; no place, × 0.5. A game's card says what it is.
+           case when c.team_ids is null and length(btrim(coalesce(c.description, ''))) < (w->>'aboutMin')::int
+                then (w->>'noAbout')::float8 else 1 end
+             * case when nullif(btrim(c.location), '') is null and c.place_entry_id is null
+                    then (w->>'noPlace')::float8 else 1 end as facts_x,
            -- A host you said Not interested to (ticket 21): × 0.3 for its other Events, with no fade
            -- (town-feed 36). A report hides its item only and lowers nothing (town-feed 22).
            case when exists (select 1 from hidden h where h.lowers and h.host <> '' and h.host = c.host)
@@ -625,14 +631,19 @@ as $$
                   else c.seen_times end)) as seen_x
     from counted c, weights
     -- Only for those who picked Middle school, follow it, have a friend Going, or are Going to it or Hearted it.
-    where not c.young
+    where (not c.young
        or 'middle_school' = any(c.matched)
-       or c.followed is not null or c.friends_n > 0 or c.going or c.hearted
+       or c.followed is not null or c.friends_n > 0 or c.going or c.hearted)
+      -- Routine business (draw 1: a church's own round, a club's meeting) reaches only those who follow its place,
+      -- host or page, have a friend Going, or are Going or Hearted it; its page still lists it (town-feed 78). A City
+      -- meeting has its own rule above.
+      and (coalesce(c.draw, 2) <> 1 or c.is_meeting
+           or c.followed is not null or c.friends_n > 0 or c.going or c.hearted)
   ),
   totals as (
     select c.*,
            (1 + c.friend_pts + c.follow_pts + c.interest_pts + c.gender_pts + c.new_pts + c.draw_pts)
-             * c.soon * c.acted * c.hidden_x * c.meeting_x * c.town_x * c.seen_x as base,
+             * c.soon * c.acted * c.hidden_x * c.meeting_x * c.town_x * c.seen_x * c.facts_x as base,
            -- Which pool it is in, for the Score line: yours or discovery; your own Going in neither.
            case when c.going then null
                 else c.friend_pts + c.follow_pts > 0 end as yours,
@@ -771,7 +782,7 @@ as $$
            power(2, coalesce(t.draw, 2) + case when x.mine then (w->>'topYours')::float8 else 0 end + case when t.friends_n > 0 then 1 else 0 end
                     + coalesce(t.going_n, 0)::float8 / (coalesce(t.going_n, 0) + 10))
              * power(0.5, t.days_away / (w->>'topSoonHalf')::float8)
-             * t.acted * t.hidden_x * t.meeting_x * t.town_x * t.seen_x
+             * t.acted * t.hidden_x * t.meeting_x * t.town_x * t.seen_x * t.facts_x
              * case when lb.recurrence is not null then (w->>'topRepeat')::float8 else 1 end as weight
     from totals t
     left join labels lb on lb.series = t.series
@@ -908,7 +919,7 @@ as $$
            'friend', e.friend_pts,
            'follow', case when e.followed is not null then e.follow_pts else 0 end,
            'tapped', case when e.followed is null then e.follow_pts else 0 end,
-           'town', e.town_x, 'seen', e.seen_x, 'live', e.live_ok,
+           'town', e.town_x, 'seen', e.seen_x, 'facts', e.facts_x, 'live', e.live_ok,
            'popular', 0, 'size', 0, 'sizeStep', 1, 'draw', e.draw_pts,
            'daysAway', round(e.days_away::numeric, 2), 'soon', round(e.soon::numeric, 4),
            'acted', e.acted, 'notInterested', e.hidden_x, 'spacing', p.spacing,

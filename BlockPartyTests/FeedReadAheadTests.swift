@@ -13,7 +13,8 @@ final class FeedReadAheadTests: XCTestCase {
     /// screen with Low Data Mode; near the list's end, what's left.
     func testTwoScreensBelow() {
         func ahead(_ count: Int, after index: Int, screens: CGFloat = 2, height: CGFloat = 300) -> Range<Int> {
-            FeedReadAhead.ahead(count: count, after: index, width: 402, screens: screens) { _ in height }
+            // A photo card holds one photo; a short white one none.
+            FeedReadAhead.ahead(count: count, after: index, width: 402, screens: screens) { _ in (height, height > 200 ? 1 : 0) }
         }
         XCTAssertEqual(ahead(20, after: 0), 1..<7)
         XCTAssertEqual(ahead(20, after: 0, height: 140), 1..<14)
@@ -24,8 +25,32 @@ final class FeedReadAheadTests: XCTestCase {
         XCTAssertEqual(ahead(20, after: -1), 0..<6)
         // Only the cards it reads ahead for are looked at.
         var looked: [Int] = []
-        _ = FeedReadAhead.ahead(count: 100, after: 10, width: 402, screens: 2) { looked.append($0); return 300 }
+        _ = FeedReadAhead.ahead(count: 100, after: 10, width: 402, screens: 2) { looked.append($0); return (300, 1) }
         XCTAssertEqual(looked, Array(11..<17))
+    }
+
+    /// A window stops at about 12 photos (Jesse's pick): Search's Around town fills two screens with seven blocks of
+    /// five, but reads three. Rows with no photo (faces, logos) stop only at two screens.
+    func testAWindowHoldsAboutTwelvePhotos() {
+        XCTAssertEqual(FeedReadAhead.ahead(count: 20, after: 0, width: 402, screens: 2) { _ in (268, 5) }, 1..<4)
+        XCTAssertEqual(FeedReadAhead.ahead(count: 40, after: 0, width: 402, screens: 2) { _ in (76, 0) }, 1..<24)
+    }
+
+    /// Around town's block: its first tile two squares tall, the four others square, a flyer whole; a tile with no
+    /// photo asks for nothing (its logo is read up front).
+    func testAnAroundTownBlocksPhotos() {
+        let url = { (n: Int) in URL(string: "https://x/\(n).jpg")! }
+        func tile(_ n: Int, _ photo: SearchItem.Photo?) -> SearchItem {
+            SearchItem(id: "\(n)", kind: .business, name: "\(n)", photo: photo)
+        }
+        let picture = { (n: Int) in PlacePicture(url: url(n), kind: .photo) }
+        let block = [tile(0, .saved(picture(0))), tile(1, .saved(picture(1))), tile(2, nil),
+                     tile(3, .saved(picture(3))), tile(4, .saved(picture(4)))]
+        let pictures = ExploreBlock.pictures(block, width: 404)
+        XCTAssertEqual(pictures.photos.map(\.url), [url(0), url(1), url(3), url(4)])
+        XCTAssertEqual(pictures.photos[0].box, CGSize(width: 400.0 / 3, height: 800.0 / 3 + 2))
+        XCTAssertEqual(pictures.photos[1].box, CGSize(width: 400.0 / 3, height: 400.0 / 3))
+        XCTAssertEqual(pictures.height, 800.0 / 3 + 4)
     }
 
     /// A bitmap serves a frame it fills at its own size or larger (2% stretch at most); a flyer shown whole only has

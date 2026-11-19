@@ -129,6 +129,18 @@ final class EventCalendarTests: XCTestCase {
         XCTAssertEqual(EventCalendar.gridHeight(day("2027-05-01")), 6 * YouMetric.day + 5 * YouMetric.rowGap)
     }
 
+    /// The day pager holds every day up to six past the furthest one picked, so moving never adds or takes a page
+    /// before the one on screen (BP app tab-lag 02).
+    func testTheDayPagerEndsSixPagesPastTheFurthestDay() {
+        let pages = ["2026-11-02", "2026-11-03", "2026-11-05", "2026-11-19", "2026-11-20", "2026-11-21", "2026-12-04"].map(day)
+        XCTAssertEqual(EventCalendar.window(pages, through: day("2026-11-03"), reach: 2), Array(pages[0...3]))
+        XCTAssertEqual(EventCalendar.window(pages, through: day("2026-11-19"), reach: 2), Array(pages[0...5]))
+        XCTAssertEqual(EventCalendar.window(pages, through: day("2026-11-19")), pages)
+        // A day with no page of its own runs on from the page before it.
+        XCTAssertEqual(EventCalendar.window(pages, through: day("2026-11-04"), reach: 1), Array(pages[0...2]))
+        XCTAssertEqual(EventCalendar.window([], through: day("2026-11-04")), [])
+    }
+
     /// What VoiceOver reads on a day, in Search's own words.
     func testSpokenDays() {
         XCTAssertEqual(EventCalendar.spoken(day("2026-11-13"), events: 3, today: true), "Today, Friday, November 13, 3 Events")

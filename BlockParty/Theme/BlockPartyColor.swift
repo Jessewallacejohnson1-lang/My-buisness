@@ -322,6 +322,14 @@ nonisolated enum Hue {
     /// An empty tick's ring and a chip's outline.
     static let chatRing      = Color(light: 0xDBDFE4, dark: 0x45443D)
     static let chatTypingDot = Color(hex: 0x9DA2A8)
+    /// A held message (messages 03, mock 1): the page washed out behind it, the lines between its menu's rows, and the
+    /// quote's bar beside a reply.
+    static let chatHoldWash  = Color(light: 0xFFFFFF, dark: 0x1C1C1A).opacity(0.6)
+    static let chatMenuLine  = Color(light: 0xE6E7E9, dark: 0x33332E)
+    static let chatQuoteBar  = Color(light: 0xDBDDE0, dark: 0x45443D)
+    /// The held row and menu's lift: 24 pt soft at 14%, and a half-point edge at 6%.
+    static let chatHoldShadow = Color.black.opacity(0.14)
+    static let chatHoldEdge   = Color.black.opacity(0.06)
 
     /// Your bubble's colour at a height on Instagram's 852 pt screen: violet at the top to blue at the bottom.
     /// Measured at 338, 586, 714 and 790; the two ends are guessed.

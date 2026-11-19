@@ -238,6 +238,7 @@ struct DailyPage: View {
                     Color.clear.frame(height: DailyMetric.tabBarClearance)
                 }
             }
+            .scrollRun()
             .onScrollGeometryChange(for: CGFloat.self) { geometry in
                 min(max(geometry.contentOffset.y + geometry.contentInsets.top, 0), DailyMetric.edgeFade)
             } action: { _, offset in scrolled = offset }

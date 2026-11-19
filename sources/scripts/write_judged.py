@@ -444,6 +444,10 @@ STREET = re.compile(r"^\d|\b(avenue|ave|street|st|road|rd|drive|dr|lane|ln|plaza
                     r"court|ct|parkway|pkwy)\.?(\s+(north|south|east|west|[nsew]|[ns][ew]|(north|south)(east|west)))?$", re.I)
 WEEKDAYS = r"(mon|tues|wednes|thurs|fri|satur|sun)days?"
 TITLE_MAX = 40
+# A weekday in a title that isn't the Event's own day, with any time of day after it; a day's own name ("Black
+# Friday", "Shop Small Saturday") isn't one.
+OTHER_DAY = re.compile(r"(?<!Black )(?<!Pink )(?<!Cyber )(?<!Small )(?<!Good )(?<!Ash )(?<!Palm )(?<!Easter )"
+                       r"\b(Mon|Tues|Wednes|Thurs|Fri|Satur|Sun)day\b(?:\s+(?:Morning|Afternoon|Evening|Night))?", re.I)
 # A News title gets its card's 2 lines (BP app inside-cards 13; Jesse, 2026-11-07: measured, on his 402 pt phone):
 # BP Event Heading at 19 pt in 234 pt, once News has its heart (402 - 32 column - 16 - 56 logo - 14 - 16 - 34 heart).
 # Each character's width at 19 pt was read once from the font (BP app docs/plans/inside-cards/assets/13-news-titles);
@@ -499,6 +503,15 @@ def ages_of(text):
     if m := re.search(r"(?<!\d)(\d{1,2})\s*(?:and|&|or)\s*(?:under|younger)", t):
         return f"Ages {int(m[1])} and under"
     return None
+
+
+def own_day(title, day):
+    """The Event's own day in a title that names another: Church Center calls the parish's Saturday 5 PM and Sunday
+    10 AM Mass both "Mass SJ", and the judge wrote "Saturday Evening Mass" for the Sunday ones too (2026-11-19)."""
+    m = OTHER_DAY.search(title)
+    if not m or m[1].lower() + "day" == day.strftime("%A").lower():
+        return title
+    return title[:m.start()] + day.strftime("%A") + title[m.end():]
 
 
 def tidy_title(title, host="", event=True):
@@ -910,7 +923,7 @@ def event_of(it, today, interests, home, notes, titles=None, teams=None, made=No
         notes.append(f"interest {interest!r} is not on the list ({it['title']!r}): left empty")
         interest = None
     place = without_town_start(it.get("place"), it.get("town") or home)
-    title, place = tidy_title(it["title"], it["source_name"]), tidy_place(place, home)
+    title, place = own_day(tidy_title(it["title"], it["source_name"]), day), tidy_place(place, home)
     title = (titles or {}).get(title, title)
     place = meets_at(place, it["source_name"], title, home)
     # ponytail: kept out only as it is first listed. A listed event whose sign-ups close later
@@ -3138,7 +3151,16 @@ def t_facebook_event_read_again():
     assert outcome(run([dict(off, source_url="https://www.facebook.com/salsbar/posts/1")]), 0) == "cancelled"
 
 
-TESTS = [t_facebook_event_read_again, t_made_with_other_businesses, t_a_repeat_is_asked_about, t_gender_only_as_a_page_says, t_ages_only_as_a_source_says, t_read_with_no_time_keeps_the_listed_time, t_one_facebook_event_is_one, t_news_state_initials_tell_nothing, t_one_host_no_place_is_one, t_real_copies, t_one_host_two_names, t_two_hosts_one_place_inside_another, t_two_hosts_an_address_names_its_shops, t_two_hosts_copy_kept,
+def t_a_title_names_its_own_day():
+    sun, sat = date(2026, 11, 22), date(2026, 11, 21)
+    assert own_day("Saturday Evening Mass", sun) == "Sunday Mass"
+    assert own_day("Saturday Evening Mass", sat) == "Saturday Evening Mass"
+    assert own_day("Friday Social", date(2026, 11, 20)) == "Friday Social"
+    assert own_day("Black Friday Sale", sat) == "Black Friday Sale" and own_day("Shop Small Saturday", sun) == "Shop Small Saturday"
+    assert own_day("Weekday Mass", sun) == "Weekday Mass"
+
+
+TESTS = [t_a_title_names_its_own_day, t_facebook_event_read_again, t_made_with_other_businesses, t_a_repeat_is_asked_about, t_gender_only_as_a_page_says, t_ages_only_as_a_source_says, t_read_with_no_time_keeps_the_listed_time, t_one_facebook_event_is_one, t_news_state_initials_tell_nothing, t_one_host_no_place_is_one, t_real_copies, t_one_host_two_names, t_two_hosts_one_place_inside_another, t_two_hosts_an_address_names_its_shops, t_two_hosts_copy_kept,
          t_two_hosts_maybe_the_same, t_two_hosts_no_place_asked, t_two_hosts_kept_apart, t_one_place_two_names, t_followers_only, t_place_entry, t_wording, t_interest_list_is_the_apps, t_event_or_news, t_official_one_mention, t_everything_kept_goes_live, t_news_repeat_left_out,
          t_one_news_one_link, t_news_same_link_this_week, t_news_says_when_it_ends, t_closings_wait, t_a_dated_news_blocks_its_repeat_until_its_day, t_one_post_is_one_news, t_news_look_back_is_the_feeds_week, t_news_shouted_or_hyphened_is_one,
          t_all_day_a_day_apart_is_one, t_no_time_joins_the_timed_one, t_later_read_fills_the_time, t_merge_true_pair,

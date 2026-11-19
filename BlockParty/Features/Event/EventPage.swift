@@ -91,6 +91,9 @@ struct EventPage: View {
     @State private var morePlaces: [String] = []
     /// A long Event's parts (BP app happening-now 06), read as the page opens: its Schedule under Map.
     @State private var parts: [EventPart] = []
+    /// A basketball game's player lines as the page read them on opening (game-card 35); a live game's realtime row
+    /// brings newer ones on `game`.
+    @State private var players: [Game.Box]?
     /// The small map's top, and the foot of what shows above the bar (the home bar with none), both in the page's
     /// own coordinates: whether opening it scrolls it clear of the bar.
     @State private var smallMapTop: CGFloat = 0
@@ -265,6 +268,14 @@ struct EventPage: View {
             // A game never has parts; a sample's id isn't a real one.
             guard game == nil, UUID(uuidString: item.id) != nil else { return }
             parts = await CommunityAPI(auth: AuthStore.shared).parts(event: item.id)
+        }
+        .task(id: item.id) {
+            // Only a college basketball game's file has player lines, and its plays come first: a high school game has
+            // neither. A sample's id isn't a real one.
+            guard let game, game.isBasketball, !game.plays.isEmpty, game.players == nil,
+                  UUID(uuidString: item.id) != nil else { return }
+            let read = await CommunityAPI(auth: AuthStore.shared).playerStats(event: item.id)
+            withAnimation(reduceMotion ? nil : Motion.smooth) { players = read }
         }
         .task(id: smallMap ? width : nil) {
             guard smallMap, mapShot == nil, case .ourMap(let at)? = EventMapRoute.route(item) else { return }
@@ -998,6 +1009,12 @@ struct EventPage: View {
                     position.scrollTo(y: max(0, min(playsTop - Metric.buttonTop - Metric.tapBox, room - shorter)))
                 }
                 .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named(Self.page)).minY } action: { playsTop = $0 }
+
+                // Each player's line under the plays (game-card 35): fading in when the read lands after the page opened.
+                if let boxes = game.players ?? players {
+                    GamePlayers(game: game, boxes: boxes, top: Metric.sectionTop)
+                        .transition(.opacity)
+                }
 
                 facts
                     .padding(.top, Metric.sectionTop - Metric.rowsTop)
