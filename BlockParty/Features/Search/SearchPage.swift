@@ -133,16 +133,18 @@ nonisolated enum SearchMetric {
     static let shineShoulderAt: CGFloat = 0.36
     static let shineFadeAt: CGFloat = 0.7
 
-    // The business page (`BusinessPage`). Laid out with the Event page's sizes
-    // (`EventPage.Metric`); these are its own.
+    // The business page (`BusinessPage`). Laid out as a Profile (`ProfileMetric`, place-pages 08)
+    // with the Event page's sides and rows (`EventPage.Metric`); these are its own.
     static let openResponse: CGFloat = 0.5
     static let openDamping: CGFloat = 0.84
     static let closeResponse: CGFloat = 0.4
     static let settleResponse: CGFloat = 0.45
     static let settleDamping: CGFloat = 0.9
-    static let bizLogo: CGFloat = 76
-    static let bizLogoRight: CGFloat = 10
-    static let bizLogoCenter: CGFloat = 29
+    /// What it is, 4 pt under its name; its first grey card 20 pt under Follow and Map (the mock's).
+    static let bizKindTop: CGFloat = 4
+    static let bizCardsTop: CGFloat = 20
+    /// The friends who follow it, under Follow and Map (picked).
+    static let bizFriendsTop: CGFloat = 12
     static let bizBackFrom: CGFloat = 0.6
     /// The band under the safe area's top that a drag down closes the page from.
     static let bizBand: CGFloat = 69

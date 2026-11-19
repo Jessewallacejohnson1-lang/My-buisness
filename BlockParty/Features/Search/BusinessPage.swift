@@ -1,10 +1,11 @@
 //
 //  BusinessPage.swift
 //  Block Party — a business opened from its logo in Search. Its backdrop grows out of
-//  the tile, the logo flies to the top right, and its page rises: laid out like the Event
-//  page (Jesse, 2026-10-17), the photos Block Party saved of it swiping at the top under the
-//  logo, then its name, what it is, its street, its own words and its links. With no photo
-//  the logo lands in the middle of the top, as an Event page draws a place it has no photo of.
+//  the tile, the logo flies to the middle, and its page rises: laid out like a person's Profile
+//  (Jesse, 2026-11-19, BP app place-pages 08): the photos Block Party saved of it swiping as the
+//  cover, its own lettering see-through low on it, its whole logo on a white disc in the middle of
+//  the sheet's edge, its name, what it is, Follow and Map under it, then its hours, Events, street,
+//  own words and links. With no photo there is no cover: the logo sits at the top of the plain page.
 //  Back, or a drag down on the band under the clock, sends it home the way it came. Opened from a
 //  photo (a card, an Around town tile), the photo itself grows into the page's top photo instead,
 //  the page riding its foot (BP app place-photos 10).
@@ -215,39 +216,34 @@ struct BusinessPage: View {
         }
     }
 
-    /// Where the logo rests beside a photo: the top right, as before (the mockup's 76 pt, 10 pt
-    /// in, its middle 29 pt under the safe area).
-    static func corner(width: CGFloat, top: CGFloat) -> CGRect {
-        let side = SearchMetric.bizLogo
-        return CGRect(x: width - SearchMetric.bizLogoRight - side, y: top + SearchMetric.bizLogoCenter - side / 2,
-                      width: side, height: side)
+    /// The cover, the Profile's (`GroupPage.Metric.heroAspect`: 245 pt tall on a 402 pt phone), its
+    /// photo running on under the sheet's corners.
+    static let heroAspect = GroupPage.Metric.heroAspect
+
+    /// With no cover, the sheet's edge, where the logo's middle sits, this far under the safe area's
+    /// top: the mock's 118 pt on a 402 pt phone with a 62 pt safe area.
+    static let bareEdge: CGFloat = 56
+
+    /// The logo inside its white disc, 5 pt in from the disc's edge all round (the mock's 4 pt and its 1 pt
+    /// line), whole: a round logo fills it, a wide one keeps its width, nothing is cut.
+    static let logoSide = ProfileMetric.photo - 10
+
+    /// Where the sheet's edge is, the logo's middle on it: the cover's foot, or with none under Back.
+    static func edge(width: CGFloat, top: CGFloat, cover: Bool) -> CGFloat {
+        cover ? width / heroAspect : top + bareEdge
     }
 
-    /// Where a place's emblem rests over its photos, standing in for its name (follows 02): the bottom
-    /// centre, as `PlaceNameArt` sits, 84 pt square.
-    static func bottomCentre(width: CGFloat) -> CGRect {
-        let side = PlaceNameArt.emblemSide
-        let edge = width / EventPage.Metric.heroAspect
-        return CGRect(x: (width - side) / 2, y: edge - PlaceNameArt.bottom - side, width: side, height: side)
-    }
-
-    /// Where it rests with no photo: where the Event page draws a place's logo in a hero it has no
-    /// photo for (`FeedCardPlaceLogo`, 29% down a hero as tall as the photos and the sheet's
-    /// underlap, at most 43% of it), so the two pages agree.
-    static func middle(width: CGFloat) -> CGRect {
-        let m = EventPage.Metric.self
-        let hero = width / m.heroAspect + m.heroUnderlap
-        let top = hero * 0.29, room = hero - top - 8
-        let side = min(hero * 0.43, width * 0.4, room)
-        return CGRect(x: (width - side) / 2, y: top + (room - side) / 2, width: side, height: side)
+    /// Where the logo rests: in the middle of the sheet's edge, as the Profile's photo.
+    static func logo(width: CGFloat, top: CGFloat, cover: Bool) -> CGRect {
+        let mid = edge(width: width, top: top, cover: cover)
+        return CGRect(x: (width - logoSide) / 2, y: mid - logoSide / 2, width: logoSide, height: logoSide)
     }
 
     /// Where a photo opened from a card is at `progress`: from the card's `box` to the page's top photo
     /// (full width, running on under the sheet's corners), scrolled up by `scrollY`. Not clamped: the
     /// open's overshoot grows it a touch past its spot and back.
     static func flight(from box: CGRect, width: CGFloat, scrollY: CGFloat, progress p: CGFloat) -> CGRect {
-        let m = EventPage.Metric.self
-        let to = CGRect(x: 0, y: -max(0, scrollY), width: width, height: width / m.heroAspect + m.heroUnderlap)
+        let to = CGRect(x: 0, y: -max(0, scrollY), width: width, height: width / heroAspect + EventPage.Metric.heroUnderlap)
         return CGRect(x: box.minX + (to.minX - box.minX) * p, y: box.minY + (to.minY - box.minY) * p,
                       width: box.width + (to.width - box.width) * p, height: box.height + (to.height - box.height) * p)
     }
@@ -307,23 +303,21 @@ private struct BusinessPageBody: View {
                     GrowingPhoto(url: page.photo ?? photo, box: box, radius: source.radius, width: full.width,
                                  page: page, progress: opener.progress)
                     RidingPhoto(box: box, width: full.width, page: page, progress: opener.progress) {
-                        BusinessPageContent(item: item, page: page, size: full, flight: opener.progress)
+                        BusinessPageContent(item: item, page: page, size: full, top: insets.top, flight: opener.progress)
                     }
                 } else {
                     Rising(progress: opener.progress, travel: full.height) {
-                        BusinessPageContent(item: item, page: page, size: full)
+                        BusinessPageContent(item: item, page: page, size: full, top: insets.top)
                     }
                 }
 
                 CloseBand(opener: opener, page: page, height: insets.top + SearchMetric.bizBand)
 
-                BackCircle(opener: opener, top: insets.top)
-
                 FlyingLogo(item: item, source: source, from: source.logo.offsetBy(dx: -origin.x, dy: -origin.y),
-                           corner: BusinessPage.corner(width: full.width, top: insets.top),
-                           middle: BusinessPage.middle(width: full.width), progress: opener.progress, page: page,
-                           named: item.nameArt?.emblem == false,
-                           bottom: item.nameArt?.emblem == true ? BusinessPage.bottomCentre(width: full.width) : nil)
+                           width: full.width, top: insets.top, progress: opener.progress, page: page)
+
+                // Over the logo, which scrolls up under it.
+                BackCircle(opener: opener, top: insets.top)
             }
             .frame(width: full.width, height: full.height, alignment: .topLeading)
             .offset(x: -insets.leading, y: -insets.top)
@@ -338,13 +332,15 @@ private struct BusinessPageBody: View {
     }
 }
 
-/// The page itself, laid out like the Event page (`EventPage`): its photos at
-/// the top, and a sheet over their bottom edge with its name, what it is, its street, its About
-/// and its links. Every row is absent when its data is.
+/// The page itself, laid out as a person's Profile (`ProfilePage`, place-pages 08): its photos as the
+/// cover, and a sheet over their bottom edge with its name and what it is in the middle under the logo,
+/// Follow and Map, then its hours, Events, street, About and links. Every row is absent when its data is.
 private struct BusinessPageContent: View {
     let item: SearchItem
     let page: PageState
     let size: CGSize
+    /// The safe area's top: with no cover the sheet's edge sits under it.
+    let top: CGFloat
     /// Opened from a photo: the open's progress, which holds the page's photos back while the card's
     /// photo is on its way and fades in the name and credit over it as it lands.
     var flight: LiveSpring? = nil
@@ -360,6 +356,7 @@ private struct BusinessPageContent: View {
     private var photos: [PlacePicture] { item.photos.filter { !failed.contains($0.url) } }
 
     @Environment(RealLifeActions.self) private var actions
+    @Environment(\.openURL) private var openURL
 
     /// What its Follow follows: the place itself.
     private var follow: FollowTarget? { item.placeID.map { FollowTarget(type: .place, id: $0) } }
@@ -385,11 +382,11 @@ private struct BusinessPageContent: View {
         }
     }
 
-    /// As tall as the Event page's: 303/393 of the width, the photos running on under the
-    /// sheet's corners. With no photo it stays clear: the backdrop and the logo fill it.
+    /// The cover, as tall as the Profile's, the photos running on under the sheet's corners. With no
+    /// photo it is only the room above the logo: the backdrop fills it.
     private var hero: some View {
         Color.clear
-            .aspectRatio(Metric.heroAspect, contentMode: .fit)
+            .frame(height: BusinessPage.edge(width: size.width, top: top, cover: !photos.isEmpty))
             .overlay(alignment: .top) {
                 if !photos.isEmpty {
                     GeometryReader { proxy in
@@ -408,22 +405,14 @@ private struct BusinessPageContent: View {
                 let pull = max(0, proxy.frame(in: .scrollView(axis: .vertical)).minY)
                 return content.scaleEffect(1 + pull / max(proxy.size.height, 1), anchor: .bottom)
             }
-            // Its name in its own lettering at the bottom centre (follows 02); the corner logo
-            // then fades as it lands, so the place isn't marked twice.
+            // Its name in its own lettering, white and see-through, low on the cover behind the logo,
+            // which hides its foot (place-pages 08). Only lettering: an emblem shows nothing here.
             .overlay(alignment: .bottom) {
-                // An emblem is the flying logo itself, landing there (`FlyingLogo`).
                 if let name = item.nameArt, !name.emblem, !photos.isEmpty {
-                    ZStack(alignment: .bottom) {
-                        PlaceNameArt.fade
-                        // A little see-through, the photo showing through its letters (Jesse, 2026-11-15:
-                        // a restaurant poster, measured 80%); as one piece, so a letter never shows its
-                        // own shadow through it.
-                        PlaceNameArt(name: name, spoken: item.name)
-                            .compositingGroup()
-                            .opacity(PlaceNameArt.seeThrough)
-                            .padding(.bottom, PlaceNameArt.bottom)
-                    }
-                    .modifier(Landed(flight: flight, from: Self.lettersFrom))
+                    PlaceNameArt(name: name, spoken: item.name)
+                        .opacity(PlaceNameArt.seeThrough)
+                        .padding(.bottom, PlaceNameArt.bottom)
+                        .modifier(Landed(flight: flight, from: Self.lettersFrom))
                 }
             }
             .overlay(alignment: .bottomLeading) { credit.modifier(Landed(flight: flight, from: Self.lettersFrom)) }
@@ -466,32 +455,11 @@ private struct BusinessPageContent: View {
     private var sheet: some View {
         let rows = BusinessPage.rows(item.links)
         return VStack(alignment: .leading, spacing: 0) {
-            Text(item.name)
-                .font(.display(28))
-                .lineSpacing(Metric.nameLineSpacing)
-                .foregroundStyle(Hue.ink)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityAddTraits(.isHeader)
-                .padding(.top, Metric.titleTop)
-
-            // What it is, and its real count once read: "Cajun · 128 followers" (follows 02).
-            if let kind = kindLine {
-                Text(kind)
-                    .font(.sans(17))
-                    .foregroundStyle(Hue.inkSecondary)
-                    .contentTransition(.numericText())
-                    .animation(Motion.smooth, value: kind)
-                    .padding(.top, Metric.categoryTop)
-            }
-
-            if let follow {
-                FollowLine(target: follow, name: item.name)
-                    .padding(.top, Metric.pillTop)
-            }
+            head
 
             if let hours = item.hours {
                 HoursPill(hours: hours)
-                    .padding(.top, Metric.pillTop)
+                    .padding(.top, SearchMetric.bizCardsTop)
             }
 
             // Its Events, folded under its hours (place-pages 05): no row when nothing is coming up.
@@ -502,7 +470,7 @@ private struct BusinessPageContent: View {
             if let street = item.street {
                 InfoPill(glyph: "mappin", text: street, url: Directions.url(forPlace: street),
                          hint: "Opens in Maps", glyphBox: SearchMetric.bizGlyphBox)
-                    .padding(.top, item.hours != nil ? SearchMetric.bizLinkGap : Metric.pillTop)
+                    .padding(.top, item.hours != nil ? SearchMetric.bizLinkGap : SearchMetric.bizCardsTop)
             }
 
             if let about = item.about {
@@ -518,20 +486,76 @@ private struct BusinessPageContent: View {
                     }
                 }
                 .padding(.top, item.about != nil ? SearchMetric.bizLinksTop
-                         : item.street != nil ? SearchMetric.bizLinkGap : Metric.pillTop)
+                         : item.street != nil ? SearchMetric.bizLinkGap : SearchMetric.bizCardsTop)
             }
         }
         .padding(.horizontal, Metric.inset)
         .padding(.bottom, SearchMetric.tabBarClearance)
         // Paper to the bottom of the screen, however little the page says, and a screen further,
         // so pushing the page up past its end never shows the backdrop under it.
-        .frame(maxWidth: .infinity, minHeight: size.height - size.width / Metric.heroAspect, alignment: .topLeading)
+        .frame(maxWidth: .infinity,
+               minHeight: size.height - BusinessPage.edge(width: size.width, top: top, cover: !photos.isEmpty),
+               alignment: .topLeading)
         .background(alignment: .top) {
             UnevenRoundedRectangle(topLeadingRadius: Metric.sheetCorner, topTrailingRadius: Metric.sheetCorner,
                                    style: .continuous)
                 .fill(Hue.paper)
                 .padding(.bottom, -size.height)
         }
+        // The follower count on the kind line and the friends under the buttons.
+        .task(id: follow) { if let follow { await actions.refreshFollow(follow) } }
+    }
+
+    /// In the middle under the logo, as the Profile's head: the name 10 pt under the logo's ring, what
+    /// it is with its real count ("Cajun · 128 followers", follows 02), Follow and Map side by side, and
+    /// the friends who follow it.
+    private var head: some View {
+        VStack(spacing: 0) {
+            Text(item.name)
+                .font(.displaySemi(26))
+                .tracking(ProfileMetric.nameTracking)
+                .foregroundStyle(Hue.ink)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+                .padding(.top, ProfileMetric.nameTop)
+
+            if let kind = kindLine {
+                Text(kind)
+                    .font(.sans(15))
+                    .foregroundStyle(Hue.inkSecondary)
+                    .multilineTextAlignment(.center)
+                    .contentTransition(.numericText())
+                    .animation(Motion.smooth, value: kind)
+                    .padding(.top, SearchMetric.bizKindTop)
+            }
+
+            HStack(spacing: ProfileMetric.buttonGap) {
+                if let follow {
+                    FollowButton(target: follow, name: item.name, size: .profile)
+                }
+                // Apple Maps on the place, as its street row opens (picked): the town map shows Events,
+                // not places. The squish without a haptic: opening a map is not a commit.
+                if let map = Directions.url(forPlace: item.street ?? item.name) {
+                    Button { openURL(map) } label: {
+                        ProfileBlackButton {
+                            Image(systemName: "globe")
+                                .font(.glyph(15, weight: .semibold))
+                                .accessibilityHidden(true)
+                            Text("Map")
+                        }
+                    }
+                    .buttonStyle(.press(.squish))
+                    .accessibilityHint("Opens in Maps")
+                }
+            }
+            .padding(.top, ProfileMetric.buttonsTop)
+
+            if let follow {
+                FollowedBy(target: follow, top: SearchMetric.bizFriendsTop)
+            }
+        }
+        .frame(maxWidth: .infinity)
     }
 }
 
@@ -721,7 +745,7 @@ private struct RidingPhoto<Content: View>: View {
         let k = flying ? f.width / max(width, 1) : 1
         // Where the page's own photo (as tall as the flight's end, scrolled up by scrollY) puts its
         // foot on the flying photo's.
-        let photo = width / EventPage.Metric.heroAspect + EventPage.Metric.heroUnderlap - max(0, page.scrollY)
+        let photo = width / BusinessPage.heroAspect + EventPage.Metric.heroUnderlap - max(0, page.scrollY)
         content
             .scaleEffect(k, anchor: .topLeading)
             .offset(x: flying ? f.minX : 0, y: flying ? f.maxY - k * photo : 0)
@@ -821,48 +845,56 @@ private struct BackCircle: View {
     }
 }
 
-/// The logo flies from where it was tapped to its corner, or to the middle of the top when the
-/// business has no photo. Mid-flight it lifts: its shadow stretches and fades a little, and
-/// settles as it lands. Open, it scrolls away with the photos. A place with no logo yet flies its
-/// letter disc the same way (place-pages 01).
+/// The logo flies from where it was tapped to the middle of the sheet's edge, the white disc and its
+/// ring of paper growing in round it, the Profile's photo (place-pages 08); on the cover's foot, or at
+/// the top with no cover. Mid-flight it lifts: its shadow stretches and fades a little, and goes as it
+/// lands on the disc. Open, it scrolls with the page. A place with no logo yet flies its letter disc the
+/// same way (place-pages 01).
 private struct FlyingLogo: View {
     let item: SearchItem
     let source: BusinessOpener.Source
     let from: CGRect
-    let corner: CGRect
-    let middle: CGRect
+    let width: CGFloat
+    let top: CGFloat
     let progress: LiveSpring
     let page: PageState
-    /// The place's name is on its photo: the logo flies from its tile as before, fading as it
-    /// lands, and stays when every photo fails (it then sits in the middle).
-    let named: Bool
-    /// Where an emblem lands instead of the corner: the bottom centre of the photos (follows 02).
-    let bottom: CGRect?
 
     var body: some View {
         let p = progress.value
         let c = min(max(p, 0), 1)
         // From a photo the logo was never on screen: it doesn't fly, it fades in where it rests as
-        // the photo lands, and not at all over the place's name (Jesse, 2026-11-15, place-photos 10).
+        // the photo lands (Jesse, 2026-11-15, place-photos 10).
         let fromPhoto = source.photo != nil
         let lift = fromPhoto ? 0 : sin(.pi * c)
-        let fades = named && page.hasPhotos
-        let rest = page.hasPhotos ? bottom ?? corner : middle
+        let rest = BusinessPage.logo(width: width, top: top, cover: page.hasPhotos)
         let flying = lerp(fromPhoto ? rest : from, rest, p)
-        let shown = fromPhoto ? (fades ? 0 : Landed.opacity(p, from: BusinessPageContent.lettersFrom))
-            : (source.fades ? min(1, c * 4) : 1) * (fades ? 1 - c : 1)
+        let shown = fromPhoto ? Landed.opacity(p, from: BusinessPageContent.lettersFrom)
+            : (source.fades ? min(1, c * 4) : 1)
+        // The disc grows with the logo: 96 pt round the logo's 86 at rest.
+        let k = flying.width / BusinessPage.logoSide
         Group {
             if let logo = item.logo {
                 CastLogo(logo: logo, side: flying.width, shadow: source.shadow,
-                         stretch: 1 + lift * SearchMetric.liftStretch, strength: 1 - lift * SearchMetric.liftFade)
+                         stretch: 1 + lift * SearchMetric.liftStretch,
+                         strength: (1 - lift * SearchMetric.liftFade) * (1 - c))
             } else {
                 LetterDisc(initial: item.initial, side: flying.width)
             }
         }
-            .offset(x: flying.minX, y: flying.minY - max(0, page.scrollY) * c)
+            .background {
+                Circle()
+                    .fill(Hue.surface)
+                    .overlay { Circle().strokeBorder(Hue.ink.opacity(0.16), lineWidth: FriendsMetric.ring) }
+                    .padding(ProfileMetric.ring * k)
+                    .background(Hue.paper, in: Circle())
+                    .frame(width: (ProfileMetric.photo + 2 * ProfileMetric.ring) * k,
+                           height: (ProfileMetric.photo + 2 * ProfileMetric.ring) * k)
+                    .opacity(fromPhoto ? 1 : c)
+            }
+            // With the page as it scrolls, and down with it when pulled past its top.
+            .offset(x: flying.minX, y: flying.minY - page.scrollY * c)
             .opacity(shown)
-            .animation(Motion.smooth, value: fades)
-            // Every photo failed after it landed: it moves to the middle, not jumps.
+            // Every photo failed after it landed: it moves to the top, not jumps.
             .animation(Motion.smooth, value: page.hasPhotos)
             .allowsHitTesting(false)
             // The page's title says the name.
