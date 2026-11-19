@@ -270,8 +270,10 @@ struct EventPage: View {
             parts = await CommunityAPI(auth: AuthStore.shared).parts(event: item.id)
         }
         .task(id: item.id) {
-            // Only a basketball game's file has player lines; a sample's id isn't a real one.
-            guard game?.isBasketball == true, game?.players == nil, UUID(uuidString: item.id) != nil else { return }
+            // Only a college basketball game's file has player lines, and its plays come first: a high school game has
+            // neither. A sample's id isn't a real one.
+            guard let game, game.isBasketball, !game.plays.isEmpty, game.players == nil,
+                  UUID(uuidString: item.id) != nil else { return }
             let read = await CommunityAPI(auth: AuthStore.shared).playerStats(event: item.id)
             withAnimation(reduceMotion ? nil : Motion.smooth) { players = read }
         }

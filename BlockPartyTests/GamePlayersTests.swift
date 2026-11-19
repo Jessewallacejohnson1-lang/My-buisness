@@ -66,6 +66,15 @@ final class GamePlayersTests: XCTestCase {
         XCTAssertEqual(live.game(card)?.players?.first?.rows.first?.pts, 14, "a score-only update keeps the lines")
     }
 
+    func testANewerScoreWithoutLinesKeepsTheOnesItHad() throws {
+        let read = #","live":{"score":[10,8],"period":"Q1","clock":"4:00","complete":false,"at":"2026-11-14T21:10:00Z"}"#
+        let later = #","live":{"score":[12,8],"period":"Q1","clock":"3:30","complete":false,"at":"2026-11-14T21:11:00Z"}"#
+        let kept = try game(read + #","players":"# + stats())
+        let newer = try XCTUnwrap(LiveGames.newer(kept, try game(later)))
+        XCTAssertEqual(newer.live?.score, [12, 8], "the newer score wins")
+        XCTAssertEqual(newer.players?.first?.rows.first?.pts, 12, "and keeps the lines it had")
+    }
+
     func testVoiceOverReadsEachRowAsOneLine() {
         let line = Game.Box.Line(uni: "1", name: "L. Arnold", pos: "G", pts: 5, reb: 1, ast: 6, fg: "1-1", tp: "1-1")
         XCTAssertEqual(GamePlayers.spoken(line),

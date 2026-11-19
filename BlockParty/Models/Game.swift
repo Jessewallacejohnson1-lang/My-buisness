@@ -386,6 +386,13 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
         return game
     }
 
+    /// The same game with these player lines, its scores untouched.
+    func with(players: [Box]?) -> Game {
+        var game = self
+        game.players = Box.pair(players) ?? self.players
+        return game
+    }
+
     private mutating func setScores(final: [Int]?, live: Live?, plays: [Play]) {
         let final = final.flatMap { $0.count == 2 && $0.allSatisfy { $0 >= 0 } ? $0 : nil }
         self.final = final

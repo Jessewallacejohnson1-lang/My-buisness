@@ -37,10 +37,9 @@ struct GamePlayers: View {
             }
             .pickerStyle(.segmented)
             .sensoryFeedback(.selection, trigger: side)
+            // The other team's numbers change in place, the card's height following: a cross-fade drew both tables at
+            // once, the taller one's rows over the page under it (review).
             table(boxes[min(side, boxes.count - 1)])
-                // The other team's table fades in where this one was, its height following.
-                .id(side)
-                .transition(.opacity)
         }
         .animation(reduceMotion ? nil : Motion.smooth, value: side)
         .padding(.top, top)

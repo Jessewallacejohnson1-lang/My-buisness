@@ -99,15 +99,20 @@ final class LiveGames {
     /// The newer of `kept` and `other`: the one with a final, else the one whose live score is later
     /// (one with no time is oldest). On a tie, `other`, the one that came in last (a corrected final, a
     /// logo found), unless `kept` has scoring plays it lacks: a change that only adds a play leaves the
-    /// live score's time where it was. Nor player lines it lacks (game-card 35): the feed's game has none.
+    /// live score's time where it was. The one that wins keeps the other's player lines when it has none
+    /// (game-card 35): the Town feed's game never has them.
     nonisolated static func newer(_ kept: Game?, _ other: Game?) -> Game? {
         guard let kept else { return other }
         guard let other else { return kept }
-        if (kept.final == nil) != (other.final == nil) { return kept.final != nil ? kept : other }
+        let (won, lost) = winner(kept, other)
+        return won.players == nil && lost.players != nil ? won.with(players: lost.players) : won
+    }
+
+    nonisolated private static func winner(_ kept: Game, _ other: Game) -> (Game, Game) {
+        if (kept.final == nil) != (other.final == nil) { return kept.final != nil ? (kept, other) : (other, kept) }
         let (keptAt, otherAt) = (kept.live?.at ?? .distantPast, other.live?.at ?? .distantPast)
-        if keptAt != otherAt { return otherAt > keptAt ? other : kept }
-        if other.plays.count != kept.plays.count { return other.plays.count > kept.plays.count ? other : kept }
-        return kept.players != nil && other.players == nil ? kept : other
+        if keptAt != otherAt { return otherAt > keptAt ? (other, kept) : (kept, other) }
+        return other.plays.count >= kept.plays.count ? (other, kept) : (kept, other)
     }
 
     /// The held cards with their games as they are now, those without a final.
