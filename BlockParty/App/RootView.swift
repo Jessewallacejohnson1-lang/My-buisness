@@ -583,6 +583,18 @@ struct MainTabsView: View {
             ShareCenter.shared.sendInChat = { chats.sending = $0 }
             // The pencil's sheet and a Profile open a chat on the shell's stack.
             chats.push = { path.append($0) }
+            // A chat's +: your Going and your hearts, read now if nothing has read them yet, else the Town's.
+            chats.eventsToSend = {
+                if you.going == nil { await you.refresh() }
+                if likes.going == nil { await likes.refresh() }
+                let now = Date()
+                return ChatLook.eventsToSend(
+                    going: YouCalendar.going(read: you.going ?? [], tapped: Array(actions.goingTapped.values),
+                                             isGoing: { actions.going($0).isGoing }, first: YouCalendar.firstDay(of: now)),
+                    liked: YouCalendar.liked(read: likes.going ?? [], tapped: Array(actions.likedTapped.values),
+                                             isLiked: { actions.heart($0).isHearted }, now: now),
+                    town: townFeed.cards, now: now)
+            }
         }
         // A neighbour's page lays their groups and your shared plans over the You tab's reads.
         .environment(you)

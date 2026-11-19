@@ -177,18 +177,6 @@ struct ChatAPI {
         }
     }
 
-    /// How far each person in the chat has read, by their id: what "Seen" reads.
-    func reads(_ chat: String) async throws -> [String: Date] {
-        struct Row: Decodable {
-            let userId: String
-            let readAt: String
-        }
-        let rows: [Row] = try Supabase.decode(await db.rest("chat_reads", [("select", "user_id,read_at"),
-                                                                           ("chat_id", "eq.\(chat)")]))
-        return Dictionary(rows.compactMap { row in DateHelpers.timestamp(row.readAt).map { (row.userId.lowercased(), $0) } },
-                          uniquingKeysWith: max)
-    }
-
     /// Sends into a chat, or to one person with none yet, which makes it. A retry with the same `client`
     /// is the same message.
     func send(chat: String?, to person: String?, client: String, _ draft: ChatDraft) async throws -> ChatSent {

@@ -1539,6 +1539,22 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(GameMatchup.colors([sju, try team(##"{"name":"Somebody"}"##)]), [0xC20430, nil], "none known stays none")
     }
 
+    /// The split Town card keeps each team's own color (game-card 33): two close ones stay, the away side
+    /// darker; a light one goes deep enough for the white line and names; teams far apart keep their own.
+    func testSplitCardKeepsEachTeamsColor() throws {
+        func team(_ json: String) throws -> Game.Team { try JSONDecoder().decode(Game.Team.self, from: Data(json.utf8)) }
+        let csb = try team(##"{"name":"Saint Benedict","color":"#BD0F34","colors":["#BB2037","#0F9CD7"]}"##)
+        let simpson = try team(##"{"name":"Simpson","color":"#A00030"}"##)
+        XCTAssertEqual(GameMatchup.splitColors([csb, simpson]), [0xBD0F34, 0x5D001C], "two reds: the away side at 58%, never Saint Ben's blue")
+        let sju = try team(##"{"name":"Saint John's","color":"#C20430"}"##)
+        let scholastica = try team(##"{"name":"St. Scholastica","color":"#004070"}"##)
+        XCTAssertEqual(GameMatchup.splitColors([sju, scholastica]), [0xC20430, 0x004070], "red and blue keep their own")
+        let cathedral = try team(##"{"name":"Cathedral","color":"#FEE291"}"##)
+        XCTAssertEqual(GameMatchup.splitColors([cathedral, scholastica]),
+                       [GameMatchup.tone(0xFEE291, lightness: GameMatchup.splitDepth), 0x004070], "a light yellow goes deep")
+        XCTAssertEqual(GameMatchup.splitColors([sju, try team(##"{"name":"Somebody"}"##)]), [0xC20430, nil], "none known stays none")
+    }
+
     /// A scoring play that lands while a game is on is a moment (game-card 07): football's touchdown,
     /// field goal and safety and a goal, each with its scorer when SIDEARM's words name one, in its
     /// summary's words or its live ones; an extra point, a basket, the first read and the final are quiet.
