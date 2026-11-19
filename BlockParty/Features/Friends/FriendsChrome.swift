@@ -38,6 +38,8 @@ struct FriendsTitleBar<Trailing: View>: View {
     let title: String
     let titleUnder: Bool
     var back = true
+    /// The small title even with nothing under the bar (an empty page, as Notifications').
+    var alwaysTitle = false
     @ViewBuilder var trailing: Trailing
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -47,8 +49,9 @@ struct FriendsTitleBar<Trailing: View>: View {
             Text(title)
                 .font(.displaySemi(17))
                 .foregroundStyle(Hue.ink)
-                .opacity(titleUnder ? 1 : 0)
-                .accessibilityHidden(true)
+                .opacity(titleUnder || alwaysTitle ? 1 : 0)
+                .accessibilityHidden(!alwaysTitle)
+                .accessibilityAddTraits(.isHeader)
             HStack {
                 if back { BackButton { dismiss() } }
                 Spacer()
@@ -67,8 +70,8 @@ struct FriendsTitleBar<Trailing: View>: View {
 }
 
 extension FriendsTitleBar where Trailing == EmptyView {
-    init(title: String, titleUnder: Bool, back: Bool = true) {
-        self.init(title: title, titleUnder: titleUnder, back: back) { EmptyView() }
+    init(title: String, titleUnder: Bool, back: Bool = true, alwaysTitle: Bool = false) {
+        self.init(title: title, titleUnder: titleUnder, back: back, alwaysTitle: alwaysTitle) { EmptyView() }
     }
 }
 

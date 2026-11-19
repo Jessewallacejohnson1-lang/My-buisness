@@ -24,6 +24,12 @@ nonisolated enum NoticeMetric {
     static let rowPad: CGFloat = 8
     static let sectionTop: CGFloat = 18
     static let sectionBottom: CGFloat = 8
+    /// The empty page's bell, the Reference's traced at 1.5× (BP app references/notifications-empty).
+    static let bellWidth: CGFloat = 85
+    static let bellHeight: CGFloat = 84
+    static let bellToWords: CGFloat = 26
+    /// The Reference's bell and words sit this far below the page's middle.
+    static let emptyDrop: CGFloat = 42
 }
 
 /// The bell's page, as a route on the shell's stack.
@@ -47,17 +53,25 @@ struct NotificationsPage: View {
     /// The large title has gone under the bar: the bar shows the small one.
     @State private var titleUnder = false
 
+    /// The read answered with nothing, and the phone kept nothing either.
+    private var isEmpty: Bool {
+        notices.list?.isEmpty == true && inbox.recent(now: Date()).isEmpty && notices.named.isEmpty
+    }
+
     var body: some View {
         ZStack(alignment: .top) {
             Hue.paper.ignoresSafeArea()
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
-                    Text("Notifications")
-                        .font(.display(34))
-                        .foregroundStyle(Hue.ink)
-                        .frame(height: FriendsMetric.titleLine)
-                        .padding(.horizontal, FriendsMetric.side)
-                        .accessibilityAddTraits(.isHeader)
+                    // Empty, the bar's small title says it, as the Reference's does.
+                    if !isEmpty {
+                        Text("Notifications")
+                            .font(.display(34))
+                            .foregroundStyle(Hue.ink)
+                            .frame(height: FriendsMetric.titleLine)
+                            .padding(.horizontal, FriendsMetric.side)
+                            .accessibilityAddTraits(.isHeader)
+                    }
                     let now = Date()
                     let items = inbox.recent(now: now)
                     // Nothing read yet and nothing kept on the phone: the rows' own shape, shimmering.
@@ -99,17 +113,16 @@ struct NotificationsPage: View {
                 titleUnder = under
             }
             // Drawn last so it sits over the rows, read first so Back comes first.
-            FriendsTitleBar(title: "Notifications", titleUnder: titleUnder).accessibilitySortPriority(1)
+            FriendsTitleBar(title: "Notifications", titleUnder: titleUnder, alwaysTitle: isEmpty)
+                .accessibilitySortPriority(1)
         }
-        // Nothing yet: Apple's empty page, in the middle of the screen, once the read has answered;
-        // never over what the phone kept.
+        // Nothing yet: the Reference's bell and one line, once the read has answered; never over
+        // what the phone kept.
         .overlay {
             if !inbox.recent(now: Date()).isEmpty || !notices.named.isEmpty {
                 // The rows say it.
             } else if notices.list?.isEmpty == true {
-                ContentUnavailableView("No notifications yet", systemImage: "bell",
-                                       description: Text("When friends join, your teams play or your plans change, you'll see it here."))
-                    .allowsHitTesting(false)
+                EmptyNotifications()
             } else if notices.failed {
                 // The Town feed's words for a read that failed.
                 ContentUnavailableView("Couldn't load", systemImage: "bell",
@@ -351,5 +364,42 @@ private struct LoadingNotices: View {
             .shimmering()
             .accessibilityHidden(true)
         }
+    }
+}
+
+/// "No notifications, yet!" under a yellow bell that rings once as it shows and again at a touch
+/// (BP app references/notifications-empty: Hypelist's empty Notifications, mock Jesse said yes to
+/// on 2026-11-19, https://claude.ai/artifact/A5me3JvFYXGWZjs8YPQVFB). The bell is placeholder art.
+private struct EmptyNotifications: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var rings = 0
+
+    var body: some View {
+        VStack(spacing: NoticeMetric.bellToWords) {
+            Image("EmptyBell")
+                .resizable()
+                .frame(width: NoticeMetric.bellWidth, height: NoticeMetric.bellHeight)
+                .keyframeAnimator(initialValue: 0.0, trigger: rings) { bell, degrees in
+                    bell.rotationEffect(.degrees(degrees), anchor: .top)
+                } keyframes: { _ in
+                    // The mock's swing: 14°, −11°, 7°, −4°, 2°, rest, in 0.9 s.
+                    KeyframeTrack {
+                        CubicKeyframe(14, duration: 0.11)
+                        CubicKeyframe(-11, duration: 0.14)
+                        CubicKeyframe(7, duration: 0.14)
+                        CubicKeyframe(-4, duration: 0.15)
+                        CubicKeyframe(2, duration: 0.15)
+                        CubicKeyframe(0, duration: 0.21)
+                    }
+                }
+                .contentShape(Rectangle())
+                .onTapGesture { if !reduceMotion { rings += 1 } }
+                .accessibilityHidden(true)
+            Text("No notifications, yet!")
+                .font(.sans(15))
+                .foregroundStyle(Hue.ink)
+        }
+        .padding(.top, NoticeMetric.emptyDrop * 2)
+        .onAppear { if !reduceMotion { rings += 1 } }
     }
 }
