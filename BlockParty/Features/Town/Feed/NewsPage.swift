@@ -106,6 +106,8 @@ struct NewsPage: View {
     @Environment(\.hostOpener) private var opener
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var markFrame = FrameBox()
+    /// The picture on show, when its post has several.
+    @State private var photoPage: Int?
     private var store: NewsPostWords { .shared }
 
     var body: some View {
@@ -125,13 +127,11 @@ struct NewsPage: View {
                         .padding(.top, Metric.wordsTop)
                         .padding(.bottom, Metric.wordsBottom)
                     if let photo = news.photoSource, let url = photo.url {
-                        FeedCardURLPhoto(url: url, loadingFill: Hue.fill)
-                            .aspectRatio(CGFloat(photo.cardAspect), contentMode: .fit)
-                            .frame(maxWidth: .infinity)
-                            .clipped()
-                            // Two fingers lift it where it sits, as a post's photo (BP app photo-zoom).
-                            .pinchToZoom(slot: Hue.paper)
-                            .accessibilityLabel("Photo from \(news.place)")
+                        // Every picture of its post, swiped as a neighbour's post's (town-feed 77); one alone as before.
+                        // Two fingers lift it where it sits (BP app photo-zoom).
+                        let urls = news.photos.isEmpty ? [url] : news.photos
+                        PostPhotos(urls: urls, aspect: photo.cardAspect, page: $photoPage, zooms: true,
+                                   label: urls.count > 1 ? "Photos from \(news.place)" : "Photo from \(news.place)")
                     }
                     if let actions {
                         actionRow(actions)

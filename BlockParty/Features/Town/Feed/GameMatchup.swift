@@ -1114,30 +1114,77 @@ struct GameScoring: View {
     let game: Game
     /// Above its heading, when it has anything to show.
     var top: CGFloat = 0
+    /// "Show less" was tapped, and the list gets this much shorter: the page goes back up to the list's top, inside
+    /// the same animation (game-card 34).
+    var folded: (CGFloat) -> Void = { _ in }
 
+    /// Every play of a basketball game, after "Show all" (game-card 34; Jesse, 2026-11-18: "why cant i see full game
+    /// highlights not just the most recent").
+    @State private var all = false
+    /// Its height now, and with the newest 5 as "Show all" was tapped: their difference is what "Show less" takes off.
+    @State private var height: CGFloat = 0
+    @State private var foldedHeight: CGFloat = 0
+    /// VoiceOver goes to the first play "Show all" opens: its button, the one it was on, moves to the list's end.
+    @AccessibilityFocusState private var spoken: String?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     static let rowGap: CGFloat = 8
     static let bar: CGFloat = 3
+    /// The "Show all" row: Apple's smallest touch target (picked; no Reference has this row).
+    static let more: CGFloat = 44
 
     var body: some View {
         if !game.plays.isEmpty {
             section("Scoring plays") {
-                // A basketball game scores about 80 times (CSB v Augsburg, 2026-02-21): its newest 5 (game-card 09;
-                // Jesse, 2026-11-01: yes to the mock's pick).
-                ForEach(game.isBasketball ? Array(game.plays.suffix(5).reversed()) : game.plays.reversed()) { play in
+                // Basketball's newest 5 until "Show all" (game-card 09; Jesse, 2026-11-01: yes to the mock's pick).
+                let newest = Set(game.plays.suffix(Game.newestPlays).map(\.id))
+                ForEach(game.listedPlays(all: all)) { play in
                     row(play)
                         // A rewrite's words fill in with the scorers' cross-fade (game-card 13).
                         .animation(reduceMotion ? nil : Motion.smooth, value: play.text)
+                        .accessibilityFocused($spoken, equals: play.id)
                         // A new play slides in on top; basketball's oldest of the 5 fades where it is, not
-                        // sliding up over the rest.
-                        .transition(reduceMotion ? .opacity
+                        // sliding up over the rest. The plays "Show all" opens fade in where they are too: sliding,
+                        // each one's words crossed the row above it (game-card 34).
+                        .transition(reduceMotion || (game.foldsPlays && !newest.contains(play.id)) ? .opacity
                                     : .asymmetric(insertion: .move(edge: .top).combined(with: .opacity), removal: .opacity))
                 }
+                if game.foldsPlays { showAll }
             }
             .animation(reduceMotion ? nil : Motion.smooth, value: game.plays.count)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
             .padding(.top, top)
         }
+    }
+
+    /// "Show all 61" under the newest 5, in a play's card; open, "Show less" under the oldest play. The chevron turns
+    /// rather than swaps: a swapped symbol cross-fades through a grey blob (swift-traps).
+    private var showAll: some View {
+        Button {
+            if !all { foldedHeight = height }
+            withAnimation(reduceMotion ? nil : Motion.smooth) {
+                all.toggle()
+                if !all { folded(height - foldedHeight) }
+            }
+            // Once the opened plays are on the page: focus can't go to a row that isn't there yet.
+            if all { Task { spoken = game.listedPlays(all: true).dropFirst(Game.newestPlays).first?.id } }
+        } label: {
+            HStack(spacing: 6) {
+                Text(all ? "Show less" : "Show all \(game.plays.count)")
+                    .animation(nil, value: all)
+                Image(systemName: "chevron.down")
+                    .font(.glyph(12, weight: .bold))
+                    .rotationEffect(.degrees(all ? 180 : 0))
+                    .accessibilityHidden(true)
+            }
+            .font(.displaySemi(15))
+            .foregroundStyle(Hue.ink)
+            .frame(maxWidth: .infinity)
+            .frame(height: Self.more)
+            .background(.white.opacity(0.075), in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+        }
+        .buttonStyle(.press(.squish))
+        .accessibilityLabel(all ? "Show fewer scoring plays" : "Show all \(game.plays.count) scoring plays")
     }
 
     private func section<Rows: View>(_ title: String, @ViewBuilder rows: () -> Rows) -> some View {

@@ -105,6 +105,7 @@ enum TownFixtures {
         var events = followedToday(games + sampleEvents(now: now).sorted { $0.leavesAt < $1.leavesAt }, now: now)
         // `-town-posts`: two neighbours' posts among the events (town-feed 29), a photo one second.
         if LaunchFlags.has(.townPosts) { events.insert(contentsOf: postSamples(now: now), at: min(1, events.count)) }
+        if LaunchFlags.has(.townNewsFlyer) { return [flyerSample(now: now)] + events }
         guard LaunchFlags.has(.townNews) else { return events }
         // `-town-news`: tonight's social watch posts as the feed places them (town-feed 35): one that
         // shares your interests among the events, the rest after the last one. Logos read from Storage.
@@ -189,13 +190,27 @@ enum TownFixtures {
         }
     }
 
+    /// `-town-news-flyer`: WELL & Company's Black Friday post as the photo step saved it (town-feed 77): its own
+    /// graphic first, so the card drops our headline, and the post's three pictures for the News page to swipe.
+    static func flyerSample(now: Date) -> TownFeedEntry {
+        let photos = ["news-91cf0d0cee", "news-4695f4af96", "news-8c2eb4fbf2"].map { URL(string: logos + "news/\($0).webp")! }
+        let news = TownNews(id: "a99d06e1-abe6-4bec-a1f4-2a45f18a9f55", place: "WELL & Company",
+                            words: "Filler and Sculptra with a free facial, and 20% off skincare, Nov. 27 to 30.",
+                            post: URL(string: "https://www.facebook.com/wellandcompanymn/")!,
+                            leavesAt: now.addingTimeInterval(7 * 86_400), published: now.addingTimeInterval(-22 * 3600),
+                            title: "Black Friday Glow Offers", photo: photos[0], photoAspect: 1080.0 / 1350.0,
+                            photoIsFlyer: true, photos: photos)
+        return TownFeedEntry(item: .news(news), leavesAt: news.leavesAt)
+    }
+
     /// `-town-games`: four games first, as `get_town_feed` sends them (game-card 02): SJU vs
     /// Gustavus to come, the ticket's real finals SJU 33-23 Concordia and Sartell 6-0 Sauk
     /// Rapids-Rice, and Sartell's 2-2 tie with Anoka, with the schools' saved logos and colors
     /// (`Resources/Fixtures/town-games.json`: their colors are data, as the feed's are). With
     /// `-town-volleyball`, CSB vs Carleton's volleyball takes SJU vs Gustavus's place, with `-town-soccer`
     /// SJU vs Augsburg's soccer, with `-town-basketball` CSB vs Loras's basketball, with `-town-hockey` SJU vs St. Olaf's
-    /// hockey (game-card 09), and with `-town-shootout` Saint Ben's 1-1 Macalester, won 5-4 on penalties (game-card 15).
+    /// hockey (game-card 09), with `-town-shootout` Saint Ben's 1-1 Macalester, won 5-4 on penalties (game-card 15), and
+    /// with `-town-basketball-final` Saint Ben's 54-61 Simpson, its 61 real scoring plays behind "Show all" (game-card 34).
     private static func gameSamples(now: Date) -> [TownFeedEntry] {
         struct Sample: Decodable {
             let id, title, host, place, day: String
@@ -208,9 +223,10 @@ enum TownFixtures {
               let data = try? Data(contentsOf: url),
               let all = try? JSONDecoder().decode([Sample].self, from: data) else { return [] }
         let first = LaunchFlags.has(.townVolleyball) ? "v1" : LaunchFlags.has(.townSoccer) ? "s1"
+            : LaunchFlags.has(.townBasketballFinal) ? "f1"
             : LaunchFlags.has(.townBasketball) ? "b1" : LaunchFlags.has(.townHockey) ? "h1" : LaunchFlags.has(.townShootout) ? "p1"
             : LaunchFlags.has(.townLevel) ? "l1" : "g1"
-        let samples = all.filter { !["v1", "s1", "b1", "h1", "g1", "p1", "l1"].contains($0.id) || $0.id == first }
+        let samples = all.filter { !["v1", "s1", "b1", "f1", "h1", "g1", "p1", "l1"].contains($0.id) || $0.id == first }
         // `-town-live`: the first game started an hour ago today; TownFeed plays its score (game-card 03).
         let live = LaunchFlags.has(.townLive)
         let today = Self.townClock("yyyy-MM-dd", now)
