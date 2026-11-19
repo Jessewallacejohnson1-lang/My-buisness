@@ -36,9 +36,8 @@ final class ChatSendList {
 
     func load(you: YouModel?, actions: RealLifeActions?) async {
         guard targets == nil else { return }
-        async let friends: Void = book.refresh()
+        await book.refresh()
         let groups = await chats.groupsToSend(Self.yourGroups(you: you, actions: actions))
-        await friends
         guard targets == nil else { return }
         targets = chats.messages.filter { !$0.waiting && $0.kind != .going }.map { Target(id: $0.id, name: $0.title, chat: $0) }
             + groups.map { Target(id: $0.id, name: $0.name, group: $0) }

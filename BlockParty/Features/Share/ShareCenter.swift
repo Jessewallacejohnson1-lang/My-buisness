@@ -83,8 +83,6 @@ final class ShareCenter: ObservableObject {
         DispatchQueue.main.async { self.showing = true }
     }
 
-    func dismiss() { showing = false }
-
     /// The sheet has gone: so do its window and its share.
     func sheetGone() {
         window?.isHidden = true
