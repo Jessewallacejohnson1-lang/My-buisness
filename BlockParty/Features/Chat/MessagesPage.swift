@@ -117,6 +117,57 @@ nonisolated enum ChatMetric {
     static let timesWidth: CGFloat = 56
     static let timesOut: CGFloat = 58
     static let timesUp: CGFloat = 12
+    // Hearts and replies (BP app messages 03): mock 1's numbers, guessed (no Instagram still; `references/messages-instagram/`).
+    /// The small pill under a message: 24 tall, 7 in, a 2 pt white ring, 10 in from the bubble's side, 8 up over it.
+    static let reactionHeight: CGFloat = 24
+    static let reactionPad: CGFloat = 7
+    static let reactionRing: CGFloat = 2
+    static let reactionSide: CGFloat = 10
+    static let reactionOver: CGFloat = 8
+    static let reactionEmoji: CGFloat = 13
+    static let reactionGap: CGFloat = 2
+    /// A double tap's big heart.
+    static let bigHeart: CGFloat = 46
+    static let bigHeartRise: CGFloat = 14
+    /// A held message: the emoji row over it, the menu under it.
+    static let holdRowHeight: CGFloat = 48
+    static let holdRowPad: CGFloat = 10
+    static let holdRowGap: CGFloat = 9
+    static let holdRowAbove: CGFloat = 8
+    static let holdEmoji: CGFloat = 28
+    static let holdEmojiSlot: CGFloat = 30
+    static let holdMenuWidth: CGFloat = 210
+    static let holdMenuRow: CGFloat = 44
+    static let holdMenuCorner: CGFloat = 14
+    static let holdMenuPad: CGFloat = 16
+    static let holdMenuBelow: CGFloat = 8
+    static let holdSideIn: CGFloat = 4
+    static let holdEdge: CGFloat = 8
+    /// The held bubble stays below this and above the composer's band, moving only when it must.
+    static let holdTopMost: CGFloat = 120
+    static let holdBottomMost: CGFloat = 60
+    static let holdBlur: CGFloat = 14
+    /// A swipe right to reply: the arrow sits this far left of the row, shows by 44, and the reply takes at 52.
+    static let replyArrow: CGFloat = 20
+    static let replyArrowOut: CGFloat = 30
+    static let replyShows: CGFloat = 44
+    static let replyTakes: CGFloat = 52
+    /// A swipe that starts this near the left edge is the stack's swipe back.
+    static let replyEdge: CGFloat = 24
+    /// The quote over a reply: "You replied to Maya", then the quoted words beside a 3 pt bar.
+    static let quoteTop: CGFloat = 6
+    static let quoteSide: CGFloat = 4
+    static let quoteCaptionBelow: CGFloat = 4
+    static let quoteBar: CGFloat = 3
+    static let quoteBarGap: CGFloat = 6
+    static let quoteX: CGFloat = 12
+    static let quoteY: CGFloat = 8
+    static let quoteCorner: CGFloat = 18
+    static let quoteMax: CGFloat = 230
+    static let quoteBelow: CGFloat = 2
+    /// "Replying to Maya" over the composer.
+    static let replyingTop: CGFloat = 9
+    static let replyingBottom: CGFloat = 6
     static let photoWidth: CGFloat = 240
     static let photoTallest: CGFloat = 320
     static let photoQuality: CGFloat = 0.8
