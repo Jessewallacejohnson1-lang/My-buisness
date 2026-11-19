@@ -214,6 +214,8 @@ nonisolated enum Hue {
     static let onboardingRing = Color(hex: 0xC5C5CA)
     /// The chevron at the end of an interest row that opens (mock v8 `.chev`).
     static let onboardingChevron = Color(hex: 0xB0B0B6)
+    /// The code box's dots where a digit is still to come (mock v8 `.codebox span`, onboarding 40).
+    static let codeSlot = Color(hex: 0xB4B4BA)
     /// The Next pill under the finger: ink lifted a touch.
     static let nextPressed   = Color(hex: 0x2B2B2E)
     /// The Next pill while not allowed, and its words.

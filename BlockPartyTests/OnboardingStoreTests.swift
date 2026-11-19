@@ -80,6 +80,33 @@ final class OnboardingStoreTests: XCTestCase {
         XCTAssertFalse(midway.finishedHere, "the server's stamp gets no Done island")
     }
 
+    // MARK: Forgot password (onboarding 40)
+
+    func testForgotPasswordStepsBackThroughItselfToLogIn() {
+        let store = OnboardingStore(defaults: defaults)
+        store.open(.logIn)
+        store.open(.forgot)
+        store.open(.code)
+        store.accountBack()
+        XCTAssertEqual(store.account, .forgot)
+        XCTAssertFalse(store.forward, "back slides in from the left")
+        store.accountBack()
+        XCTAssertEqual(store.account, .logIn)
+        store.accountBack()
+        XCTAssertNil(store.account, "Log in goes back to the Welcome")
+        XCTAssertNil(OnboardingAccount.newPassword.back, "the code signed the phone in: no going back")
+    }
+
+    func testTheServerStampWaitsForTheNewPassword() {
+        let store = OnboardingStore(defaults: defaults)
+        store.open(.newPassword)
+        store.serverSaysFinished()
+        XCTAssertFalse(store.finished, "the code's sign-in must not skip the new password")
+        store.loggedIn(onboarded: true)
+        XCTAssertTrue(store.finished, "its Log in goes in")
+        XCTAssertNil(store.account)
+    }
+
     // MARK: Log in and Create account (onboarding 27)
 
     func testCreateAccountGoesOnToTheFirstQuestion() {
