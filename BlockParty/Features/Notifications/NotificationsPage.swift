@@ -24,9 +24,7 @@ nonisolated enum NoticeMetric {
     static let rowPad: CGFloat = 8
     static let sectionTop: CGFloat = 18
     static let sectionBottom: CGFloat = 8
-    /// The empty page's bell, the Reference's traced at 1.5× (BP app references/notifications-empty).
-    static let bellWidth: CGFloat = 85
-    static let bellHeight: CGFloat = 84
+    /// The empty page's bell (85 × 84 pt, the Reference's traced at 1.5×) to its words.
     static let bellToWords: CGFloat = 26
     /// The Reference's bell and words sit this far below the page's middle.
     static let emptyDrop: CGFloat = 42
@@ -373,12 +371,11 @@ private struct LoadingNotices: View {
 private struct EmptyNotifications: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var rings = 0
+    @State private var held = false
 
     var body: some View {
         VStack(spacing: NoticeMetric.bellToWords) {
             Image("EmptyBell")
-                .resizable()
-                .frame(width: NoticeMetric.bellWidth, height: NoticeMetric.bellHeight)
                 .keyframeAnimator(initialValue: 0.0, trigger: rings) { bell, degrees in
                     bell.rotationEffect(.degrees(degrees), anchor: .top)
                 } keyframes: { _ in
@@ -393,11 +390,20 @@ private struct EmptyNotifications: View {
                     }
                 }
                 .contentShape(Rectangle())
-                .onTapGesture { if !reduceMotion { rings += 1 } }
+                // Rings on touch-down, once per touch.
+                .gesture(DragGesture(minimumDistance: 0)
+                    .onChanged { _ in
+                        guard !held else { return }
+                        held = true
+                        if !reduceMotion { rings += 1 }
+                    }
+                    .onEnded { _ in held = false })
                 .accessibilityHidden(true)
             Text("No notifications, yet!")
-                .font(.sans(15))
+                .appleFont(14)
                 .foregroundStyle(Hue.ink)
+                // A pull that starts on the words still refreshes.
+                .allowsHitTesting(false)
         }
         .padding(.top, NoticeMetric.emptyDrop * 2)
         .onAppear { if !reduceMotion { rings += 1 } }

@@ -66,6 +66,7 @@ struct FriendsTitleBar<Trailing: View>: View {
             Rectangle().fill(Hue.hairline).frame(height: FriendsMetric.hairline).opacity(titleUnder ? 1 : 0)
         }
         .animation(reduceMotion ? nil : .smooth(duration: 0.2), value: titleUnder)
+        .animation(reduceMotion ? nil : .smooth(duration: 0.2), value: alwaysTitle)
     }
 }
 
