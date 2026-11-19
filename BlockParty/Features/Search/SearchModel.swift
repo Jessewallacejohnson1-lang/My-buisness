@@ -866,16 +866,69 @@ final class SearchModel {
         }
     }
 
-    /// The line under a name, from Google's place type.
+    /// The line under a name, from Google's place type, in the words a neighbour would say: every type a live place
+    /// had on 2026-11-18 (backlog 20). Google's catch-alls name nothing ("Point of interest", "Professional service"),
+    /// so they get no line. A type new since then reads as itself ("print_shop" is "Print shop").
     static func label(_ type: String) -> String? {
-        let named = ["brewery": "Brewery", "cajun_restaurant": "Cajun", "italian_restaurant": "Italian",
-                     "pizza_restaurant": "Pizza", "restaurant": "Restaurant", "sandwich_shop": "Deli",
-                     "bar_and_grill": "Bar & grill", "ice_cream_shop": "Ice cream", "coffee_shop": "Coffee shop",
-                     "bakery": "Bakery", "bar": "Bar"]
-        if let hit = named[type] { return hit }
+        if let hit = kindWords[type] { return hit.isEmpty ? nil : hit }
         guard let first = type.first else { return nil }
         return first.uppercased() + type.dropFirst().replacingOccurrences(of: "_", with: " ")
     }
+
+    private static let kindWords: [String: String] = [
+        // Food and drink
+        "restaurant": "Restaurant", "cajun_restaurant": "Cajun", "italian_restaurant": "Italian",
+        "chinese_restaurant": "Chinese", "pizza_restaurant": "Pizza", "sandwich_shop": "Deli", "fast_food": "Fast food",
+        "bar_and_grill": "Bar & grill", "bar": "Bar", "brewery": "Brewery", "cidery": "Cidery",
+        "ice_cream_shop": "Ice cream", "coffee_shop": "Coffee shop", "bakery": "Bakery", "butcher_shop": "Butcher",
+        "food_and_beverage_store": "Food & drink", "grocery_store": "Grocery", "health_food_store": "Health food",
+        "liquor_store": "Liquor store", "market": "Market", "food_bank": "Food bank",
+        // Shops
+        "store": "Shop", "specialty_store": "Shop", "shopping": "Shop", "variety_store": "Variety store",
+        "clothing_store": "Clothing", "fashion_and_apparel_store": "Clothing", "gift_shop": "Gift shop",
+        "florist": "Florist", "flowers_and_gifts_store": "Florist", "second_hand_store": "Thrift store",
+        "electronics_store": "Electronics", "home_goods_store": "Home goods", "pharmacy": "Pharmacy",
+        "hardware_store": "Hardware store", "hardware_home_and_garden_store": "Hardware store",
+        "home_improvement_store": "Home improvement", "garden_center": "Garden center",
+        // Cars
+        "auto_dealer": "Car dealer", "vehicle_dealer": "Car dealer", "car_repair": "Auto repair",
+        "automotive_service": "Auto service", "vehicle_parts_store": "Auto parts", "car_parts": "Auto parts",
+        "fuel": "Gas station",
+        // Hair, beauty and health
+        "hair_salon": "Hair salon", "barber_shop": "Barber", "beauty_salon": "Beauty salon", "nail_salon": "Nail salon",
+        "personal_or_beauty_service": "Beauty & wellness", "spa": "Spa", "massage": "Massage", "wellness_service": "Wellness",
+        "complementary_and_alternative_medicine": "Wellness", "yoga_studio": "Yoga", "gym": "Gym",
+        "sport_or_fitness_facility": "Fitness", "doctor": "Doctor", "dentist": "Dentist",
+        "chiropractor": "Chiropractor", "medical_service": "Medical", "behavioral_or_mental_health_clinic": "Counseling",
+        "veterinary_care": "Vet", "animal_or_pet_service": "Pet care",
+        // Services
+        "home_service": "Home services", "general_contractor": "Contractor",
+        "building_or_construction_service": "Construction", "laundry_service": "Laundry", "moving_company": "Movers",
+        "storage_facility": "Storage", "rental_service": "Rentals", "event_or_party_service": "Party services",
+        "family_service": "Family services", "social_or_community_service": "Community services",
+        "day_care_center": "Child care", "senior_living_facility": "Senior living", "apartment": "Apartments",
+        "lodging": "Lodging", "bed_and_breakfast": "Bed & breakfast", "travel_service": "Travel agency",
+        "travel_and_transportation": "Transportation", "b2b_transportation_and_storage_service": "Transportation",
+        "media_service": "Media", "marketing_agency": "Marketing",
+        // Money, law and offices
+        "bank": "Bank", "finance": "Finance", "financial_service": "Finance", "financial_advisor": "Financial advisor",
+        "accounting": "Accountant", "insurance_agency": "Insurance", "real_estate_agency": "Real estate",
+        "real_estate_service": "Real estate", "attorney_or_law_firm": "Lawyer", "legal_service": "Lawyer",
+        "b2b_service": "Business services",
+        "b2b_office_and_professional_service": "Business services", "manufacturer": "Manufacturer",
+        "supplier_or_distributor": "Supplier", "agricultural_service": "Farm services", "farm": "Farm",
+        // Town
+        "park": "Park", "dog_park": "Dog park", "zoo": "Zoo", "sports_complex": "Sports complex",
+        "sports_and_recreation": "Recreation", "sports_club": "Sports club", "historic_site": "Historic site",
+        "monument": "Historic site", "museum": "Museum", "art_gallery": "Art gallery", "art_studio": "Art studio",
+        "library": "Library", "church": "Church", "catholic_church": "Church", "christian_place_of_worship": "Church",
+        "religious_organization": "Church", "school": "School", "elementary_school": "Elementary school",
+        "place_of_learning": "School", "education": "School", "college": "College", "school_district": "School district",
+        "city_hall": "City hall", "government_office": "Government office", "post_office": "Post office",
+        "police": "Police", "water_utility_provider": "Utility", "military_site": "Military",
+        // Catch-alls: no line
+        "point_of_interest": "", "technical_service": "", "professional_service": "", "professional_services": "",
+    ]
 
     /// The city's parks, and the trails the app has a bundled photo of. A park's photo is one
     /// Block Party saved of it (by the park's id, BP app place-photos 04), else its bundled

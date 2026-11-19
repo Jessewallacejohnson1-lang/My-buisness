@@ -154,21 +154,47 @@ final class Notices {
     private(set) var named: [NamedNotice] = []
     /// The last read failed with nothing read before it: the page says so.
     private(set) var failed = false
-    /// Seen on this phone, by `Notice.id`.
-    private var seen: Set<String>
+    /// Seen by this account on this phone, by `Notice.id`: a second account on the phone has its own (backlog 20).
+    private var seen: Set<String> = []
+    /// Whose `seen` holds (nil for no account), once `seenRead`.
+    private var seenBy: String?
+    private var seenRead = false
 
     private let read: () async throws -> [Notice]
     private let readNamed: () async throws -> [NamedNotice]
     private let keep: UserDefaults
-    /// Ticket 12's told Events, so one already told there is seen here.
+    /// The account on the phone now, nil for none.
+    private let account: () -> String?
+    /// Seen on this phone before each account kept its own, ticket 12's told Events among them: the first account
+    /// to look takes it. With no account, the one place seen is kept.
     static let seenKey = "bp.cancelled.told"
 
+    static func seenKey(_ account: String?) -> String { account.map { "\(seenKey).\($0)" } ?? seenKey }
+
     init(read: @escaping () async throws -> [Notice], named: @escaping () async throws -> [NamedNotice] = { [] },
-         keep: UserDefaults = .standard) {
+         keep: UserDefaults = .standard, account: @escaping () -> String? = { nil }) {
         self.read = read
         self.readNamed = named
         self.keep = keep
+        self.account = account
+        readSeen()
+    }
+
+    /// This account's seen, read when the account isn't the one `seen` holds.
+    private func readSeen() {
+        let id = account()
+        guard !seenRead || seenBy != id else { return }
+        seenRead = true
+        seenBy = id
+        if let own = keep.stringArray(forKey: Self.seenKey(id)) {
+            seen = Set(own)
+            return
+        }
         seen = Set(keep.stringArray(forKey: Self.seenKey) ?? [])
+        if id != nil, !seen.isEmpty {
+            keep.set(Array(seen).sorted(), forKey: Self.seenKey(id))
+            keep.removeObject(forKey: Self.seenKey)
+        }
     }
 
     /// Your changes from `get_my_changes` through `supabase`, the session's one client
@@ -182,7 +208,8 @@ final class Notices {
         }
         #endif
         self.init(read: { try await CommunityAPI(supabase).getMyChanges() },
-                  named: { try await CommunityAPI(supabase).getMyMentions() }, keep: keep)
+                  named: { try await CommunityAPI(supabase).getMyMentions() }, keep: keep,
+                  account: { supabase.auth.userId })
     }
 
     /// The bell's dot: something on the page you haven't opened it to.
@@ -192,6 +219,7 @@ final class Notices {
 
     /// Reads again, changes and names together. A failed read keeps what it had and waits for the next.
     func refresh(now: Date = Date()) async {
+        readSeen()
         async let changes = try? read()
         async let names = try? readNamed()
         let (fresh, freshNames) = await (changes, names)
@@ -207,7 +235,7 @@ final class Notices {
     func opened() {
         guard list != nil || !named.isEmpty else { return }
         seen.formUnion((list ?? []).map(\.id) + named.map(\.id))
-        keep.set(Array(seen).sorted(), forKey: Self.seenKey)
+        keep.set(Array(seen).sorted(), forKey: Self.seenKey(account()))
     }
 
     /// Signed out or another account: nothing until its own read.
@@ -215,6 +243,7 @@ final class Notices {
         list = nil
         named = []
         failed = false
+        readSeen()
     }
 
     /// The ones not over by `now`, in the read's order.

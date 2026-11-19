@@ -384,6 +384,8 @@ struct MainTabsView: View {
     @State private var showMap = false
     /// Made once, as `hostOpener` is.
     @State private var mapOpener: EventMapOpener?
+    /// Made once, as `hostOpener` is.
+    @State private var newsOpener: NewsOpener?
     /// New post, from the Town bar's + (BP app references/post-screen).
     @State private var creating = false
     /// The Town feed is reading down (`TabBarCompactKey`): the tab bar rests small.
@@ -503,7 +505,7 @@ struct MainTabsView: View {
         }
         // A host's name on a card or an Event page opens its own page (follows 08).
         .environment(\.hostOpener, hostOpener)
-        .environment(\.openNews) { openHello(.news($0)) }
+        .environment(\.openNews, newsOpener)
         .environment(\.viewOnMap, mapOpener)
         // The map is a destination, not a tab: full screen, with its own close, and its card opens the Event page on
         // the map's own stack (BP app references/map-reset). Out here, not on the stack's root, so it rises over a
@@ -550,6 +552,7 @@ struct MainTabsView: View {
         .onAppear {
             placeOpener.reduceMotion = reduceMotion
             if hostOpener == nil { hostOpener = makeHostOpener() }
+            if newsOpener == nil { newsOpener = NewsOpener { openHello(.news($0)) } }
             if mapOpener == nil {
                 mapOpener = EventMapOpener(open: viewOnMap, show: { ask in
                     mapOpener?.ask = ask
