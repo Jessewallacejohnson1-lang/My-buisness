@@ -900,6 +900,8 @@ private struct FlyingLogo: View {
                 LetterDisc(initial: item.initial, side: flying.width)
             }
         }
+            // The file's empty border spills past the disc's box; the disc stays centred on it.
+            .frame(width: flying.width, height: flying.width)
             .background {
                 Circle()
                     .fill(Hue.surface)
