@@ -993,7 +993,7 @@ struct OpenButton<Label: View>: View {
         } else if let news = item.news {
             Button {
                 model.remember(item.id)
-                openNews?(news)
+                openNews?.open(news)
             } label: { label() }
                 .buttonStyle(.press(press))
         } else {
@@ -1394,8 +1394,15 @@ extension View {
     }
 }
 
+/// Opens a News item as its Town card does (the shell's own, from the hello pill): a Search row's tap
+/// (search-helpful 07). A class made once, as `EventMapOpener` is: a bare closure in the environment can't be
+/// compared, so every row that reads it would redraw each time the shell does.
+@MainActor
+final class NewsOpener {
+    let open: (TownNews) -> Void
+    init(open: @escaping (TownNews) -> Void) { self.open = open }
+}
+
 extension EnvironmentValues {
-    /// Opens a News item as its Town card does (the shell's own, from the hello pill): a Search row's tap
-    /// (search-helpful 07).
-    @Entry var openNews: ((TownNews) -> Void)? = nil
+    @Entry var openNews: NewsOpener? = nil
 }
