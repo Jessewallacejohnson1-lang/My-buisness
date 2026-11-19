@@ -39,19 +39,18 @@ This is the **native iOS / map** codebase and the **spec** the Android app is po
 unauthorized-response handler, injects `AuthStore.shared`, optionally runs the DEBUG place
 seeder, and mounts `RootView` inside `LaunchHost`.
 
-- **The launch** (Jesse, 2026-11-01, reversing 2026-09-18's no splash; BP app
-  `references/launch-ball/`): on a fresh process start the Town's round logo bounces off Bp,
-  lands as the !'s dot, the ! hops as the Daily tab's does, and Bp! lands on the tab bar's own
-  (or zooms through over Welcome). Only the day's first two cold starts play it; every other
-  open, a link's and Reduce Motion's too, shows the BlockParty. wordmark, which shoots out at you
-  as the yellow fades into the app (Reduce Motion: only the fade; Jesse, 2026-11-14, BP app
-  backlog 28). `LaunchScreen.storyboard` is the first frame of both:
-  BP yellow with the BlockParty. wordmark, which gives way to Bp as the ball drops in. The app
-  loads underneath from the first frame and never waits on it; a tap skips it, UI tests skip it
-  (`-ui-tests`) unless they ask
-  (`-launch-play`), and the app shows within 6 s whatever happens. The math is
-  `LaunchMotion`, the drawing `LaunchBall`. Back within 10 minutes of iOS shutting the app down
-  it doesn't play, and the app opens as you left it (`LeftOff`, BP app backlog 21).
+- **The launch** (Jesse, 2026-11-18, BP app `references/splash-fork/`; a launch came back on
+  2026-11-01, reversing 2026-09-18's no splash): a fresh process start shows a black dot in the
+  middle of BP yellow. On the day's first cold start the dot writes BlockParty. as The Fork's
+  splash writes its name and stops as the full stop, which opens as a circle into the app. On
+  every later open the dot pops into Bp, the Town's round logo drops in as the !'s dot, and Bp!
+  lands on the tab bar's own while the yellow opens as a circle (or zooms through over Welcome). Reduce Motion: the word fades in, then the
+  yellow fades. `LaunchScreen.storyboard` is the first frame of all three: the dot alone. The app
+  loads underneath from the first frame and never waits on it; a tap does nothing, UI tests skip
+  it (`-ui-tests`) unless they ask (`-launch-play`), and the app shows within 6 s whatever
+  happens. The math is `LaunchMotion`, the drawing `LaunchBall`. Back within 10 minutes of iOS
+  shutting the app down it doesn't play, and the app opens as you left it (`LeftOff`, BP app
+  backlog 21).
 - **Nobody gets past the Welcome without an account** (Jesse, 2026-11-02, BP app onboarding 27;
   sign-in was off from 2026-09-18). `RootView` shows onboarding until `AuthStore.hasAccount`, a
   session that isn't a quiet anonymous one: the Welcome's Continue with email opens Create account,

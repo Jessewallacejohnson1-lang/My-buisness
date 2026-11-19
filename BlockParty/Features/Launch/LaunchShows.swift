@@ -1,14 +1,14 @@
 //
 //  LaunchShows.swift
-//  Block Party — which launch a cold start plays. The day's first plays the whole show (Jesse,
-//  2026-11-17: "The first open of the day."; two since 2026-11-08); the rest show the BlockParty.
-//  wordmark and fade into the app (Jesse, 2026-11-14). Kept on the phone as "yyyy-mm-dd n".
+//  Block Party — which launch a cold start plays. The day's first open has the dot write
+//  BlockParty.; every later one plays Bp! with the Town's ball dropping in (Jesse, 2026-11-18: "for fast
+//  opens let it be BP! with drop in dot and moves to tab bar"). Kept on the phone as "yyyy-mm-dd n".
 //
 
 import Foundation
 
 nonisolated enum LaunchShows {
-    static let fullShowsADay = 1
+    static let firstOpensADay = 1
     static let key = "launch.fullShows"
 
     /// The kind this start plays, counting it, and the record to keep.
@@ -17,7 +17,7 @@ nonisolated enum LaunchShows {
         let day = "\(parts.year ?? 0)-\(parts.month ?? 0)-\(parts.day ?? 0)"
         var shown = 0
         if let record, record.hasPrefix(day + " ") { shown = Int(record.dropFirst(day.count + 1)) ?? 0 }
-        let kind: LaunchMotion.Kind = shown < fullShowsADay ? .full : .word
+        let kind: LaunchMotion.Kind = shown < firstOpensADay ? .first : .later
         return (kind, "\(day) \(shown + 1)")
     }
 

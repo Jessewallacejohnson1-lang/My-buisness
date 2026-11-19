@@ -18,7 +18,7 @@ enum FeedActionKind {
 
 struct FeedEventCardActionRow: View {
     var kind: FeedActionKind = .posting
-    /// Shown beside the comment glyph, the way Instagram shows it. 0 hides it.
+    /// Shown inside the comment pill. 0 hides it.
     var commentCount: Int = 0
     /// The heart and its count. Off while the person can't act yet (no account), as
     /// Join is (Jesse, 2026-10-11).
@@ -32,51 +32,41 @@ struct FeedEventCardActionRow: View {
     let onLike: ((Bool) -> Void)?
     let onComment: () -> Void
     let onShare: (() -> Void)?
-    /// The Town card's •••, after the send (found-posts).
-    var onMenu: (() -> Void)? = nil
 
     @State private var heartScale: CGFloat = 1
     @State private var heartGeneration = 0
     /// `heartFailures` at the last tap: a tap mid-shake stills it and acts at once.
     @State private var heartTappedAt = 0
 
-    /// Instagram's feed action row, measured off a capture (Jesse, 2026-09-20):
-    /// a 24pt glyph, its count right beside it, and 16pt of air between one control
-    /// and the next. The 28pt-wide target plus `groupSpacing` is what adds up to
-    /// that 16 — the glyph does not fill its box.
+    /// Nextdoor's row in Tabler's thick icons (BP app like-comment-share, set C): each control
+    /// is a grey pill with its count inside, heart and comment together on the left, share
+    /// on the right. Sizes are the approved mock's.
     private enum Metric {
-        static let glyph: CGFloat = 24
-        static let tapWidth: CGFloat = 28
-        static let groupSpacing: CGFloat = 12
+        static let glyph: CGFloat = 22
+        static let pillHeight: CGFloat = 40
+        static let pillPadding: CGFloat = 14
+        static let pillSpacing: CGFloat = 8
         static let countGap: CGFloat = 6
         static let rowHeight: CGFloat = 44
     }
 
     var body: some View {
-        // Everything that acts on the post sits leading, in one cluster with its counts. The heart
-        // is the save too (BP app inside-cards 16): Instagram's trailing bookmark has no place here.
-        HStack(spacing: 0) {
-            HStack(spacing: Metric.groupSpacing) {
-                if showsHeart {
-                    heartControl
+        HStack(spacing: Metric.pillSpacing) {
+            if showsHeart {
+                heartPill
+            }
+            if kind == .posting {
+                pill(action: onComment) {
+                    icon("Tabler/message-circle")
+                    if commentCount > 0 { countText(commentCount) }
                 }
-                if kind == .posting {
-                    countedControl(
-                        .comment,
-                        count: commentCount,
-                        label: "Comment",
-                        action: onComment
-                    )
-                }
-                shareButton
-                if let onMenu {
-                    // 16 pt from the send, as beside Attend (`RSVPArea`): this row's 12 pt spacing and 4.
-                    FeedCardMenuButton(action: onMenu)
-                        .padding(.leading, 16 - Metric.groupSpacing)
-                }
+                .accessibilityLabel(commentCount > 0 ? "Comment, \(commentCount)" : "Comment")
             }
 
             Spacer(minLength: 12)
+
+            pill(action: { onShare?() }) { icon("Tabler/share-3") }
+                .accessibilityLabel("Share")
         }
         .frame(height: Metric.rowHeight)
         .onChange(of: autoplayStep) { _, step in
@@ -87,36 +77,24 @@ struct FeedEventCardActionRow: View {
         }
     }
 
-    private var heartControl: some View {
-        HStack(spacing: Metric.countGap) {
-            Button(action: performHeartTap) {
-                ZStack {
-                    glyphIcon(.heart)
-                        .opacity(state.isLiked ? 0 : 1)
-                    // Red only when it is yours. The outline stays ink, so the row
-                    // reads as one family until you act on it.
-                    //
-                    // The colour is passed IN rather than applied to the returned
-                    // view: `glyphIcon` sets `foregroundStyle` itself, closer to the
-                    // Image, and the inner style wins. Wrapping it from outside
-                    // silently did nothing (caught on the recording — no red).
-                    glyphIcon(.heart, filled: true, tint: Hue.heart)
-                        .opacity(state.isLiked ? 1 : 0)
-                }
-                .scaleEffect(reduceMotion ? 1 : heartScale)
-                .frame(width: Metric.tapWidth, height: Metric.rowHeight)
-                .contentShape(actionShape)
+    private var heartPill: some View {
+        pill(action: performHeartTap) {
+            ZStack {
+                icon("Tabler/heart")
+                    .opacity(state.isLiked ? 0 : 1)
+                // Red only when it is yours; the outline stays ink.
+                icon("Tabler/heart-filled", tint: Hue.heart)
+                    .opacity(state.isLiked ? 1 : 0)
             }
-            .buttonStyle(.plain)
-            .turnBackShake(failures: heartFailures, shakes: !reduceMotion && heartTappedAt != heartFailures)
-            .accessibilityLabel("Like, \(state.likeCount) likes")
-            .accessibilityValue(state.isLiked ? "Liked" : "Not liked")
-            .accessibilityAddTraits(state.isLiked ? .isSelected : [])
-
+            .scaleEffect(reduceMotion ? 1 : heartScale)
             if state.likeCount > 0 {
                 heartCount
             }
         }
+        .turnBackShake(failures: heartFailures, shakes: !reduceMotion && heartTappedAt != heartFailures)
+        .accessibilityLabel("Like, \(state.likeCount) likes")
+        .accessibilityValue(state.isLiked ? "Liked" : "Not liked")
+        .accessibilityAddTraits(state.isLiked ? .isSelected : [])
     }
 
     @ViewBuilder
@@ -130,7 +108,7 @@ struct FeedEventCardActionRow: View {
 
     private func countText(_ value: Int) -> some View {
         Text(Self.shortCount(value))
-            .font(.sansMedium(14))
+            .font(.sansSemibold(15))
             .monospacedDigit()
             .foregroundStyle(Hue.ink)
             .animation(
@@ -142,50 +120,26 @@ struct FeedEventCardActionRow: View {
             .accessibilityHidden(true)
     }
 
-    private var shareButton: some View {
-        // Instagram's send. Still the share sheet, so still labelled "Share".
-        iconButton(.send) { onShare?() }
-            .accessibilityLabel("Share")
-    }
-
-    /// A glyph with its count beside it, Instagram's pairing. The count is not part
-    /// of the button: tapping a number by accident is how you un-like a post.
-    private func countedControl(
-        _ glyph: FeedActionGlyph,
-        count: Int,
-        label: String,
-        action: @escaping () -> Void
-    ) -> some View {
-        HStack(spacing: Metric.countGap) {
-            iconButton(glyph, action: action)
-                .accessibilityLabel(count > 0 ? "\(label), \(count)" : label)
-
-            if count > 0 {
-                countText(count)
-            }
-        }
-    }
-
-    private func iconButton(_ glyph: FeedActionGlyph, action: @escaping () -> Void) -> some View {
+    /// One grey capsule, its count inside it as Nextdoor draws it; it squishes on touch-down.
+    private func pill<Label: View>(action: @escaping () -> Void, @ViewBuilder label: () -> Label) -> some View {
         Button(action: action) {
-            glyphIcon(glyph)
-                .frame(width: Metric.tapWidth, height: Metric.rowHeight)
-                .contentShape(actionShape)
+            HStack(spacing: Metric.countGap) { label() }
+                .padding(.horizontal, Metric.pillPadding)
+                .frame(height: Metric.pillHeight)
+                .background(Hue.actionPill, in: Capsule())
+                // The row's full 44 pt answers a tap, not just the 40 pt pill.
+                .padding(.vertical, (Metric.rowHeight - Metric.pillHeight) / 2)
+                .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.press(.squish))
     }
 
-    /// The drawn heart, comment and send marks (`FeedActionGlyphs`), in solid ink, the
-    /// way Instagram draws its row (Jesse, 2026-09-24). `tint` overrides the ink for
-    /// the liked heart, and must be passed here rather than layered on the result,
-    /// because this `foregroundStyle` sits closer to the glyph and would win.
-    private func glyphIcon(
-        _ glyph: FeedActionGlyph,
-        filled: Bool = false,
-        tint: Color? = nil
-    ) -> some View {
-        FeedActionGlyphView(glyph: glyph, size: Metric.glyph, filled: filled)
-            .foregroundStyle(tint ?? Hue.ink)
+    /// A Tabler mark from the asset catalog (template), ink unless `tint` says otherwise.
+    private func icon(_ name: String, tint: Color = Hue.ink) -> some View {
+        Image(name)
+            .resizable()
+            .frame(width: Metric.glyph, height: Metric.glyph)
+            .foregroundStyle(tint)
     }
 
     /// Instagram's counts: in full with a comma under 10,000 ("3,778"), then "12.4K",
@@ -204,10 +158,6 @@ struct FeedEventCardActionRow: View {
         case ..<1_000_000: return short(Double(value) / 1_000, "K")
         default: return short(Double(value) / 1_000_000, "M")
         }
-    }
-
-    private var actionShape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
     }
 
     private func performHeartTap() {

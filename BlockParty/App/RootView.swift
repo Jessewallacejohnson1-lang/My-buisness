@@ -198,11 +198,8 @@ struct RootView: View {
             }
         }
         .animation(.smooth(duration: 0.35), value: flowUp)
-        .onOpenURL { url in
-            // Signed in, a link that opens something turns the ball show into the wordmark open over
-            // what it opened (Jesse, 2026-11-14). Signed out, it plays whole, then the Welcome.
-            if code.opened(url, signedOut: signedOut), !signedOut { LaunchStage.shared.openedLink() }
-        }
+        // The launch plays on over whatever a link opened.
+        .onOpenURL { url in code.opened(url, signedOut: signedOut) }
         .overlay {
             if onboarding.welcoming {
                 OnboardingDone(name: onboarding.displayName ?? "") { onboarding.welcoming = false }

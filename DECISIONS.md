@@ -1015,3 +1015,34 @@ feed never reached the `UIRefreshControl` (iOS 26.5, the swirl recorded over the
 walks up to the feed's `UIScrollView` and sets its `refreshControl.tintColor` to clear, again whenever a
 pull starts. A rebuilt pull from scroll geometry was the other way, and it would have to hold the gap
 open by changing the content's padding off the scroll's own offset, the loop `swift-traps.md` bans.
+
+## Decided 2026-11-18 — a new launch: the dot writes BlockParty., later opens drop it into Bp! (BP app references/splash-fork)
+
+Jesse: "i wanna create a completly new spash screen thats super similar" to The Fork's, then "for
+fast opens let it be BP! with drop in dot and moves to tab bar". The ball show's squeeze and
+bounces on B and p, the wordmark shooting out, the link's turn into it (`openedLink`,
+`-launch-link-at`) and tap to skip (`-launch-skip`) are gone. Both shows play at full speed (the
+ball show played at ¾, the leap with it), from one still, an 85 pt dot (`LaunchDot`: a new name,
+so a phone that updates over the old build doesn't keep the old still's cached picture).
+
+`LaunchMotion.Kind.first`, the day's first cold start (`LaunchShows.firstOpensADay`; the key stays
+`launch.fullShows`, so nobody's count resets): the dot follows the Reference's mark frame by frame
+(`LaunchMotion.reference`, measured off Jesse's recording by BP app
+references/splash-fork/make_mock.py, 402/512 of its pixels) until it shoots right at 0.60 s; from
+there their path is stretched to end on our full stop, the dot shrinking to it in step, because
+their mark stays large and ours is a full stop. The ten letters (`LaunchWordB` … `LaunchWordY`)
+start between the Reference's first and last (0.617 to 0.750 s), never before the dot has passed
+their left edge; `LaunchWordDot` takes over from the dot at 1.00 s. The word holds 0.35 s and the
+full stop opens as a circle to the far corner in 0.36 s (`Frame.hole`, a mask).
+
+`Kind.later` is the short cut of 2026-11-08, back from commit 09debdf7 (Jesse, 2026-11-18: "no
+for the later one i wanted our already made joetown falls down ball"): the Town's ball falls
+straight into the !'s dot, goes black, B, p and the ! jump without the hang (`jumpLands` 0.35,
+`jumpEnds` 0.49), and Bp! leaps into the tab bar on 2026-11-02's numbers, all at full speed as it
+shipped then. New around it: the still's dot goes as Bp pops out about the screen's middle in the
+first 0.15 s (`stillGoes`, `burst`), and the yellow opens from its middle in place of the curtain.
+Guessed, with no Reference: a letter's 45% and 12° and 0.20 s, the burst's 0.15 s and its spring
+(0.30, 0.70), and Reduce Motion's 0.15 s fade-in.
+A later open's ending (the leap, or the zoom with no tab bar) is the one in place as it starts
+(`LaunchClock.ending`): the ending now starts about 1 s in, not 3, and a tab bar measured after
+that would have turned a zoom under way into a leap.

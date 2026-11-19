@@ -20,13 +20,13 @@ final class LaunchBallTests: XCTestCase {
         // `-launch-play` plays the launch under `-ui-tests`, which otherwise skips it, and shows it
         // to XCUITest as the element `launch`.
         app.launchArguments = ["-open-tab", "town", "-town-samples", "-ui-tests", "-launch-play",
-                               "-launch-kind", "full", "-daily-samples", "-daily-hour", "12"]
+                               "-launch-kind", "later", "-daily-samples", "-daily-hour", "12"]
         app.launch()
         XCTAssertTrue(app.otherElements["launch"].waitForExistence(timeout: 10), "the launch didn't play")
 
         let card = app.buttons["event-card-link"].firstMatch
         XCTAssertTrue(card.waitForExistence(timeout: 10), "no event card on Town")
-        // 3.8 s on a phone, and the app shows within 6 s whatever happens. A fixed wait, because
+        // Under 2 s on a phone, and the app shows within 6 s whatever happens. A fixed wait, because
         // XCUITest still lists the finished launch's element (hidden from VoiceOver, untouchable)
         // and never sees it go: the tap below is the proof that it went.
         Thread.sleep(forTimeInterval: 9)
@@ -34,16 +34,16 @@ final class LaunchBallTests: XCTestCase {
         XCTAssertTrue(app.buttons["Back"].waitForExistence(timeout: 15), "Town's card didn't open after the launch")
     }
 
-    /// Once the yellow is mostly gone, a tap goes through to Town under the glide; before that the
-    /// launch takes it (Jesse, 2026-11-02). Held moments (`-launch-at`, the mock's time): 2200 is
-    /// in the leap with the curtain down but the launch not done (LaunchMotionTests checks both),
-    /// 1000 is the ! hopping on full yellow.
+    /// Once the yellow is mostly gone, a tap goes through to Town under the leap; before that the
+    /// launch takes it and does nothing (Jesse, 2026-11-02 and 2026-11-18). Held moments
+    /// (`-launch-at`, the mock's time): 1500 is Bp! landed with the yellow open but the launch not
+    /// done (LaunchMotionTests checks both), 300 is the ball in the air on full yellow.
     func testATapLateInTheGlideReachesTown() {
         continueAfterFailure = false
-        for (moment, opens) in [("2200", true), ("1000", false)] {
+        for (moment, opens) in [("1500", true), ("300", false)] {
             let app = XCUIApplication()
             app.launchArguments = ["-open-tab", "town", "-town-samples", "-ui-tests", "-launch-play",
-                                   "-launch-at", moment, "-launch-kind", "full", "-daily-samples", "-daily-hour", "12"]
+                                   "-launch-at", moment, "-launch-kind", "later", "-daily-samples", "-daily-hour", "12"]
             app.launch()
             let card = app.buttons["event-card-link"].firstMatch
             XCTAssertTrue(card.waitForExistence(timeout: 10), "no event card on Town")

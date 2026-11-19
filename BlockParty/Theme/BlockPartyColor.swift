@@ -107,6 +107,8 @@ nonisolated enum Hue {
     static let hairline      = Color(light: 0xE7E7E4, dark: 0x33332E)
     // inert fills, placeholders, skeletons
     static let fill          = Color(light: 0xF1F1EF, dark: 0x23231F)
+    // a post's heart, comment and share pills: Nextdoor's cool grey (BP app like-comment-share)
+    static let actionPill    = Color(light: 0xEEF0F3, dark: 0x23231F)
 
     /// A border that has to be SEEN rather than merely felt — a dashed edge, a
     /// stronger rule. One step darker than `hairline`.
