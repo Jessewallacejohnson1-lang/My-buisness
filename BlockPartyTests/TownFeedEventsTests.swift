@@ -206,6 +206,34 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(merch.photoSource?.cardAspect, 0.8, "a tall photo held at 4:5, as an Event's")
         XCTAssertNil(flight.photo)
         XCTAssertNil(flight.photoSource, "no photo: the white card")
+        XCTAssertFalse(merch.photoIsFlyer, "a photo, not a graphic: its headline stays")
+        XCTAssertEqual(merch.photos, [], "one picture: nothing to swipe")
+    }
+
+    /// A News whose photo is its post's own graphic (town-feed 77) says so in poster's flyer, and every picture of
+    /// its post rides in poster's photos, in order; under the graphic its words show whole, as no headline says them.
+    func testNewsWithItsPostsGraphicCarriesItAndEveryPicture() throws {
+        let json = """
+        [{"id":"n1","title":"Black Friday Glow Offers","image_url":"https://x/news/1.webp","source_name":"Well & Company",
+         "created_at":"2026-11-18T01:46:34+00:00","leaves_at":"2099-11-30T06:00:00+00:00","kind":"news",
+         "description":"Filler and Sculptra with a free facial, and 20% off skincare, Nov. 27 to 30.",
+         "poster":{"aspect":0.8,"flyer":true,"photos":["https://x/news/1.webp","https://x/news/2.webp","https://x/news/3.webp"]},
+         "source_url":"https://www.facebook.com/wellandcompanymn/posts/pfbid0N1"},
+         {"id":"n2","title":"Black Friday Glow Offers","image_url":"https://x/news/4.webp","source_name":"Well & Company",
+         "created_at":"2026-11-18T01:46:34+00:00","leaves_at":"2099-11-30T06:00:00+00:00","kind":"news",
+         "poster":{"aspect":0.8,"flyer":"yes","photos":"none"},"source_url":"https://www.facebook.com/x/posts/2"}]
+        """
+        let lines = try CommunityAPI.townFeedLines(from: Data(json.utf8))
+        guard lines.count == 2, case .news(let well) = lines[0], case .news(let odd) = lines[1]
+        else { return XCTFail("\(lines)") }
+        XCTAssertTrue(well.photoIsFlyer)
+        XCTAssertEqual(well.photos.map(\.lastPathComponent), ["1.webp", "2.webp", "3.webp"])
+        XCTAssertEqual(well.flyerWords, "Filler and Sculptra with a free facial, and 20% off skincare, Nov. 27 to 30.")
+        XCTAssertEqual(well.photoAspect, 0.8)
+        XCTAssertFalse(odd.photoIsFlyer, "a flyer that doesn't read is no flyer: the headline stays")
+        XCTAssertEqual(odd.photos, [], "pictures that don't read leave only the one")
+        XCTAssertEqual(odd.photo?.lastPathComponent, "4.webp", "and the card keeps its photo")
+        XCTAssertNil(odd.flyerWords, "only its title: nothing under the graphic")
     }
 
     /// A News card's words (found-posts): its headline over the picture and its facts under it;
@@ -1509,6 +1537,22 @@ final class TownFeedEventsTests: XCTestCase {
         let scholastica = try team(##"{"name":"St. Scholastica","color":"#004070"}"##)
         XCTAssertEqual(GameMatchup.colors([sju, scholastica]), [0xC20430, 0x004070], "red and blue keep their own")
         XCTAssertEqual(GameMatchup.colors([sju, try team(##"{"name":"Somebody"}"##)]), [0xC20430, nil], "none known stays none")
+    }
+
+    /// The split Town card keeps each team's own color (game-card 33): two close ones stay, the away side
+    /// darker; a light one goes deep enough for the white line and names; teams far apart keep their own.
+    func testSplitCardKeepsEachTeamsColor() throws {
+        func team(_ json: String) throws -> Game.Team { try JSONDecoder().decode(Game.Team.self, from: Data(json.utf8)) }
+        let csb = try team(##"{"name":"Saint Benedict","color":"#BD0F34","colors":["#BB2037","#0F9CD7"]}"##)
+        let simpson = try team(##"{"name":"Simpson","color":"#A00030"}"##)
+        XCTAssertEqual(GameMatchup.splitColors([csb, simpson]), [0xBD0F34, 0x5D001C], "two reds: the away side at 58%, never Saint Ben's blue")
+        let sju = try team(##"{"name":"Saint John's","color":"#C20430"}"##)
+        let scholastica = try team(##"{"name":"St. Scholastica","color":"#004070"}"##)
+        XCTAssertEqual(GameMatchup.splitColors([sju, scholastica]), [0xC20430, 0x004070], "red and blue keep their own")
+        let cathedral = try team(##"{"name":"Cathedral","color":"#FEE291"}"##)
+        XCTAssertEqual(GameMatchup.splitColors([cathedral, scholastica]),
+                       [GameMatchup.tone(0xFEE291, lightness: GameMatchup.splitDepth), 0x004070], "a light yellow goes deep")
+        XCTAssertEqual(GameMatchup.splitColors([sju, try team(##"{"name":"Somebody"}"##)]), [0xC20430, nil], "none known stays none")
     }
 
     /// A scoring play that lands while a game is on is a moment (game-card 07): football's touchdown,

@@ -329,6 +329,10 @@ struct MomentLineStyle {
     static let onWhite = MomentLineStyle(plain: (.clear, 0, nil, Hue.inkSecondary),
                                          filled: (Hue.ink, 10, 26, Hue.surface, Hue.surface.opacity(0.62)),
                                          font: .sansSemibold(13), detailFont: .sans(13), longest: 24)
+    /// The split Town card (game-card 33): ink words in a white chip at the line's foot; a moment turns it ink.
+    static let onSplit = MomentLineStyle(plain: (.white, 13, 30, Hue.ink.onLightCanvas),
+                                         filled: (Hue.ink, 13, 30, Hue.surface, Hue.surface.opacity(0.62)),
+                                         font: .sansSemibold(14), detailFont: .sans(14), longest: 24)
     /// On a game's dark Event page (ticket 08): the clock in plain white words; a moment is a white capsule.
     static let onNight = MomentLineStyle(plain: (.clear, 0, nil, .white.opacity(0.9)),
                                          filled: (.white.opacity(0.97), 10, 28, Hue.ink.onLightCanvas,

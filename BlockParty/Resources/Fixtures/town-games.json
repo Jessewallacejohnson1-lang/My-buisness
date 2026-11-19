@@ -86,6 +86,525 @@
   }
  },
  {
+  "id": "f1",
+  "title": "CSB Basketball vs Simpson",
+  "host": "CSB Athletics",
+  "place": "Claire Lynch Hall",
+  "day": "2026-11-14",
+  "time": "3 PM",
+  "hoursUntil": 4,
+  "went": 0,
+  "game": {
+   "sport": "Basketball",
+   "final": [54, 61],
+   "plays": [
+    {
+     "id": "16",
+     "text": "34 Sophia Amundson FT GOOD (1 Pt)",
+     "period": "Q1",
+     "clock": "8:22",
+     "side": 0,
+     "score": [1, 0]
+    },
+    {
+     "id": "17",
+     "text": "34 Sophia Amundson FT GOOD (2 Pt)",
+     "period": "Q1",
+     "clock": "8:22",
+     "side": 0,
+     "score": [2, 0]
+    },
+    {
+     "id": "21",
+     "text": "1 Lauren Arnold FT GOOD (1 Pt)",
+     "period": "Q1",
+     "clock": "7:40",
+     "side": 0,
+     "score": [3, 0]
+    },
+    {
+     "id": "22",
+     "text": "1 Lauren Arnold FT GOOD (2 Pt)",
+     "period": "Q1",
+     "clock": "7:40",
+     "side": 0,
+     "score": [4, 0]
+    },
+    {
+     "id": "23",
+     "text": "42 Ella Anderson LAYUP GOOD (2 Pt); 12 Karsen Jacks Assist (1 Asst)",
+     "period": "Q1",
+     "clock": "7:35",
+     "side": 1,
+     "score": [4, 2]
+    },
+    {
+     "id": "27",
+     "text": "24 Doryn Paup PULL UP GOOD (2 Pt)",
+     "period": "Q1",
+     "clock": "7:10",
+     "side": 1,
+     "score": [4, 4]
+    },
+    {
+     "id": "45",
+     "text": "25 Liz Vitt TURN AROUND GOOD (2 Pt); 10 Grace Mostad Assist (1 Asst)",
+     "period": "Q1",
+     "clock": "5:23",
+     "side": 0,
+     "score": [6, 4]
+    },
+    {
+     "id": "54",
+     "text": "40 Brenna Johnson LAYUP GOOD (2 Pt)",
+     "period": "Q1",
+     "clock": "4:46",
+     "side": 1,
+     "score": [6, 6]
+    },
+    {
+     "id": "61",
+     "text": "4 Alyssa Sadlovsky 3PTR GOOD (3 Pt); 10 Grace Mostad Assist (2 Asst)",
+     "period": "Q1",
+     "clock": "4:08",
+     "side": 0,
+     "score": [9, 6]
+    },
+    {
+     "id": "68",
+     "text": "10 Grace Mostad JUMPER GOOD (2 Pt)",
+     "period": "Q1",
+     "clock": "3:15",
+     "side": 0,
+     "score": [11, 6]
+    },
+    {
+     "id": "73",
+     "text": "4 Alyssa Sadlovsky JUMPER GOOD (5 Pt)",
+     "period": "Q1",
+     "clock": "2:40",
+     "side": 0,
+     "score": [13, 6]
+    },
+    {
+     "id": "94",
+     "text": "42 Ella Anderson LAYUP GOOD (4 Pt); 11 Macy Price Assist (1 Asst)",
+     "period": "Q1",
+     "clock": "0:54",
+     "side": 1,
+     "score": [13, 8]
+    },
+    {
+     "id": "96",
+     "text": "25 Liz Vitt 3PTR GOOD (5 Pt); 5 Clara Goodman Assist (1 Asst)",
+     "period": "Q1",
+     "clock": "0:38",
+     "side": 0,
+     "score": [16, 8]
+    },
+    {
+     "id": "98",
+     "text": "44 Taylor Hansen 3PTR GOOD (3 Pt); 34 Ava Levings Assist (1 Asst)",
+     "period": "Q1",
+     "clock": "0:29",
+     "side": 1,
+     "score": [16, 11]
+    },
+    {
+     "id": "105",
+     "text": "5 Clara Goodman FT GOOD (1 Pt)",
+     "period": "Q1",
+     "clock": "0:16",
+     "side": 0,
+     "score": [17, 11]
+    },
+    {
+     "id": "124",
+     "text": "25 Makenzie Hughes FT GOOD (1 Pt)",
+     "period": "Q2",
+     "clock": "9:14",
+     "side": 1,
+     "score": [17, 12]
+    },
+    {
+     "id": "125",
+     "text": "25 Makenzie Hughes FT GOOD (2 Pt)",
+     "period": "Q2",
+     "clock": "9:14",
+     "side": 1,
+     "score": [17, 13]
+    },
+    {
+     "id": "128",
+     "text": "40 Brenna Johnson 3PTR GOOD (5 Pt); 11 Macy Price Assist (2 Asst)",
+     "period": "Q2",
+     "clock": "9:03",
+     "side": 1,
+     "score": [17, 16]
+    },
+    {
+     "id": "139",
+     "text": "42 Ella Anderson LAYUP GOOD (6 Pt)",
+     "period": "Q2",
+     "clock": "7:50",
+     "side": 1,
+     "score": [17, 18]
+    },
+    {
+     "id": "157",
+     "text": "12 Emma Theisen LAYUP GOOD (2 Pt); 1 Lauren Arnold Assist (1 Asst)",
+     "period": "Q2",
+     "clock": "6:50",
+     "side": 0,
+     "score": [19, 18]
+    },
+    {
+     "id": "161",
+     "text": "21 Morgan Christian 3PTR GOOD (3 Pt); 12 Karsen Jacks Assist (2 Asst)",
+     "period": "Q2",
+     "clock": "6:17",
+     "side": 1,
+     "score": [19, 21]
+    },
+    {
+     "id": "176",
+     "text": "44 Taylor Hansen FT GOOD (4 Pt)",
+     "period": "Q2",
+     "clock": "5:34",
+     "side": 1,
+     "score": [19, 22]
+    },
+    {
+     "id": "187",
+     "text": "10 Grace Mostad 3PTR GOOD (5 Pt); 14 Drew Buslee Assist (1 Asst)",
+     "period": "Q2",
+     "clock": "4:13",
+     "side": 0,
+     "score": [22, 22]
+    },
+    {
+     "id": "189",
+     "text": "21 Morgan Christian DRIVING LAYUP GOOD (5 Pt)",
+     "period": "Q2",
+     "clock": "3:52",
+     "side": 1,
+     "score": [22, 24]
+    },
+    {
+     "id": "202",
+     "text": "12 Emma Theisen LAYUP GOOD (4 Pt); 14 Drew Buslee Assist (2 Asst)",
+     "period": "Q2",
+     "clock": "3:09",
+     "side": 0,
+     "score": [24, 24]
+    },
+    {
+     "id": "204",
+     "text": "12 Karsen Jacks 3PTR GOOD (3 Pt); 42 Ella Anderson Assist (1 Asst)",
+     "period": "Q2",
+     "clock": "2:46",
+     "side": 1,
+     "score": [24, 27]
+    },
+    {
+     "id": "215",
+     "text": "14 Drew Buslee JUMPER GOOD (2 Pt); 1 Lauren Arnold Assist (2 Asst)",
+     "period": "Q2",
+     "clock": "1:41",
+     "side": 0,
+     "score": [26, 27]
+    },
+    {
+     "id": "224",
+     "text": "42 Ella Anderson FT GOOD (7 Pt)",
+     "period": "Q2",
+     "clock": "0:56",
+     "side": 1,
+     "score": [26, 28]
+    },
+    {
+     "id": "225",
+     "text": "42 Ella Anderson FT GOOD (8 Pt)",
+     "period": "Q2",
+     "clock": "0:56",
+     "side": 1,
+     "score": [26, 29]
+    },
+    {
+     "id": "233",
+     "text": "42 Ella Anderson LAYUP GOOD (10 Pt); 50 Jenna Dontje Assist (1 Asst)",
+     "period": "Q2",
+     "clock": "0:03",
+     "side": 1,
+     "score": [26, 31]
+    },
+    {
+     "id": "243",
+     "text": "21 Morgan Christian DRIVING LAYUP GOOD (7 Pt)",
+     "period": "Q3",
+     "clock": "9:41",
+     "side": 1,
+     "score": [26, 33]
+    },
+    {
+     "id": "244",
+     "text": "34 Sophia Amundson JUMPER GOOD (4 Pt); 1 Lauren Arnold Assist (3 Asst)",
+     "period": "Q3",
+     "clock": "9:10",
+     "side": 0,
+     "score": [28, 33]
+    },
+    {
+     "id": "257",
+     "text": "44 Taylor Hansen 3PTR GOOD (7 Pt); 12 Karsen Jacks Assist (3 Asst)",
+     "period": "Q3",
+     "clock": "8:08",
+     "side": 1,
+     "score": [28, 36]
+    },
+    {
+     "id": "259",
+     "text": "12 Emma Theisen LAYUP GOOD (6 Pt); 1 Lauren Arnold Assist (4 Asst)",
+     "period": "Q3",
+     "clock": "7:49",
+     "side": 0,
+     "score": [30, 36]
+    },
+    {
+     "id": "268",
+     "text": "4 Alyssa Sadlovsky TURN AROUND GOOD (7 Pt); 1 Lauren Arnold Assist (5 Asst)",
+     "period": "Q3",
+     "clock": "7:09",
+     "side": 0,
+     "score": [32, 36]
+    },
+    {
+     "id": "272",
+     "text": "1 Lauren Arnold 3PTR GOOD (5 Pt); 14 Drew Buslee Assist (3 Asst)",
+     "period": "Q3",
+     "clock": "6:40",
+     "side": 0,
+     "score": [35, 36]
+    },
+    {
+     "id": "279",
+     "text": "25 Makenzie Hughes DRIVING LAYUP GOOD (4 Pt)",
+     "period": "Q3",
+     "clock": "6:17",
+     "side": 1,
+     "score": [35, 38]
+    },
+    {
+     "id": "290",
+     "text": "42 Ella Anderson LAYUP GOOD (12 Pt); 50 Jenna Dontje Assist (2 Asst)",
+     "period": "Q3",
+     "clock": "5:38",
+     "side": 1,
+     "score": [35, 40]
+    },
+    {
+     "id": "297",
+     "text": "12 Karsen Jacks FT GOOD (4 Pt)",
+     "period": "Q3",
+     "clock": "5:06",
+     "side": 1,
+     "score": [35, 41]
+    },
+    {
+     "id": "324",
+     "text": "5 Clara Goodman 3PTR GOOD (4 Pt); 12 Emma Theisen Assist (1 Asst)",
+     "period": "Q3",
+     "clock": "2:42",
+     "side": 0,
+     "score": [38, 41]
+    },
+    {
+     "id": "334",
+     "text": "50 Jenna Dontje JUMPER GOOD (2 Pt)",
+     "period": "Q3",
+     "clock": "2:01",
+     "side": 1,
+     "score": [38, 43]
+    },
+    {
+     "id": "354",
+     "text": "14 Drew Buslee FT GOOD (3 Pt)",
+     "period": "Q3",
+     "clock": "0:44",
+     "side": 0,
+     "score": [39, 43]
+    },
+    {
+     "id": "375",
+     "text": "12 Karsen Jacks DRIVING LAYUP GOOD (6 Pt)",
+     "period": "Q4",
+     "clock": "8:34",
+     "side": 1,
+     "score": [39, 45]
+    },
+    {
+     "id": "379",
+     "text": "42 Ella Anderson LAYUP GOOD (14 Pt); 21 Morgan Christian Assist (1 Asst)",
+     "period": "Q4",
+     "clock": "8:07",
+     "side": 1,
+     "score": [39, 47]
+    },
+    {
+     "id": "381",
+     "text": "14 Drew Buslee TURN AROUND GOOD (5 Pt); 1 Lauren Arnold Assist (6 Asst)",
+     "period": "Q4",
+     "clock": "7:52",
+     "side": 0,
+     "score": [41, 47]
+    },
+    {
+     "id": "383",
+     "text": "44 Taylor Hansen LAYUP GOOD (9 Pt); 12 Karsen Jacks Assist (4 Asst)",
+     "period": "Q4",
+     "clock": "7:29",
+     "side": 1,
+     "score": [41, 49]
+    },
+    {
+     "id": "392",
+     "text": "44 Taylor Hansen 3PTR GOOD (12 Pt); 34 Ava Levings Assist (2 Asst)",
+     "period": "Q4",
+     "clock": "6:43",
+     "side": 1,
+     "score": [41, 52]
+    },
+    {
+     "id": "397",
+     "text": "50 Jenna Dontje FT GOOD (3 Pt)",
+     "period": "Q4",
+     "clock": "6:01",
+     "side": 1,
+     "score": [41, 53]
+    },
+    {
+     "id": "407",
+     "text": "12 Emma Theisen FT GOOD (7 Pt)",
+     "period": "Q4",
+     "clock": "5:44",
+     "side": 0,
+     "score": [42, 53]
+    },
+    {
+     "id": "408",
+     "text": "12 Emma Theisen FT GOOD (8 Pt)",
+     "period": "Q4",
+     "clock": "5:44",
+     "side": 0,
+     "score": [43, 53]
+    },
+    {
+     "id": "410",
+     "text": "21 Morgan Christian DRIVING LAYUP GOOD (9 Pt)",
+     "period": "Q4",
+     "clock": "5:21",
+     "side": 1,
+     "score": [43, 55]
+    },
+    {
+     "id": "412",
+     "text": "14 Drew Buslee FT GOOD (6 Pt)",
+     "period": "Q4",
+     "clock": "5:03",
+     "side": 0,
+     "score": [44, 55]
+    },
+    {
+     "id": "425",
+     "text": "5 Clara Goodman 3PTR GOOD (7 Pt); 14 Drew Buslee Assist (4 Asst)",
+     "period": "Q4",
+     "clock": "3:18",
+     "side": 0,
+     "score": [47, 55]
+    },
+    {
+     "id": "431",
+     "text": "44 Taylor Hansen LAYUP GOOD (14 Pt); 21 Morgan Christian Assist (2 Asst)",
+     "period": "Q4",
+     "clock": "2:32",
+     "side": 1,
+     "score": [47, 57]
+    },
+    {
+     "id": "440",
+     "text": "34 Sophia Amundson FT GOOD (5 Pt)",
+     "period": "Q4",
+     "clock": "2:21",
+     "side": 0,
+     "score": [48, 57]
+    },
+    {
+     "id": "441",
+     "text": "34 Sophia Amundson FT GOOD (6 Pt)",
+     "period": "Q4",
+     "clock": "2:21",
+     "side": 0,
+     "score": [49, 57]
+    },
+    {
+     "id": "447",
+     "text": "5 Clara Goodman DRIVING LAYUP GOOD (9 Pt)",
+     "period": "Q4",
+     "clock": "1:58",
+     "side": 0,
+     "score": [51, 57]
+    },
+    {
+     "id": "461",
+     "text": "50 Jenna Dontje JUMPER GOOD (5 Pt)",
+     "period": "Q4",
+     "clock": "0:25",
+     "side": 1,
+     "score": [51, 59]
+    },
+    {
+     "id": "462",
+     "text": "5 Clara Goodman 3PTR GOOD (12 Pt); 14 Drew Buslee Assist (5 Asst)",
+     "period": "Q4",
+     "clock": "0:15",
+     "side": 0,
+     "score": [54, 59]
+    },
+    {
+     "id": "466",
+     "text": "44 Taylor Hansen FT GOOD (15 Pt)",
+     "period": "Q4",
+     "clock": "0:05",
+     "side": 1,
+     "score": [54, 60]
+    },
+    {
+     "id": "467",
+     "text": "44 Taylor Hansen FT GOOD (16 Pt)",
+     "period": "Q4",
+     "clock": "0:05",
+     "side": 1,
+     "score": [54, 61]
+    }
+   ],
+   "teams": [
+    {
+     "name": "Saint Benedict",
+     "short": "Saint Ben's",
+     "logo": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/st-joseph/activities-athletic-csb/logo-e99d0312e8.webp",
+     "color": "#BD0F34",
+     "colors": ["#BB2037", "#0F9CD7"]
+    },
+    {
+     "name": "Simpson",
+     "short": "Simpson",
+     "logo": "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/simpson/logo-f85003271f.webp",
+     "color": "#A00030"
+    }
+   ]
+  }
+ },
+ {
   "id": "h1",
   "title": "SJU Hockey vs St. Olaf",
   "host": "SJU Athletics",

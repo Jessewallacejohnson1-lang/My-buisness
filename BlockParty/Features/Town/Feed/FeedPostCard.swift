@@ -52,7 +52,8 @@ struct FeedPostCard: View {
         static let pictureGap: CGFloat = 10
         static let wordsTop: CGFloat = 10
         static let wordsBottom: CGFloat = 12
-        static let rowSide: CGFloat = 14
+        /// The pills line up with the words above, 16 from the edge (like-comment-share).
+        static let rowSide: CGFloat = 16
         static let band: CGFloat = 8
         /// Facebook's See more: past six lines.
         static let lines = 6
