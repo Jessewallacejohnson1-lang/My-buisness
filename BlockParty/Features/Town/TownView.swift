@@ -401,21 +401,7 @@ struct TownView: View {
             if forcedScroll { feedPosition.scrollTo(y: Self.forcedScrollY) }
             #if DEBUG
             if LaunchFlags.has(.feedScrollRun) {
-                Task { @MainActor in
-                    try? await Task.sleep(for: .seconds(5))
-                    print("ReadAhead: scroll down")
-                    for step in 1...30 {
-                        withAnimation(.easeOut(duration: 0.35)) { feedPosition.scrollTo(y: CGFloat(step) * 700) }
-                        try? await Task.sleep(for: .seconds(1))
-                    }
-                    // Back up two steps: the screen behind should still be drawn.
-                    print("ReadAhead: scroll back")
-                    for step in 1...2 {
-                        withAnimation(.easeOut(duration: 0.35)) { feedPosition.scrollTo(y: CGFloat(30 - step) * 700) }
-                        try? await Task.sleep(for: .seconds(1))
-                    }
-                    print("ReadAhead: run done")
-                }
+                Task { await ScrollRun.run { feedPosition.scrollTo(y: $0) } }
             }
             if LaunchFlags.has(.feedScrollSweep) {
                 Task { @MainActor in
@@ -551,6 +537,38 @@ private final class TapClock: UIGestureRecognizer, UIGestureRecognizerDelegate {
     }
 }
 
+/// `-feed-scroll-run`: a brisk thumb, 700 pt down every second 30 times from 5 s after launch, then back up two of
+/// those steps (BP app tab-lag 03), printing each part as it starts. Town runs it on its feed; any other page on
+/// the tab `-open-tab` opens through `scrollRun()`.
+@MainActor
+enum ScrollRun {
+    static func run(_ scrollTo: @escaping (CGFloat) -> Void) async {
+        try? await Task.sleep(for: .seconds(5))
+        print("ReadAhead: scroll down")
+        for step in 1...30 {
+            withAnimation(.easeOut(duration: 0.35)) { scrollTo(CGFloat(step) * 700) }
+            try? await Task.sleep(for: .seconds(1))
+        }
+        // Back up two steps: the screen behind should still be drawn.
+        print("ReadAhead: scroll back")
+        for step in 1...2 {
+            withAnimation(.easeOut(duration: 0.35)) { scrollTo(CGFloat(30 - step) * 700) }
+            try? await Task.sleep(for: .seconds(1))
+        }
+        print("ReadAhead: run done")
+    }
+}
+
+private struct ScrollRunModifier: ViewModifier {
+    @State private var position = ScrollPosition()
+
+    func body(content: Content) -> some View {
+        content
+            .scrollPosition($position)
+            .task { await ScrollRun.run { position.scrollTo(y: $0) } }
+    }
+}
+
 /// `-read-ahead-log`: one line per photo or logo as it comes on, drawn in its first frame or not (BP app tab-lag 03).
 enum ReadAheadLog {
     static let enabled = LaunchFlags.has(.readAheadLog)
@@ -560,3 +578,15 @@ enum ReadAheadLog {
     }
 }
 #endif
+
+extension View {
+    /// DEBUG `-feed-scroll-run` on this scroll view (`ScrollRun`); nothing otherwise, and nothing in a release build.
+    @ViewBuilder
+    func scrollRun() -> some View {
+        #if DEBUG
+        if LaunchFlags.has(.feedScrollRun) { modifier(ScrollRunModifier()) } else { self }
+        #else
+        self
+        #endif
+    }
+}

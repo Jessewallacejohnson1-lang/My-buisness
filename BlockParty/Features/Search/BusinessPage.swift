@@ -945,6 +945,9 @@ struct CastLogo: View {
         // A logo whose fetch failed (offline when the places loaded) asks again when it is
         // next on screen; one already loaded or in flight is skipped by the cache.
         .task(id: logo.url) { cache.prefetch([logo.url]) }
+        #if DEBUG
+        .onAppear { ReadAheadLog.cameOn("logo", ready: cache.image(for: logo.url) != nil, logo.url) }
+        #endif
     }
 }
 

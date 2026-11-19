@@ -98,6 +98,7 @@ or its `docs/rules/` file and leaves here.
   Its concerts and shows stay in the Town feed.
 - 2026-11-06 — **A school's club meetings, assemblies, PTO and parent meetings and signing days reach only those following the school** (Jesse:
   "following"; yes to parent meetings and signing days, 2026-11-06; `read_events.SCHOOL_ONLY`). Its concerts, shows and school board meetings stay in the Town feed.
+- 2026-11-19 — **A church's own round stays on its page; its special days go in the Town feed** (Jesse: "yes to all", BP app town-feed 78): an ordinary Mass or service, Adoration, practices, classes, groups and socials are draw 1, and a draw 1 Event reaches only those who follow its place, host or page, have a friend Going, or are Going or Hearted it. Holy days, holidays, breakfasts, retreats and concerts reach everyone. **An Event that says little sits lower**: no About to speak of (under 30 characters, a game aside) or no place, × 0.5 each (`supabase/town_feed.sql`). A title names only its own day (`write_judged.own_day`).
 - 2026-11-05 — **Every game between two teams draws the white card, at every level, and says its level**
   (Jesse: "create the teams profile and card whenever theres a new one that comes up. they should all be white
   cards"). A name a schedule writes makes its own team in the morning run (`write_judged.team_of`); a placeholder stays
