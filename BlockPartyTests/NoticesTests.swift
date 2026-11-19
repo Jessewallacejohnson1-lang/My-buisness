@@ -179,6 +179,30 @@ final class NoticesTests: XCTestCase {
         XCTAssertFalse(notices.dot)
     }
 
+    /// Two accounts on one phone each keep their own seen (backlog 20): the second still gets the dot the first
+    /// opened, and the phone-wide seen from before goes to the first account that looks.
+    func testEachAccountOnThePhoneHasItsOwnDot() async {
+        keep.set(["old"], forKey: Notices.seenKey)
+        var who: String? = "sam"
+        let notices = Notices(read: { [self] in [notice("old"), notice("game")] }, keep: keep, account: { who })
+        await notices.refresh(now: now)
+        XCTAssertTrue(notices.dot, "game is new to Sam")
+        notices.opened()
+        XCTAssertFalse(notices.dot)
+
+        who = "luke"
+        notices.reset()
+        await notices.refresh(now: now)
+        XCTAssertTrue(notices.dot, "Sam opening the bell clears nothing for Luke")
+        notices.opened()
+
+        who = "sam"
+        notices.reset()
+        await notices.refresh(now: now)
+        XCTAssertFalse(notices.dot, "Sam's seen is still his")
+        XCTAssertNil(keep.stringArray(forKey: Notices.seenKey), "the phone-wide seen went to Sam")
+    }
+
     func testAFailedReadKeepsWhatItHadAndOneOverLeaves() async {
         var fail = false
         let over = notice("coffee", day: "2026-10-15", time: "8 AM")
