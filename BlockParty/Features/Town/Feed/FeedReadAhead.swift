@@ -112,7 +112,7 @@ extension TownFeedItem {
 @MainActor
 enum FeedReadAhead {
     /// A screen's height over its width on every iPhone this app runs on (19.5:9).
-    static let screen: CGFloat = 2.17
+    nonisolated static let screen: CGFloat = 2.17
 
     /// The most photos one window asks for: the photo memory keeps 24 (`FeedCardImageLoader`), so a window
     /// read ahead is never pushed out before it scrolls on. Search's Around town fills two screens with about 33.
