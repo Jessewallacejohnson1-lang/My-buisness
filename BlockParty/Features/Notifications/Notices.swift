@@ -234,7 +234,6 @@ final class Notices {
     /// The page drew them: the dot goes.
     func opened() {
         guard list != nil || !named.isEmpty else { return }
-        readSeen()
         seen.formUnion((list ?? []).map(\.id) + named.map(\.id))
         keep.set(Array(seen).sorted(), forKey: Self.seenKey(account()))
     }

@@ -867,7 +867,7 @@ final class SearchModel {
     }
 
     /// The line under a name, from Google's place type, in the words a neighbour would say: every type a live place
-    /// had on 2026-11-18 (backlog 20). Google's catch-alls name nothing ("Point of interest", "Technical service"),
+    /// had on 2026-11-18 (backlog 20). Google's catch-alls name nothing ("Point of interest", "Professional service"),
     /// so they get no line. A type new since then reads as itself ("print_shop" is "Print shop").
     static func label(_ type: String) -> String? {
         if let hit = kindWords[type] { return hit.isEmpty ? nil : hit }
@@ -904,7 +904,7 @@ final class SearchModel {
         // Services
         "home_service": "Home services", "general_contractor": "Contractor",
         "building_or_construction_service": "Construction", "laundry_service": "Laundry", "moving_company": "Movers",
-        "storage_facility": "Storage", "rental_service": "Rentals", "event_or_party_service": "Events",
+        "storage_facility": "Storage", "rental_service": "Rentals", "event_or_party_service": "Party services",
         "family_service": "Family services", "social_or_community_service": "Community services",
         "day_care_center": "Child care", "senior_living_facility": "Senior living", "apartment": "Apartments",
         "lodging": "Lodging", "bed_and_breakfast": "Bed & breakfast", "travel_service": "Travel agency",
@@ -914,7 +914,7 @@ final class SearchModel {
         "bank": "Bank", "finance": "Finance", "financial_service": "Finance", "financial_advisor": "Financial advisor",
         "accounting": "Accountant", "insurance_agency": "Insurance", "real_estate_agency": "Real estate",
         "real_estate_service": "Real estate", "attorney_or_law_firm": "Lawyer", "legal_service": "Lawyer",
-        "professional_service": "Office", "professional_services": "Office", "b2b_service": "Business services",
+        "b2b_service": "Business services",
         "b2b_office_and_professional_service": "Business services", "manufacturer": "Manufacturer",
         "supplier_or_distributor": "Supplier", "agricultural_service": "Farm services", "farm": "Farm",
         // Town
@@ -927,7 +927,7 @@ final class SearchModel {
         "city_hall": "City hall", "government_office": "Government office", "post_office": "Post office",
         "police": "Police", "water_utility_provider": "Utility", "military_site": "Military",
         // Catch-alls: no line
-        "point_of_interest": "", "technical_service": "",
+        "point_of_interest": "", "technical_service": "", "professional_service": "", "professional_services": "",
     ]
 
     /// The city's parks, and the trails the app has a bundled photo of. A park's photo is one
