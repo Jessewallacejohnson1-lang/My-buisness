@@ -231,6 +231,23 @@ final class SearchModelTests: XCTestCase {
         XCTAssertEqual(BusinessPage.edge(width: 402, top: 62, cover: false), 118)
     }
 
+    /// On its disc a logo's ink, its file's empty border left out, is the mock's 72 pt across; a square's
+    /// corners stay inside the disc, so it sits smaller.
+    func testTheLogoOnItsDiscIsTheMocksSize() {
+        func shown(_ draw: (CGContext, CGRect) -> Void, _ name: String) -> CGFloat {
+            let format = UIGraphicsImageRendererFormat()
+            format.scale = 1
+            let file = UIGraphicsImageRenderer(size: CGSize(width: 200, height: 200), format: format).image { ctx in
+                UIColor.black.setFill()
+                draw(ctx.cgContext, CGRect(x: 40, y: 40, width: 120, height: 120))
+            }
+            let grow = BusinessPage.logoGrow(file, url: URL(string: "https://example.com/\(name).png")!)
+            return BusinessPage.logoSide * grow * 120 / 200
+        }
+        XCTAssertEqual(shown({ $0.fillEllipse(in: $1) }, "badge"), 72, accuracy: 3)
+        XCTAssertEqual(shown({ $0.fill($1) }, "square"), 61, accuracy: 3, "86 pt circle: a square's corners on it")
+    }
+
     /// A card's photo grows from the card into the page's cover (402 x 269 on a 402 pt phone), scrolled
     /// up with the page, overshooting a touch past it; only at rest open is it the page's own (place-photos 10).
     func testACardsPhotoGrowsIntoThePagesTopPhoto() {

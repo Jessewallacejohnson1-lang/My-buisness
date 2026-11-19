@@ -228,6 +228,19 @@ struct BusinessPage: View {
     /// line), whole: a round logo fills it, a wide one keeps its width, nothing is cut.
     static let logoSide = ProfileMetric.photo - 10
 
+    /// The logo's ink, its file's empty border left out, at most this wide or tall: the mock's 72 pt.
+    static let logoInk: CGFloat = 72
+
+    /// How much bigger than `logoSide` the logo's file is drawn at rest, so its ink shows as the mock's:
+    /// at most `logoInk` across, and never past `logoSide`'s circle (a square sits smaller, `LogoFit`).
+    @MainActor static func logoGrow(_ image: UIImage, url: URL) -> CGFloat {
+        let fit = LogoFit.of(image, url: url)
+        let ink = fit.image.size, file = max(image.size.width, image.size.height)
+        guard ink.width > 0, ink.height > 0, file > 0 else { return 1 }
+        let across = min(logoInk * min(1, ink.width / ink.height), logoSide / 2 / max(fit.reach, 0.5))
+        return across * file / ink.width / logoSide
+    }
+
     /// Where the sheet's edge is, the logo's middle on it: the cover's foot, or with none under Back.
     static func edge(width: CGFloat, top: CGFloat, cover: Bool) -> CGFloat {
         cover ? width / heroAspect : top + bareEdge
@@ -859,6 +872,8 @@ private struct FlyingLogo: View {
     let progress: LiveSpring
     let page: PageState
 
+    @ObservedObject private var logos = POILogoCache.shared
+
     var body: some View {
         let p = progress.value
         let c = min(max(p, 0), 1)
@@ -872,9 +887,13 @@ private struct FlyingLogo: View {
             : (source.fades ? min(1, c * 4) : 1)
         // The disc grows with the logo: 96 pt round the logo's 86 at rest.
         let k = flying.width / BusinessPage.logoSide
+        // Search's tile draws the file with its border; the disc shows the ink at the mock's size.
+        let grow = item.logo.flatMap { logo in
+            logos.image(for: logo.url).map { BusinessPage.logoGrow($0, url: logo.url) }
+        } ?? 1
         Group {
             if let logo = item.logo {
-                CastLogo(logo: logo, side: flying.width, shadow: source.shadow,
+                CastLogo(logo: logo, side: flying.width * lerp(fromPhoto ? grow : 1, grow, p), shadow: source.shadow,
                          stretch: 1 + lift * SearchMetric.liftStretch,
                          strength: (1 - lift * SearchMetric.liftFade) * (1 - c))
             } else {
