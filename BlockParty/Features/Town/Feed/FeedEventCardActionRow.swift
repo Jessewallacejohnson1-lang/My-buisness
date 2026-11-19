@@ -65,7 +65,8 @@ struct FeedEventCardActionRow: View {
 
             Spacer(minLength: 12)
 
-            pill(action: { onShare?() }) { icon("Tabler/share-3") }
+            // Share is the bare mark, no capsule (Jesse, 2026-11-18): the grey pair on the left stays the row's voice.
+            pill(filled: false, action: { onShare?() }) { icon("Tabler/share-3") }
                 .accessibilityLabel("Share")
         }
         .frame(height: Metric.rowHeight)
@@ -121,12 +122,12 @@ struct FeedEventCardActionRow: View {
     }
 
     /// One grey capsule, its count inside it as Nextdoor draws it; it squishes on touch-down.
-    private func pill<Label: View>(action: @escaping () -> Void, @ViewBuilder label: () -> Label) -> some View {
+    private func pill<Label: View>(filled: Bool = true, action: @escaping () -> Void, @ViewBuilder label: () -> Label) -> some View {
         Button(action: action) {
             HStack(spacing: Metric.countGap) { label() }
                 .padding(.horizontal, Metric.pillPadding)
                 .frame(height: Metric.pillHeight)
-                .background(Hue.actionPill, in: Capsule())
+                .background(filled ? Hue.actionPill : .clear, in: Capsule())
                 // The row's full 44 pt answers a tap, not just the 40 pt pill.
                 .padding(.vertical, (Metric.rowHeight - Metric.pillHeight) / 2)
                 .contentShape(Rectangle())
