@@ -151,6 +151,42 @@ test('a whole school followed covers its activities, named with the sport', asyn
   assert.match(row.followed, /^Apollo .*Football/);
 });
 
+// A co-op's game (BP app backlog 20, from daily-tab 27 and town-feed 67): a whole school followed hears when a game its
+// activity plays under another team's name moves, and the card names your side as game.mine, as the Town feed's does,
+// so the app says "game vs Sartell" where the followed name isn't a team in it.
+test("a whole school followed hears of its co-op's games, and the card names the caller's side", async () => {
+  await db.exec(`delete from public.club_events; delete from public.town_follows; delete from public.event_rsvps;
+    insert into public.teams (id, name, short_name, local) values ('kennedy', 'Kennedy', 'Kennedy', true),
+      ('st-cloud', 'St. Cloud', 'St. Cloud', false) on conflict do nothing`);
+  const uuid = async (id) => (await db.query('select uuid from public.teams where id = $1', [id])).rows[0].uuid;
+  await db.query(`insert into public.town_follows (follower_id, target_type, target_id) values ($1, 'team', $2)`,
+    [ME, await uuid('kennedy')]);
+  // Kennedy's Wrestling 7-12 wrestles as the St. Cloud co-op; its own name is in neither title.
+  const coop = await game({ title: 'St. Cloud Wrestling vs Sartell', sport: 'Wrestling', team_ids: ['st-cloud', 'sartell'] });
+  // Found on Kennedy's own calendar: the school is the Event's activity_team, but plays as St. Cloud.
+  const listed = await game({ title: 'Wrestling vs Tech', sport: 'Wrestling', team_ids: ['st-cloud', 'tech'] });
+  await db.query(`update public.club_events set activity_team = 'kennedy' where id = $1`, [listed]);
+  const own = await game({ title: 'Kennedy Girls Basketball vs Sartell', sport: 'Girls Basketball',
+    team_ids: ['kennedy', 'sartell'] });
+  const notMine = await game({ title: 'Apollo Football vs Sartell', sport: 'Football', team_ids: ['apollo', 'sartell'] });
+  for (const id of [coop, listed, own, notMine]) await edit(id, `start_time = '5 PM'`);
+
+  const byId = Object.fromEntries((await mine()).map((r) => [r.id, r]));
+  assert.deepEqual(Object.keys(byId).sort(), [coop, listed, own].sort(), 'not a game Kennedy has no side in');
+  assert.equal(byId[coop].followed, 'Kennedy Wrestling', 'named by the school, with the sport');
+  const stCloud = await uuid('st-cloud');
+  assert.deepEqual([byId[coop].game?.mine, byId[listed].game?.mine, byId[own].game?.mine],
+    [stCloud, stCloud, await uuid('kennedy')], "the co-op's team, else the school's own");
+  assert.equal((await mine(OTHER)).length, 0);
+  await db.exec(`delete from public.town_follows`);
+  const [goingRow] = await (async () => {
+    await db.query(`insert into public.event_rsvps (event_id, user_id) values ($1, $2)`, [coop, ME]);
+    return mine();
+  })();
+  assert.equal(goingRow.game?.mine, undefined, 'Going alone names no side');
+  await db.exec(`delete from public.event_rsvps`);
+});
+
 test('a changed Event carries the friends Going, for its Event page (friends-on-event-page)', async () => {
   await db.exec(`delete from public.club_events; delete from public.town_follows; delete from public.event_rsvps`);
   const id = await game();
