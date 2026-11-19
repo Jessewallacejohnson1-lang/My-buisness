@@ -498,7 +498,7 @@ struct OnboardingFlow: View {
         }
         .overlay(alignment: .bottom) {
             if store.step == .birthday {
-                OnboardingBirthdayWheel(date: birthday, now: .now)
+                OnboardingBirthdayWheel(date: birthday, now: .now, canvas: Hue.bigArtCanvas)
                     .ignoresSafeArea(.container, edges: .bottom)
                     .transition(.move(edge: .bottom))
             }
@@ -660,7 +660,7 @@ struct OnboardingFlow: View {
     @ViewBuilder private var stepAnswer: some View {
         switch store.step {
         case .birthday:
-            OnboardingBirthdayField(date: store.birthday ?? .now, now: .now)
+            OnboardingBirthdayField(date: store.birthday ?? .now, now: .now, bigArt: true)
                 .padding(.top, 24)
             OnboardingGenderRow(pick: Binding(get: { store.gender }, set: { store.gender = $0 }))
         default:

@@ -178,10 +178,14 @@ struct OnboardingBigArt<Art: View>: View {
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityFocused($focused)
             if let line {
-                OnboardingSubline(line)
+                Text(line)
+                    .font(.apple(15))
                     .lineSpacing(3)            // SF's 18 pt line at 15 pt, to the mock's 21
-                    .padding(.vertical, 1.5)
+                    .foregroundStyle(Hue.bigArtWords)
                     .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 7.5)        // 6 pt under the question, and half that line's extra 3
+                    .padding(.bottom, 1.5)
             }
         }
         .frame(maxWidth: .infinity)
@@ -325,30 +329,22 @@ private struct NextBarStyle: ButtonStyle {
 }
 
 /// Luma's field: a soft grey box, 46 pt tall, 12 pt corners, the words 16 pt in. Focused, a 1.5 pt
-/// ink line inside its edge (mock v8 `.field.on`). Grows with the text inside it. On a Big art step
-/// the box is white with a soft edge (`bigArtBox`).
+/// ink line inside its edge (mock v8 `.field.on`). Grows with the text inside it.
 struct OnboardingFieldBox: ViewModifier {
     var focused = false
-    var bigArt = false
     static let height: CGFloat = 46
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
-        let box = content
+        content
             .padding(.horizontal, 16)
             .frame(maxWidth: .infinity, minHeight: Self.height, alignment: .leading)
-        if bigArt {
-            box.bigArtBox()
-        } else {
-            box.background(Hue.onboardingField, in: shape)
-                .overlay(shape.strokeBorder(Hue.ink, lineWidth: focused ? 1.5 : 0))
-        }
+            .background(Hue.onboardingField, in: shape)
+            .overlay(shape.strokeBorder(Hue.ink, lineWidth: focused ? 1.5 : 0))
     }
 }
 
 extension View {
-    func onboardingField(focused: Bool = false, bigArt: Bool = false) -> some View {
-        modifier(OnboardingFieldBox(focused: focused, bigArt: bigArt))
-    }
+    func onboardingField(focused: Bool = false) -> some View { modifier(OnboardingFieldBox(focused: focused)) }
 
     /// The Big art look's box (BP app onboarding 43, mock v2 `.field`, `.gp`): white with 12 pt corners,
     /// a hair of ink round it and a soft 1 pt shadow under it. Picked (a gender pill), it is flat ink.
@@ -362,14 +358,15 @@ extension View {
     }
 }
 
-/// The small grey label over a field, 6 pt above it (mock v8 `.flabel`).
+/// The small grey label over a field, 6 pt above it (mock v8 `.flabel`). A Big art step passes its own grey.
 struct OnboardingFieldLabel: View {
     let words: String
-    init(_ words: String) { self.words = words }
+    let color: Color
+    init(_ words: String, color: Color = Hue.inkSecondary) { self.words = words; self.color = color }
     var body: some View {
         Text(words)
             .font(.apple(13))
-            .foregroundStyle(Hue.inkSecondary)
+            .foregroundStyle(color)
             .padding(.bottom, 6)
     }
 }

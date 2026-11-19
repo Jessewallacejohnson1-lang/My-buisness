@@ -209,6 +209,9 @@ nonisolated enum Hue {
     /// A step's soft colour at the top: Profile's sand (Jesse's yes, 2026-11-19) and Birthday's lilac.
     static let bigArtProfile  = Color(light: 0xF3ECDF, dark: 0x141412)
     static let bigArtBirthday = Color(light: 0xE6D8FA, dark: 0x141412)
+    /// The grey words on a Big art step: its line under the question, the labels over its boxes (mock v2
+    /// `--ink2`). A step darker than `inkSecondary`, which fell to 4.4:1 on Birthday's lilac.
+    static let bigArtWords    = Color(light: 0x63636A, dark: 0x9C9A93)
 
     // MARK: Onboarding in Luma's look (BP app onboarding 34, mock v8 `--canvas` and friends)
 

@@ -61,7 +61,7 @@ struct OnboardingProfile: View {
     /// The small grey word over a box (mock v2 `.flabel`), 24 pt under what's above it and 6 pt above the
     /// box. VoiceOver hears it as the box's name.
     private func label(_ words: String) -> some View {
-        OnboardingFieldLabel(words)
+        OnboardingFieldLabel(words, color: Hue.bigArtWords)
             .padding(.top, 24)
             .accessibilityHidden(true)
     }

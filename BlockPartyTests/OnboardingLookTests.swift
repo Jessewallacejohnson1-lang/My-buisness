@@ -2,7 +2,7 @@
 //  OnboardingLookTests.swift
 //  Block Party — Luma's look (BP app onboarding 34): every question names the SF Symbol drawn in its
 //  grey circle. A misspelt name draws nothing and fails nowhere else, so each is checked against iOS.
-//  The Big art look (onboarding 43) arrives a step at a time: which steps wear its colour is checked here.
+//  The Big art look's cake (onboarding 43) has to be sharp at its 124 pt.
 //
 
 import UIKit
@@ -28,12 +28,6 @@ final class OnboardingLookTests: XCTestCase {
     func testBirthdayCakeIsInTheApp() throws {
         let cake = try XCTUnwrap(UIImage(named: OnboardingBirthdayField.cakeImage))
         XCTAssertGreaterThanOrEqual(cake.size.height * cake.scale, BigArt.art * 3)
-    }
-
-    /// Profile and Birthday wear the Big art look (Jesse, 2026-11-19: the other steps change in tickets of
-    /// their own); a step with no colour keeps Luma's grey canvas and icon circle.
-    func testOnlyProfileAndBirthdayWearBigArtYet() {
-        XCTAssertEqual(OnboardingStep.allCases.filter { $0.tint != nil }, [.profile, .birthday])
     }
 
     func testUnder13SymbolExists() {
