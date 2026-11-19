@@ -17,23 +17,34 @@ birthday and interests before the Town feed's first read, and a stamp already on
 skips the flow on a reinstall.
 
 `OnboardingChrome.swift` draws Luma's look (BP app onboarding 34, 2026-11-09): the pale grey
-canvas, a grey icon circle over each question, the 4 pt progress line and the flat Next pill.
+canvas, a grey icon circle over each question and the flat Next pill. It also draws the Big art
+look's shared pieces (BP app onboarding 43, 2026-11-19; see *Direction*): the dashes on every step,
+and the step colour, large drawing, centred question and white boxes Profile and Birthday wear.
 `refs/onboarding/REFERENCE-SPEC.md`'s Duolingo press and progress numbers (section 8) are history:
 nothing uses them now.
 
 ## Direction — Jesse's calls
 
 **The spec is BP app `docs/plans/onboarding/SPEC.md`** (charted with Jesse 2026-10-23 and
-2026-10-24), with its build tickets in `docs/plans/onboarding/issues/`. **The look is Luma's** (Jesse,
+2026-10-24), with its build tickets in `docs/plans/onboarding/issues/`. **The look is becoming Big art** (Jesse, 2026-11-19, BP app onboarding 42): the Reference is mock v2,
+https://claude.ai/artifact/GdEqK43ciT5nCgyqxTUaGC, source `docs/plans/onboarding/assets/42-big-art/mock/`
+(its sizes, colours and timings are in its CSS and script). Each step has a soft colour of its own, solid
+for the top 150 pt and fading to #FBFAFD by 440 pt, which glides to the next step's; one drawing 124 pt
+tall heads the step and pops in; the question is centred, 26 pt bold on a 31 pt line; boxes are white
+with a soft edge; the tracker is one 4 pt dash for each step, this step's filling as it arrives. Built so
+far (onboarding 43): the dashes on every step, and the whole look on Profile (sand, its photo as the art)
+and Birthday (lilac, Jesse's cake). Each other step keeps Luma's look below until its own ticket (48 to
+52), as do Log in and Create account. Where mock v2 and Luma's mock differ on a step that wears Big art,
+mock v2 wins. **Until then the look is Luma's** (Jesse,
 2026-11-08; approved 2026-11-09): the Reference for every screen is mock v8,
 https://claude.ai/artifact/MP8F7en27xmiB9Nz3d2k6J, source `docs/plans/onboarding/assets/33-new-look/mock/`
 (its sizes are in its CSS; the Luma screens it copies are in `mock/refs/`). Where it and an older
 mock or the spec's look differ, mock v8 wins. In short: Apple's font for every word, Done included,
 but the Welcome's headline is Inter Tight Bold 36 (onboarding 38, 2026-11-18); Luma's pale grey canvas; a 52 pt grey icon circle above each question; the question
-at 24 pt semibold on a 30 pt line; a 4 pt ink progress line that glides to each step and stops; Luma's
+at 24 pt semibold on a 30 pt line; Luma's
 flat 48 pt black pill 20 pt from each side, which sinks to 97% and dims when pressed, greys while not
 allowed and shakes; soft grey field boxes with a small label above. The Welcome keeps Nextdoor's
-layout (ticket 25). Birthday's icon is Jesse's cake in a lilac circle; Interests is one white card of
+layout (ticket 25). Interests is one white card of
 rows with check circles, its chips grey until picked; Follow 3's logos sit on white with a plus that
 turns to an ink check, no Follow pills; Under 13 is a quiet icon and a line (ticket 36). Duolingo's
 chunky bar, glint and raised button and chips are gone. Everything below this

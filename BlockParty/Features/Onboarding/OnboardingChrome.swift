@@ -1,20 +1,60 @@
 //
 //  OnboardingChrome.swift
 //  Block Party — the pieces every onboarding question screen shares, in Luma's look (BP app
-//  onboarding 34, mock v8): the pale grey canvas, the back chevron, the 4 pt progress line, the icon
-//  circle over the question, the one Next pill, the grey field box. `OnboardingFlow` owns where they
-//  sit; the steps draw none of them. Edit Profile's interests take the same Next pill.
+//  onboarding 34, mock v8): the pale grey canvas, the back chevron, the icon circle over the question,
+//  the one Next pill, the grey field box. The Big art look (onboarding 43, mock v2) is arriving a step
+//  at a time: its dashes track every step, and Profile and Birthday wear its colour, large drawing,
+//  centred question and white boxes. `OnboardingFlow` owns where they sit; the steps draw none of them.
+//  Edit Profile's interests take the same Next pill.
 //
 
 import SwiftUI
 
-/// Luma's pale grey behind every onboarding screen after the Welcome, Log in and Create account
-/// included, so white cards stand off it (mock v8 `--canvas`). It was plain white from 2026-11-02.
+/// The Big art look's measures (BP app onboarding 43, mock v2 `.phone`, `.screen`, `.pic`).
+enum BigArt {
+    /// A step's colour is solid this far down the screen, and has faded into the canvas by `fadeEnd`.
+    static let solid: CGFloat = 150
+    static let fadeEnd: CGFloat = 440
+    /// The drawing's row starts 104 pt down and is 128 pt tall; the drawing in it is 124 pt tall.
+    static let top: CGFloat = 104
+    static let row: CGFloat = 128
+    static let art: CGFloat = 124
+    /// The colour glides to the next step's, and a dash fills, over the mock's 420 ms out-quint.
+    static let glide: Animation = Motion.outQuint(0.42)
+}
+
+/// What lies behind every onboarding screen after the Welcome: Luma's pale grey, Log in and Create
+/// account included, so white cards stand off it (mock v8 `--canvas`). A step in the Big art look
+/// passes its colour: solid for the top 150 pt, then fading into the near-white canvas by 440 pt.
 struct OnboardingBackdrop: View {
+    var tint: Color? = nil
+
     var body: some View {
-        Hue.onboardingCanvas
-            .ignoresSafeArea()
-            .accessibilityHidden(true)
+        ZStack(alignment: .top) {
+            tint == nil ? Hue.onboardingCanvas : Hue.bigArtCanvas
+            // One colour under a still mask, so a move between steps glides the colour alone.
+            (tint ?? Hue.onboardingCanvas)
+                .frame(height: BigArt.fadeEnd)
+                .mask {
+                    LinearGradient(stops: [.init(color: .black, location: 0),
+                                           .init(color: .black, location: BigArt.solid / BigArt.fadeEnd),
+                                           .init(color: .clear, location: 1)],
+                                   startPoint: .top, endPoint: .bottom)
+                }
+        }
+        .ignoresSafeArea()
+        .accessibilityHidden(true)
+    }
+}
+
+/// Where a scrolling step meets the top row: the colour behind it fading out over 16 pt.
+struct OnboardingScrollEdge: View {
+    var color = Hue.onboardingCanvas
+    var body: some View {
+        LinearGradient(colors: [color, color.opacity(0)], startPoint: .top, endPoint: .bottom)
+            .frame(height: 16)
+            .padding(.top, FollowGridMetric.scrollTop)
+            .allowsHitTesting(false)
     }
 }
 
@@ -35,78 +75,123 @@ struct OnboardingBackChevron: View {
     }
 }
 
-/// A 4 pt ink line on a grey track (mock v8). Each step it glides to its mark over 0.42 s on the
-/// mock's out-quint and stops: no overshoot, stripe or glint. Reduce Motion cross-fades it instead.
+/// One dash for each step (BP app onboarding 43, mock v2 `.dash`; Posh's tracker): 4 pt tall, 4 pt
+/// apart, ink on a track of ink at 14%. This step's dash fills from its start over 0.42 s as the step
+/// arrives, and the next one empties on Back. Reduce Motion changes them at once.
 struct OnboardingProgressBar: View {
     /// 1 to `total`.
     let index: Int
     let total: Int
 
     static let height: CGFloat = 4
-    /// The mock's out-quint over 420 ms.
-    static let glide: Animation = Motion.outQuint(0.42)
+    static let gap: CGFloat = 4
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        GeometryReader { geo in
-            let w = geo.size.width * CGFloat(index) / CGFloat(max(total, 1))
-            Capsule()
-                .fill(Hue.onboardingTrack)
-                .overlay(alignment: .leading) {
-                    if reduceMotion {
-                        // A new fill per step, faded over the old one, so nothing slides.
-                        Capsule().fill(Hue.ink).frame(width: w)
-                            .id(index)
-                            .transition(.opacity)
-                            .animation(.easeOut(duration: 0.2), value: index)
-                    } else {
-                        Capsule().fill(Hue.ink).frame(width: w)
-                            .animation(Self.glide, value: index)
+        HStack(spacing: Self.gap) {
+            ForEach(1...max(total, 1), id: \.self) { dash in
+                Capsule()
+                    .fill(Hue.ink.opacity(0.14))
+                    .overlay {
+                        Capsule().fill(Hue.ink)
+                            .scaleEffect(x: dash <= index ? 1 : 0, anchor: .leading)
                     }
-                }
+                    .clipShape(Capsule())
+            }
         }
         .frame(height: Self.height)
+        .animation(reduceMotion ? nil : BigArt.glide, value: index)
         .accessibilityElement()
         .accessibilityLabel("Step \(index) of \(total)")
     }
 }
 
-/// What sits over every question, Luma's: a 52 pt grey circle holding a small grey SF Symbol where
+/// What sits over a question in Luma's look: a 52 pt grey circle holding a small grey SF Symbol where
 /// the wordmark used to sit, then the question 18 pt under it, 24 pt semibold on a 30 pt line.
-/// Birthday's alone is Jesse's cake, 36 pt tall in a lilac circle: the one coloured icon (onboarding 36).
 struct OnboardingHeading: View {
     let symbol: String
     let question: String
-    /// Draws Jesse's cake in place of the symbol.
-    var cake = false
     @AccessibilityFocusState.Binding var focused: Bool
 
     static let disc: CGFloat = 52
-    /// Jesse's drawing (BP app references/birthday-icon), as the Going chat's birthday ask shows it.
-    static let cakeImage = "BirthdayCake"
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Group {
-                if cake {
-                    Image(decorative: Self.cakeImage)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(height: 36)
-                } else {
-                    Image(systemName: symbol)
-                        .font(.glyph(24, weight: .regular))
-                        .foregroundStyle(Hue.onboardingIcon)
-                }
-            }
-            .frame(width: Self.disc, height: Self.disc)
-            .background(cake ? Hue.birthdayDisc : Hue.onboardingField, in: Circle())
-            .accessibilityHidden(true)
+            Image(systemName: symbol)
+                .font(.glyph(24, weight: .regular))
+                .foregroundStyle(Hue.onboardingIcon)
+                .frame(width: Self.disc, height: Self.disc)
+                .background(Hue.onboardingField, in: Circle())
+                .accessibilityHidden(true)
             OnboardingQuestion(question)
                 .accessibilityFocused($focused)
         }
     }
+}
+
+/// What sits over a question in the Big art look (BP app onboarding 43, mock v2 `.pic`, `.q`, `.sub`):
+/// one drawing, centred in a 128 pt row, which pops in as the step arrives; 14 pt under it the question,
+/// centred, 26 pt bold on a 31 pt line; then its grey line, centred. Reduce Motion skips the pop.
+struct OnboardingBigArt<Art: View>: View {
+    let question: String
+    var line: String? = nil
+    @AccessibilityFocusState.Binding var focused: Bool
+    @ViewBuilder let art: Art
+
+    @State private var arrived = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        VStack(spacing: 0) {
+            art
+                .frame(height: BigArt.row)
+                // The mock's pop, 480 ms out-quint after 60 ms: from 72%, 10 pt low and clear, to 105% and
+                // solid in the first 80 ms, then easing down to rest.
+                .keyframeAnimator(initialValue: BigArtPop(), trigger: arrived) { art, pop in
+                    art.scaleEffect(pop.scale).offset(y: pop.drop).opacity(pop.opacity)
+                } keyframes: { _ in
+                    KeyframeTrack(\.scale) {
+                        MoveKeyframe(0.72)
+                        LinearKeyframe(0.72, duration: 0.06)
+                        LinearKeyframe(1.05, duration: 0.08)
+                        LinearKeyframe(1, duration: 0.4, timingCurve: .easeOut)
+                    }
+                    KeyframeTrack(\.drop) {
+                        MoveKeyframe(10)
+                        LinearKeyframe(10, duration: 0.06)
+                        LinearKeyframe(0, duration: 0.08)
+                    }
+                    KeyframeTrack(\.opacity) {
+                        MoveKeyframe(0)
+                        LinearKeyframe(0, duration: 0.06)
+                        LinearKeyframe(1, duration: 0.08)
+                    }
+                }
+                .padding(.bottom, 14)
+            Text(question)
+                .appleFont(26, weight: .bold)   // SF's own line at 26 pt is the mock's 31
+                .kerning(-0.52)                 // the mock's -.02em
+                .foregroundStyle(Hue.ink)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityFocused($focused)
+            if let line {
+                OnboardingSubline(line)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .onAppear { if !reduceMotion { arrived = true } }
+    }
+}
+
+/// The drawing's pop: at rest unless the keyframes above are playing.
+private struct BigArtPop {
+    var scale: CGFloat = 1
+    var drop: CGFloat = 0
+    var opacity: Double = 1
 }
 
 /// The grey line under a question (mock v8 `.sub`): 15 pt, 6 pt under it.
@@ -238,22 +323,41 @@ private struct NextBarStyle: ButtonStyle {
 }
 
 /// Luma's field: a soft grey box, 46 pt tall, 12 pt corners, the words 16 pt in. Focused, a 1.5 pt
-/// ink line inside its edge (mock v8 `.field.on`). Grows with the text inside it.
+/// ink line inside its edge (mock v8 `.field.on`). Grows with the text inside it. On a Big art step
+/// the box is white with a soft edge (`bigArtBox`).
 struct OnboardingFieldBox: ViewModifier {
     var focused = false
+    var bigArt = false
     static let height: CGFloat = 46
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
-        content
+        let box = content
             .padding(.horizontal, 16)
             .frame(maxWidth: .infinity, minHeight: Self.height, alignment: .leading)
-            .background(Hue.onboardingField, in: shape)
-            .overlay(shape.strokeBorder(Hue.ink, lineWidth: focused ? 1.5 : 0))
+        if bigArt {
+            box.bigArtBox()
+        } else {
+            box.background(Hue.onboardingField, in: shape)
+                .overlay(shape.strokeBorder(Hue.ink, lineWidth: focused ? 1.5 : 0))
+        }
     }
 }
 
 extension View {
-    func onboardingField(focused: Bool = false) -> some View { modifier(OnboardingFieldBox(focused: focused)) }
+    func onboardingField(focused: Bool = false, bigArt: Bool = false) -> some View {
+        modifier(OnboardingFieldBox(focused: focused, bigArt: bigArt))
+    }
+
+    /// The Big art look's box (BP app onboarding 43, mock v2 `.field`, `.gp`): white with 12 pt corners,
+    /// a hair of ink round it and a soft 1 pt shadow under it. Picked (a gender pill), it is flat ink.
+    func bigArtBox(picked: Bool = false) -> some View {
+        let shape = RoundedRectangle(cornerRadius: Radius.button, style: .continuous)
+        return background {
+            shape.fill(picked ? Hue.ink : Hue.surface)
+                .shadow(color: Hue.ink.opacity(picked ? 0 : 0.06), radius: 1, y: 1)
+        }
+        .overlay(shape.inset(by: -1).strokeBorder(Hue.ink.opacity(picked ? 0 : 0.04), lineWidth: 1))
+    }
 }
 
 /// The small grey label over a field, 6 pt above it (mock v8 `.flabel`).

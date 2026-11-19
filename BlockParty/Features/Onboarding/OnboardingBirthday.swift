@@ -24,10 +24,15 @@ nonisolated enum OnboardingAge {
     static let day = Date.ISO8601FormatStyle(timeZone: calendar.timeZone).year().month().day()
 }
 
-/// The field, Luma's: "Birthday · 25 years old" in the small grey label, over the date in a grey box.
+/// The field: "Birthday · 25 years old" in the small grey label, over the date in the Big art look's
+/// white box (BP app onboarding 43).
 struct OnboardingBirthdayField: View {
     let date: Date
     let now: Date
+
+    /// Jesse's drawing (BP app references/birthday-icon), the step's art, as the Going chat's birthday
+    /// ask shows it small.
+    static let cakeImage = "BirthdayCake"
 
     var body: some View {
         let age = OnboardingAge.years(from: date, to: now)
@@ -39,14 +44,14 @@ struct OnboardingBirthdayField: View {
                 .foregroundStyle(Hue.ink)
                 .contentTransition(.numericText())
                 .padding(.vertical, 12)
-                .onboardingField()
+                .onboardingField(bigArt: true)
         }
         .accessibilityElement(children: .combine)
     }
 }
 
-/// "Gender" over Female and Male, two equal grey boxes (mock v8 `.gp`), and who sees it (BP app onboarding
-/// 31, 36). Optional: a tap on the picked one clears it. VoiceOver reads the pair as Apple's segmented
+/// "Gender" over Female and Male, two equal white boxes (mock v2 `.gp`), and who sees it (BP app onboarding
+/// 31, 36, 43). Optional: a tap on the picked one clears it. VoiceOver reads the pair as Apple's segmented
 /// control ("Female, 1 of 2"), with Clear to take a pick back.
 struct OnboardingGenderRow: View {
     @Binding var pick: String?
@@ -81,8 +86,8 @@ struct OnboardingGenderRow: View {
     }
 }
 
-/// One of the pair: Luma's 46 pt grey box, ink with a white check before the word once picked, the
-/// check popping in. Face and words fade over the mock's 0.18 s both ways.
+/// One of the pair: a 46 pt white box with a soft edge, flat ink with a white check before the word once
+/// picked, the check popping in. Face and words fade over the mock's 0.18 s both ways.
 private struct GenderPill: View {
     let label: String
     let on: Bool
@@ -106,9 +111,8 @@ private struct GenderPill: View {
             }
             .foregroundStyle(on ? Color.white : Hue.ink)
             .frame(maxWidth: .infinity, minHeight: OnboardingFieldBox.height)
-            .background(on ? Hue.ink : Hue.onboardingField,
-                        in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .bigArtBox(picked: on)
+            .contentShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
         }
         .buttonStyle(.press(.squish, haptic: true))
         .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: on)
@@ -141,7 +145,7 @@ struct OnboardingBirthdayWheel: View {
             .frame(maxWidth: .infinity)
             .padding(.bottom, 34)
             .frame(height: Self.height, alignment: .center)
-            .background(Hue.onboardingCanvas)
+            .background(Hue.bigArtCanvas)
     }
 }
 
