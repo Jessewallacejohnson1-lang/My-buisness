@@ -47,6 +47,13 @@ struct SearchAtRest: View {
                     more: allFresh.count > fresh.count ? allFresh : nil)
                 around(loading: loading)
             }
+            // The page's width, which Around town's blocks fill edge to edge, for the photos it reads ahead. Never
+            // past the screen's: the page first measures 1094 pt, and photos read that big came on late.
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { new in
+                let screen = (UIApplication.shared.connectedScenes.first { $0 is UIWindowScene } as? UIWindowScene)?
+                    .screen.bounds.width ?? new
+                width = min(new, screen)
+            }
         }
     }
 
@@ -107,17 +114,14 @@ struct SearchAtRest: View {
                         ExploreBlock(tallLeading: i % 2 == 1) {
                             ForEach(block) { ExploreTile(item: $0) }
                         }
-                        // The photos of the blocks below come in before they scroll on (BP app tab-lag 03), at the
-                        // width a block is laid out at: the stack around them first measured 1094 pt, far past the
-                        // screen, and photos read that big came on late. The first block asks for itself too.
-                        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { new in
-                            width = new
-                            if i == 0 { read(blocks, after: -1) }
-                        }
+                        // The photos of the blocks below come in before they scroll on (BP app tab-lag 03).
                         .onAppear { read(blocks, after: i) }
                     }
                 }
             }
+            // The first blocks' photos as soon as the tiles are dealt, while the shelves above are on screen: no
+            // block lays out until Around town scrolls near, and on the iPhone a fast flick down then met 20 blank.
+            .onChange(of: [width, CGFloat(tiles.count)], initial: true) { read(Self.blocks(tiles), after: -1) }
         }
     }
 
