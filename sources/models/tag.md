@@ -74,10 +74,16 @@ Town feed opens to the 3s (BP app town-feed 74), so a 3 must be big, and a weekl
   fair, a fundraiser dinner the town turns out for.
 - **2**: a normal public Event for whoever's into it. A talk, workshop, class, trivia night,
   recital, play, a concert by a school's own students (mostly their families go), a regular game or
-  scrimmage at any level (JV, middle school too), a sale, a club night, and every `weekly` Event: a
-  class, service, drop-in, bingo night or meat raffle.
+  scrimmage at any level (JV, middle school too), a sale, a club night, and every other `weekly` Event:
+  a class, drop-in, bingo night or meat raffle.
 - **1**: routine business most people skip. City council, board, commission and committee
-  meetings, school picture retakes, "the trimester ends", staff or members-only dates.
+  meetings, school picture retakes, "the trimester ends", staff or members-only dates, and a
+  church's own round for its members: an ordinary Mass or service, Adoration, prayer or rosary,
+  choir practice, faith formation, OCIA or Bible classes, a class it holds (chair yoga, a
+  fitness class), its councils, ministries, groups and socials (BP app town-feed 78; Jesse, 2026-11-19). They stay on the church's page and reach only
+  its followers. A church's special day stays 2 or 3: a holy day or holiday Mass (Thanksgiving,
+  Christmas, Easter), a reconciliation service, a breakfast, dinner, festival, retreat, concert or
+  fundraiser.
 
 When unsure, 2.
 

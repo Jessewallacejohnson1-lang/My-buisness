@@ -1287,6 +1287,7 @@ aka: ["Clemens and Alcuin Libraries", "Clemens and Alcuin Library", "CSB SJU Lib
 status: active
 tier: listed
 category: amenity=library
+inside: csb
 added_by: agent:discover
 address: "37 College Ave S"
 sources:
@@ -1298,7 +1299,7 @@ at: [45.56036, -94.32088]
 venue_at:
   "clemens library": [45.56036, -94.32088]
 ```
-Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56036, -94.32088. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Unreviewed — tier `listed`, so it publishes nothing until promoted. Not watched: Busy-place research 2026-11-15 (BP app watch-every-place 30) scored it 1 and 2 of 10, both 5 or below: Every page it has points to the campus portal's Library calendar and its Instagram, both already read.
+Notes: Proposed by discovery on 2026-09-24 from osm. Mapped at 45.56036, -94.32088. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Unreviewed — tier `listed`, so it publishes nothing until promoted. Not watched: Busy-place research 2026-11-15 (BP app watch-every-place 30) scored it 1 and 2 of 10, both 5 or below: Every page it has points to the campus portal's Library calendar and its Instagram, both already read. Inside `csb` since 2026-11-19: the College of Saint Benedict's main library (csbsju.edu/libraries/about); two separate checks agreed (BP app place-pages 09).
 
 ## Coborn's
 ```yaml
@@ -6751,6 +6752,7 @@ category: "gym"
 place_type: "Business"
 address: "32 1st Ave NW"
 phone: "3208287788"
+inside: health-joseph-st-wellness
 added_by: agent:town-verify
 sources:
   - url: https://stjoewellness.com/mat-services/
@@ -6758,7 +6760,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Closes soon · 1 PM · Opens 10 AM Mon). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Closes soon · 1 PM · Opens 10 AM Mon). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022). Inside `health-joseph-st-wellness` since 2026-11-19: Julia Krengel's business, one of the businesses that make up St. Joseph Health & Wellness (stjoewellness.com/mat-services/); two separate checks agreed (BP app place-pages 09).
 
 ## Petrek Law Office
 ```yaml
@@ -8366,6 +8368,7 @@ place_type: "Business"
 address: "111 College Ave N"
 phone: "+13209805920"
 aka: ["Wendy Loso Central MN Realty"]
+inside: central-mn-realty
 added_by: agent:town-verify
 sources:
   - url: https://www.centralmnrealty.com/team/wendy-loso/
@@ -8373,7 +8376,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open 24 hours). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps lists it, not closed (Open 24 hours). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022). Inside `central-mn-realty` since 2026-11-19: a Realtor at Central MN Realty's St. Joseph office (centralmnrealty.com/real-estate-agents/); two separate checks agreed (BP app place-pages 09).
 
 ## West Apartments
 ```yaml
@@ -8417,6 +8420,7 @@ place_type: "Business"
 address: "104 Chapel Lane"
 phone: "(320) 363-7113"
 aka: ["Art and Heritage Place | Whitby Gift Shop and Gallery/Haehn Museum"]
+inside: benedict-of-of-order-sisters-st
 added_by: agent:town-verify
 sources:
   - url: TODO
@@ -8424,7 +8428,7 @@ sources:
     method: submission
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from lakesnwoods.com. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-02: Saint Benedict's Monastery site lists current hours (Tue-Sat) and same phone for the shop.. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from lakesnwoods.com. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Verified 2026-10-02: Saint Benedict's Monastery site lists current hours (Tue-Sat) and same phone for the shop.. Unreviewed — tier `listed`, so it publishes nothing until promoted. Inside `benedict-of-of-order-sisters-st` since 2026-11-19: the monastery's Art and Heritage Place houses Whitby Gift Shop (sbm.osb.org/?p=36910); two separate checks agreed (BP app place-pages 09).
 
 ## The Whole You Wellness Collective
 ```yaml
@@ -8711,6 +8715,7 @@ place_type: "School / college"
 address: "1300 Jade Rd"
 phone: "(320) 363-4737"
 aka: ["Kids Stop"]
+inside: kennedy-community-school
 added_by: agent:town-verify
 sources:
   - url: https://www.bgcmn.org/events/
@@ -8722,7 +8727,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.92). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Overture lists it open (confidence 0.92). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022). Inside `kennedy-community-school` since 2026-11-19: the Boys & Girls Clubs' before- and after-school care held at Kennedy Community School, 1300 Jade Rd (bgcmn.org/kidstop/); two separate checks agreed (BP app place-pages 09).
 
 ## Lillian Leonard Primary
 ```yaml
@@ -8733,6 +8738,7 @@ category: "elementary_school"
 place_type: "School / college"
 address: "124 1st Ave SE"
 phone: "+13202917099"
+inside: academy-little-saints
 added_by: agent:town-verify
 sources:
   - url: http://www.LillianLeonardPrimary.com/
@@ -8740,7 +8746,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.9). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Overture lists it open (confidence 0.9). Unreviewed — tier `listed`, so it publishes nothing until promoted. Inside `academy-little-saints` since 2026-11-19: held in Little Saints Academy's building (The Newsleaders, 2017, thenewsleaders.com/?p=108362); neither check found proof it still runs after 2017; two separate checks agreed (BP app place-pages 09).
 
 ## Meyer Farm Project
 ```yaml
@@ -9243,11 +9249,12 @@ category: "restaurant"
 place_type: "Business"
 address: "13 2nd Ave NW"
 aka: ["Joetown Smashburger"]
+inside: food-house-tap
 added_by: agent:place-photos
 sources:
-  - url: TODO
+  - url: https://www.thehousefoodandtap.com/joetown-burgers
     kind: website
-    method: submission
+    method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-18 for BP app place-photos 04: an app place (Search) that had no entry. One of four restaurants inside The House (13 2nd Ave NW), each run on its own (Jesse, 2026-10-18); Google Maps lists only The House Food and Tap there. Named Joetown Burgers, as its crest reads (Jesse, 2026-10-19); the id keeps the old name. Unreviewed — tier `listed`, so it publishes nothing until promoted. Retired 2026-11-16: a double: Joetown Smashburger is the kitchen inside The House Food and Tap (food-house-tap). Hidden in the app (`places.closed_at`); two separate checks agreed (Google Maps and web research), Jesse's yes (BP app watch-every-place 32). Back 2026-11-18 (Jesse: "joetown burgers is a place"): a place by his word, not a double; a sweep for closed places or doubles leaves it alone (BP app watch-every-place 38).
+Notes: Proposed on 2026-10-18 for BP app place-photos 04: an app place (Search) that had no entry. One of four restaurants inside The House (13 2nd Ave NW), each run on its own (Jesse, 2026-10-18); Google Maps lists only The House Food and Tap there. Named Joetown Burgers, as its crest reads (Jesse, 2026-10-19); the id keeps the old name. Unreviewed — tier `listed`, so it publishes nothing until promoted. Retired 2026-11-16: a double: Joetown Smashburger is the kitchen inside The House Food and Tap (food-house-tap). Hidden in the app (`places.closed_at`); two separate checks agreed (Google Maps and web research), Jesse's yes (BP app watch-every-place 32). Back 2026-11-18 (Jesse: "joetown burgers is a place"): a place by his word, not a double; a sweep for closed places or doubles leaves it alone (BP app watch-every-place 38). Its own page on The House's site and Instagram @joetownsmash, run by chefs Mateo Mackbee and Erin Lucas; `inside: food-house-tap` since 2026-11-19 (Jesse: "i agree", BP app place-pages 09).

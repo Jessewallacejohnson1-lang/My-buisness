@@ -40,6 +40,9 @@ enum CalendarMetric {
     static let heartCircle: CGFloat = 30
     static let heart: CGFloat = 15
     static let skeletonRows = 2
+    /// The rows the picked day's card draws with the pill's tap: two show above the tab bar on an iPhone 16 Pro, a
+    /// third under its glass, a fourth on the tallest iPhones (picked). The rest follow with the next step.
+    static let firstRows = 4
 }
 
 /// The calendar's rules: which months, how a month lays out, which day a move lands on. Pure, so the tests
@@ -135,6 +138,16 @@ enum EventCalendar {
         return weeks * YouMetric.day + (weeks - 1) * YouMetric.rowGap
     }
 
+    /// The day pager's pages: every one up to `reach` past the last on or before `day`, so a few quick flicks on
+    /// never meet a false end. A page for each of the year's ~90 days with Events held the pill's first frame, even
+    /// drawn as nothing (BP app tab-lag 02). Only the far end is cut: a page added or taken before the one on
+    /// screen shifted the pager under it, and it walked on by itself a day at a time.
+    static func window(_ pages: [Date], through day: Date, reach: Int = 6) -> [Date] {
+        guard !pages.isEmpty else { return pages }
+        let at = pages.lastIndex { $0 <= day } ?? 0
+        return Array(pages[...min(at + reach, pages.count - 1)])
+    }
+
     /// "Friday, November 13, 3 Events"; "Today, …" for today. No count before the read is in (nil).
     static func spoken(_ date: Date, events: Int?, today: Bool) -> String {
         let name = (today ? "Today, " : "") + Town.format(date, "EEEEMMMMd")
@@ -154,6 +167,9 @@ struct EventCalendarView: View {
     @State private var picked: Date?
     /// The furthest month shown so far, as an index into the months: they stay drawn.
     @State private var furthest = 0
+    /// The furthest day picked so far: the day pager runs on past it, and never shrinks under a move, which left
+    /// it between two cards when Today came back from five months on.
+    @State private var furthestDay: Date?
     /// The tap draws this month and the picked day's card; once the page has come in, the months and days one and
     /// two swipes away follow a part at a time (`EventCalendar.reach`), so the pill's first frame waits on less
     /// (tab-lag 02). Any move draws them all at once.
@@ -199,7 +215,10 @@ struct EventCalendarView: View {
             if let month, let index = EventCalendar.months(now: .now).firstIndex(of: month) { furthest = max(furthest, index) }
             step = 4
         }
-        .onChange(of: picked) { step = 4 }
+        .onChange(of: picked) { _, day in
+            if let day { furthestDay = max(furthestDay ?? day, day) }
+            step = 4
+        }
         // On every visit and a new account; the list on screen stays meanwhile.
         .task(id: auth.accountKey) { await model.loadCalendar() }
         .task {
@@ -318,12 +337,12 @@ struct EventCalendarView: View {
     private func dayCards(_ events: [DailyEvent]?, byDay: [Date: [DailyEvent]], months: [Date], today: Date,
                           day: Date, now: Date, planned: [Date], reach: Int) -> some View {
         if let events {
-            let pages = YouCalendar.pages(events, days: EventCalendar.days(months), today: today, day: day)
+            let pages = EventCalendar.window(YouCalendar.pages(events, days: EventCalendar.days(months), today: today,
+                                                               day: day), through: max(day, furthestDay ?? day))
             AgendaPager(pages: pages, day: day, pick: { pick($0, from: day) }) { page in
-                // The picked day and two each side, as the months: a card for every day of the year held the
-                // pill's first frame (tab-lag 02). A day further off is drawn once a move brings it within two.
+                // The picked day with the tap, the two each side a part at a time after (`reach`), as the months.
                 if EventCalendar.near(page, day, in: pages, reach: reach) {
-                    dayCard(page, events: byDay[page] ?? [], today: today, now: now, planned: planned)
+                    dayCard(page, events: byDay[page] ?? [], today: today, now: now, planned: planned, first: step == 0)
                 } else {
                     Color.clear.frame(height: 0)
                 }
@@ -334,7 +353,10 @@ struct EventCalendarView: View {
         }
     }
 
-    private func dayCard(_ day: Date, events: [DailyEvent]?, today: Date, now: Date, planned: [Date]) -> some View {
+    /// `first`: only its first rows (`CalendarMetric.firstRows`), as the pill's tap draws it: a day of 25 Events
+    /// built them all with the first frame (BP app tab-lag 02).
+    private func dayCard(_ day: Date, events: [DailyEvent]?, today: Date, now: Date, planned: [Date],
+                         first: Bool = false) -> some View {
         let card = RoundedRectangle(cornerRadius: Radius.dayCard, style: .continuous)
         return VStack(spacing: 0) {
             HStack(spacing: 0) {
@@ -354,7 +376,7 @@ struct EventCalendarView: View {
             }
             .padding(.horizontal, CalendarMetric.cardHeadSide)
             .frame(height: CalendarMetric.cardHead)
-            rows(events, now: now)
+            rows(events, now: now, first: first)
         }
         .padding(.bottom, CalendarMetric.cardBottom)
         .background {
@@ -381,7 +403,7 @@ struct EventCalendarView: View {
     }
 
     @ViewBuilder
-    private func rows(_ events: [DailyEvent]?, now: Date) -> some View {
+    private func rows(_ events: [DailyEvent]?, now: Date, first: Bool) -> some View {
         if let events {
             if events.isEmpty {
                 // A working line; Jesse writes the final words.
@@ -392,7 +414,9 @@ struct EventCalendarView: View {
                     .padding(.vertical, YouMetric.emptyLine)
             } else {
                 VStack(spacing: 0) {
-                    ForEach(events) { CalendarRow(event: $0, now: now) }
+                    ForEach(first ? Array(events.prefix(CalendarMetric.firstRows)) : events) {
+                        CalendarRow(event: $0, now: now)
+                    }
                 }
             }
         } else if model.calendarFailed {

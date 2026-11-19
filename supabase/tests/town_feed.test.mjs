@@ -71,16 +71,18 @@ async function reset() {
 
 // Created well before the stories' dates, so nothing is new unless a story says so.
 async function add(title, date, more = {}) {
+  // An About and a place, so no story's Event counts × 0.5 for a missing one (town-feed 78) unless it says so.
   const row = { source_name: CITY, start_time: null, end_at: null, all_day: false,
                 shows_from: null, status: 'approved', submitted_by: null, category: null,
-                created_at: '2026-09-01 12:00-05', ...more };
+                created_at: '2026-09-01 12:00-05', location: 'Town hall',
+                description: 'A neighbourly afternoon, open to everyone in town.', ...more };
   if (row.submitted_by) await people(db, row.submitted_by);
   const { rows } = await db.query(
     `insert into public.club_events (title, event_date, source_name, start_time, end_at,
-       all_day, shows_from, status, submitted_by, category, created_at)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) returning id`,
+       all_day, shows_from, status, submitted_by, category, created_at, location, description)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) returning id`,
     [title, date, row.source_name, row.start_time, row.end_at, row.all_day,
-     row.shows_from, row.status, row.submitted_by, row.category, row.created_at]);
+     row.shows_from, row.status, row.submitted_by, row.category, row.created_at, row.location, row.description]);
   return rows[0].id;
 }
 
@@ -438,9 +440,12 @@ test("how much an Event draws the town out is everyone's starting point: 0, 1.5 
   await db.query(`update public.club_events set draw = 3 where id = $1`, [fair]);
   await db.query(`update public.club_events set draw = 1 where id = $1`, [council]);
   await db.exec(`set request.jwt.claims = '${ADMIN}'`);
+  await tap('event_likes', council, YOU, '2026-10-07 12:00');
+  await signIn(YOU);
+  await db.exec(`set request.jwt.claims = '${ADMIN}'`);
   const rows = await feed('2026-10-08 12:00');
   assert.deepEqual(rows.map((r) => [r.title, r.score.draw]),
-                   [['Art fair', 3], ['Book sale', 1.5], ['Council meeting', 0]]);
+                   [['Art fair', 3], ['Book sale', 1.5], ['Council meeting', 0]], 'routine business you Hearted');
   assert.ok(rows.every((r) => r.reason !== 'draw'), 'the draw is never the reason a card gives');
 });
 
@@ -462,6 +467,7 @@ test("a host you've been into lifts its other Events and is named; routine busin
   await db.query(`update public.club_events set draw = 1 where id in ($1, $2)`, [council, meetingLastWeek]);
   await tap('event_likes', fair, YOU, '2026-10-04 12:00');
   await tap('event_likes', meetingLastWeek, YOU, '2026-10-01 19:00');
+  await tap('event_likes', council, YOU, '2026-10-07 12:00');  // routine business shows only to whoever's into it
   await tap('event_likes', zoo, YOU, '2026-10-07 12:00');
   await tap('event_rsvps', zoo, YOU, '2026-10-07 12:00');
   await signIn(YOU);
@@ -913,7 +919,7 @@ test('the score breakdown is filled for the admin and null for everyone else', a
   await db.exec(`set request.jwt.claims = '${ADMIN}'`);
   const { score } = (await feed('2026-10-08 12:00'))[0];
   assert.deepEqual(score, {
-    interest: 3, gender: 0, yours: 0, new: 0, friend: 0, follow: 0, tapped: 0, town: 1, seen: 1, live: false,
+    interest: 3, gender: 0, yours: 0, new: 0, friend: 0, follow: 0, tapped: 0, town: 1, seen: 1, facts: 1, live: false,
     popular: 0, size: 0, sizeStep: 1, draw: 1.5, daysAway: 1,
     soon: 0.9057, acted: 1, notInterested: 1, spacing: 1, newSpot: false, pool: 'discovery', total: 4.9815, spot: 1, of: 1,
     // No roll, no top five (town-feed 73).
@@ -1474,7 +1480,7 @@ test("a girls' game never shows a boys' photo, nor the other way (event-photos 0
 test('each event carries its own description, for the Event page\'s About', async () => {
   await reset();
   const fair = await add('Fall fair', '2026-10-09');
-  await add('Council meeting', '2026-10-09');
+  await add('Council meeting', '2026-10-09', { description: null });
   await db.query(`update public.club_events set description = 'Apple cider and a hay ride.' where id = $1`, [fair]);
   await db.exec('set role anon');
   const { rows } = await db.query(`select title, description
@@ -2997,6 +3003,38 @@ test('a Place you follow lifts its Events and says so', async () => {
   await noPlaces();
 });
 
+// A church's own round (town-feed 78; Jesse, 2026-11-19): a draw 1 Event reaches only those who follow its place, have
+// a friend Going, or are Going or Hearted it; its special days reach everyone.
+test("routine business reaches only its place's followers; the rest of its Events reach everyone", async () => {
+  await reset();
+  const mass = await atPlace('Weekday Mass', '2026-10-09', { start_time: '8 AM' });
+  await atPlace('Christmas Eve Mass', '2026-10-10');
+  await db.query('update public.club_events set draw = 1 where id = $1', [mass]);
+  await signIn(ME);
+  assert.deepEqual(await titles('2026-10-08 12:00'), ['Christmas Eve Mass'], 'not followed: its special day only');
+  await followPlace(ME);
+  await signIn(ME);
+  assert.deepEqual((await titles('2026-10-08 12:00')).sort(), ['Christmas Eve Mass', 'Weekday Mass'], 'followed: both');
+  await noPlaces();
+  await tap('event_likes', mass, YOU, '2026-10-07 12:00');
+  await signIn(YOU);
+  assert.ok((await titles('2026-10-08 12:00')).includes('Weekday Mass'), 'Hearted: it stays');
+});
+
+// What it is and where (town-feed 78; Jesse, 2026-11-19: "things don't have information ... are lower in the feed").
+test('an Event with no About or no place counts half for each', async () => {
+  await reset();
+  await add('Full', '2026-10-09', { start_time: '7 PM' });
+  await add('Short About', '2026-10-09', { start_time: '7 PM', description: 'A weekly gathering.' });
+  await add('No place', '2026-10-09', { start_time: '7 PM', location: null });
+  await add('Neither', '2026-10-09', { start_time: '7 PM', location: ' ', description: null });
+  await signIn(YOU);
+  await db.exec(`set request.jwt.claims = '${ADMIN}'`);
+  const by = Object.fromEntries((await feed('2026-10-08 12:00')).map((r) => [r.title, r.score.facts]));
+  assert.deepEqual(by, { Full: 1, 'Short About': 0.5, 'No place': 0.5, Neither: 0.25 });
+  assert.deepEqual((await feed('2026-10-08 12:00')).map((r) => r.title).slice(-1), ['Neither'], 'the least it says, last');
+});
+
 // Two businesses, one Event (town-feed 58): following the business it was made with lifts it as following its host
 // does, once, by that business's name; muting that business keeps it out.
 test('a business an Event was made with lifts it for its followers, once, and its mute keeps it out', async () => {
@@ -3793,7 +3831,7 @@ test('the Town feed sends a full Event card: photo, found link, about, host, gam
 test('the Town feed sends a bare Event card with empties, and none with news or a post', async () => {
   await reset();
   await neighbour(ANNA, 'Anna Lee');
-  const id = await add('Porch jam', '2026-10-09', { source_name: null, submitted_by: ANNA });
+  const id = await add('Porch jam', '2026-10-09', { source_name: null, submitted_by: ANNA, location: null, description: null });
   await news('Road work on Minnesota St', '2026-10-08 09:00', { category: 'road' });
   await post(ANNA, 'Anyone up for sledding?');
   await signIn(ME);

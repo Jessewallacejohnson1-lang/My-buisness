@@ -27,6 +27,9 @@ struct SearchAtRest: View {
     let seed: UInt64
     @Environment(SearchModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.displayScale) private var displayScale
+    /// Around town's width, for the photos it reads ahead.
+    @State private var width: CGFloat = 0
 
     var body: some View {
         // Each minute, so "This morning" turns into "This afternoon" and an Event that started says Now.
@@ -43,6 +46,13 @@ struct SearchAtRest: View {
                 row("New in \(Town.everyday)", fresh, loading: loading, new: true,
                     more: allFresh.count > fresh.count ? allFresh : nil)
                 around(loading: loading)
+            }
+            // The page's width, which Around town's blocks fill edge to edge, for the photos it reads ahead. Never
+            // past the screen's: the page first measures 1094 pt, and photos read that big came on late.
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { new in
+                let screen = (UIApplication.shared.connectedScenes.first { $0 is UIWindowScene } as? UIWindowScene)?
+                    .screen.bounds.width ?? new
+                width = min(new, screen)
             }
         }
     }
@@ -98,17 +108,31 @@ struct SearchAtRest: View {
                     .shimmering()
                     .accessibilityLabel("Loading")
                 } else {
-                    let blocks = stride(from: 0, to: tiles.count, by: ExploreBlock.tiles).map {
-                        Array(tiles[$0 ..< $0 + ExploreBlock.tiles])
-                    }
+                    let blocks = Self.blocks(tiles)
                     ForEach(Array(blocks.enumerated()), id: \.offset) { i, block in
                         // The tall tile on the right first, then the left, as Instagram's.
                         ExploreBlock(tallLeading: i % 2 == 1) {
                             ForEach(block) { ExploreTile(item: $0) }
                         }
+                        // The photos of the blocks below come in before they scroll on (BP app tab-lag 03).
+                        .onAppear { read(blocks, after: i) }
                     }
                 }
             }
+            // The first blocks' photos as soon as the tiles are dealt, while the shelves above are on screen: no
+            // block lays out until Around town scrolls near, and on the iPhone a fast flick down then met 20 blank.
+            .onChange(of: [width, CGFloat(tiles.count)], initial: true) { read(Self.blocks(tiles), after: -1) }
+        }
+    }
+
+    /// Around town's tiles in blocks of five.
+    private static func blocks(_ tiles: [SearchItem]) -> [[SearchItem]] {
+        stride(from: 0, to: tiles.count, by: ExploreBlock.tiles).map { Array(tiles[$0 ..< $0 + ExploreBlock.tiles]) }
+    }
+
+    private func read(_ blocks: [[SearchItem]], after index: Int) {
+        FeedReadAhead.read(count: blocks.count, after: index, width: width, scale: displayScale) {
+            ExploreBlock.pictures(blocks[$0], width: width)
         }
     }
 }
@@ -119,15 +143,32 @@ struct ExploreBlock: Layout {
     nonisolated static let tiles = 5
     let tallLeading: Bool
 
-    private nonisolated func side(_ width: CGFloat) -> CGFloat { max(0, (width - 2 * SearchMetric.exploreGap) / 3) }
+    private nonisolated static func side(_ width: CGFloat) -> CGFloat { max(0, (width - 2 * SearchMetric.exploreGap) / 3) }
+
+    /// The photos a block `width` points wide draws: its first tile two squares tall, the rest square, a flyer
+    /// whole (BP app tab-lag 03). A tile with no photo shows its logo, which Search reads up front.
+    static func pictures(_ block: [SearchItem], width: CGFloat) -> FeedPictures {
+        let side = Self.side(width)
+        var pictures = FeedPictures(height: 2 * side + 2 * SearchMetric.exploreGap)
+        for (index, item) in block.enumerated() {
+            let box = CGSize(width: side, height: index == 0 ? 2 * side + SearchMetric.exploreGap : side)
+            switch item.photo {
+            case .saved(let picture): pictures.photos.append(.init(url: picture.url, box: box))
+            case .card(let source):
+                if let url = source.url { pictures.photos.append(.init(url: url, box: box, fit: item.card?.whole == true)) }
+            case .bundled, nil: break
+            }
+        }
+        return pictures
+    }
 
     nonisolated func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let width = proposal.width ?? 0
-        return CGSize(width: width, height: 2 * side(width) + SearchMetric.exploreGap)
+        return CGSize(width: width, height: 2 * Self.side(width) + SearchMetric.exploreGap)
     }
 
     nonisolated func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let side = side(bounds.width), step = side + SearchMetric.exploreGap
+        let side = Self.side(bounds.width), step = side + SearchMetric.exploreGap
         let tallX: CGFloat = tallLeading ? 0 : 2 * step
         let squares: [CGFloat] = tallLeading ? [step, 2 * step] : [0, step]
         var frames = [CGRect(x: tallX, y: 0, width: side, height: side + step)]
