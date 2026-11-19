@@ -107,19 +107,17 @@ struct SearchAtRest: View {
                         ExploreBlock(tallLeading: i % 2 == 1) {
                             ForEach(block) { ExploreTile(item: $0) }
                         }
-                        // The photos of the blocks below come in before they scroll on (BP app tab-lag 03).
+                        // The photos of the blocks below come in before they scroll on (BP app tab-lag 03), at the
+                        // width a block is laid out at: the stack around them first measured 1094 pt, far past the
+                        // screen, and photos read that big came on late. The first block asks for itself too.
+                        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { new in
+                            width = new
+                            read(blocks, after: i == 0 ? -1 : i)
+                        }
                         .onAppear { read(blocks, after: i) }
                     }
                 }
             }
-            // The first blocks ask once the grid is measured and its tiles are in: while it loads its width can
-            // still be a passing one (seen at 1093 pt), and photos read that big take too long.
-            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { new in
-                let first = width == 0
-                width = new
-                if first, !loading { read(Self.blocks(tiles), after: -1) }
-            }
-            .onChange(of: loading) { if !loading { read(Self.blocks(tiles), after: -1) } }
         }
     }
 
