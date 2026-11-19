@@ -16,7 +16,6 @@ struct GamePlayers: View {
     var top: CGFloat = 0
 
     @State private var side = 0
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// Apple Sports' rows: 30 pt, the totals 36 under a hairline, in a play's card 6 pt in from its top and 12 from its sides.
     static let rowHeight: CGFloat = 30
@@ -37,11 +36,11 @@ struct GamePlayers: View {
             }
             .pickerStyle(.segmented)
             .sensoryFeedback(.selection, trigger: side)
-            // The other team's numbers change in place, the card's height following: a cross-fade drew both tables at
-            // once, the taller one's rows over the page under it (review).
+            // The other team's table at once, as the mock and Apple Sports swap it: Apple's control moves its own thumb.
+            // A cross-fade drew both teams' numbers over each other for a third of a second (review).
             table(boxes[min(side, boxes.count - 1)])
         }
-        .animation(reduceMotion ? nil : Motion.smooth, value: side)
+        .transaction(value: side) { $0.animation = nil }
         .padding(.top, top)
     }
 
