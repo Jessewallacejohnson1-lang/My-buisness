@@ -298,6 +298,51 @@ nonisolated enum Hue {
     static let rinkRed       = Color(hex: 0xFF3B30)
     static let rinkBlue      = Color(hex: 0x4D8DFF)
 
+    // MARK: Messages (Instagram's chat, measured: BP app references/messages-instagram/SPEC.md)
+    // The mock is the light look only. The dark partners are the app's own dark greys, a step up from `surface`, guessed.
+
+    /// Their bubble, the search fields, a row's tag and the host's card.
+    static let chatFill      = Color(light: 0xF4F5F7, dark: 0x2A2A27)
+    /// The grey words: a row's last words, "Requests", a bar's second line, the composer's prompt.
+    static let chatGrey      = Color(light: 0x6A6F75, dark: 0x9C9A93)
+    /// A time stamp, a time at the side and a name over a bubble.
+    static let chatStamp     = Color(light: 0x74787C, dark: 0x9C9A93)
+    static let chatComposer  = Color(light: 0xF6F6F6, dark: 0x2A2A27)
+    /// Accept, New message's button and "1 request".
+    static let chatBlue      = Color(hex: 0x4A5DF7)
+    /// An unread chat's dot.
+    static let chatDot       = Color(hex: 0x5364FC)
+    static let chatClearAll  = Color(hex: 0x4E5EE5)
+    /// Block, Delete and "View profile".
+    static let chatButton    = Color(light: 0xF1F2F6, dark: 0x2A2A27)
+    static let chatViewProfile = Color(light: 0xEEF2F5, dark: 0x2A2A27)
+    static let chatBlock     = Color(hex: 0xED4956)
+    /// The line under a chat's bar and over a request's buttons.
+    static let chatLine      = Color(light: 0xEDEDED, dark: 0x33332E)
+    /// An empty tick's ring and a chip's outline.
+    static let chatRing      = Color(light: 0xDBDFE4, dark: 0x45443D)
+    static let chatTypingDot = Color(hex: 0x9DA2A8)
+
+    /// Your bubble's colour at a height on Instagram's 852 pt screen: violet at the top to blue at the bottom.
+    /// Measured at 338, 586, 714 and 790; the two ends are guessed.
+    static let chatMineScreen: CGFloat = 852
+    static let chatMineStops: [(y: Double, hex: UInt32)] = [
+        (125, 0x9935D4), (338, 0x843AE5), (586, 0x6C40F9), (714, 0x5D4CFA), (790, 0x5554FA), (852, 0x5057FA),
+    ]
+
+    static func chatMineHex(y: Double) -> UInt32 {
+        let y = min(max(y, chatMineStops[0].y), Double(chatMineScreen))
+        let next = chatMineStops.firstIndex { y <= $0.y } ?? chatMineStops.count - 1
+        guard next > 0 else { return chatMineStops[0].hex }
+        let a = chatMineStops[next - 1], b = chatMineStops[next], t = (y - a.y) / (b.y - a.y)
+        return [16, 8, 0].reduce(UInt32(0)) { hex, shift in
+            let from = Double((a.hex >> shift) & 0xFF), to = Double((b.hex >> shift) & 0xFF)
+            return hex | UInt32((from + (to - from) * t).rounded()) << shift
+        }
+    }
+
+    static func chatMine(y: Double) -> Color { Color(hex: chatMineHex(y: y)) }
+
     // MARK: Search (the tab's Reference: Jesse's mockup v7 and its Figma frames, 2026-10-02)
 
     /// The search field's grey: iOS's own search-field fill, #767680 at 12%.

@@ -394,13 +394,19 @@ struct CommunityAPI {
             let atNames: [AtName]
             /// A post's photos after the first (town-feed 46).
             let morePhotos: [URL]
-            private enum Keys: String, CodingKey { case aspect, atNames, morePhotos }
+            /// A News's photo is its post's own graphic, and every picture of its post when it has several (town-feed 77).
+            let flyer: Bool
+            let photos: [URL]
+            private enum Keys: String, CodingKey { case aspect, atNames, morePhotos, flyer, photos }
             init(from decoder: Decoder) {
                 value = try? Poster(from: decoder)
                 let keys = try? decoder.container(keyedBy: Keys.self)
                 aspect = keys.flatMap { try? $0.decodeIfPresent(Double.self, forKey: .aspect) }
                 atNames = (keys.flatMap { try? $0.decodeIfPresent([AtName.Lenient].self, forKey: .atNames) } ?? []).compactMap(\.value)
                 morePhotos = (keys.flatMap { try? $0.decodeIfPresent([String].self, forKey: .morePhotos) } ?? [])
+                    .compactMap(URL.init(string:))
+                flyer = keys.flatMap { try? $0.decodeIfPresent(Bool.self, forKey: .flyer) } ?? false
+                photos = (keys.flatMap { try? $0.decodeIfPresent([String].self, forKey: .photos) } ?? [])
                     .compactMap(URL.init(string:))
             }
         }
@@ -431,7 +437,8 @@ struct CommunityAPI {
                                       published: DateHelpers.timestamp(createdAt), title: title,
                                       interest: reason == "interest" ? reasonName : nil,
                                       hearted: hearted ?? false, heartCount: heartCount ?? 0,
-                                      photo: imageUrl.flatMap(URL.init(string:)), photoAspect: poster?.aspect))
+                                      photo: imageUrl.flatMap(URL.init(string:)), photoAspect: poster?.aspect,
+                                      photoIsFlyer: poster?.flyer ?? false, photos: poster?.photos ?? []))
             }
             guard let event = card?.value else { return nil }
             return .event(TownFeedRow(event: event, leavesAt: leavesAt,

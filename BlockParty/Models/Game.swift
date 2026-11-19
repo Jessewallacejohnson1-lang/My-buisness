@@ -383,6 +383,18 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
     /// Basketball's page draws its quarters as a bar, the Bonus and a faint court (game-card 09).
     var isBasketball: Bool { sport.localizedCaseInsensitiveContains("basketball") }
 
+    /// A basketball game scores about 80 times (CSB v Augsburg, 2026-02-21), so its page lists its newest 5 scoring
+    /// plays until "Show all" is tapped (game-card 09 and 34; Jesse, 2026-11-01 and 2026-11-18).
+    static let newestPlays = 5
+
+    /// Whether its page folds its scoring plays behind "Show all": basketball with more than the newest 5.
+    var foldsPlays: Bool { isBasketball && plays.count > Self.newestPlays }
+
+    /// Its scoring plays as its page lists them, newest first: every one, or a folded game's newest 5.
+    func listedPlays(all: Bool) -> [Play] {
+        Array((foldsPlays && !all ? plays.suffix(Self.newestPlays) : plays[...]).reversed())
+    }
+
     /// Hockey's page draws a power-play bar, shots on goal and the rink's lines (game-card 09).
     var isHockey: Bool { sport.localizedCaseInsensitiveContains("hockey") }
 

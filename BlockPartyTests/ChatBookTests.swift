@@ -1,7 +1,7 @@
 //
 //  ChatBookTests.swift
 //  BlockPartyTests — chat's model (BP app five-tabs 05): what a list row says, how the server's messages and what's
-//  on its way merge, a send and a failed send, the first message to someone, Seen, the answers, the typing dots and
+//  on its way merge, a send and a failed send, the first message to someone, the answers, the typing dots and
 //  the dot, and a Going chat's row, join and updates. What the server allows is `supabase/tests/chat_with_friends.test.mjs` and `going_chat.test.mjs`.
 //
 
@@ -59,12 +59,53 @@ final class ChatBookTests: XCTestCase {
     }
 
     func testWhenARowSaysItWas() {
-        XCTAssertEqual(ChatWords.ago(now.addingTimeInterval(-20), now: now), "Now")
+        XCTAssertEqual(ChatWords.ago(now.addingTimeInterval(-20), now: now), "now")
         XCTAssertEqual(ChatWords.ago(now.addingTimeInterval(-5 * 60), now: now), "5m")
         XCTAssertEqual(ChatWords.ago(now.addingTimeInterval(-3 * 3600), now: now), "3h")
-        XCTAssertEqual(ChatWords.ago(now.addingTimeInterval(-24 * 3600), now: now), "Yesterday")
-        XCTAssertEqual(ChatWords.ago(now.addingTimeInterval(-3 * 24 * 3600), now: now), Town.format(now.addingTimeInterval(-3 * 24 * 3600), "EEE"))
-        XCTAssertEqual(ChatWords.ago(now.addingTimeInterval(-30 * 24 * 3600), now: now), Town.format(now.addingTimeInterval(-30 * 24 * 3600), "MMMd"))
+        XCTAssertEqual(ChatWords.ago(now.addingTimeInterval(-24 * 3600), now: now), "1d")
+        XCTAssertEqual(ChatWords.ago(now.addingTimeInterval(-3 * 24 * 3600), now: now), "3d")
+        XCTAssertEqual(ChatWords.ago(now.addingTimeInterval(-30 * 24 * 3600), now: now), "4w")
+    }
+
+    func testAStampSaysTheDayInCapitals() {
+        let clock = Town.clock(now).uppercased()
+        XCTAssertEqual(ChatWords.stamp(now, now: now), "TODAY \(clock)")
+        XCTAssertEqual(ChatWords.stamp(now.addingTimeInterval(-24 * 3600), now: now), "YESTERDAY \(clock)")
+        XCTAssertEqual(ChatWords.stamp(now.addingTimeInterval(-2 * 24 * 3600), now: now), "SUNDAY \(clock)")
+    }
+
+    // MARK: The look (messages 02)
+
+    func testYourBubblesColourGoesByItsHeightOnTheScreen() {
+        XCTAssertEqual(Hue.chatMineHex(y: 0), 0x9935D4, "above the first stop: the top's violet")
+        XCTAssertEqual(Hue.chatMineHex(y: 338), 0x843AE5)
+        XCTAssertEqual(Hue.chatMineHex(y: 462), 0x783DEF, "halfway between two stops, halfway between their colours")
+        XCTAssertEqual(Hue.chatMineHex(y: 790), 0x5554FA)
+        XCTAssertEqual(Hue.chatMineHex(y: 2000), 0x5057FA, "below the screen: the bottom's blue")
+    }
+
+    func testTheChatFollowsADragLeftThenSlows() {
+        XCTAssertEqual(ChatLook.timesShift(-10), 0, "a finger moving right moves nothing")
+        XCTAssertEqual(ChatLook.timesShift(40), 40)
+        XCTAssertEqual(ChatLook.timesShift(64), 64)
+        XCTAssertEqual(ChatLook.timesShift(164), 82, accuracy: 0.001)
+    }
+
+    private func event(_ id: String, day: String, time: String? = "6 PM", cancelled: Bool = false) -> DailyEvent {
+        var item = FeedCardItem(UpcomingEvent(id: id, title: id, eventDate: day, startTime: time, location: nil,
+                                              goingCount: 0, createdAt: ""))
+        item.cancelled = cancelled
+        return YouCalendar.event(from: item)!
+    }
+
+    func testThePlusListsYourGoingAndYourHeartsSoonestFirstElseTheTowns() {
+        let going = [event("market", day: "2026-11-20"), event("off", day: "2026-11-04", cancelled: true)]
+        let liked = [event("music", day: "2026-11-05"), event("market", day: "2026-11-20"), event("over", day: "2026-11-01")]
+        let town = (1...12).map { event("t\($0)", day: "2026-12-\(String(format: "%02d", 13 - $0))").item }
+        XCTAssertEqual(ChatLook.eventsToSend(going: going, liked: liked, town: town, now: now).map(\.id), ["music", "market"],
+                       "each once, soonest first, never one that's over or called off")
+        XCTAssertEqual(ChatLook.eventsToSend(going: [], liked: [], town: town, now: now).map(\.id),
+                       (3...12).reversed().map { "t\($0)" }, "with none of yours: the Town's next ten")
     }
 
     func testAStampGoesBeforeTheFirstAndAfterAGap() {
@@ -495,7 +536,6 @@ final class ChatBookTests: XCTestCase {
           "card":null,"created_at":"2026-11-03T18:00:00+00:00"}]
         """)
         server.answers["object/sign/chat-photos"] = .init(body: #"[{"error":null,"path":"sam/x.jpg","signedURL":"/object/sign/chat-photos/sam/x.jpg?token=t"}]"#)
-        server.answers["chat_reads"] = .init(body: #"[{"user_id":"SAM","read_at":"2026-11-03T18:00:00+00:00"}]"#)
         let thread = ChatThread(api: api, me: "me", chat: "c1")
         await thread.read()
         XCTAssertTrue(thread.loaded)
@@ -506,37 +546,10 @@ final class ChatBookTests: XCTestCase {
         XCTAssertEqual(thread.messages[2].senderID, "sam", "ids compare in one case")
         XCTAssertEqual(thread.links["sam/x.jpg"]?.absoluteString.hasSuffix("/storage/v1/object/sign/chat-photos/sam/x.jpg?token=t"), true)
         XCTAssertEqual(server.requests.last?.url?.lastPathComponent, "mark_chat_read")
+        XCTAssertFalse(server.requests.contains { $0.url?.path.contains("chat_reads") == true }, "no Seen (messages 02)")
     }
 
     // MARK: What the screen asks
-
-    private func loaded(_ messages: [ChatMessage], reads: String = "[]") async -> ChatThread {
-        let rows = messages.map { m -> String in
-            if case .text(let words) = m.content {
-                return #"{"id":"\#(m.id)","client_id":"\#(m.id)","sender_id":"\#(m.senderID)","kind":"text","body":"\#(words)","created_at":"\#(DateHelpers.timestampString(m.at))"}"#
-            }
-            return ""
-        }
-        server.answers["rpc/get_chat_messages"] = .init(body: "[\(rows.joined(separator: ","))]")
-        server.answers["chat_reads"] = .init(body: reads)
-        let thread = ChatThread(api: api, me: "me", chat: "c1")
-        await thread.read()
-        return thread
-    }
-
-    func testSeenSitsUnderYourLastMessageOnceSomeoneReadsPastIt() async {
-        let mine = message("a", from: "me")
-        let at = DateHelpers.timestampString(mine.at.addingTimeInterval(5))
-        let before = DateHelpers.timestampString(mine.at.addingTimeInterval(-5))
-        var thread = await loaded([mine], reads: #"[{"user_id":"sam","read_at":"\#(at)"}]"#)
-        XCTAssertTrue(thread.seen)
-        thread = await loaded([mine], reads: #"[{"user_id":"sam","read_at":"\#(before)"}]"#)
-        XCTAssertFalse(thread.seen, "read, but not this far")
-        thread = await loaded([mine], reads: #"[{"user_id":"me","read_at":"\#(at)"}]"#)
-        XCTAssertFalse(thread.seen, "your own reading isn't Seen")
-        thread = await loaded([mine, message("b", from: "sam", at: 10)], reads: #"[{"user_id":"sam","read_at":"\#(at)"}]"#)
-        XCTAssertFalse(thread.seen, "only under your last message when it's the last")
-    }
 
     func testTheDotsComeWithOthersAndGoOnTheirOwn() async throws {
         let thread = ChatThread(api: api, me: "me", chat: "c1")
