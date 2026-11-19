@@ -896,7 +896,7 @@ final class SearchModel {
         "fuel": "Gas station",
         // Hair, beauty and health
         "hair_salon": "Hair salon", "barber_shop": "Barber", "beauty_salon": "Beauty salon", "nail_salon": "Nail salon",
-        "personal_or_beauty_service": "Salon", "spa": "Spa", "massage": "Massage", "wellness_service": "Wellness",
+        "personal_or_beauty_service": "Beauty & wellness", "spa": "Spa", "massage": "Massage", "wellness_service": "Wellness",
         "complementary_and_alternative_medicine": "Wellness", "yoga_studio": "Yoga", "gym": "Gym",
         "sport_or_fitness_facility": "Fitness", "doctor": "Doctor", "dentist": "Dentist",
         "chiropractor": "Chiropractor", "medical_service": "Medical", "behavioral_or_mental_health_clinic": "Counseling",

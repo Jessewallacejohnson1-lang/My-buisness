@@ -34,7 +34,8 @@ final class SmallFixesTests: XCTestCase {
 
     /// Search's kinds in a neighbour's words, not Google's (backlog 20); a catch-all says nothing.
     func testKindsInPlainWords() {
-        XCTAssertEqual(SearchModel.label("personal_or_beauty_service"), "Salon")
+        XCTAssertEqual(SearchModel.label("personal_or_beauty_service"), "Beauty & wellness",
+                       "a hair studio and a nutrition shop share it")
         XCTAssertEqual(SearchModel.label("wellness_service"), "Wellness")
         XCTAssertEqual(SearchModel.label("hardware_home_and_garden_store"), "Hardware store")
         XCTAssertEqual(SearchModel.label("b2b_office_and_professional_service"), "Business services")
