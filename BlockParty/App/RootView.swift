@@ -566,8 +566,6 @@ struct MainTabsView: View {
         .overlay(alignment: .bottom) { AgendaToast() }
         // The iPhone Calendar follows the Going (ticket 05).
         .background { CalendarFollower(sync: calendarSync) }
-        // An Event's "Send in a chat" (`ShareCenter`).
-        .sheet(item: Bindable(chats).sending) { ChatPicker(card: $0) }
         // Outside the stack, so pushed pages and sheets read the same one.
         .environment(actions)
         // A game's newest score, on whichever page shows it (codebase-health-2 08).
@@ -577,7 +575,11 @@ struct MainTabsView: View {
         .environment(friendsBook)
         .environment(chats)
         .onAppear {
-            ShareCenter.shared.sendInChat = { chats.sending = $0 }
+            // Who the share sheet's people row lists and sends through (BP app share-sheet 01).
+            ShareCenter.shared.chats = chats
+            ShareCenter.shared.friends = friendsBook
+            ShareCenter.shared.you = you
+            ShareCenter.shared.actions = actions
             // The pencil's sheet and a Profile open a chat on the shell's stack.
             chats.push = { path.append($0) }
             // A chat's +: your Going and your hearts, read now if nothing has read them yet, else the Town's.
@@ -788,11 +790,17 @@ struct MainTabsView: View {
                 cycleTabs(from: 1)
             }
             if LaunchFlags.has(.shareDemo) {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                    ShareCenter.shared.present(.event(title: "Farmers Market",
-                                                      dateLabel: "Saturday, Jul 12",
-                                                      time: "9:00 AM",
-                                                      location: "College Ave"))
+                // The Town feed's first Event with a photo, once the feed is in; else a plain one.
+                Task {
+                    for _ in 0..<40 where !townFeed.cards.contains(where: { SharePayload.photo($0.image) != nil }) {
+                        try? await Task.sleep(for: .milliseconds(250))
+                    }
+                    if let card = townFeed.cards.first(where: { SharePayload.photo($0.image) != nil }) {
+                        ShareCenter.shared.present(.event(card))
+                    } else {
+                        ShareCenter.shared.present(.event(title: "Farmers Market", dateLabel: "Saturday, Jul 12",
+                                                          time: "9:00 AM", location: "College Ave"))
+                    }
                 }
             }
         }

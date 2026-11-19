@@ -32,6 +32,10 @@ enum Radius {
     /// Search's Event calendar, the picked day's card: the Sports mock's card, as the approved mock draws it
     /// (BP app five-tabs 10).
     static let dayCard: CGFloat = 30
+    /// The share sheet's story card and the picture card in it, measured off Hypelist's (BP app share-sheet 01,
+    /// `references/share-sheet/SPEC.md`).
+    static let shareCard: CGFloat = 18
+    static let shareFace: CGFloat = 14
 }
 
 /// The single elevation in the system — one soft, neutral lift. Everything else

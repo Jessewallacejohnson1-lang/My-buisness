@@ -30,14 +30,7 @@ struct FeedCardGallery: View {
 
     private func shareAction(for item: FeedCardItem) -> () -> Void {
         {
-            ShareCenter.shared.present(
-                .event(
-                    title: item.title,
-                    dateLabel: item.dateChip,
-                    time: item.shareTime,
-                    location: item.shareLocation
-                )
-            )
+            ShareCenter.shared.present(.event(item))
         }
     }
 

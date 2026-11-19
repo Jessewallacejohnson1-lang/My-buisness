@@ -1,38 +1,18 @@
 //
 //  ChatPicker.swift
-//  Block Party — who an Event goes to (BP app five-tabs 05). "Send in a chat" on an Event's share sheet lists your
-//  chats, your Groups and friends, each with Instagram's Send, which sends the Event's card at once. A new message's
-//  people are `NewMessagePage`.
+//  Block Party — who an Event goes to (BP app five-tabs 05, share-sheet 01). The share sheet's people row shows them
+//  as faces, and its Search lists them all with Instagram's Send; either sends the Event's card at once. A new
+//  message's people are `NewMessagePage`.
 //
 
 import SwiftUI
 
-struct ChatPicker: View {
-    /// The Event being sent.
-    let card: FeedCardItem
-
-    @Environment(ChatBook.self) private var chats
-    @Environment(FriendsBook.self) private var book
-    @Environment(YouModel.self) private var you: YouModel?
-    @Environment(RealLifeActions.self) private var actions: RealLifeActions?
-    @Environment(\.dismiss) private var dismiss
-    @State private var words = ""
-    @State private var sent: Set<String> = []
-    /// Who an Event can go to, kept as the sheet opened: a send moves a chat up the list behind it,
-    /// and the row under your thumb mustn't move.
-    @State private var targets: [Target] = []
-    /// Your Groups with no chat on your list yet (five-tabs 09); nil until asked.
-    @State private var groups: [TownGroup]?
-
-    private func matches(_ text: String) -> Bool {
-        let typed = words.trimmingCharacters(in: .whitespaces)
-        return typed.isEmpty || TownSearch.score(typed, name: text, extra: [], aliases: []) != nil
-    }
-
-    private var friends: [Neighbor] { book.friends.filter { matches($0.displayName) } }
-
-    /// A chat, a Group with none yet, or a friend you haven't one with.
-    private struct Target: Identifiable {
+/// Who an Event can go to, and who it has gone to: your chats first, then your Groups with no chat yet, then friends
+/// you haven't one with. Kept as the sheet opened: a send moves a chat up the list behind it, and the face under your
+/// thumb mustn't move.
+@MainActor @Observable
+final class ChatSendList {
+    struct Target: Identifiable {
         let id: String
         let name: String
         var chat: Chat? = nil
@@ -40,20 +20,84 @@ struct ChatPicker: View {
         var person: Neighbor? = nil
     }
 
-    /// For an Event: your chats first, then your Groups with no chat yet, then friends you haven't one with.
-    private func listTargets() -> [Target] {
-        chats.messages.filter { !$0.waiting && $0.kind != .going }.map { Target(id: $0.id, name: $0.title, chat: $0) }
-            + (groups ?? []).map { Target(id: $0.id, name: $0.name, group: $0) }
-            + book.friends.filter { chats.chat(with: $0) == nil }
-                .map { Target(id: $0.id, name: $0.displayName, person: $0) }
+    /// The Event being sent.
+    let card: FeedCardItem
+    let chats: ChatBook
+    let book: FriendsBook
+    /// Nil until read.
+    private(set) var targets: [Target]?
+    private(set) var sent: Set<String> = []
+
+    init(card: FeedCardItem, chats: ChatBook, book: FriendsBook) {
+        self.card = card
+        self.chats = chats
+        self.book = book
+    }
+
+    func load(you: YouModel?, actions: RealLifeActions?) async {
+        guard targets == nil else { return }
+        async let friends: Void = book.refresh()
+        let groups = await chats.groupsToSend(Self.yourGroups(you: you, actions: actions))
+        await friends
+        guard targets == nil else { return }
+        targets = chats.messages.filter { !$0.waiting && $0.kind != .going }.map { Target(id: $0.id, name: $0.title, chat: $0) }
+            + groups.map { Target(id: $0.id, name: $0.name, group: $0) }
+            + book.friends.filter { chats.chat(with: $0) == nil }.map { Target(id: $0.id, name: $0.displayName, person: $0) }
     }
 
     /// The Groups you're in, read now if nothing has read them yet.
-    private func yourGroups() async -> [TownGroup] {
+    private static func yourGroups(you: YouModel?, actions: RealLifeActions?) async -> [TownGroup] {
         guard let you, let actions else { return [] }
         let all: [TownGroup]
         if let read = you.groups { all = read } else { all = await you.refreshGroups() ?? [] }
         return all.filter { actions.member($0).isMember }
+    }
+
+    /// Sent at once: the face says so, and turns back with a shake if it didn't go. A Group with no chat yet gets one
+    /// first, as opening it from its page does.
+    func deliver(_ target: Target) async {
+        guard !sent.contains(target.id) else { return }
+        withAnimation(Motion.snappy) { _ = sent.insert(target.id) }
+        Haptics.light()
+        do {
+            var chat = target.chat?.id
+            if let group = target.group?.id { chat = try await chats.api.joinGroup(group) }
+            _ = try await chats.api.send(chat: chat, to: target.person?.id, client: UUID().uuidString.lowercased(),
+                                         .event(card.id))
+            await chats.refresh()
+        } catch {
+            Log.network("ChatSendList send: \(error)")
+            withAnimation(Motion.snappy) { _ = sent.remove(target.id) }
+            Haptics.error()
+        }
+    }
+}
+
+/// A target's picture: the chat's, the Group's, or the friend's face.
+struct ChatTargetFace: View {
+    let target: ChatSendList.Target
+    var size = ChatMetric.face
+
+    var body: some View {
+        if let chat = target.chat {
+            ChatFace(chat: chat, size: size)
+        } else if let group = target.group {
+            ChatGroupFace(group: group, size: size)
+        } else {
+            Avatar(avatarUrl: target.person?.avatarUrl, size: size)
+        }
+    }
+}
+
+/// The share sheet's Search: everyone an Event can go to, with a search box and Instagram's Send.
+struct ChatPicker: View {
+    let list: ChatSendList
+    let close: () -> Void
+    @State private var words = ""
+
+    private func matches(_ text: String) -> Bool {
+        let typed = words.trimmingCharacters(in: .whitespaces)
+        return typed.isEmpty || TownSearch.score(typed, name: text, extra: [], aliases: []) != nil
     }
 
     var body: some View {
@@ -63,66 +107,43 @@ struct ChatPicker: View {
                     FriendsSearchField(words: $words)
                         .padding(.horizontal, ChatMetric.side)
                         .padding(.bottom, ChatMetric.sectionBottom)
-                    sending
-                    if !book.loaded || groups == nil {
+                    if let targets = list.targets {
+                        ForEach(targets.filter { matches($0.name) }) { row($0) }
+                        if targets.isEmpty {
+                            Text("Add a friend to start a chat.")
+                                .font(.sans(14))
+                                .foregroundStyle(Hue.inkSecondary)
+                                .frame(maxWidth: .infinity, minHeight: ChatMetric.older)
+                        }
+                    } else {
                         SkeletonBlock(cornerRadius: ChatMetric.loadingLine / 2)
                             .frame(width: ChatMetric.loadingName, height: ChatMetric.loadingLine)
                             .frame(maxWidth: .infinity, minHeight: ChatMetric.older)
                             .shimmering()
                             .accessibilityLabel("Loading")
-                    } else if friends.isEmpty && targets.isEmpty {
-                        Text("Add a friend to start a chat.")
-                            .font(.sans(14))
-                            .foregroundStyle(Hue.inkSecondary)
-                            .frame(maxWidth: .infinity, minHeight: ChatMetric.older)
                     }
                 }
             }
             .scrollDismissesKeyboard(.immediately)
-            .background(Hue.paper)
+            .background(Hue.surface)
             .navigationTitle("Send to")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
-            }
-        }
-        .task { await book.refresh() }
-        .task { groups = await chats.groupsToSend(yourGroups()) }
-        .onChange(of: book.loaded && groups != nil, initial: true) { _, ready in
-            if ready, targets.isEmpty { targets = listTargets() }
-        }
-        .presentationDetents([.large])
-    }
-
-    // MARK: Sending an Event
-
-    @ViewBuilder private var sending: some View {
-        ForEach(targets.filter { matches($0.name) }) { target in
-            row(key: target.id, name: target.name) {
-                if let chat = target.chat {
-                    ChatFace(chat: chat)
-                } else if let group = target.group {
-                    ChatGroupFace(group: group)
-                } else if let person = target.person {
-                    Avatar(avatarUrl: person.avatarUrl, size: ChatMetric.face)
-                }
-            } send: {
-                await deliver(key: target.id, chat: target.chat?.id, group: target.group?.id, to: target.person?.id)
+                ToolbarItem(placement: .cancellationAction) { Button("Close", action: close) }
             }
         }
     }
 
-    private func row<Face: View>(key: String, name: String, @ViewBuilder face: () -> Face,
-                                 send: @escaping () async -> Void) -> some View {
-        let done = sent.contains(key)
+    private func row(_ target: ChatSendList.Target) -> some View {
+        let done = list.sent.contains(target.id)
         return HStack(spacing: ChatMetric.rowGap) {
-            face()
-            Text(name)
+            ChatTargetFace(target: target)
+            Text(target.name)
                 .font(.sansSemibold(15))
                 .foregroundStyle(Hue.ink)
                 .lineLimit(1)
             Spacer(minLength: 0)
-            Button { Task { await send() } } label: {
+            Button { Task { await list.deliver(target) } } label: {
                 Text(done ? "Sent" : "Send")
                     .font(.sansSemibold(14))
                     .foregroundStyle(done ? Hue.ink : Hue.surface)
@@ -134,26 +155,9 @@ struct ChatPicker: View {
             }
             .buttonStyle(.press(.squish))
             .disabled(done)
-            .accessibilityLabel(done ? "Sent to \(name)" : "Send to \(name)")
+            .accessibilityLabel(done ? "Sent to \(target.name)" : "Send to \(target.name)")
         }
         .padding(.horizontal, ChatMetric.side)
         .padding(.vertical, ChatMetric.rowPad)
-    }
-
-    /// Sent at once: the button says so, and turns back with a shake if it didn't go.
-    /// A Group with no chat yet gets one first, as opening it from its page does.
-    private func deliver(key: String, chat: String?, group: String?, to person: String?) async {
-        withAnimation(Motion.snappy) { _ = sent.insert(key) }
-        Haptics.light()
-        do {
-            var chat = chat
-            if let group { chat = try await chats.api.joinGroup(group) }
-            _ = try await chats.api.send(chat: chat, to: person, client: UUID().uuidString.lowercased(), .event(card.id))
-            await chats.refresh()
-        } catch {
-            Log.network("ChatPicker send: \(error)")
-            withAnimation(Motion.snappy) { _ = sent.remove(key) }
-            Haptics.error()
-        }
     }
 }
