@@ -179,6 +179,8 @@ struct OnboardingBigArt<Art: View>: View {
                 .accessibilityFocused($focused)
             if let line {
                 OnboardingSubline(line)
+                    .lineSpacing(3)            // SF's 18 pt line at 15 pt, to the mock's 21
+                    .padding(.vertical, 1.5)
                     .multilineTextAlignment(.center)
             }
         }
