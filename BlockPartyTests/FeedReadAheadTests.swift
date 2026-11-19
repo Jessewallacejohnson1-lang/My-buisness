@@ -13,7 +13,8 @@ final class FeedReadAheadTests: XCTestCase {
     /// screen with Low Data Mode; near the list's end, what's left.
     func testTwoScreensBelow() {
         func ahead(_ count: Int, after index: Int, screens: CGFloat = 2, height: CGFloat = 300) -> Range<Int> {
-            FeedReadAhead.ahead(count: count, after: index, width: 402, screens: screens) { _ in (height, 1) }
+            // A photo card holds one photo; a short white one none.
+            FeedReadAhead.ahead(count: count, after: index, width: 402, screens: screens) { _ in (height, height > 200 ? 1 : 0) }
         }
         XCTAssertEqual(ahead(20, after: 0), 1..<7)
         XCTAssertEqual(ahead(20, after: 0, height: 140), 1..<14)
