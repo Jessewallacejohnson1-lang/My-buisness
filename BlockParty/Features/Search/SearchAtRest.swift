@@ -112,7 +112,7 @@ struct SearchAtRest: View {
                         // screen, and photos read that big came on late. The first block asks for itself too.
                         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { new in
                             width = new
-                            read(blocks, after: i == 0 ? -1 : i)
+                            if i == 0 { read(blocks, after: -1) }
                         }
                         .onAppear { read(blocks, after: i) }
                     }
@@ -139,13 +139,12 @@ struct ExploreBlock: Layout {
     nonisolated static let tiles = 5
     let tallLeading: Bool
 
-    private nonisolated func side(_ width: CGFloat) -> CGFloat { Self.side(width) }
     private nonisolated static func side(_ width: CGFloat) -> CGFloat { max(0, (width - 2 * SearchMetric.exploreGap) / 3) }
 
     /// The photos a block `width` points wide draws: its first tile two squares tall, the rest square, a flyer
     /// whole (BP app tab-lag 03). A tile with no photo shows its logo, which Search reads up front.
     static func pictures(_ block: [SearchItem], width: CGFloat) -> FeedPictures {
-        let side = side(width)
+        let side = Self.side(width)
         var pictures = FeedPictures(height: 2 * side + 2 * SearchMetric.exploreGap)
         for (index, item) in block.enumerated() {
             let box = CGSize(width: side, height: index == 0 ? 2 * side + SearchMetric.exploreGap : side)
@@ -161,11 +160,11 @@ struct ExploreBlock: Layout {
 
     nonisolated func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let width = proposal.width ?? 0
-        return CGSize(width: width, height: 2 * side(width) + SearchMetric.exploreGap)
+        return CGSize(width: width, height: 2 * Self.side(width) + SearchMetric.exploreGap)
     }
 
     nonisolated func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let side = side(bounds.width), step = side + SearchMetric.exploreGap
+        let side = Self.side(bounds.width), step = side + SearchMetric.exploreGap
         let tallX: CGFloat = tallLeading ? 0 : 2 * step
         let squares: [CGFloat] = tallLeading ? [step, 2 * step] : [0, step]
         var frames = [CGRect(x: tallX, y: 0, width: side, height: side + step)]
