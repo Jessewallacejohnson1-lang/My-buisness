@@ -201,7 +201,7 @@ private nonisolated struct FeedCardImageRequest: Hashable, Sendable {
     var side: Int { max(width, height) }
 }
 
-/// Downsampled photos, the 24 used last, keyed by URL and pixel size, and beside them the 48
+/// Downsampled photos, the 24 full ones used last (a smaller one counts for its share), keyed by URL and pixel size, and beside them the 48
 /// small ones used last (round faces: `Avatar`). On the main actor, so a view can draw a photo already decoded in the frame it appears; the
 /// download and the decode run off it. Emptied on a memory warning. A photo shown
 /// at another size (a venue photo on the page after its card) starts from
@@ -461,17 +461,22 @@ final class FeedCardImageLoader {
         }
     }
 
-    /// Which entries to drop, given each one's pixel size, oldest first: all but the 24 newest
-    /// photos and the 48 newest small ones.
+    /// A full-width photo's long side on the widest iPhone (420 pt at 3x): the size that counts as one of the 24.
+    private static let fullSide = 1260.0
+
+    /// Which entries to drop, given each one's pixel size, oldest first: all but the newest 24 photos' worth
+    /// and the 48 newest small ones. A photo smaller than full width counts for its share of one, by its pixels:
+    /// Search's Around town tile (about 400 px) is a tenth, so the 15 on screen and the 12 read ahead all stay
+    /// (BP app tab-lag 03). Never more memory than 24 full photos, as before.
     static func overflow(_ sizes: [Int]) -> [Int] {
-        var photos = 0, small = 0, drop: [Int] = []
+        var photos = 0.0, small = 0, drop: [Int] = []
         for index in sizes.indices.reversed() {
             if sizes[index] <= smallPixels {
                 small += 1
                 if small > maxCachedSmall { drop.append(index) }
             } else {
-                photos += 1
-                if photos > maxCachedImages { drop.append(index) }
+                photos += min(1, pow(Double(sizes[index]) / fullSide, 2))
+                if photos > Double(maxCachedImages) + 0.001 { drop.append(index) }
             }
         }
         return drop

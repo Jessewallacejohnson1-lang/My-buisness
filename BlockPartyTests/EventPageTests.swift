@@ -298,6 +298,10 @@ final class EventPageTests: XCTestCase {
         XCTAssertEqual(FeedCardImageLoader.overflow(sizes).sorted(), [0, 25, 26])
         XCTAssertEqual(FeedCardImageLoader.overflow(Array(repeating: 288, count: 48)), [], "a 96 pt profile photo is a face")
         XCTAssertEqual(FeedCardImageLoader.overflow(Array(repeating: 1260, count: 24) + [96]), [])
+        // A smaller photo counts for its share of a full one (BP app tab-lag 03): 27 Around town tiles at 400 px
+        // and 21 full photos all stay; a 22nd full photo drops the oldest.
+        XCTAssertEqual(FeedCardImageLoader.overflow(Array(repeating: 400, count: 27) + Array(repeating: 1260, count: 21)), [])
+        XCTAssertEqual(FeedCardImageLoader.overflow([1260] + Array(repeating: 400, count: 27) + Array(repeating: 1260, count: 21)), [0])
     }
 
     /// Leaving keeps the six newest photos, for what coming back draws, and every face.

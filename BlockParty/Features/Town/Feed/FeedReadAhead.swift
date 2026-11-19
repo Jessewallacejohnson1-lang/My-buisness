@@ -114,22 +114,14 @@ enum FeedReadAhead {
     /// A screen's height over its width on every iPhone this app runs on (19.5:9).
     nonisolated static let screen: CGFloat = 2.17
 
-    /// The most photos one window asks for: the photo memory keeps 24 (`FeedCardImageLoader`), so a window
-    /// read ahead is never pushed out before it scrolls on. Search's Around town fills two screens with about 33.
-    nonisolated static let maxPhotos = 12
-
     /// The cards after `index`, of `count`, whose pictures to ask for: as many as fill `screens` screens of a
-    /// `width`-point column, and about `maxPhotos` photos at most, `card` saying how tall each stands and how many
-    /// photos it holds. Only those cards are looked at.
+    /// `width`-point column, `height` saying how tall each stands. Only those cards are looked at.
     nonisolated static func ahead(count: Int, after index: Int, width: CGFloat, screens: CGFloat,
-                                  maxPhotos: Int = maxPhotos,
-                                  card: (Int) -> (height: CGFloat, photos: Int)) -> Range<Int> {
+                                  height: (Int) -> CGFloat) -> Range<Int> {
         let start = min(max(index + 1, 0), count)
-        var end = start, room = screens * screen * width, photos = 0
-        while end < count, room > 0, photos < maxPhotos {
-            let next = card(end)
-            room -= next.height
-            photos += next.photos
+        var end = start, room = screens * screen * width
+        while end < count, room > 0 {
+            room -= height(end)
             end += 1
         }
         return start..<end
@@ -149,7 +141,7 @@ enum FeedReadAhead {
         let range = ahead(count: count, after: index, width: width, screens: screens) { at in
             let card = pictures(at)
             cards[at] = card
-            return (card.height, card.photos.count)
+            return card.height
         }
         for card in range.compactMap({ cards[$0] }) {
             for photo in card.photos {

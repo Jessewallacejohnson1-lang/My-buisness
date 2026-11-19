@@ -13,7 +13,7 @@ final class FeedReadAheadTests: XCTestCase {
     /// screen with Low Data Mode; near the list's end, what's left.
     func testTwoScreensBelow() {
         func ahead(_ count: Int, after index: Int, screens: CGFloat = 2, height: CGFloat = 300) -> Range<Int> {
-            FeedReadAhead.ahead(count: count, after: index, width: 402, screens: screens) { _ in (height, 1) }
+            FeedReadAhead.ahead(count: count, after: index, width: 402, screens: screens) { _ in height }
         }
         XCTAssertEqual(ahead(20, after: 0), 1..<7)
         XCTAssertEqual(ahead(20, after: 0, height: 140), 1..<14)
@@ -24,16 +24,8 @@ final class FeedReadAheadTests: XCTestCase {
         XCTAssertEqual(ahead(20, after: -1), 0..<6)
         // Only the cards it reads ahead for are looked at.
         var looked: [Int] = []
-        _ = FeedReadAhead.ahead(count: 100, after: 10, width: 402, screens: 2) { looked.append($0); return (300, 1) }
+        _ = FeedReadAhead.ahead(count: 100, after: 10, width: 402, screens: 2) { looked.append($0); return 300 }
         XCTAssertEqual(looked, Array(11..<17))
-    }
-
-    /// A window stops at about 12 photos, so what it reads isn't pushed out of the 24-photo memory before it scrolls
-    /// on: Search's Around town fills two screens with seven blocks of five, but reads three.
-    func testAWindowHoldsAboutTwelvePhotos() {
-        XCTAssertEqual(FeedReadAhead.ahead(count: 20, after: 0, width: 402, screens: 2) { _ in (268, 5) }, 1..<4)
-        // Cards with no photo (faces, logos) only stop at two screens.
-        XCTAssertEqual(FeedReadAhead.ahead(count: 40, after: 0, width: 402, screens: 2) { _ in (76, 0) }, 1..<24)
     }
 
     /// Around town's block: its first tile two squares tall, the four others square, a flyer whole; a tile with no
