@@ -31,11 +31,11 @@ final class FeedReadAheadTests: XCTestCase {
     /// Around town's block: its first tile two squares tall, the four others square, a flyer whole; a tile with no
     /// photo asks for nothing (its logo is read up front).
     func testAnAroundTownBlocksPhotos() {
-        let url = { URL(string: "https://x/\($0).jpg")! }
+        let url = { (n: Int) in URL(string: "https://x/\(n).jpg")! }
         func tile(_ n: Int, _ photo: SearchItem.Photo?) -> SearchItem {
             SearchItem(id: "\(n)", kind: .business, name: "\(n)", photo: photo)
         }
-        let picture = { PlacePicture(url: url($0), kind: .photo) }
+        let picture = { (n: Int) in PlacePicture(url: url(n), kind: .photo) }
         let block = [tile(0, .saved(picture(0))), tile(1, .saved(picture(1))), tile(2, nil),
                      tile(3, .saved(picture(3))), tile(4, .saved(picture(4)))]
         let pictures = ExploreBlock.pictures(block, width: 404)
