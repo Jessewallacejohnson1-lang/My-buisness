@@ -226,6 +226,32 @@ final class DailyPageTests: XCTestCase {
         XCTAssertEqual(following.first?.avatar, URL(string: "https://x/ac.png"), "the co-op's logo")
     }
 
+    /// A logo sits whole on a white disc and a photo fills its circle (Jesse, 2026-11-19: River Lakes' wordmark
+    /// showed "iver La"): a game's school logo and a place's logo are logos; a place's photo is not.
+    @MainActor
+    func testFollowingRowsKnowALogoFromAPhoto() throws {
+        func row(_ n: Int, name: String, picture: Any = NSNull(), game: Any = NSNull()) -> [String: Any] {
+            let id = "11111111-0000-0000-0000-00000000000\(n)"
+            return ["id": id, "recurrence": NSNull(), "leaves_at": "2026-10-02T03:00:00+00:00",
+                    "reason": "follow", "reason_name": name,
+                    "card": ["id": id, "title": "\(name) night", "event_date": "2026-10-01", "start_time": "\(n) PM",
+                             "location": NSNull(), "image_url": NSNull(), "category": NSNull(), "club_name": NSNull(),
+                             "source_name": name, "end_at": NSNull(), "all_day": false,
+                             "created_at": "2026-10-01T12:00:00+00:00", "going_count": 0, "going": false,
+                             "host_picture": picture, "game": game] as [String: Any]]
+        }
+        let teams = [["name": "ROCORI", "short": "ROCORI", "logo": "https://x/rocori.png"],
+                     ["name": "Sartell", "short": "Sartell", "logo": "https://x/sartell.png"]]
+        let rows = try CommunityAPI.townFeedRows(from: JSONSerialization.data(withJSONObject: [
+            row(1, name: "ROCORI", game: ["sport": "Hockey", "teams": teams]),
+            row(2, name: "Bad Habit Brewing", picture: ["url": "https://x/bad-habit-logo.png", "kind": "logo"]),
+            row(3, name: "The Local Blend", picture: ["url": "https://x/local-blend.jpg", "kind": "photo"])]))
+        let following = DailyFollowing.today(from: rows.map(TownFeed.card), day: "2026-10-01", now: town(8))
+        XCTAssertEqual(following.map(\.avatar), ["https://x/rocori.png", "https://x/bad-habit-logo.png",
+                                                 "https://x/local-blend.jpg"].map(URL.init(string:)))
+        XCTAssertEqual(following.map(\.logo), [true, true, false])
+    }
+
     /// One row as `get_event_of_the_day` sends it (the Town feed's row: its card and the feed's own), read by
     /// the feed's decoder.
     private func eventOfTheDayRow(start: String?, allDay: Bool = false, endAt: String? = nil,
