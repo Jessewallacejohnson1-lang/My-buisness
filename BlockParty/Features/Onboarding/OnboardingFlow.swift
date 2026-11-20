@@ -3,9 +3,10 @@
 //  Block Party — the first-launch onboarding (BP app docs/plans/onboarding, ticket 16): the
 //  Welcome (Nextdoor's layout, ticket 25 mock), Log in or Create account (onboarding 27), then
 //  six question steps on one fixed frame in Luma's look (onboarding 34, mock v8): the grey canvas,
-//  back and the progress line on top, an icon circle over each question, and the one
+//  back and the dashes on top, an icon circle over each question, and the one
 //  Next pill 84 pt from the bottom with its slot under it. Only the question moves between
-//  steps. The steps are placeholders, a question each, until tickets 17 to 24 fill them.
+//  steps. Profile and Birthday wear the Big art look (onboarding 43, mock v2); the other steps
+//  take it in tickets of their own.
 //
 
 import Contacts
@@ -32,7 +33,7 @@ enum OnboardingStep: Int, CaseIterable {
     }
 
     /// The SF Symbol in the grey circle over the question, nearest mock v8's icons (onboarding 34). The
-    /// Welcome and Profile draw no circle.
+    /// Welcome draws no circle, nor do the Big art steps: Profile's art is its photo, Birthday's the cake.
     var symbol: String {
         switch self {
         case .welcome, .profile: "person"
@@ -41,6 +42,16 @@ enum OnboardingStep: Int, CaseIterable {
         case .follow:    "mappin.and.ellipse"
         case .friends:   "person.2"
         case .contacts:  "person.2"
+        }
+    }
+
+    /// A step in the Big art look's soft colour at the top (onboarding 43, mock v2 `ART`); nil while the
+    /// step keeps Luma's grey.
+    var tint: Color? {
+        switch self {
+        case .profile:  Hue.bigArtProfile
+        case .birthday: Hue.bigArtBirthday
+        default:        nil
         }
     }
 
@@ -464,7 +475,9 @@ struct OnboardingFlow: View {
     /// that moves, the question.
     private var questions: some View {
         ZStack(alignment: .top) {
-            OnboardingBackdrop()
+            // The step's colour glides to the next one's (mock v2); Reduce Motion changes it at once.
+            OnboardingBackdrop(tint: tint)
+                .animation(reduceMotion ? nil : BigArt.glide, value: tint)
 
             if !onWelcome {
                 question
@@ -498,7 +511,7 @@ struct OnboardingFlow: View {
         }
         .overlay(alignment: .bottom) {
             if store.step == .birthday {
-                OnboardingBirthdayWheel(date: birthday, now: .now)
+                OnboardingBirthdayWheel(date: birthday, now: .now, canvas: Hue.bigArtCanvas)
                     .ignoresSafeArea(.container, edges: .bottom)
                     .transition(.move(edge: .bottom))
             }
@@ -512,12 +525,12 @@ struct OnboardingFlow: View {
         Binding(get: { [store] in store.birthday ?? .now }, set: { [store] in store.birthday = $0 })
     }
 
-    /// Where a scrolling step meets the top row: the backdrop fading out over 16 pt.
+    /// The colour at the top of the step that is up, on a Big art step; Log in and Create account have none.
+    private var tint: Color? { store.account == nil ? store.step.tint : nil }
+
+    /// Where a scrolling step meets the top row: what's behind it there fading out over 16 pt.
     private var scrollEdge: some View {
-        LinearGradient(colors: [Hue.onboardingCanvas, Hue.onboardingCanvas.opacity(0)], startPoint: .top, endPoint: .bottom)
-            .frame(height: 16)
-            .padding(.top, FollowGridMetric.scrollTop)
-            .allowsHitTesting(false)
+        OnboardingScrollEdge(color: tint ?? Hue.onboardingCanvas)
     }
 
     /// Over a list that scrolls under the Next bar, the backdrop comes back over the bottom
@@ -539,7 +552,7 @@ struct OnboardingFlow: View {
     private var question: some View {
         Group {
             if on(.profile) {
-                // Luma's profile screen whole (onboarding 35): its own band, photo and title, no icon circle.
+                // Its photo is its art (onboarding 43): it draws its own heading.
                 OnboardingProfile(store: store, headingFocused: $questionFocused, bottomClear: bottomClear)
             } else if store.step == .follow {
                 // Follow 3's question scrolls away with its grid (onboarding 26).
@@ -592,12 +605,12 @@ struct OnboardingFlow: View {
                 // of it; where it fits it holds still.
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
-                        heading
+                        if on(.birthday) { cake } else { heading }
                         answer
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, FollowGridMetric.gutter)
-                    .padding(.top, FollowGridMetric.headingTop - FollowGridMetric.scrollTop)
+                    .padding(.top, (tint == nil ? FollowGridMetric.headingTop : BigArt.top) - FollowGridMetric.scrollTop)
                 }
                 .scrollBounceBehavior(.basedOnSize)
                 .scrollIndicators(.hidden)
@@ -614,11 +627,20 @@ struct OnboardingFlow: View {
         }
     }
 
+    /// Birthday's Big art (onboarding 43): Jesse's cake, 124 pt tall, over the question.
+    private var cake: some View {
+        OnboardingBigArt(question: store.step.question, focused: $questionFocused) {
+            Image(decorative: OnboardingBirthdayField.cakeImage)
+                .resizable()
+                .scaledToFit()
+                .frame(height: BigArt.art)
+        }
+    }
+
     /// The icon circle and the question under it (Luma's, onboarding 34).
     private var heading: some View {
         OnboardingHeading(symbol: store.account?.symbol ?? store.step.symbol,
                           question: store.account?.title ?? (firstHere ? "You're one of the first here" : store.step.question),
-                          cake: on(.birthday),
                           focused: $questionFocused)
             .contentTransition(.opacity)
             .animation(.easeInOut(duration: 0.2), value: firstHere)
@@ -657,7 +679,7 @@ struct OnboardingFlow: View {
     @ViewBuilder private var stepAnswer: some View {
         switch store.step {
         case .birthday:
-            OnboardingBirthdayField(date: store.birthday ?? .now, now: .now)
+            OnboardingBirthdayField(date: store.birthday ?? .now, now: .now, bigArt: true)
                 .padding(.top, 24)
             OnboardingGenderRow(pick: Binding(get: { store.gender }, set: { store.gender = $0 }))
         default:

@@ -200,6 +200,19 @@ nonisolated enum Hue {
     /// The 1 pt line of light along the pill's inside top: white at 8%.
     static let pillRim       = Color(hex: 0xFFFFFF, alpha: 0.08)
 
+    // MARK: Onboarding in the Big art look (BP app onboarding 43, mock v2 `--canvas`, `ART`)
+
+    /// The near-white a Big art step's colour fades into. In the dark it and the steps' colours are
+    /// `onboardingCanvas`'s dark, so the ink on them reads; they get colours of their own at dark
+    /// mode's pass (iOS MEMORY.md, 2026-09-24).
+    static let bigArtCanvas   = Color(light: 0xFBFAFD, dark: 0x141412)
+    /// A step's soft colour at the top: Profile's sand (Jesse's yes, 2026-11-19) and Birthday's lilac.
+    static let bigArtProfile  = Color(light: 0xF3ECDF, dark: 0x141412)
+    static let bigArtBirthday = Color(light: 0xE6D8FA, dark: 0x141412)
+    /// The grey words on a Big art step: its line under the question, the labels over its boxes (mock v2
+    /// `--ink2`). A step darker than `inkSecondary`, which fell to 4.4:1 on Birthday's lilac.
+    static let bigArtWords    = Color(light: 0x63636A, dark: 0x9C9A93)
+
     // MARK: Onboarding in Luma's look (BP app onboarding 34, mock v8 `--canvas` and friends)
 
     /// The pale grey behind every question step, so white cards stand off it.
@@ -208,8 +221,6 @@ nonisolated enum Hue {
     static let onboardingField  = Color(light: 0xEAEAED, dark: 0x23231F)
     /// The icon in that circle (mock `--ink2`). Words stay `inkSecondary`, which reads at 4.5:1 here.
     static let onboardingIcon   = Color(hex: 0x85858A)
-    /// The progress line's track.
-    static let onboardingTrack  = Color(light: 0xE1E1E5, dark: 0x33332E)
     /// An interest row's empty check circle (mock v8 `.ring`, onboarding 36).
     static let onboardingRing = Color(hex: 0xC5C5CA)
     /// The chevron at the end of an interest row that opens (mock v8 `.chev`).
@@ -221,11 +232,8 @@ nonisolated enum Hue {
     /// The Next pill while not allowed, and its words.
     static let nextOff       = Color(hex: 0xC2C2C7)
     static let nextOffWords  = Color(hex: 0xF4F4F6)
-    /// Profile, Luma's profile screen (onboarding 35, mock v8 `.ffade`, `.lf`, `.btn.lb`): the plain grey
-    /// band at the top, which fades into `onboardingCanvas`; the Name and Bio boxes; Save Profile, on
-    /// and while not allowed, with its words then.
-    static let profileBand      = Color(light: 0xE2E2E4, dark: 0x1E1E1B)
-    static let profileField     = Color(light: 0xF0F0F2, dark: 0x23231F)
+    /// Profile's Save Profile, Luma's (onboarding 35, mock v8 `.btn.lb`): on and while not allowed, with
+    /// its words then.
     static let saveProfile      = Color(hex: 0x1A1A1C)
     static let saveProfileOff   = Color(hex: 0xA7A7A9)
     static let saveProfileOffWords = Color(hex: 0xE4E4E6)

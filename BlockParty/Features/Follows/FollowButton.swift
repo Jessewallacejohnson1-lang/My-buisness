@@ -60,6 +60,9 @@ struct FollowButton: View {
         case row
         /// Beside Add friend on a person's page: 36 pt and always grey, the smaller action.
         case beside
+        /// A place's page, laid out as a Profile (place-pages 08): the Profile's black button with
+        /// round ends and a plus, half the row beside Map; grey "Following" once you do.
+        case profile
     }
 
     let target: FollowTarget
@@ -82,21 +85,18 @@ struct FollowButton: View {
         let failures = actions.followFailureCount(target)
         let ink = !following && size != .beside
         Button(action: tap) {
-            Text(following ? "Following" : "Follow")
-                .font(.displaySemi(15))
-                .foregroundStyle(ghost.map { $0.opacity(following ? EventLook.dim : 1) } ?? (ink ? Hue.surface : Hue.ink))
-                .lineLimit(1)
-                .padding(.horizontal, size == .row ? FollowMetric.rowPad : FollowMetric.pagePad)
-                .frame(minWidth: minWidth ?? width, minHeight: height)
-                .background(ghost.map { $0.opacity(EventLook.fill) } ?? (ink ? Hue.ink : Hue.fill), in: shape)
-                .overlay {
-                    if let ghost {
-                        RoundedRectangle(cornerRadius: EventLook.followCorner, style: .continuous)
-                            .strokeBorder(ghost.opacity(EventLook.fillLine), lineWidth: 0.5)
+            if size == .profile {
+                ProfileBlackButton(fill: following ? Hue.fill : Hue.ink, ink: following ? Hue.ink : Hue.surface) {
+                    if !following {
+                        Image(systemName: "plus")
+                            .font(.glyph(15, weight: .semibold))
+                            .accessibilityHidden(true)
                     }
+                    Text(following ? "Following" : "Follow")
                 }
-                // Drawn 32 or 36 pt, 44 pt to the finger.
-                .contentShape(Rectangle().inset(by: (height - PageMetric.tapMin) / 2))
+            } else {
+                label(following: following, ink: ink)
+            }
         }
         .buttonStyle(.press(.squish))
         .turnBackShake(failures: failures, shakes: !reduceMotion && tappedAt != failures)
@@ -107,13 +107,31 @@ struct FollowButton: View {
         .onDisappear { actions.followClosed(target) }
     }
 
+    private func label(following: Bool, ink: Bool) -> some View {
+        Text(following ? "Following" : "Follow")
+            .font(.displaySemi(15))
+            .foregroundStyle(ghost.map { $0.opacity(following ? EventLook.dim : 1) } ?? (ink ? Hue.surface : Hue.ink))
+            .lineLimit(1)
+            .padding(.horizontal, size == .row ? FollowMetric.rowPad : FollowMetric.pagePad)
+            .frame(minWidth: minWidth ?? width, minHeight: height)
+            .background(ghost.map { $0.opacity(EventLook.fill) } ?? (ink ? Hue.ink : Hue.fill), in: shape)
+            .overlay {
+                if let ghost {
+                    RoundedRectangle(cornerRadius: EventLook.followCorner, style: .continuous)
+                        .strokeBorder(ghost.opacity(EventLook.fillLine), lineWidth: 0.5)
+                }
+            }
+            // Drawn 32 or 36 pt, 44 pt to the finger.
+            .contentShape(Rectangle().inset(by: (height - PageMetric.tapMin) / 2))
+    }
+
     private var height: CGFloat { size == .row ? FollowMetric.rowHeight : FollowMetric.pageHeight }
 
     private var width: CGFloat {
         switch size {
         case .page: FollowMetric.pageWidth
         case .row: FollowMetric.rowWidth
-        case .beside: FollowMetric.besideWidth
+        case .beside, .profile: FollowMetric.besideWidth
         }
     }
 
@@ -137,6 +155,24 @@ struct FollowLine: View {
     @Environment(RealLifeActions.self) private var actions
 
     var body: some View {
+        HStack(spacing: FollowMetric.facesGap) {
+            FollowedBy(target: target)
+            Spacer(minLength: 0)
+            FollowButton(target: target, name: name)
+        }
+        .task(id: target) { await actions.refreshFollow(target) }
+    }
+}
+
+/// The friends who follow it, their faces then "Followed by Sam and 2 others"; nothing when none do.
+/// `top` is the gap above it, there only when it is.
+struct FollowedBy: View {
+    let target: FollowTarget
+    var top: CGFloat = 0
+
+    @Environment(RealLifeActions.self) private var actions
+
+    var body: some View {
         let friends = actions.followFriends[target]
         HStack(spacing: FollowMetric.facesGap) {
             if let friends, let words = FollowWords.followedBy(friends.friends.map(\.name), count: friends.count) {
@@ -148,10 +184,8 @@ struct FollowLine: View {
                     .minimumScaleFactor(0.85)
                     .transition(.opacity)
             }
-            Spacer(minLength: 0)
-            FollowButton(target: target, name: name)
         }
+        .padding(.top, friends.flatMap { FollowWords.followedBy($0.friends.map(\.name), count: $0.count) } == nil ? 0 : top)
         .animation(Motion.smooth, value: friends?.count)
-        .task(id: target) { await actions.refreshFollow(target) }
     }
 }

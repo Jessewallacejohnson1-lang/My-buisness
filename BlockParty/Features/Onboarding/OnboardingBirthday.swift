@@ -24,29 +24,51 @@ nonisolated enum OnboardingAge {
     static let day = Date.ISO8601FormatStyle(timeZone: calendar.timeZone).year().month().day()
 }
 
-/// The field, Luma's: "Birthday · 25 years old" in the small grey label, over the date in a grey box.
+/// The field: "Birthday · 25 years old" in the small grey label, over the date in a box. Onboarding's
+/// Birthday step draws it in the Big art look, a white box with a soft edge (BP app onboarding 43); the
+/// Going chat's birthday ask, on its white sheet, keeps Luma's grey box.
 struct OnboardingBirthdayField: View {
     let date: Date
     let now: Date
+    var bigArt = false
+
+    /// Jesse's drawing (BP app references/birthday-icon), the step's art, as the Going chat's birthday
+    /// ask shows it small.
+    static let cakeImage = "BirthdayCake"
 
     var body: some View {
         let age = OnboardingAge.years(from: date, to: now)
         VStack(alignment: .leading, spacing: 0) {
-            OnboardingFieldLabel("Birthday · \(age) years old")
+            OnboardingFieldLabel("Birthday · \(age) years old", color: bigArt ? Hue.bigArtWords : Hue.inkSecondary)
             Text(date.formatted(Date.FormatStyle(date: .long, time: .omitted, timeZone: OnboardingAge.calendar.timeZone)))
                 .font(.apple(17))
                 .monospacedDigit()
                 .foregroundStyle(Hue.ink)
                 .contentTransition(.numericText())
                 .padding(.vertical, 12)
-                .onboardingField()
+                .modifier(BirthdayBox(bigArt: bigArt))
         }
         .accessibilityElement(children: .combine)
     }
 }
 
-/// "Gender" over Female and Male, two equal grey boxes (mock v8 `.gp`), and who sees it (BP app onboarding
-/// 31, 36). Optional: a tap on the picked one clears it. VoiceOver reads the pair as Apple's segmented
+/// The date's box: Luma's grey field, or on the Big art step the same frame in the white box.
+private struct BirthdayBox: ViewModifier {
+    let bigArt: Bool
+    func body(content: Content) -> some View {
+        if bigArt {
+            content
+                .padding(.horizontal, 16)
+                .frame(maxWidth: .infinity, minHeight: OnboardingFieldBox.height, alignment: .leading)
+                .bigArtBox()
+        } else {
+            content.onboardingField()
+        }
+    }
+}
+
+/// "Gender" over Female and Male, two equal white boxes (mock v2 `.gp`), and who sees it (BP app onboarding
+/// 31, 36, 43). Optional: a tap on the picked one clears it. VoiceOver reads the pair as Apple's segmented
 /// control ("Female, 1 of 2"), with Clear to take a pick back.
 struct OnboardingGenderRow: View {
     @Binding var pick: String?
@@ -56,7 +78,7 @@ struct OnboardingGenderRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // VoiceOver reads it before the pair: a segmented control says only its segments.
-            OnboardingFieldLabel("Gender")
+            OnboardingFieldLabel("Gender", color: Hue.bigArtWords)
             HStack(spacing: 8) {
                 ForEach(Self.options, id: \.value) { option in
                     GenderPill(label: option.label, on: pick == option.value) {
@@ -73,7 +95,7 @@ struct OnboardingGenderRow: View {
             .accessibilityAction(named: "Clear") { pick = nil }
             Text("Only you see your birthday and gender.")
                 .font(.apple(13))
-                .foregroundStyle(Hue.inkSecondary)
+                .foregroundStyle(Hue.bigArtWords)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 10)
         }
@@ -81,8 +103,8 @@ struct OnboardingGenderRow: View {
     }
 }
 
-/// One of the pair: Luma's 46 pt grey box, ink with a white check before the word once picked, the
-/// check popping in. Face and words fade over the mock's 0.18 s both ways.
+/// One of the pair: a 46 pt white box with a soft edge, flat ink with a white check before the word once
+/// picked, the check popping in. Face and words fade over the mock's 0.18 s both ways.
 private struct GenderPill: View {
     let label: String
     let on: Bool
@@ -106,9 +128,8 @@ private struct GenderPill: View {
             }
             .foregroundStyle(on ? Color.white : Hue.ink)
             .frame(maxWidth: .infinity, minHeight: OnboardingFieldBox.height)
-            .background(on ? Hue.ink : Hue.onboardingField,
-                        in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .bigArtBox(picked: on)
+            .contentShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
         }
         .buttonStyle(.press(.squish, haptic: true))
         .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: on)
@@ -127,6 +148,8 @@ private struct GenderPill: View {
 struct OnboardingBirthdayWheel: View {
     @Binding var date: Date
     let now: Date
+    /// What it sits on: Luma's grey (the Going chat's ask), or the Big art step's near-white canvas.
+    var canvas = Hue.onboardingCanvas
 
     static let height: CGFloat = 272
 
@@ -141,7 +164,7 @@ struct OnboardingBirthdayWheel: View {
             .frame(maxWidth: .infinity)
             .padding(.bottom, 34)
             .frame(height: Self.height, alignment: .center)
-            .background(Hue.onboardingCanvas)
+            .background(canvas)
     }
 }
 
