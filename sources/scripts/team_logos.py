@@ -39,6 +39,7 @@ TILE = 300     # a logo's square on the sheet
 LEAGUE = "https://www.mshsl.org"
 LEAGUE_LOGO = re.compile(r'src="(/sites/default/files/styles/[^/"]+/public/logos/[^"]+)"')
 BOUND = "https://www.gobound.com/mn/schools/"
+BOUND_GAME = re.compile(r"https?://(?:www\.)?gobound\.com/direct/comps/[a-z0-9]+/show$")  # a game's own page on Bound
 BOUND_BRAND = "/brand/"  # Bound's own picture, on a page for a school it doesn't have
 WIKI = "https://en.wikipedia.org/w/api.php"
 WIKI_GAP = 4   # Wikipedia answered 429 after five quick lookups (find_wiki.py, 2026-10-20)
@@ -46,7 +47,7 @@ WIKI_TRIES = 2    # a lookup Wikipedia tells to slow down is tried once more
 WIKI_BACKOFF = 15  # seconds to wait when its 429 names no Retry-After
 WIKI_LOGO = re.compile(r"logo|mascot|athletic|wordmark|emblem", re.I)
 # Words a school's name carries beside its own: "Becker High School" names Becker.
-GENERIC = {"high", "school", "schools", "secondary", "university", "college", "senior", "junior", "hs", "sr", "jr", "area", "public", "community",
+GENERIC = {"high", "school", "schools", "secondary", "university", "college", "senior", "junior", "hs", "sr", "jr", "area", "public", "community", "academy",
            "the", "of", "and"}
 
 
@@ -75,18 +76,23 @@ def first_school(name):
 
 def todo(db, today, most=MAX):
     """The teams with no logo and a game waiting, rotated by the day; each with its waiting games' sports."""
-    games = db.rest("GET", "club_events?select=team_ids,sport&status=eq.waiting_logo&kind=eq.event&cancelled_at=is.null") or []
+    # A game already played waits for no one: its team would take a morning's lookup for nothing (game-card 31).
+    games = db.rest("GET", "club_events?select=team_ids,sport,source_url&status=eq.waiting_logo&kind=eq.event&cancelled_at=is.null"
+                    f"&event_date=gte.{today.isoformat()}") or []
     rows = db.rest("GET", "teams?select=id,name,logo_refused&logo_url=is.null") or []
     bare, refused = {t["id"]: t["name"] for t in rows}, {t["id"]: t.get("logo_refused") or [] for t in rows}
-    sports = {}
+    sports, games_at = {}, {}
     for g in games:
         for t in g.get("team_ids") or []:
             if t in bare:
                 sports.setdefault(t, Counter())[re.sub(r"\s*·.*$", "", g.get("sport") or "")] += 1
+                if BOUND_GAME.match(g.get("source_url") or ""):
+                    games_at.setdefault(t, []).append(g["source_url"])
     ids = sorted(sports)
     start = today.toordinal() % len(ids) if ids else 0
     picked = (ids[start:] + ids[:start])[:most]
-    return [{"id": t, "name": bare[t], "refused": refused[t], "sports": [s for s, _ in sports[t].most_common() if s]}
+    return [{"id": t, "name": bare[t], "refused": refused[t], "sports": [s for s, _ in sports[t].most_common() if s],
+             "games_at": sorted(set(games_at.get(t, [])))}
             for t in picked], len(ids) - len(picked)
 
 
@@ -162,6 +168,21 @@ def from_bound(school, read=lambda url: run.firecrawl(url, fmt="rawHtml")):
     if not og or BOUND_BRAND in og.group(1) or ordered(title) != ordered(school["title"]) + ordered(school["nickname"]):
         return None
     return {"logo": htmllib.unescape(og.group(1)), "page": BOUND + slug}
+
+
+def from_bound_game(team, read=lambda url: run.firecrawl(url, fmt="rawHtml")):
+    """The logo a waiting game's own page on Bound shows beside the team, for a team the league and Wikipedia
+    don't list: a co-op with a name of its own ("North Wright County", "Minnesota River") has no school page, but
+    each of its games on Bound draws its logo, alt "North Wright County Logo". Check 1 here: that alt is the team's
+    name, word for word. One Firecrawl credit, only for a team the other sources missed (BP app game-card 31)."""
+    for url in team.get("games_at", [])[:1]:
+        page = read(url)
+        for alt, src in ((htmllib.unescape(a), htmllib.unescape(s)) for s, a in
+                         re.findall(r'<img[^>]*src="([^"]+)"[^>]*alt="([^"]+) Logo"', page)):
+            if ordered(alt) == ordered(team["name"]) and BOUND_BRAND not in src:
+                return {"title": alt, "logo": src, "nickname": "", "colors": "", "town": "", "page": url,
+                        "source": "Bound", "coop": None}
+    return None
 
 
 def wiki(params, opener=urllib.request.urlopen, sleep=time.sleep):
@@ -284,7 +305,8 @@ def sheet(teams, folder, name="sheet"):
 
 # --- The two steps --------------------------------------------------------------------------------------------------
 
-def prepare(folder, db, today, league=from_league, wikipedia=from_wikipedia, bound=from_bound, grab=None):
+def prepare(folder, db, today, league=from_league, wikipedia=from_wikipedia, bound=from_bound, game=from_bound_game,
+            grab=None):
     """Looks up today's teams, keeps each logo that passes check 1 (trimmed) and lays them out for the helper.
     Writes folder/found.json: the teams to check, and the ones not found with why."""
     from PIL import Image
@@ -310,12 +332,12 @@ def prepare(folder, db, today, league=from_league, wikipedia=from_wikipedia, bou
                 if b:
                     p = {**p, **b, "source": "Bound"}
             else:
-                p = wikipedia(t)
+                p = wikipedia(t) or game(t)
         except Exception as e:  # a page that won't answer: tried again another morning
             missed.append({**t, "why": f"its page didn't answer ({' '.join(str(e).split())[:100]})"})
             continue
         if not p:
-            missed.append({**t, "why": "no school page names it (league or Wikipedia)"})
+            missed.append({**t, "why": "no school page names it (league, Wikipedia or its game on Bound)"})
             continue
         if p["logo"] and p["logo"] in t.get("refused", []):  # taken down before: never put back on its own
             missed.append({**t, "why": f"{p['title']}'s page shows the logo taken down before"})
@@ -449,10 +471,18 @@ def selftest():
     ok(names("Heritage Christian Academy", "Heritage Christian Academy Maple Grove", "Maple Grove"),
        "a name that carries its town is the school in that town")
     ok(names("Long Prairie-Grey Eagle H.S.", "Long Prairie-Grey Eagle", "Long Prairie"), "a hyphen is a space, H.S. a high school")
+    game = ('<img src="https://cdn/nwc-Large.png" alt="North Wright County Logo">'
+            '<img src="https://cdn/stc.png" alt="St. Cloud Logo">')
+    bg = {"name": "North Wright County", "games_at": ["https://gobound.com/direct/comps/h1/show"]}
+    ok((from_bound_game(bg, lambda u: game) or {}).get("logo") == "https://cdn/nwc-Large.png",
+       "a co-op's game on Bound: the logo its own name labels")
+    ok(from_bound_game({**bg, "name": "North Wright"}, lambda u: game) is None
+       and from_bound_game({**bg, "games_at": []}, lambda u: game) is None, "another name, or no game on Bound: nothing")
     ok(not names("Minnesota River Valley Academy", "Minnesota River", "Henderson"), "a longer name is another school")
     ok(not names("Lakeville North High School", "North", "Lakeville"), "the town is no part of the title's own name")
     ok(not names("Elk River High School", "Elk River-Zimmerman", "Elk River"), "one school is not the whole co-op")
     ok(names("Saint Francis High School", "St. Francis"), "Saint is St.")
+    ok(names("Legacy Christian Academy", "Legacy Christian", "Andover"), "Academy is a word every school name can carry")
     ok(first_school("Mounds View-Irondale-Roseville") == "Mounds View" and first_school("Shanley") is None,
        "a co-op's first school is the name before its first hyphen")
 
@@ -462,8 +492,9 @@ def selftest():
         "teams?": [{"id": "a", "name": "A"}, {"id": "b", "name": "B"}, {"id": "c", "name": "C"}, {"id": "d", "name": "D"}]})
     got, later = todo(db, date.fromordinal(5), most=2)
     ok([t["id"] for t in got] == ["b", "c"] and later == 2, "the day picks where the rotation starts")
-    ok(todo(db, date.fromordinal(4))[0][0] == {"id": "a", "name": "A", "refused": [], "sports": ["Girls Hockey"]},
+    ok(todo(db, date.fromordinal(4))[0][0] == {"id": "a", "name": "A", "refused": [], "sports": ["Girls Hockey"], "games_at": []},
        "a team's sports are its waiting games', level aside")
+    ok(all("event_date=gte.0001-01-0" in p for _, p, _ in db.calls if p.startswith("club_events?")), "a game already played is not waited on")
 
     search = ('<form id="views-exposed-form-schools-list"></form><ul><li><a href="/schools/becker-high-school">'
               '<span>Becker High School</span></a></li><li><a href="/schools/becker-ms">Becker Middle School</a></li></ul>')
@@ -600,7 +631,7 @@ def selftest():
            "a logo taken down is never put back")
         ok(lines[1] == "- Still waiting on a logo: Shanley: Shanley High School from Wikipedia, the check said unsure: no name on it",
            "anything but two yeses waits, and says why")
-        ok("- Still waiting on a logo: North Wright County: no school page names it (league or Wikipedia)" in lines,
+        ok("- Still waiting on a logo: North Wright County: no school page names it (league, Wikipedia or its game on Bound)" in lines,
            "a team not found says so")
         n = len(db.calls)
         ok(order(keep(r)) == lines and len(db.calls) == n, "a finish run again neither writes nor reports twice")
