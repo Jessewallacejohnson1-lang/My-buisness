@@ -215,6 +215,8 @@ nonisolated enum Hue {
     /// A step's soft colour at the top: Profile's sand (Jesse's yes, 2026-11-19) and Birthday's lilac.
     static let bigArtProfile  = Color(light: 0xF3ECDF, dark: 0x141412)
     static let bigArtBirthday = Color(light: 0xE6D8FA, dark: 0x141412)
+    /// Find your friends' white: Jesse's market drawing is on white paper (onboarding 51).
+    static let bigArtFriends  = Color(light: 0xFFFFFF, dark: 0x141412)
     /// The grey words on a Big art step: its line under the question, the labels over its boxes (mock v2
     /// `--ink2`). A step darker than `inkSecondary`, which fell to 4.4:1 on Birthday's lilac.
     static let bigArtWords    = Color(light: 0x63636A, dark: 0x9C9A93)
@@ -241,16 +243,6 @@ nonisolated enum Hue {
     /// The Next pill while not allowed, and its words.
     static let nextOff       = Color(hex: 0xC2C2C7)
     static let nextOffWords  = Color(hex: 0xF4F4F6)
-    /// Find your friends, Luma's contacts ask (onboarding 37, mock v8 `.face`): the three glowing faces,
-    /// one graphite and two periwinkle, each lit from the top, and the glow under the periwinkle ones.
-    /// For those faces only.
-    static let friendsFaceGraphiteTop = Color(hex: 0x8C8C90)
-    static let friendsFaceGraphite    = Color(hex: 0x39393C)
-    static let friendsFaceLilacTop    = Color(hex: 0xB3BCEA)
-    static let friendsFaceLilac       = Color(hex: 0x7882C4)
-    static let friendsFaceGlow        = Color(hex: 0x6874C8)
-    /// Find your friends' white Next pill under the finger (mock v8 `.btn.white.pressed`).
-    static let nextWhiteDown = Color(hex: 0xF2F2F4)
     /// Contacts' small grey Invite, iOS's GET button (mock v8 `.get`).
     static let inviteGet = Color(hex: 0xEDEDF0)
     /// The Welcome's white pills, and pressed (ticket 25 mock).

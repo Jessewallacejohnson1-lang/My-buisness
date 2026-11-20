@@ -1,149 +1,119 @@
 //
 //  OnboardingFriends.swift
-//  Block Party — "Find your friends" and "Friends on Block Party", onboarding's last two steps, in Luma's
-//  look (BP app onboarding 37, mock v8): Luma's contacts ask before Apple's prompt, then Luma's people
-//  picker made simpler, over the Friends page's contact check (`ContactsMatch`). A tick waits on the
+//  Block Party — "Find your friends" and "Friends on Block Party", onboarding's last two steps: the ask
+//  before Apple's prompt, with Jesse's market drawing (BP app onboarding 51), then Luma's people
+//  picker made simpler (onboarding 37, mock v8), over the Friends page's contact check (`ContactsMatch`). A tick waits on the
 //  phone (`OnboardingStore.requests`) and goes up once onboarding is done and the name is saved, since
 //  the server refuses a request from an account with no name.
 //
 
 import SwiftUI
 
-/// Mock v8's Find your friends at 402 pt, measured from the screen's top.
+/// Find your friends at 402 pt (BP app onboarding 51, mock v2), measured from the screen's top.
 private enum AskMetric {
-    static let face: CGFloat = 114
-    /// The faces' rows start under the back chevron and progress line, 22 pt apart, 56 pt in from each side.
-    static let facesTop: CGFloat = 104
-    static let faceGap: CGFloat = 22
-    static let faceSide: CGFloat = 56
-    /// The privacy note, then the white sheet.
-    static let noteTop: CGFloat = 396
-    static let sheetTop: CGFloat = 462
-    static let side: CGFloat = 36
-    static let sheetPad: CGFloat = 30
-    /// What the sheet's words keep clear at the bottom: the Next pill's 84 pt, its 48 and 16 more.
-    static let clear: CGFloat = 84 + OnboardingNextBar.height + 16
+    /// Jesse's drawing runs full width from under the dashes, up to 470 pt tall, its foot fading out
+    /// over 90 pt; 12 pt spare on each side for the drag.
+    static let artTop: CGFloat = 92
+    static let artMax: CGFloat = 470
+    static let fade: CGFloat = 90
+    static let spare: CGFloat = 12
+    /// The words sit 150 pt up, 18 over the Next pill. Height the drawing leaves them: 162 pt.
+    static let wordsBottom: CGFloat = 150
+    static let wordsRoom: CGFloat = 162
+    /// The logo at 210 pt wide.
+    static let logo: CGFloat = 210 / BlockPartyWordmark.aspect
+    /// A drag moves the drawing a third of the finger's way, held to 12 pt across, 10 up and 18 down.
+    static let follow: CGFloat = 1 / 3
+    static let reach = (across: CGFloat(12), up: CGFloat(10), down: CGFloat(18))
 }
 
-/// Step 6, Luma's contacts ask: three big glowing faces on the grey canvas, a short note on privacy, then
-/// a white sheet with the question. The flow lays its white Next pill and Not now over the sheet.
+/// Step 6, in the Big art look on white (onboarding 51): Jesse's market drawing heads the step and
+/// follows a drag a little; under it "Bring your friends to the" over the logo, and the line. The flow
+/// lays Next and Not now under it; Apple's prompt carries the privacy words.
 struct OnboardingFriendsAsk: View {
     @AccessibilityFocusState.Binding var focused: Bool
 
     @State private var shown = false
+    @State private var pull: CGSize = .zero
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var textSize
 
     var body: some View {
         GeometryReader { geo in
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    // The faces are decoration: at the accessibility text sizes they step aside, so the
-                    // question isn't pushed under the Next pill.
-                    if textSize.isAccessibilitySize {
-                        Color.clear.frame(height: AskMetric.facesTop)
-                    } else {
-                        faces
-                            .frame(maxWidth: .infinity, minHeight: AskMetric.noteTop, alignment: .top)
-                    }
-                    note
-                        .frame(maxWidth: .infinity, minHeight: AskMetric.sheetTop - AskMetric.noteTop, alignment: .topLeading)
-                        // The canvas over the white that sits behind for a bounce, as large text pushes the sheet down.
-                        .background(Hue.onboardingCanvas)
-                    sheet
-                        .frame(maxWidth: .infinity, minHeight: geo.size.height - AskMetric.sheetTop, alignment: .topLeading)
-                        .background(Hue.surface)
-                        .offset(y: shown || reduceMotion ? 0 : 40)
-                        .opacity(shown ? 1 : 0)
-                        .animation(rise(delay: 0.2, duration: 0.46), value: shown)
+            ZStack(alignment: .top) {
+                // The drawing is decoration: at the accessibility text sizes it steps aside for the words.
+                if !textSize.isAccessibilitySize {
+                    drawing(width: geo.size.width,
+                            height: min(AskMetric.artMax, geo.size.height - AskMetric.artTop - AskMetric.wordsBottom - AskMetric.wordsRoom))
                 }
-            }
-            .scrollBounceBehavior(.basedOnSize)
-            .scrollIndicators(.hidden)
-            // White under the sheet when it bounces, as Luma's sheet runs off the bottom.
-            .background(alignment: .bottom) {
-                Hue.surface.frame(height: max(0, geo.size.height - AskMetric.sheetTop))
+                words
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                    .padding(.horizontal, FollowGridMetric.gutter)
+                    .padding(.bottom, AskMetric.wordsBottom)
             }
         }
         .ignoresSafeArea(.container)
         .onAppear { shown = true }
     }
 
-    /// Two faces across, one under the left: graphite, then periwinkle.
-    private var faces: some View {
-        VStack(spacing: AskMetric.faceGap) {
-            HStack {
-                face(0, graphite: true)
-                Spacer(minLength: 0)
-                face(1, graphite: false)
+    /// Full width, top first; it rises in, follows a drag a third of the way and springs back, and its
+    /// foot fades into the canvas.
+    private func drawing(width: CGFloat, height: CGFloat) -> some View {
+        Image(decorative: "FriendsMarket")
+            .resizable()
+            .scaledToFill()
+            .frame(width: width + 2 * AskMetric.spare, height: max(0, height), alignment: .top)
+            .offset(pull)
+            .frame(width: width, height: max(0, height), alignment: .top)
+            .clipped()
+            .overlay(alignment: .bottom) {
+                LinearGradient(colors: [Hue.bigArtCanvas.opacity(0), Hue.bigArtCanvas], startPoint: .top, endPoint: .bottom)
+                    .frame(height: AskMetric.fade)
             }
-            HStack {
-                face(2, graphite: false)
-                Spacer(minLength: 0)
-            }
-        }
-        .padding(.horizontal, AskMetric.faceSide)
-        .padding(.top, AskMetric.facesTop)
-        .accessibilityHidden(true)
-    }
-
-    /// A face lit from the top with a soft glow under it, popping in .6 to 104% and settling, 90 ms after the
-    /// one before. Nobody's contacts are read before Apple's prompt, so each holds a person, not letters.
-    private func face(_ index: Int, graphite: Bool) -> some View {
-        let top = graphite ? Hue.friendsFaceGraphiteTop : Hue.friendsFaceLilacTop
-        let bottom = graphite ? Hue.friendsFaceGraphite : Hue.friendsFaceLilac
-        // The mock's `radial-gradient(circle at 50% 22%, top, bottom 78%)`: out to the far corner, 106 pt.
-        let reach = (pow(AskMetric.face / 2, 2) + pow(AskMetric.face * 0.78, 2)).squareRoot()
-        return Image(systemName: "person.fill")
-            .font(.glyph(46, weight: .medium))
-            .foregroundStyle(Color.white)
-            .frame(width: AskMetric.face, height: AskMetric.face)
-            .background {
-                Circle()
-                    .fill(RadialGradient(stops: [.init(color: top, location: 0), .init(color: bottom, location: graphite ? 0.78 : 0.8)],
-                                         center: UnitPoint(x: 0.5, y: 0.22), startRadius: 0, endRadius: reach))
-                    .shadow(color: graphite ? Hue.ink.opacity(0.45) : Hue.friendsFaceGlow.opacity(0.6),
-                            radius: graphite ? 10 : 12, y: 14)
-            }
-            .scaleEffect(shown || reduceMotion ? 1 : 0.6)
+            .contentShape(Rectangle())
+            .gesture(DragGesture(minimumDistance: 0)
+                .onChanged { drag in
+                    pull = CGSize(width: clamp(drag.translation.width * AskMetric.follow, -AskMetric.reach.across, AskMetric.reach.across),
+                                  height: clamp(drag.translation.height * AskMetric.follow, -AskMetric.reach.up, AskMetric.reach.down))
+                }
+                .onEnded { _ in
+                    withAnimation(reduceMotion ? nil : .spring(response: 0.52, dampingFraction: 0.6)) { pull = .zero }
+                })
+            .scaleEffect(shown || reduceMotion ? 1 : 0.97, anchor: .top)
+            .offset(y: shown || reduceMotion ? 0 : 24)
             .opacity(shown ? 1 : 0)
-            .animation(reduceMotion ? .easeOut(duration: 0.2)
-                       : .spring(response: 0.46, dampingFraction: 0.66).delay(0.08 + 0.09 * Double(index)), value: shown)
+            .animation(rise(delay: 0.06, duration: 0.62), value: shown)
+            .padding(.top, AskMetric.artTop)
+            .accessibilityHidden(true)
     }
 
-    private var note: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("Your contacts stay yours.")
-                .font(.apple(15, weight: .semibold))
-                .foregroundStyle(Hue.ink)
-            Text("Only scrambled codes leave your phone. We keep none of your contacts.")
-                .font(.apple(13))
-                .foregroundStyle(Hue.inkSecondary)
-        }
-        .fixedSize(horizontal: false, vertical: true)
-        .padding(.horizontal, AskMetric.side)
-        .accessibilityElement(children: .combine)
-    }
-
-    /// The question in Luma's sheet: 22 pt semibold, then the line in 19 pt grey.
-    private var sheet: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(OnboardingStep.friends.question)
-                .appleFont(22, weight: .semibold)
-                .kerning(-0.22)
-                .foregroundStyle(Hue.ink)
-                .accessibilityAddTraits(.isHeader)
-                .accessibilityFocused($focused)
-            Text("See which neighbors are already here. You can turn it off any time in Settings.")
-                .font(.apple(19))
+    private var words: some View {
+        VStack(spacing: 0) {
+            VStack(spacing: 4) {
+                Text("Bring your friends to the")
+                    .appleFont(21, weight: .semibold)
+                    .kerning(-0.3)
+                BlockPartyWordmark(height: AskMetric.logo)
+            }
+            .foregroundStyle(Hue.ink)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Bring your friends to the Block Party")
+            .accessibilityAddTraits(.isHeader)
+            .accessibilityFocused($focused)
+            Text("Connect and share events with friends.")
+                .font(.apple(15))
                 .lineSpacing(3)
-                .foregroundStyle(Hue.inkSecondary)
+                .foregroundStyle(Hue.bigArtWords)
+                .padding(.top, 10)
         }
+        .multilineTextAlignment(.center)
         .fixedSize(horizontal: false, vertical: true)
-        .padding(.horizontal, AskMetric.side)
-        .padding(.top, AskMetric.sheetPad)
-        .padding(.bottom, AskMetric.clear)
+        .offset(y: shown || reduceMotion ? 0 : 14)
+        .opacity(shown ? 1 : 0)
+        .animation(rise(delay: 0.24, duration: 0.46), value: shown)
     }
+
+    private func clamp(_ value: CGFloat, _ low: CGFloat, _ high: CGFloat) -> CGFloat { min(max(value, low), high) }
 
     private func rise(delay: Double, duration: Double) -> Animation {
         reduceMotion ? .easeOut(duration: 0.2) : Motion.outQuint(duration).delay(delay)
