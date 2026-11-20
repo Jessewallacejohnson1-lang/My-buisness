@@ -187,6 +187,7 @@ struct BusinessPage: View {
     var body: some View {
         if let item = opener.item, let source = opener.source {
             BusinessPageBody(item: item, source: source, opener: opener)
+                .timesOpen("place")
                 // A new business starts on its first photo, at the top.
                 .id(item.id)
         }

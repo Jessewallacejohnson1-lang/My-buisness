@@ -451,6 +451,11 @@ final class FrameGapLog {
     private var tapName = "touch"
     private var tapWorstMs = 0.0
     private var tapStallMs = 0.0
+    /// The screen the last tap opened (`timesOpen`), and the tap's own clock for its `OPEN` line, kept past the
+    /// TAP line's 0.6 s: a cold map can take longer.
+    private var openFrom: TimeInterval?
+    private var openName: String?
+    private var tapOpened: String?
 
     func start() {
         guard link == nil else { return }
@@ -473,6 +478,17 @@ final class FrameGapLog {
         tapName = name
         tapWorstMs = 0
         tapStallMs = 0
+        openFrom = up
+        openName = nil
+        tapOpened = nil
+    }
+
+    /// A screen came on (`timesOpen`): with a tap waiting, the next frame prints `OPEN <name> +N ms`, from the
+    /// tap to the frame that shows it. Once per tap: going back brings on the screen under it with no tap.
+    func opened(_ name: String) {
+        guard openFrom != nil, openName == nil else { return }
+        openName = name
+        tapOpened = name
     }
 
     @objc private func tick(_ l: CADisplayLink) {
@@ -496,8 +512,20 @@ final class FrameGapLog {
             tapWorstMs = max(tapWorstMs, gapMs)
             if gapMs > budgetMs { tapStallMs += gapMs - l.duration * 1000 }
             if now - up > 0.6 {
-                print("FrameGapLog: TAP \(tapName) worst=\(Int(tapWorstMs))ms stall=\(Int(tapStallMs))ms")
+                // A finger's tap is named by the screen it opened.
+                let name = tapName == "touch" ? tapOpened.map { "touch-\($0)" } ?? tapName : tapName
+                print("FrameGapLog: TAP \(name) worst=\(Int(tapWorstMs))ms stall=\(Int(tapStallMs))ms")
                 tapUp = nil
+            }
+        }
+        // The first frame drawn after the screen came on: the one that shows it (plus the frame or two the
+        // system takes to put it on the glass, which this can't see).
+        if let from = openFrom {
+            if let name = openName {
+                print("FrameGapLog: OPEN \(name) +\(Int((l.targetTimestamp - from) * 1000))ms")
+                openFrom = nil
+            } else if l.timestamp - from > 3 {
+                openFrom = nil
             }
         }
     }
@@ -580,6 +608,16 @@ enum ReadAheadLog {
 #endif
 
 extension View {
+    /// DEBUG `-frame-gap-log`: this screen's first frame after a tap, as an `OPEN` line (`FrameGapLog.opened`,
+    /// BP app tab-lag 02); nothing otherwise, and nothing in a release build.
+    func timesOpen(_ name: String) -> some View {
+        #if DEBUG
+        onAppear { if FrameGapLog.enabled { FrameGapLog.shared.opened(name) } }
+        #else
+        self
+        #endif
+    }
+
     /// DEBUG `-feed-scroll-run` on this scroll view (`ScrollRun`); nothing otherwise, and nothing in a release build.
     @ViewBuilder
     func scrollRun() -> some View {

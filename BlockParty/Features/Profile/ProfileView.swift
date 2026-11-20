@@ -89,7 +89,10 @@ struct ProfileView: View {
         openFollowers: { opener?.push(FriendsRoute.followers) }
         // On every visit, and for another account while You is open (`AppSession` has cleared the last one's).
         .task(id: auth.accountKey) { await model.load() }
-        .navigationDestination(isPresented: $settings) { settingsPage }
+        .navigationDestination(isPresented: $settings) { settingsPage.timesOpen("settings") }
+        #if DEBUG
+        .onChange(of: OpenCycle.shared.settings) { _, on in settings = on }
+        #endif
         .navigationDestination(item: $pushedEvent) { EventPage(item: $0) }
         .navigationDestination(item: $pushedGroup) { GroupPage(group: $0) }
         // The counts open their lists, as Instagram's do: Settings' Following here; friends and followers on the
@@ -423,3 +426,12 @@ struct AboutBlockPartySheet: View {
         .background(Hue.paper.ignoresSafeArea())
     }
 }
+
+#if DEBUG
+/// `-open-cycle`'s hand on Settings (`RootView.cycleOpens`), which is this tab's own push.
+@MainActor @Observable
+final class OpenCycle {
+    static let shared = OpenCycle()
+    var settings = false
+}
+#endif

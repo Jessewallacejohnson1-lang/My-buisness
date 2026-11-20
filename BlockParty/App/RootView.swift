@@ -447,6 +447,7 @@ struct MainTabsView: View {
                     EventPage(item: item)
                         // Its menu's Not interested and Report.
                         .environment(townFeed)
+                        .timesOpen("event")
                         // An open, for popularity (ticket 20): only from the Town feed,
                         // not Daily, which pushes the same page.
                         .onAppear {
@@ -460,9 +461,9 @@ struct MainTabsView: View {
                 // Messages and a chat (five-tabs 05).
                 .navigationDestination(for: ChatRoute.self) { route in
                     switch route {
-                    case .messages: MessagesPage()
+                    case .messages: MessagesPage().timesOpen("messages")
                     case .requests: RequestsPage()
-                    case .chat(let chat): ChatPage(chat: chat)
+                    case .chat(let chat): ChatPage(chat: chat).timesOpen("chat")
                     case .person(let person): ChatPage(chat: nil, person: person)
                     case .group(let id, let others, let name):
                         ChatPage(chat: nil, groupID: id, groupOthers: others, groupName: name)
@@ -481,19 +482,21 @@ struct MainTabsView: View {
                     }
                 }
                 // A neighbour's page, from any name or face: the Friends page or Search.
-                .navigationDestination(for: Neighbor.self) { NeighborPage(neighbor: $0) }
+                .navigationDestination(for: Neighbor.self) { NeighborPage(neighbor: $0).timesOpen("profile") }
                 // A local team's page, from its picture on a game card (hello-drop 03).
-                .navigationDestination(for: Game.Team.self) { TeamPage(team: $0) }
+                .navigationDestination(for: Game.Team.self) { TeamPage(team: $0).timesOpen("team") }
                 // A group's page, from Search's Groups shelf (rsvp-and-groups 05).
-                .navigationDestination(for: TownGroup.self) { GroupPage(group: $0) }
+                .navigationDestination(for: TownGroup.self) { GroupPage(group: $0).timesOpen("group") }
                 // The Town's own page or its City's, from the Town bar's wordmark menu or Daily's
                 // Town logo, and a board's, from its row (follows 04).
-                .navigationDestination(for: TownPageKind.self) { TownPageView(shown: $0) }
+                .navigationDestination(for: TownPageKind.self) { TownPageView(shown: $0).timesOpen("town-page") }
                 .navigationDestination(for: TownBoardRoute.self) { TownBoardPage(route: $0) }
                 // A person's page from a host row (follows 08).
-                .navigationDestination(for: FollowedPersonRoute.self) { FollowedNeighborPage(row: $0.row) }
+                .navigationDestination(for: FollowedPersonRoute.self) { FollowedNeighborPage(row: $0.row).timesOpen("profile") }
                 // The bell's page (school-activities 04).
-                .navigationDestination(for: NotificationsRoute.self) { _ in NotificationsPage().environment(townFeed) }
+                .navigationDestination(for: NotificationsRoute.self) { _ in
+                    NotificationsPage().environment(townFeed).timesOpen("bell")
+                }
                 .navigationDestination(for: NoticeEventRoute.self) { route in
                     EventPage(item: route.item).environment(townFeed)
                 }
@@ -501,7 +504,7 @@ struct MainTabsView: View {
                 .navigationDestination(for: PostRoute.self) { PostPage(post: $0.post).environment(townFeed) }
                 .navigationDestination(for: TagRoute.self) { TagPage(tag: $0.tag).environment(townFeed) }
                 // A News with its post's own words, from its card or the hello pill (town-feed 65).
-                .navigationDestination(for: NewsRoute.self) { NewsPage(news: $0.news) }
+                .navigationDestination(for: NewsRoute.self) { NewsPage(news: $0.news).timesOpen("news") }
         }
         // A host's name on a card or an Event page opens its own page (follows 08).
         .environment(\.hostOpener, hostOpener)
@@ -517,6 +520,7 @@ struct MainTabsView: View {
                 .environment(friendsBook)
                 .environment(townFeed)
                 .environment(session.liveGames)
+                .timesOpen("map")
         }
         // A neighbour's code from the iPhone camera (friends 07): their page once the launch and the
         // Done island are over, so it opens where it can be seen (Jesse, 2026-11-06).
@@ -792,6 +796,7 @@ struct MainTabsView: View {
             if LaunchFlags.has(.tabCycle) {
                 cycleTabs(from: 1)
             }
+            if LaunchFlags.has(.openCycle) { cycleOpens() }
             if LaunchFlags.has(.shareDemo) {
                 // The Town feed's first Event with a photo, once the feed is in; else a plain one.
                 Task {
@@ -882,6 +887,46 @@ struct MainTabsView: View {
             let all = Tab.allCases
             switchTab(to: all[index % all.count])
             cycleTabs(from: index + 1)
+        }
+    }
+
+    /// `-open-cycle` (with `-frame-gap-log`, from Town): once the Town feed is in, each screen a tap opens, in
+    /// turn every 3 s, timed as a tap (`FrameGapLog.tapped`), and back 1.5 s later, so the phone can be timed with
+    /// no hand on it (BP app tab-lag 02). It writes nothing: an Event open isn't counted, Messages but no chat.
+    private func cycleOpens() {
+        Task {
+            for _ in 0..<120 where townFeed.cards.isEmpty { try? await Task.sleep(for: .milliseconds(250)) }
+            guard !townFeed.cards.isEmpty else { return print("FrameGapLog: open cycle found no Town cards") }
+            if friendsBook.friends.isEmpty { await friendsBook.refresh() }
+            let box = CGRect(x: 160, y: 400, width: SearchMetric.logoOnTile, height: SearchMetric.logoOnTile)
+            func step(_ name: String, open: () -> Void, back: () -> Void) async {
+                try? await Task.sleep(for: .seconds(1.5))
+                FrameGapLog.shared.tapped(name)
+                open()
+                try? await Task.sleep(for: .seconds(1.5))
+                back()
+            }
+            for round in 0... {
+                let cards = townFeed.cards
+                let card = cards[round % cards.count]
+                await step("event", open: { reopened = card.id; path.append(card) }, back: { path.removeLast() })
+                await step("bell", open: { path.append(NotificationsRoute()) }, back: { path.removeLast() })
+                await step("map", open: { showMap = true }, back: { showMap = false })
+                if let person = friendsBook.friends.first ?? friendsBook.suggested.first {
+                    await step("profile", open: { path.append(person) }, back: { path.removeLast() })
+                }
+                if let place = searchModel.items.first(where: { $0.kind == .business && $0.opens }) {
+                    await step("place", open: { placeOpener.open(place, from: .tile(place, box: box, radius: 0)) },
+                               back: { placeOpener.close() })
+                }
+                await step("messages", open: { path.append(ChatRoute.messages) }, back: { path.removeLast() })
+                await step("town-page", open: { path.append(TownPageKind.town) }, back: { path.removeLast() })
+                // ☰ Settings is the You tab's own push.
+                switchTab(to: .you)
+                await step("settings", open: { OpenCycle.shared.settings = true }, back: { OpenCycle.shared.settings = false })
+                try? await Task.sleep(for: .seconds(1))
+                switchTab(to: .town)
+            }
         }
     }
     #endif
