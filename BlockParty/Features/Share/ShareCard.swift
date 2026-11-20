@@ -137,7 +137,7 @@ private struct ShareGrain: View {
 }
 
 /// The share sheet's measures, from Hypelist's (BP app `references/share-sheet/SPEC.md`), in points.
-enum ShareMetric {
+nonisolated enum ShareMetric {
     /// The sheet's top, down the screen.
     static let sheetTop: CGFloat = 88
     static let titleTop: CGFloat = 29
