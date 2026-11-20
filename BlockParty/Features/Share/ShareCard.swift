@@ -27,6 +27,8 @@ struct ShareCard: View {
         .overlay { edges }
         .overlay { ShareGrain() }
         .clipShape(RoundedRectangle(cornerRadius: Radius.shareCard, style: .continuous))
+        // A picture that's sent: the same in dark mode as in light, so white words stay white.
+        .environment(\.colorScheme, .light)
         .accessibilityElement(children: .combine)
     }
 
