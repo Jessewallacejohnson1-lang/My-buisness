@@ -37,6 +37,10 @@ skipped (the 9pm one on 2026-10-22) is read by the next.
                   just say). The cap is whatever Apify reports. The 8 AM check emails this line
                   the morning it first passes either one (private.apify_level, BP app loopholes 13).
 
+A host or co-host of a found Event (an Events tab's, the town search's or a read again's) that the page list lacks
+is named once per check (`[social] Hosts a found Event, not on the list`, unlisted_hosts): a proposed page, added when
+two separate agent checks agree (BP app watch-every-place 34). Tags in posts are accounts.py's `tagged`, monthly.
+
 When Apify turns the whole account off (2026-11-16: an unpaid invoice), its spend still reads as usual and only
 writes are refused, so for two days the checks blamed the network secret and judged days of old posts again (BP app
 watch-every-place 36). Now `spend`, `prepare` and the morning report's social line each say that Apify refuses every
@@ -877,6 +881,34 @@ def post_pages(kind, rows, by_url):
     return pages, hidden
 
 
+def fb_key(url):
+    """A Facebook page's handle or number, lowercased: one page under its name or under profile.php?id=."""
+    m = re.search(r"facebook\.com/(?:profile\.php\?(?:.*&)?id=)?([^/?#&]+)", url or "")
+    return m.group(1).lower() if m else ""
+
+
+def unlisted_hosts(rows, pages):
+    """Every page that hosts or co-hosts a found Event (an Events tab's or the town search's rows) that the page list
+    lacks, as "Name url", once each (BP app watch-every-place 34: Jeanne B's Tours hosted Events the search found for
+    weeks and was never read). One of a past Event, a family's own day or an Event far from town is none, nor a group (ADR-020: never read). The routine
+    names them; a page joins the list when two separate agent checks agree it is a place's own, in or serving the town."""
+    known = {fb_key(p["url"]) for p in pages if p["kind"] == "facebook"} - {""}
+    out = []
+    for r in rows:
+        loc = r.get("location") if isinstance(r.get("location"), dict) else {}
+        if r.get("error") or r.get("isPast") or far_away(loc) or PRIVATE_DAY.search(r.get("name") or ""):
+            continue
+        for o in r.get("organizators") or []:
+            if not isinstance(o, dict) or not o.get("url") or not o.get("name") or "/groups/" in o["url"]:
+                continue
+            if {fb_key(o["url"]), str(o.get("id") or "").lower()} & known:
+                continue
+            line = f"{o['name']} {o['url'].rstrip('/')}"
+            if line not in out:
+                out.append(line)
+    return out
+
+
 def one_page_each(posts):
     """One page per post: overlapping windows read a post twice. A Facebook event read again as its host's listing
     (`events-<id>`) also stands for the search's copy of it (`search-<id>`, named for its organizer), so the judge
@@ -957,6 +989,8 @@ def prepare(run, now):
                              if p and not p.get("events") for t in [f"{p['name']} {p['url']}"] if t not in tabs]
                 if kind in ("events", "search"):  # a posts page Apify can't read is named once, set aside (tally)
                     failed += [f"{kind}: {h}" for h in hidden]
+                    hosts = saved.setdefault("hosts", [])  # a found Event's host the list lacks (watch-every-place 34)
+                    hosts += [h for h in unlisted_hosts(rows, all_pages(root)) if h not in hosts]
                 elif kind != "stories" and r["status"] == "SUCCEEDED" and saved.get("missed") is not None:  # a day with no story is no miss
                     reads.append((r["finishedAt"], run_pages(r["id"]), rows,
                                   f"{kind} run at {finished.astimezone(LOCAL):%a %-I:%M %p}"))
@@ -998,7 +1032,7 @@ def prepare(run, now):
                "interests": interests, "apify_usd": round(cost, 3), "apify_runs": runs,
                "read_until": until.isoformat() if until and runs else None, "pictures": pics,
                "aside": saved.get("aside", []), "missed": saved.get("missed"), "cancelled": len(cancels),
-               "again": len({p["url"] for p in saved.get("again") or ()}), "tabs": saved.get("tabs", []),
+               "again": len({p["url"] for p in saved.get("again") or ()}), "tabs": saved.get("tabs", []), "hosts": saved.get("hosts", []),
                "stories": (check, "stories") in lists and {"read": sum(p["file"].startswith("stories-") for p in posts),
                                                             "usd": saved.get("stories")}}
     run.prepared(summary)
@@ -1022,6 +1056,8 @@ def say_prepared(s, out):
     print(pictures_line(s["pictures"]))
     for t in s.get("tabs") or ():
         print(f'[social] Events tab lists events: {t}: give it "events": true in the page list')
+    for h in s.get("hosts") or ():
+        print(f"[social] Hosts a found Event, not on the list: {h}: two agent checks, then the page list")
     for a in s["aside"]:
         print(f"[social] {a}")
     for f in s["failed"]:
@@ -1158,6 +1194,11 @@ def selftest():
         lines.append([ln for ln in said.getvalue().splitlines() if "stories" in ln])
     check(lines == [["[social] stories: 2 read, Apify $0.10"], ["[social] stories: no Apify run since the last check"], []],
           f"the busy line counts the stories read and their cost, says when none were read, and a weekly check says nothing: {lines}")
+    said = io.StringIO()
+    with contextlib.redirect_stdout(said):
+        say_prepared(dict(base, hosts=["Jeanne B's Tours https://www.facebook.com/jeannebstoursandshoppe"]), Path("."))
+    check("[social] Hosts a found Event, not on the list: Jeanne B's Tours https://www.facebook.com/jeannebstoursandshoppe"
+          in said.getvalue(), f"a host the list lacks is named for the answer: {said.getvalue()}")
     check(task_name("weekly", "events", "mon") == "bp-weekly-mon-events" and task_name("busy", "facebook") == "bp-busy-facebook",
           "a task's name")
     wed = datetime(2026, 11, 4, 21, 30, tzinfo=LOCAL)  # a Wednesday evening
@@ -1215,6 +1256,29 @@ def selftest():
           and got[2]["text"].startswith("Found by searching Facebook's events"),
           "a found event is named for its host, from the words search or the town's events page; one past, hostless, "
           "a family's own day, or pinned far from town with no town word is left out")
+    # BP app watch-every-place 34: a page that hosts or co-hosts a found Event, and that the list lacks, is proposed.
+    hosted = [found("hoopla", {"name": "Jeanne B's Tours"}, organizators=[
+                  {"name": "Jeanne B's Tours", "url": "https://www.facebook.com/jeannebstoursandshoppe", "id": "1"}]),
+              found("walk", {"name": "Downtown St. Joseph"}, organizators=[
+                  {"name": "WR Home & Clothing Co.", "url": "https://www.facebook.com/wrhomecompany", "id": "100063658129392"},
+                  {"name": "Visit Joetown", "url": "https://www.facebook.com/JoetownMNcvb/", "id": "100064"},
+                  {"name": "Saint Joseph Fire Department", "url": "https://www.facebook.com/profile.php?id=271301023797058",
+                   "id": "271301023797058"}]),
+              found("sing", {"name": "Downtown St. Joseph"}, organizators=[
+                  {"name": "The Big Sing", "url": "https://www.facebook.com/groups/767078956061328", "id": "767078956061328"}]),
+              found("again", {"name": "Downtown St. Joseph"}, organizators=[
+                  {"name": "WR Home & Clothing Co.", "url": "https://www.facebook.com/wrhomecompany", "id": "100063658129392"}]),
+              found("past", {}, isPast=True, organizators=[{"name": "Old Host", "url": "https://www.facebook.com/oldhost"}]),
+              found("kid2", {}, name="Ava's Baby Shower", organizators=[{"name": "A Mom", "url": "https://www.facebook.com/amom"}]),
+              found("avon2", {"name": "Avon Community Church", "contextualName": "Avon, MN", "latitude": 45.609,
+                              "longitude": -94.451}, organizators=[{"name": "Avon Church", "url": "https://www.facebook.com/avonch"}]),
+              {"error": "no_results", "inputUrl": "https://www.facebook.com/x/upcoming_hosted_events"}]
+    listed = [{"kind": "facebook", "url": "https://www.facebook.com/JoetownMNcvb"},
+              {"kind": "facebook", "url": "https://www.facebook.com/271301023797058"}]
+    check(unlisted_hosts(hosted, listed) == ["Jeanne B's Tours https://www.facebook.com/jeannebstoursandshoppe",
+                                             "WR Home & Clothing Co. https://www.facebook.com/wrhomecompany"],
+          "each host or co-host of a found Event the list lacks is proposed once, by its page or its number; one of a past "
+          "Event, a family's own day or an Event far from town is not, nor a group (never read: no login)")
     # BP app watch-every-place 24: an Event in the app linked to a Facebook event is read again on the search's days,
     # named for its own host; its words and cover ride along as fingerprints; a cancelled one goes to the writer.
     check([p["file"] for p in got] == ["search-la", "search-church", "search-obbink"] and all("listing" in p for p in got),

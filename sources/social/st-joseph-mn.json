@@ -2462,5 +2462,30 @@
   "busy": false,
   "day": "tue",
   "events": true
+ },
+ {
+  "entry_id": "neighbors-route-75",
+  "name": "Neighbors Route 75",
+  "kind": "instagram",
+  "url": "https://www.instagram.com/neighborseatery",
+  "busy": false,
+  "day": "mon"
+ },
+ {
+  "entry_id": "church-life-of-river",
+  "name": "River of Life Church",
+  "kind": "instagram",
+  "url": "https://www.instagram.com/stjoechurch",
+  "busy": false,
+  "day": "tue"
+ },
+ {
+  "entry_id": "jeanne-bs-tours",
+  "name": "Jeanne B's Tours",
+  "kind": "facebook",
+  "url": "https://www.facebook.com/jeannebstoursandshoppe",
+  "busy": false,
+  "day": "wed",
+  "events": true
  }
 ]
