@@ -42,9 +42,6 @@ struct TownView: View {
         PostOutbox.shared.justPosted.flatMap { id in townFeed.shown.lazy.compactMap(\.post).first { $0.id == id } }
     }
 
-    /// A read failed while a list is showing: the bar says why (ticket 11, town-feed 68).
-    private var fault: FeedFault? { townFeed.fault }
-
     /// Skeleton, retry or cards: what the Town feed's cross-fade keys on.
     private var townFeedPhase: Int {
         townFeed.entries != nil ? 2 : townFeed.failed ? 1 : 0
@@ -277,7 +274,7 @@ struct TownView: View {
                         chromeHidden: forcedCollapse || (chromeHidden && !forcedBack),
                         chromeFloating: chromeFloating,
                         travel: barTravel,
-                        fault: fault)
+                        fault: townFeed.fault)
                 // Rises into place as the launch's yellow clears (Jesse, 2026-11-02).
                 .launchSettle()
         }
@@ -390,7 +387,7 @@ struct TownView: View {
             }
         }
         // Someone partway down the list never reaches the pill, so it is read out once.
-        .onChange(of: fault) { _, fault in
+        .onChange(of: townFeed.fault) { _, fault in
             if let fault { AccessibilityNotification.Announcement(fault.words).post() }
         }
         // And again once the live list is in: on a first launch the jump landed on the skeleton.

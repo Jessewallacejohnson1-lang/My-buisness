@@ -732,7 +732,7 @@ private struct FaultPill: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            Image(systemName: fault.symbol).font(.sansMedium(11))
+            Image(systemName: fault.symbol).font(.sansMedium(11)).accessibilityHidden(true)
             Text(fault.words)
         }
         .font(.sans(13))
