@@ -424,7 +424,7 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
     private func yourButtons(edit: @escaping () -> Void) -> some View {
         HStack(spacing: ProfileMetric.buttonGap) {
             Button(action: edit) {
-                blackButton {
+                ProfileBlackButton {
                     Text("Edit profile")
                     Image(decorative: "Palette")
                 }
@@ -432,7 +432,7 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
             .buttonStyle(.press(.squish))
             // The squish without a haptic, as the Town bar's disc: opening the map is not a commit.
             Button(action: openMap) {
-                blackButton {
+                ProfileBlackButton {
                     Image(systemName: "globe")
                         .font(.glyph(15, weight: .semibold))
                         .accessibilityHidden(true)
@@ -441,17 +441,6 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
             }
             .buttonStyle(.press(.squish))
         }
-    }
-
-    /// White words on ink, 40 pt to the eye and 44 to the finger.
-    private func blackButton<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
-        HStack(spacing: ProfileMetric.buttonIconGap) { content() }
-            .font(.displaySemi(15))
-            .foregroundStyle(Hue.surface)
-            .lineLimit(1)
-            .frame(maxWidth: .infinity, minHeight: ProfileMetric.button)
-            .background(Hue.ink, in: Capsule())
-            .contentShape(Rectangle().inset(by: (ProfileMetric.button - PageMetric.tapMin) / 2))
     }
 
     /// A list's title, the Event page's About: Inter Tight Bold 20.
@@ -567,6 +556,24 @@ private struct ProfilePhotoView: View {
             .accessibilityLabel("Close")
             .padding(.trailing, EventPage.Metric.inset - (PageMetric.tapMin - EventPage.Metric.button) / 2)
         }
+    }
+}
+
+/// One of a profile's black buttons with round ends (Places'): white words on ink, half the row,
+/// 40 pt to the eye and 44 to the finger. Your Edit profile and Map, and a place's Map (place-pages 08).
+struct ProfileBlackButton<Content: View>: View {
+    var fill = Hue.ink
+    var ink = Hue.surface
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        HStack(spacing: ProfileMetric.buttonIconGap) { content() }
+            .font(.displaySemi(15))
+            .foregroundStyle(ink)
+            .lineLimit(1)
+            .frame(maxWidth: .infinity, minHeight: ProfileMetric.button)
+            .background(fill, in: Capsule())
+            .contentShape(Rectangle().inset(by: (ProfileMetric.button - PageMetric.tapMin) / 2))
     }
 }
 

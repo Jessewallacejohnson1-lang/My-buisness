@@ -214,18 +214,41 @@ final class SearchModelTests: XCTestCase {
                                          PlaceLink(kind: "facebook", url: "not a url")]).isEmpty)
     }
 
-    /// The logo rests top right beside a photo, and with none where the Event page draws a
-    /// place's logo in a hero it has no photo for: 150 pt, 101 pt down, on a 420 pt phone.
-    func testWhereTheLogoRests() {
-        let corner = BusinessPage.corner(width: 420, top: 68)
-        XCTAssertEqual(corner, CGRect(x: 334, y: 59, width: 76, height: 76))
-        let middle = BusinessPage.middle(width: 420)
-        XCTAssertEqual(middle.width, 149.5, accuracy: 0.5)
-        XCTAssertEqual(middle.midX, 210, accuracy: 0.01)
-        XCTAssertEqual(middle.minY, 145.6, accuracy: 0.5)
+    /// The logo rests in the middle of the sheet's edge, as a Profile's photo (place-pages 08): on the cover's
+    /// foot, 245 pt down a 402 pt phone, 86 pt square inside its 96 pt disc.
+    func testTheLogoRestsInTheMiddleOfTheCoversFoot() {
+        let logo = BusinessPage.logo(width: 402, top: 62, cover: true)
+        XCTAssertEqual(logo.width, 86)
+        XCTAssertEqual(logo.midX, 201, accuracy: 0.01)
+        XCTAssertEqual(logo.midY, 402 * 256 / 420, accuracy: 0.01)
     }
 
-    /// A card's photo grows from the card into the page's top photo (402 x 334 on a 402 pt phone), scrolled
+    /// With no cover there is no photo to sit on: the logo's middle is 118 pt down, under Back (the mock's).
+    func testWithNoCoverTheLogoSitsAtTheTop() {
+        let logo = BusinessPage.logo(width: 402, top: 62, cover: false)
+        XCTAssertEqual(logo.midX, 201, accuracy: 0.01)
+        XCTAssertEqual(logo.midY, 118, accuracy: 0.01)
+        XCTAssertEqual(BusinessPage.edge(width: 402, top: 62, cover: false), 118)
+    }
+
+    /// On its disc a logo's ink, its file's empty border left out, is the mock's 72 pt across; a square's
+    /// corners stay inside the disc, so it sits smaller.
+    func testTheLogoOnItsDiscIsTheMocksSize() {
+        func shown(_ draw: (CGContext, CGRect) -> Void, _ name: String) -> CGFloat {
+            let format = UIGraphicsImageRendererFormat()
+            format.scale = 1
+            let file = UIGraphicsImageRenderer(size: CGSize(width: 200, height: 200), format: format).image { ctx in
+                UIColor.black.setFill()
+                draw(ctx.cgContext, CGRect(x: 40, y: 40, width: 120, height: 120))
+            }
+            let grow = BusinessPage.logoGrow(file, url: URL(string: "https://example.com/\(name).png")!)
+            return BusinessPage.logoSide * grow * 120 / 200
+        }
+        XCTAssertEqual(shown({ $0.fillEllipse(in: $1) }, "badge"), 72, accuracy: 3)
+        XCTAssertEqual(shown({ $0.fill($1) }, "square"), 61, accuracy: 3, "86 pt circle: a square's corners on it")
+    }
+
+    /// A card's photo grows from the card into the page's cover (402 x 269 on a 402 pt phone), scrolled
     /// up with the page, overshooting a touch past it; only at rest open is it the page's own (place-photos 10).
     func testACardsPhotoGrowsIntoThePagesTopPhoto() {
         let card = CGRect(x: 16, y: 352, width: 167, height: 157)
@@ -233,7 +256,7 @@ final class SearchModelTests: XCTestCase {
         let open = BusinessPage.flight(from: card, width: 402, scrollY: 0, progress: 1)
         XCTAssertEqual(open.origin, .zero)
         XCTAssertEqual(open.width, 402)
-        XCTAssertEqual(open.height, 402 * 303 / 393 + 24, accuracy: 0.01)
+        XCTAssertEqual(open.height, 402 * 256 / 420 + 24, accuracy: 0.01)
         XCTAssertEqual(BusinessPage.flight(from: card, width: 402, scrollY: 120, progress: 1).minY, -120)
         XCTAssertGreaterThan(BusinessPage.flight(from: card, width: 402, scrollY: 0, progress: 1.02).width, 402)
         XCTAssertTrue(BusinessPage.inFlight(0.98))
