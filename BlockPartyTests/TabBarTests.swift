@@ -157,6 +157,26 @@ final class TabBarTests: XCTestCase {
         XCTAssertEqual(yellow, 0, "yellow drawn in the tab bar")
     }
 
+    /// Dark mode: the glass is dark, so every icon is the dark ramp's light ink, #F2F1EC, as
+    /// Instagram's dark bar draws white icons (BP app backlog 36). Black there read 1.6:1.
+    func testInDarkModeEveryIconIsLightInk() throws {
+        let renderer = ImageRenderer(
+            content: BlockPartyTabBar.Items(selection: .town, capsuleWidth: width, onSelect: { _ in }, dark: true)
+                .frame(width: width, height: TabBarMetric.height)
+                .background(Hue.paper.onDarkCanvas)
+        )
+        renderer.scale = scale
+        let bitmap = try TabBarBitmap(cgImage: XCTUnwrap(renderer.cgImage))
+        for tab in Tab.allCases {
+            let lightest = try XCTUnwrap(bitmap.pixels(in: iconBox(tab)).filter { $0.3 > 200 }
+                .max { Int($0.0) + Int($0.1) + Int($0.2) < Int($1.0) + Int($1.1) + Int($1.2) },
+                "\(tab) icon: nothing drawn")
+            for (channel, want) in [(lightest.0, 0xF2), (lightest.1, 0xF1), (lightest.2, 0xEC)] {
+                XCTAssertLessThanOrEqual(abs(Int(channel) - want), 3, "\(tab) icon core is not #F2F1EC: \(lightest)")
+            }
+        }
+    }
+
     /// A new friend request's dot is the bar's one yellow (Jesse at five-tabs 02's Check-in 1),
     /// on the Friends icon's top right and nowhere else.
     func testTheFriendsDotIsTheOnlyYellowAndSitsOnFriends() throws {
