@@ -394,6 +394,11 @@ private struct BusinessPageContent: View {
         .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y + $0.contentInsets.top } action: { _, y in
             page.scrollY = y
         }
+        .fullScreenCover(isPresented: $showingPhotos) {
+            CoverPhotoViewer(photos: photos, page: $viewerPage,
+                             fallbackAspect: size.width / BusinessPage.edge(width: size.width, top: top, cover: true))
+                .navigationTransition(.zoom(sourceID: "cover", in: zoom))
+        }
         .onChange(of: photos.isEmpty) { _, none in page.hasPhotos = !none }
         .onChange(of: photoPage) { _, index in
             if let index, photos.indices.contains(index) { page.photo = photos[index].url }
@@ -416,23 +421,11 @@ private struct BusinessPageContent: View {
                         .modifier(Landed(flight: flight, from: 1))
                         // Alongside the pager's swipe and the page's scroll, never instead of them.
                         .contentShape(Rectangle())
-                        .simultaneousGesture(TapGesture().onEnded {
-                            Haptics.light()
-                            viewerPage = photoPage
-                            showingPhotos = true
-                        })
+                        .simultaneousGesture(TapGesture().onEnded { openPhotos() })
                         .matchedTransitionSource(id: "cover", in: zoom)
-                        .accessibilityAction(named: "Open photos") {
-                            viewerPage = photoPage
-                            showingPhotos = true
-                        }
+                        .accessibilityAction(named: "Open photos") { openPhotos() }
                     }
                 }
-            }
-            .fullScreenCover(isPresented: $showingPhotos) {
-                CoverPhotoViewer(photos: photos, page: $viewerPage,
-                                 fallbackAspect: size.width / BusinessPage.edge(width: size.width, top: top, cover: true))
-                    .navigationTransition(.zoom(sourceID: "cover", in: zoom))
             }
             // Pulling the page down past its top stretches the photo from its bottom edge, as on
             // the Event page.
@@ -456,6 +449,12 @@ private struct BusinessPageContent: View {
             .overlay(alignment: .bottomTrailing) {
                 counter.modifier(Landed(flight: flight, from: Self.lettersFrom)).allowsHitTesting(false)
             }
+    }
+
+    private func openPhotos() {
+        Haptics.light()
+        viewerPage = photoPage
+        showingPhotos = true
     }
 
     /// Opened from a photo, the name, credit and counter fade in over its last 45% (the mock's).
