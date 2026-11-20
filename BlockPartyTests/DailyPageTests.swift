@@ -88,9 +88,10 @@ final class DailyPageTests: XCTestCase {
     func testFollowingPutsTodaysEventsSoonestFirst() {
         let samples = DailyFollowing.samples(on: day)
         XCTAssertEqual(DailyFollowing.showing(samples.reversed(), now: town(12), limit: 10).map(\.id),
-                       ["follow-1", "follow-2", "follow-3"])
+                       ["follow-1", "follow-2", "follow-3", "follow-4", "follow-5", "follow-6"])
         // At 14 the porch sale is over.
-        XCTAssertEqual(DailyFollowing.showing(samples, now: town(14), limit: 10).map(\.id), ["follow-2", "follow-3"])
+        XCTAssertEqual(DailyFollowing.showing(samples, now: town(14), limit: 10).map(\.id),
+                       ["follow-2", "follow-3", "follow-4", "follow-5", "follow-6"])
         // Not one a section above shows, and no more than the limit.
         XCTAssertEqual(DailyFollowing.showing(samples, now: town(12), without: [samples[1].event], limit: 1).map(\.id),
                        ["follow-1"])

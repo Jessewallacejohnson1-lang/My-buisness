@@ -122,8 +122,8 @@ struct DailyFollowing: Identifiable {
             // Three schools' saved logos, read from the network (`TownFixtures`' games do the same): River Lakes' wide
             // wordmark (ROCORI's girls' hockey co-op), ROCORI's square crest and Saint John's J, each to sit whole.
             game("follow-4", "ROCORI", logo: "river-lakes/logo-4f698b753d", against: "Detroit Lakes", hour: 19),
-            game("follow-5", "ROCORI", logo: "rocori/logo-5904ca0046", against: "Sauk Rapids-Rice", hour: 19),
-            game("follow-6", "Saint John's", logo: "saint-johns/logo-65d82ce9fc", against: "Concordia", hour: 19.5),
+            game("follow-5", "ROCORI", logo: "rocori/logo-5904ca0046", against: "Sauk Rapids-Rice", hour: 19.5),
+            game("follow-6", "Saint John's", logo: "saint-johns/logo-65d82ce9fc", against: "Concordia", hour: 20),
         ]
     }
     #endif
