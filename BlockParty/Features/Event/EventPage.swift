@@ -654,14 +654,14 @@ struct EventPage: View {
             }
         }
         .overlay(alignment: .bottomTrailing) {
-            if !reviewing, !heroLifted {
+            if !reviewing {
                 TownCardHeart(item: item)
                     .padding(.trailing, heart.0)
                     .padding(.bottom, heart.1)
             }
         }
         .overlay(alignment: .bottomLeading) {
-            if !heroLifted, let credit {
+            if let credit {
                 PhotoCredit(names: [credit], report: near.picture.report(place: item.whereLine), spoken: false)
                     .padding(.leading, EventLook.heartInset - PhotoCredit.edgeInset)
                     .padding(.bottom, EventLook.creditAboveFoot - PhotoCredit.edgeInset)
