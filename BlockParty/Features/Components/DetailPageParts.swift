@@ -107,8 +107,15 @@ struct CoverPhotoViewer: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(spacing: 0) {
                         ForEach(Array(photos.enumerated()), id: \.offset) { index, photo in
-                            let fit = Self.fit(aspect: Self.aspect(photo) ?? fallbackAspect, in: proxy.size)
-                            FeedCardURLPhoto(url: photo.url, loadingFill: .clear)
+                            // The cover's bitmap, already decoded, stands in until the whole one lands, so
+                            // the zoom never opens on black (`ProfilePhotoView`), and gives its shape.
+                            let held = FeedCardImageLoader.shared.largest(for: photo.url)
+                            let heldAspect = held.map { CGFloat($0.width) / CGFloat(max($0.height, 1)) }
+                            let fit = Self.fit(aspect: Self.aspect(photo) ?? heldAspect ?? fallbackAspect, in: proxy.size)
+                            ZStack {
+                                if let held { Image(decorative: held, scale: 1).resizable() }
+                                FeedCardURLPhoto(url: photo.url, loadingFill: .clear)
+                            }
                                 .frame(width: fit.width, height: fit.height)
                                 .frame(width: proxy.size.width, height: proxy.size.height)
                                 .id(index)
@@ -120,9 +127,7 @@ struct CoverPhotoViewer: View {
                 .scrollPosition(id: $page)
                 .scrollDisabled(photos.count < 2)
                 if photos.isEmpty, let image {
-                    let fit = Self.fit(aspect: image.size.width / max(image.size.height, 1), in: proxy.size)
-                    Image(uiImage: image).resizable()
-                        .frame(width: fit.width, height: fit.height)
+                    Image(uiImage: image).resizable().scaledToFit()
                         .frame(width: proxy.size.width, height: proxy.size.height)
                 }
             }
@@ -140,6 +145,11 @@ struct CoverPhotoViewer: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Photos")
             .accessibilityValue(EventPage.counterText(page: page ?? 0, count: photos.count) ?? "")
+            .accessibilityAdjustableAction { direction in
+                let next = (page ?? 0) + (direction == .increment ? 1 : -1)
+                guard photos.indices.contains(next) else { return }
+                withAnimation(Motion.smooth) { page = next }
+            }
             Button { dismiss() } label: {
                 Image(systemName: "xmark")
                     .font(.glyph(17, weight: .semibold))
@@ -154,6 +164,8 @@ struct CoverPhotoViewer: View {
             .animation(Motion.smooth, value: drop > 0)
         }
         .interactiveDismissDisabled()
+        // The page shows through as the black fades under a drag down.
+        .presentationBackground(.clear)
     }
 
     /// A finger moving down, more down than across; the photos' pager waits for it to say no, which it

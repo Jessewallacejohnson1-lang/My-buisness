@@ -167,7 +167,6 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
     @State private var showingPhoto = false
     /// A tap on the cover opens it whole: theirs, or the town photo standing in for it.
     @State private var showingCover = false
-    @State private var coverPage: Int? = 0
 
     private typealias Event = EventPage.Metric
     private typealias Sizes = GroupPage.Metric
@@ -198,7 +197,7 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
                 .navigationTransition(.zoom(sourceID: "photo", in: zoom))
         }
         .fullScreenCover(isPresented: $showingCover) {
-            CoverPhotoViewer(photos: coverURL.map { [PlacePicture(url: $0, kind: .photo)] } ?? [], page: $coverPage,
+            CoverPhotoViewer(photos: coverURL.map { [PlacePicture(url: $0, kind: .photo)] } ?? [], page: .constant(0),
                              fallbackAspect: Sizes.heroAspect, image: ProfileFace.town)
                 .navigationTransition(.zoom(sourceID: "cover", in: zoom))
         }
