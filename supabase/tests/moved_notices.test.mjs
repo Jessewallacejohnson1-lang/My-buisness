@@ -129,6 +129,23 @@ test('the same place in other words is no move; another place or spot is (watch-
     'a known place to the same place in words with no place or spot');
 });
 
+test('a game that moves to another arena is a move, though its place stays the home school (watch-every-place 40)', async () => {
+  const at = async (was, now) => {
+    const id = await game({ title: 'Girls Hockey vs Thief River Falls · JV', sport: 'Girls Hockey · JV',
+      team_ids: ['thief-river-falls', 'rocori'], location: was });
+    await edit(id, `place_entry_id = 'rocori-high-school'`);
+    await edit(id, `location = $2`, [now]);
+    return (await moved(id)).moved;
+  };
+  assert.equal(await at('Huck Olson Memorial Arena', 'Ralph Engelstad Arena, Thief River Falls'), true, 'the Rocori case');
+  assert.equal(await at('Willmar Kennedy Elementary Main Gym', 'Willmar High School WHS West Gym'), true, 'another school');
+  // A school site renames the room every week: the same building stays put.
+  assert.equal(await at('St. Cloud Apollo High School Main Gym Main Court', 'St. Cloud Apollo High School Gym Center Court'), false);
+  assert.equal(await at('St. Cloud Tech High School Auxiliary Gym', 'St. Cloud Tech High School Gym, Aux'), false);
+  assert.equal(await at('ROCORI High School High School Gym North Court #3', 'ROCORI High School Gym North Court #3'), false);
+  assert.equal(await at('Ralph Engelstad Arena', 'Ralph Engelstad Arena, Thief River Falls'), false, 'the town added');
+});
+
 // Review fix 2: a mark written before ticket 39 keeps only {event_date, start_time, location}; a second
 // move must not read as a move back.
 test('an Event moved under the old words-only mark that moves again stays moved', async () => {
