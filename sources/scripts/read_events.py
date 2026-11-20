@@ -108,9 +108,30 @@ def judged(entry, src, **kw):
         kw["shows_from"] = (day - timedelta(CLOSING_DAYS)).isoformat()
         last = date.fromisoformat(kw["end"][:10]) if kw.get("end") else None
         kw["blurb"] = kw.get("blurb") or day_line(day, last)
+    shift = kw.get("blurb") and not kw.get("all_day") and "T" in (kw.get("start") or "") and about_shift(kw["start"], kw["blurb"])
+    for k in ("start", "end") if shift else ():
+        if "T" in (kw.get(k) or ""):
+            t = datetime.fromisoformat(kw[k])
+            kw[k] = ((t.astimezone(LOCAL) if t.tzinfo else t) + shift).isoformat()
     return {"kind": "event", "all_day": False, "place": "", "town": None, "area": "announced",
             "source_name": entry["_name"], "trust": src.get("trust") or "official", "sure": True,
             "size": "everyday", "interest": None, **kw}
+
+
+def about_shift(start, about):
+    """A calendar's clock exactly 12 hours off the one its own About gives: the About's wins, so 12 hours one way or
+    the other. "Unplugged at Alcuin" was entered at 7 to 8 AM and its About ends "7-8pm" (BP app smooth-mornings 17).
+    None when the About gives no such clock, or also gives the calendar's own ("Serving 7-10am, tickets till 7pm")."""
+    at, said = datetime.fromisoformat(start), set()
+    at = at.astimezone(LOCAL) if at.tzinfo else at
+    for m in CLOCK.finditer(about):
+        hour = int(m[1]) % 12 + (12 if m[5].lower() == "p" else 0)
+        if m[3] and int(m[1]) % 12 > int(m[3]) % 12:
+            hour = (hour + 12) % 24  # "11-1pm" starts at 11 AM
+        said.add((hour, int(m[2] or 0)))
+    if (at.hour, at.minute) in said or ((at.hour + 12) % 24, at.minute) not in said:
+        return None
+    return timedelta(hours=12 if at.hour < 12 else -12)
 
 
 def plain(markup):
@@ -1701,6 +1722,29 @@ def t_pathify():
     assert (mass["start"], mass["end"]) == ("2026-10-25T21:00:00-05:00", "2026-10-25T22:00:00-05:00"), mass
     assert (week["start"], week["end"]) == ("2026-11-09", "2026-11-14"), week
     assert title_clock("Unplugged at 7", datetime(2026, 1, 1, 9), None) == (datetime(2026, 1, 1, 9), None)
+    # Its calendar row as read on Nov 18 (the About is the live Event's, smooth-mornings 17).
+    unplugged = pathify_items([
+        {"id": 5006397, "title": "Unplugged at Alcuin: June Kapinos", "location": "Learning Commons",
+         "calendar": {"name": "Library"}, "start_date": "2026-11-18T13:00:00Z", "end_date": "2026-11-18T14:00:00Z",
+         "all_day": False, "ticket_url": "",
+         "description": "<p>Join June Kapainos for Unplugged at Alcuin! A music student at The College of Saint Benedict "
+                        "and a lifelong musician, she plays and writes music of many different genres.</p>"
+                        "<p>The Schu, Fireplace Lounge, Learning Commons</p><p>7-8pm</p>"}], {"_name": "x"}, src, TODAY)[0]
+    assert (unplugged["start"], unplugged["end"]) == ("2026-11-18T19:00:00-06:00", "2026-11-18T20:00:00-06:00"), \
+        "a calendar's clock 12 hours off its own About's takes the About's"
+    from write_judged import plan, interest_ids
+    row = plan([unplugged], [], TODAY, interest_ids())["events"][0]["row"]
+    assert (row["event_date"], row["start_time"], row["end_at"]) == ("2026-11-18", "7 PM", "2026-11-18T20:00:00-06:00"), row
+    at = lambda start, blurb, end=None: (lambda i: (i["start"], i.get("end")))(
+        judged({"_name": "x"}, {}, title="x", start=start, blurb=blurb, **({"end": end} if end else {})))
+    assert at("2026-11-18T11:00:00-06:00", "Soup and bread, 11-1pm") == ("2026-11-18T11:00:00-06:00", None), \
+        "a range across noon starts in the morning"
+    assert at("2026-11-21T07:00:00-06:00", "Serving 7-10am. Tickets until 7pm Friday.")[0] == "2026-11-21T07:00:00-06:00", \
+        "an About that also gives the calendar's clock leaves it be"
+    assert at("2026-11-21T21:00:00-06:00", "Pancakes at 9am", "2026-11-21T23:00:00-06:00") == (
+        "2026-11-21T09:00:00-06:00", "2026-11-21T11:00:00-06:00"), "back 12 hours too"
+    assert at("2026-11-21T07:00:00", "At 7 p.m.") == ("2026-11-21T19:00:00", None), "a clock with no zone keeps none"
+    assert at("2026-11-21T07:30:00-06:00", "7-8pm")[0] == "2026-11-21T07:30:00-06:00", "only exactly 12 hours"
     url = pathify_url(src["url"], TODAY)
     assert "calendar=2,165,166,193,212,224&in_range_after=2026-10-14T05:00:00Z&in_range_before=2027-01-12T06:00:00Z" in url, url
     assert "&field=description&" in url and "&field=ticket_url&" in url, url
