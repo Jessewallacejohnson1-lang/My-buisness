@@ -264,7 +264,8 @@ struct GroupPage: View {
         .animation(reduceMotion ? .easeInOut(duration: 0.15) : Motion.smooth, value: actions.member(group).count)
         .animation(reduceMotion ? .easeInOut(duration: 0.15) : Motion.smooth, value: events)
         .task(id: group.id) {
-            events = (try? await CommunityAPI(auth: AuthStore.shared).groupEvents(group.id)) ?? []
+            // A failed or cut-off read keeps the Events already shown.
+            if let read = try? await CommunityAPI(auth: AuthStore.shared).groupEvents(group.id) { events = read }
         }
         .background(Hue.paper, in: UnevenRoundedRectangle(topLeadingRadius: Event.sheetCorner,
                                                          topTrailingRadius: Event.sheetCorner, style: .continuous))
