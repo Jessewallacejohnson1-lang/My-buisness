@@ -1750,6 +1750,35 @@ final class TownFeedEventsTests: XCTestCase {
         XCTAssertEqual(town.cards.map(\.id), ["a"])
     }
 
+    /// The pill over a kept list says offline only when the phone has no connection; a 500 or a
+    /// timeout says the feed couldn't refresh (BP app town-feed 68). No list: no pill at all.
+    func testThePillTellsNoSignalFromAServerFault() async {
+        var answers: [Result<[TownFeedEntry], Error>] = [
+            .failure(URLError(.notConnectedToInternet)),
+            .success([TownFeed.entry(row("a"))]),
+            .failure(URLError(.notConnectedToInternet)),
+            .failure(SupabaseError(message: "", status: 500)),
+            .failure(URLError(.timedOut)),
+            .success([TownFeed.entry(row("a"))]),
+        ]
+        let town = TownFeed { try answers.removeFirst().get() }
+
+        await town.reload(at: now)
+        XCTAssertNil(town.fault, "no list shows the retry, not a pill")
+        await town.reload(at: now)
+        XCTAssertNil(town.fault)
+        await town.reload(at: now)
+        XCTAssertEqual(town.fault, .offline)
+        XCTAssertEqual(town.fault?.words, "You’re offline.")
+        await town.reload(at: now)
+        XCTAssertEqual(town.fault, .server, "the server's 500 is not the phone being offline")
+        XCTAssertEqual(town.fault?.words, "Couldn’t refresh feed.")
+        await town.reload(at: now)
+        XCTAssertEqual(town.fault, .server, "a timeout can't be told apart, so it says the true thing")
+        await town.reload(at: now)
+        XCTAssertNil(town.fault, "a good read takes the pill away")
+    }
+
     /// Offline with no list, the feed reads again on its own (town-feed 47): that quiet read keeps the
     /// retry on screen while it is out, where a tap on Try again shows the skeleton.
     func testAQuietReadKeepsTheRetryOnScreen() async {
