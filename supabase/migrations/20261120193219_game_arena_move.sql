@@ -88,3 +88,13 @@ begin
   return new;
 end;
 $$;
+
+-- Clear the false marks the words-only rule left on games still to come (Jesse's yes 2026-11-20): 35
+-- live, a room renamed at the same day and time, nobody Going. Real moves (38) keep theirs.
+update public.club_events
+set moved_at = null, moved_from = null
+where moved_at is not null and moved_from is not null
+  and sport is not null and cardinality(team_ids) = 2
+  and event_date >= (now() at time zone 'America/Chicago')::date
+  and not private.is_move(moved_from, jsonb_build_object('event_date', event_date, 'start_time', start_time,
+        'location', location, 'place_entry_id', place_entry_id, 'lat', lat, 'lng', lng, 'game', true));
