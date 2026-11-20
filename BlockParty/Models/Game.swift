@@ -327,6 +327,9 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
         private enum CodingKeys: String, CodingKey {
             case score, period, clock, seconds = "clock_s", complete, periods, at, drive, regulation, fouls, shootout, ice, shots
             case periodNumber = "period_n", length = "period_s"
+            /// The same three as the Town feed hands them over: PostgREST's reader (`Supabase.decode`) turns `clock_s`
+            /// into `clockS` before the keys above see it, while a live update's plain reader doesn't (BP app backlog 37).
+            case clockS, periodN, periodS
         }
 
         /// The fouls as the server keeps them: the quarter or half, and each side's foul plays by id.
@@ -340,7 +343,9 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
             }
             period = try c.decode(String.self, forKey: .period)
             clock = (try? c.decodeIfPresent(String.self, forKey: .clock)) ?? nil
-            seconds = (try? c.decodeIfPresent(Int.self, forKey: .seconds)) ?? nil
+            // 0 is a clock too (a period just over), so not through `int` below.
+            seconds = ((try? c.decodeIfPresent(Int.self, forKey: .seconds)) ?? nil)
+                ?? ((try? c.decodeIfPresent(Int.self, forKey: .clockS)) ?? nil)
             complete = ((try? c.decodeIfPresent(Bool.self, forKey: .complete)) ?? nil) ?? false
             let periods = ((try? c.decodeIfPresent([[Int]].self, forKey: .periods)) ?? nil) ?? []
             self.periods = periods.count == 2 && periods[0].count == periods[1].count ? periods : []
@@ -348,7 +353,8 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
             // One that doesn't read is none: it never costs the score.
             drive = (try? c.decodeIfPresent(Drive.self, forKey: .drive)) ?? nil
             let int = { (key: CodingKeys) in ((try? c.decodeIfPresent(Int.self, forKey: key)) ?? nil).flatMap { $0 > 0 ? $0 : nil } }
-            if let period = int(.periodNumber), let regulation = int(.regulation), let length = int(.length) {
+            let periodNumber = int(.periodNumber) ?? int(.periodN)
+            if let period = periodNumber, let regulation = int(.regulation), let length = int(.length) ?? int(.periodS) {
                 bar = Bar(period: period, regulation: regulation, length: length)
             } else {
                 bar = nil
@@ -357,7 +363,7 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
             let fouls = (try? c.decodeIfPresent(Fouls.self, forKey: .fouls)) ?? nil, period = bar?.foulPeriod
             self.fouls = fouls.flatMap { $0.ids.count == 2 && $0.period == period ? $0.ids.map(\.count) : nil }
             shootout = (try? c.decodeIfPresent(Shootout.self, forKey: .shootout)) ?? nil
-            periodNumber = int(.periodNumber)
+            self.periodNumber = periodNumber
             ice = (try? c.decodeIfPresent(Ice.self, forKey: .ice)) ?? nil
             finalShots = ((try? c.decodeIfPresent([Int].self, forKey: .shots)) ?? nil).flatMap { $0.count == 2 ? $0 : nil }
         }
