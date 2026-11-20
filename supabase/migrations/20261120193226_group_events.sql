@@ -20,6 +20,8 @@ as $$
       and not coalesce(e.friends_only, false)
       and e.source_name is not null
       and e.event_date >= (now() at time zone 'America/Chicago')::date
+      -- event_group (security definer: neighbours can't read sources) runs once per upcoming found Event, a few
+      -- hundred to two thousand rows: cheap for a page open.
       and private.event_group(e.source_name, e.place_entry_id, e.title) = p_group
     order by e.event_date, e.id
     limit 3

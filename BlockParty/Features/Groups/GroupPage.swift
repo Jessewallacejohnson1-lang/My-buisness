@@ -235,7 +235,8 @@ struct GroupPage: View {
             let rows = Self.comingUp(Self.upcoming(group.meetings), events: events)
             if !rows.isEmpty {
                 section("Coming up")
-                ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                // Kept by what each row is, so an Event that arrives fades in where its meeting was.
+                ForEach(rows) { row in
                     Group {
                         if let event = row.event {
                             // A found Event opens its page, as a Town card does.
@@ -410,9 +411,10 @@ struct GroupPage: View {
     }
 
     /// One Coming up row: a meeting, or a found Event in a meeting's words, which opens its page.
-    struct ComingUp: Hashable {
+    struct ComingUp: Hashable, Identifiable {
         let meeting: TownGroup.Meeting
         var event: FeedCardItem? = nil
+        var id: String { event?.id ?? "\(meeting.day) \(meeting.time ?? "") \(meeting.what)" }
     }
 
     /// The meetings and the found Events, soonest first, one row a day: an Event takes its day's meeting's
