@@ -441,10 +441,14 @@ private struct BusinessPageContent: View {
                         .opacity(PlaceNameArt.seeThrough)
                         .padding(.bottom, PlaceNameArt.bottom)
                         .modifier(Landed(flight: flight, from: Self.lettersFrom))
+                        // A tap through it opens the photo under it.
+                        .allowsHitTesting(false)
                 }
             }
             .overlay(alignment: .bottomLeading) { credit.modifier(Landed(flight: flight, from: Self.lettersFrom)) }
-            .overlay(alignment: .bottomTrailing) { counter.modifier(Landed(flight: flight, from: Self.lettersFrom)) }
+            .overlay(alignment: .bottomTrailing) {
+                counter.modifier(Landed(flight: flight, from: Self.lettersFrom)).allowsHitTesting(false)
+            }
     }
 
     /// Opened from a photo, the name, credit and counter fade in over its last 45% (the mock's).
