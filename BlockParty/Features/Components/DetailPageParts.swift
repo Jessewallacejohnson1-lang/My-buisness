@@ -87,7 +87,6 @@ struct PhotoPager: View {
 
 /// A cover's photos whole, on black, from a tap on the cover (a business page's, a Profile's), as
 /// Facebook opens a cover: they swipe one to the next, and X or a drag down closes it (Apple's zoom).
-/// The page it is on follows, so the zoom lands back on the photo you left on.
 struct CoverPhotoViewer: View {
     let photos: [PlacePicture]
     @Binding var page: Int?

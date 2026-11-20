@@ -364,6 +364,9 @@ private struct BusinessPageContent: View {
     @State private var failed: Set<URL> = []
     /// A tap on the cover opens its photos whole.
     @State private var showingPhotos = false
+    /// The photo open whole: it starts on the cover's, and the cover stays where it was (a pager moved
+    /// while covered showed one photo under the other's counter).
+    @State private var viewerPage: Int? = 0
     @Namespace private var zoom
 
     private typealias Metric = EventPage.Metric
@@ -415,15 +418,19 @@ private struct BusinessPageContent: View {
                         .contentShape(Rectangle())
                         .simultaneousGesture(TapGesture().onEnded {
                             Haptics.light()
+                            viewerPage = photoPage
                             showingPhotos = true
                         })
                         .matchedTransitionSource(id: "cover", in: zoom)
-                        .accessibilityAction(named: "Open photos") { showingPhotos = true }
+                        .accessibilityAction(named: "Open photos") {
+                            viewerPage = photoPage
+                            showingPhotos = true
+                        }
                     }
                 }
             }
             .fullScreenCover(isPresented: $showingPhotos) {
-                CoverPhotoViewer(photos: photos, page: $photoPage,
+                CoverPhotoViewer(photos: photos, page: $viewerPage,
                                  fallbackAspect: size.width / BusinessPage.edge(width: size.width, top: top, cover: true))
                     .navigationTransition(.zoom(sourceID: "cover", in: zoom))
             }
