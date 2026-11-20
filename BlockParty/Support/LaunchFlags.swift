@@ -108,6 +108,7 @@ nonisolated enum LaunchFlags {
         case townOffline = "-town-offline"
         case townOfflineFor = "-town-offline-for"
         case townRefuse = "-town-refuse"
+        case townServerFault = "-town-server-fault"
         case townSamples = "-town-samples"
         case townShootout = "-town-shootout"
         case townSignedOut = "-town-signed-out"
