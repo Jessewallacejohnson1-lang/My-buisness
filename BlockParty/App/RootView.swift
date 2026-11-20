@@ -796,7 +796,11 @@ struct MainTabsView: View {
             if LaunchFlags.has(.tabCycle) {
                 cycleTabs(from: 1)
             }
-            if LaunchFlags.has(.openCycle) { cycleOpens() }
+            // Once: this shell's onAppear runs again each time a pushed page goes back.
+            if LaunchFlags.has(.openCycle), !Self.cyclingOpens {
+                Self.cyclingOpens = true
+                cycleOpens()
+            }
             if LaunchFlags.has(.shareDemo) {
                 // The Town feed's first Event with a photo, once the feed is in; else a plain one.
                 Task {
@@ -893,6 +897,7 @@ struct MainTabsView: View {
     /// `-open-cycle` (with `-frame-gap-log`, from Town): once the Town feed is in, each screen a tap opens, in
     /// turn every 3 s, timed as a tap (`FrameGapLog.tapped`), and back 1.5 s later, so the phone can be timed with
     /// no hand on it (BP app tab-lag 02). It writes nothing: an Event open isn't counted, Messages but no chat.
+    private static var cyclingOpens = false
     private func cycleOpens() {
         Task {
             for _ in 0..<120 where townFeed.cards.isEmpty { try? await Task.sleep(for: .milliseconds(250)) }
