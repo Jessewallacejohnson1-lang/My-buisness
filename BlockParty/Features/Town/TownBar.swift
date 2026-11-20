@@ -257,8 +257,8 @@ struct TownBar: View {
     /// observable box: this bar reads it and nothing above it re-runs.
     var travel = BarTravel()
     /// A read failed while the Town feed shows its kept list: a pill under the bar
-    /// says so, and leaves and comes back with the bar (ticket 11).
-    var offline = false
+    /// says why, and leaves and comes back with the bar (ticket 11, town-feed 68).
+    var fault: FeedFault? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -302,13 +302,13 @@ struct TownBar: View {
                     // Under the bar, outside its fixed height, so the cards never move
                     // for it.
                     .overlay(alignment: .bottom) {
-                        if offline {
-                            OfflinePill()
+                        if let fault {
+                            FaultPill(fault: fault)
                                 .offset(y: TownBarMetric.offlinePillHeight + TownBarMetric.offlinePillGap)
                                 .transition(.opacity)
                         }
                     }
-                    .animation(motion, value: offline)
+                    .animation(motion, value: fault)
                     .offset(y: -carried)
                     .opacity(1 - carried / TownBarRules.contentHeight)
                     .transition(.offset(y: -TownBarRules.contentHeight).combined(with: .opacity))
@@ -723,14 +723,17 @@ private struct Frosted<S: InsettableShape>: View {
     }
 }
 
-/// The Town feed's offline pill: the map sheet's crossed-out wifi and words, ink on
-/// the bar's frosted white. Particle News's "No Internet Connection" pill is the
-/// Reference (BP app `references/town-fresh-order/`).
-private struct OfflinePill: View {
+/// The Town feed's pill: offline, the map sheet's crossed-out wifi and words; a server fault,
+/// Apple's refresh-with-alert and "Couldn't refresh feed." (town-feed 68). Ink on the bar's
+/// frosted white. Particle News's "No Internet Connection" pill is the Reference
+/// (BP app `references/town-fresh-order/`, `references/feed-fault-pill/`).
+private struct FaultPill: View {
+    let fault: FeedFault
+
     var body: some View {
         HStack(spacing: 6) {
-            Image(systemName: "wifi.slash").font(.sansMedium(11))
-            Text(FeedStateCopy.offline)
+            Image(systemName: fault.symbol).font(.sansMedium(11))
+            Text(fault.words)
         }
         .font(.sans(13))
         .foregroundStyle(Hue.ink.onLightCanvas)

@@ -33,8 +33,13 @@ final class TownFeed {
     /// nil until there is a list to show, which the feed shows as its skeleton.
     private(set) var entries: [TownFeedEntry]?
     /// The last read failed. With no list the feed shows its retry; with one, it keeps
-    /// the list and says it's offline.
+    /// the list and a pill says why (`fault`).
     private(set) var failed = false
+    /// The last failed read found no connection on the phone; otherwise the server failed or
+    /// was too slow to tell (BP app town-feed 68).
+    private(set) var noSignal = false
+    /// What the pill over a kept list says, or nil while the last read worked or no list shows.
+    var fault: FeedFault? { failed && entries != nil ? (noSignal ? .offline : .server) : nil }
     /// When the list was last read or checked. Events that have left by then are hidden.
     private(set) var clock = Date()
 
@@ -183,7 +188,10 @@ final class TownFeed {
                 }, actions: actions, live: live)
                 return
             }
-            self.init(read: { throw URLError(.notConnectedToInternet) },
+            // `-town-server-fault`: the server answers every read with a 500 instead (town-feed 68).
+            let failure: Error = LaunchFlags.has(.townServerFault)
+                ? SupabaseError(message: "server fault", status: 500) : URLError(.notConnectedToInternet)
+            self.init(read: { throw failure },
                       kept: { TownFixtures.townEntries() }, actions: actions, live: live)
             return
         case .samples:
@@ -527,6 +535,7 @@ final class TownFeed {
         } catch {
             guard thisRead == latestRead else { return }
             Log.network("TownFeed: \(error)")
+            noSignal = SupabaseHTTP.noSignal(error)
             failed = true
         }
         clock = now
