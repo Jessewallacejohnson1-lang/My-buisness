@@ -1,10 +1,10 @@
 //
 //  OnboardingProfile.swift
-//  Block Party — onboarding's Profile step (BP app onboarding 35), Luma's profile screen copied at
-//  mock v8's measured points ("4 · Profile"): the plain grey band fading into the canvas, the 80 pt
-//  photo with its glass camera badge, "Your Profile" and its line centred under it as Luma's, and the
-//  Name and Bio boxes. No wordmark (Jesse, 2026-11-10: it crowded the centred photo). It took the place of the Name and Photo steps. The answers live in
-//  `OnboardingStore`; `OnboardingFlow` owns the back arrow, the progress line and Save Profile.
+//  Block Party — onboarding's Profile step (BP app onboarding 35) in the Big art look (onboarding 43,
+//  mock v2 "Profile"): on its sand colour, the 124 pt photo with its glass badge is the step's art,
+//  "Your Profile" and its line centred under it, then the Name and Bio boxes, white with a soft edge.
+//  It took the place of the Name and Photo steps. The answers live in `OnboardingStore`;
+//  `OnboardingFlow` owns the backdrop, the back arrow, the dashes and Save Profile.
 //
 
 import SwiftUI
@@ -19,49 +19,33 @@ struct OnboardingProfile: View {
     private enum Field: Hashable { case name, bio }
     @FocusState private var focus: Field?
 
-    /// The band's height and the photo's top, from the screen's top edge (mock v8 `.ffade`, `.screen.lp`).
-    private static let band: CGFloat = 224
-    private static let top: CGFloat = 155
-
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    // The photo, the question and its line sit centred, as Luma's; the boxes stay full width.
-                    OnboardingProfilePhoto(store: store)
-                        .frame(maxWidth: .infinity)
-                    Text(OnboardingStep.profile.question)
-                        .appleFont(20, weight: .semibold)
-                        .foregroundStyle(Hue.ink)
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: .infinity)
-                        .accessibilityAddTraits(.isHeader)
-                        .accessibilityFocused($headingFocused)
-                        .padding(.top, 19)
-                    Text("Introduce yourself to others in your events.")
-                        .font(.apple(15))
-                        .foregroundStyle(Hue.inkSecondary)
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, 11)
-                    label("Name").padding(.top, 23)
+                    // The photo, the question and its line sit centred; the boxes stay full width.
+                    OnboardingBigArt(question: OnboardingStep.profile.question,
+                                     line: "Introduce yourself to others in your events.",
+                                     focused: $headingFocused) {
+                        OnboardingProfilePhoto(store: store)
+                    }
+                    label("Name")
                     nameBox.id(Field.name)
-                    label("Bio").padding(.top, 25)
+                    label("Bio")
                     bioBox.id(Field.bio)
                 }
                 .padding(.horizontal, FollowGridMetric.gutter)
-                .padding(.top, Self.top)
+                .padding(.top, BigArt.top - FollowGridMetric.scrollTop)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(alignment: .top) { band }
             }
             .scrollBounceBehavior(.basedOnSize)
             .scrollIndicators(.hidden)
             .scrollDismissesKeyboard(.interactively)
             .contentMargins(.bottom, bottomClear, for: .scrollContent)
-            // The band runs under the back arrow and the progress line, to the screen's top edge.
+            // Under the top row it goes, as every step's column does, into the step's colour.
+            .padding(.top, FollowGridMetric.scrollTop)
+            .overlay(alignment: .top) { OnboardingScrollEdge(color: Hue.bigArtProfile) }
             .ignoresSafeArea(.container, edges: .top)
-            .overlay(alignment: .top) { topCover }
             // The box being typed in clears Save Profile over the keyboard: once the keyboard is up
             // (the bottom it keeps clear changes then), and on a move from Name to Bio.
             .onChange(of: bottomClear) { reveal(proxy) }
@@ -74,35 +58,11 @@ struct OnboardingProfile: View {
         withAnimation(Motion.sheet) { proxy.scrollTo(focus, anchor: .bottom) }
     }
 
-    /// Luma's grey band, plain (no stars, Jesse 2026-11-09), fading into the canvas over 200 pt.
-    private var band: some View {
-        LinearGradient(stops: [.init(color: Hue.profileBand, location: 0),
-                               .init(color: Hue.onboardingCanvas, location: 200 / Self.band)],
-                       startPoint: .top, endPoint: .bottom)
-            .frame(height: Self.band)
-            .accessibilityHidden(true)
-    }
-
-    /// Where the column meets the top row once it scrolls (a large text size): the band's own top,
-    /// pinned, fading out 16 pt under the progress line. At rest it lies exactly on the band.
-    private var topCover: some View {
-        band
-            .mask {
-                LinearGradient(stops: [.init(color: .black, location: 0),
-                                       .init(color: .black, location: FollowGridMetric.scrollTop / Self.band),
-                                       .init(color: .clear, location: (FollowGridMetric.scrollTop + 16) / Self.band)],
-                               startPoint: .top, endPoint: .bottom)
-            }
-            .ignoresSafeArea(.container, edges: .top)
-            .allowsHitTesting(false)
-    }
-
-    /// The small grey word over a box (mock v8 `.ll`), 10 pt above it. VoiceOver hears it as the box's name.
+    /// The small grey word over a box (mock v2 `.flabel`), 24 pt under what's above it and 6 pt above the
+    /// box. VoiceOver hears it as the box's name.
     private func label(_ words: String) -> some View {
-        Text(words)
-            .font(.apple(12))
-            .foregroundStyle(Hue.inkSecondary)
-            .padding(.bottom, 10)
+        OnboardingFieldLabel(words, color: Hue.bigArtWords)
+            .padding(.top, 24)
             .accessibilityHidden(true)
     }
 
@@ -114,7 +74,7 @@ struct OnboardingProfile: View {
             .submitLabel(.next)
             .onSubmit { focus = .bio }
             .focused($focus, equals: .name)
-            .profileBox(minHeight: 44, top: 11)
+            .profileBox(size: 17, minHeight: OnboardingFieldBox.height, top: 12)
             .onTapGesture { focus = .name }
             .accessibilityLabel("Name")
     }
@@ -138,7 +98,7 @@ struct OnboardingProfile: View {
                 .accessibilityLabel("Bio")
                 .accessibilityHint("Share a little about your background and interests.")
         }
-        .profileBox(minHeight: 58, top: 9)
+        .profileBox(size: 15, minHeight: 58, top: 9)
         .onTapGesture { focus = .bio }
         .onChange(of: store.bio) { _, typed in
             if typed.contains("\n") {
@@ -152,24 +112,23 @@ struct OnboardingProfile: View {
 }
 
 private extension View {
-    /// Luma's box (mock v8 `.lf`): a soft grey, 10 pt corners, the words at 17 pt, 16 pt in. No line
-    /// round it while typing, as Luma's. Grows with Dynamic Type.
-    func profileBox(minHeight: CGFloat, top: CGFloat) -> some View {
-        font(.apple(17))
+    /// The Big art look's box (mock v2 `.field`, `.field.tall`): white with a soft edge, the words 16 pt
+    /// in, Name's at 17 pt and Bio's at 15. No line round it while typing. Grows with Dynamic Type.
+    func profileBox(size: CGFloat, minHeight: CGFloat, top: CGFloat) -> some View {
+        font(.apple(size))
             .foregroundStyle(Hue.ink)
             .tint(Hue.ink)
             .padding(.horizontal, 16)
             .padding(.vertical, top)
             .frame(maxWidth: .infinity, minHeight: minHeight, alignment: .topLeading)
-            // Luma's 10 pt field corner: the app's field radius, iOS's search field's.
-            .background(Hue.profileField, in: RoundedRectangle(cornerRadius: Radius.searchField, style: .continuous))
+            .bigArtBox()
             // The whole box takes the tap.
             .contentShape(Rectangle())
     }
 }
 
-/// The 80 pt photo (mock v8 `.avatar`): empty, a plain colour circle (Luma's face is their own
-/// character); picked, the photo. The Liquid Glass badge (Luma's photo-plus icon) sits on its bottom right. A tap opens Apple's
+/// The 124 pt photo, the step's art (mock v2 `.pic .avatar`): empty, a plain colour circle; picked, the
+/// photo. The 38 pt Liquid Glass badge (Luma's photo-plus icon) sits on its bottom right. A tap opens Apple's
 /// photo picker, or asks library or camera when the phone has one.
 struct OnboardingProfilePhoto: View {
     @Bindable var store: OnboardingStore
@@ -183,7 +142,7 @@ struct OnboardingProfilePhoto: View {
     /// The camera's photo, held until the camera has gone so Adjust can come up.
     @State private var taken: UIImage?
 
-    static let side: CGFloat = 80
+    static let side: CGFloat = BigArt.art
     private static var hasCamera: Bool { UIImagePickerController.isSourceTypeAvailable(.camera) }
 
     var body: some View {
@@ -237,9 +196,9 @@ struct OnboardingProfilePhoto: View {
             // Apple's Liquid Glass, as the tab bar's (Jesse, 2026-11-10). Light scheme so it doesn't
             // follow dark mode; over a dark photo the glass still takes the photo's tone.
             Image(systemName: "photo.badge.plus")
-                .font(.glyph(15, weight: .regular))
+                .font(.glyph(19, weight: .regular))
                 .foregroundStyle(Hue.ink)
-                .frame(width: 30, height: 30)
+                .frame(width: 38, height: 38)
                 .glassEffect(.regular.interactive(), in: Circle())
                 .environment(\.colorScheme, .light)
         }

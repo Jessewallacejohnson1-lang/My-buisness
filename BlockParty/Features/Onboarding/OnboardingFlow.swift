@@ -3,9 +3,10 @@
 //  Block Party — the first-launch onboarding (BP app docs/plans/onboarding, ticket 16): the
 //  Welcome (Nextdoor's layout, ticket 25 mock), Log in or Create account (onboarding 27), then
 //  six question steps on one fixed frame in Luma's look (onboarding 34, mock v8): the grey canvas,
-//  back and the progress line on top, an icon circle over each question, and the one
+//  back and the dashes on top, an icon circle over each question, and the one
 //  Next pill 84 pt from the bottom with its slot under it. Only the question moves between
-//  steps. The steps are placeholders, a question each, until tickets 17 to 24 fill them.
+//  steps. Profile and Birthday wear the Big art look (onboarding 43, mock v2); the other steps
+//  take it in tickets of their own.
 //
 
 import Contacts
@@ -32,7 +33,7 @@ enum OnboardingStep: Int, CaseIterable {
     }
 
     /// The SF Symbol in the grey circle over the question, nearest mock v8's icons (onboarding 34). The
-    /// Welcome and Profile draw no circle.
+    /// Welcome draws no circle, nor do the Big art steps: Profile's art is its photo, Birthday's the cake.
     var symbol: String {
         switch self {
         case .welcome, .profile: "person"
@@ -41,6 +42,16 @@ enum OnboardingStep: Int, CaseIterable {
         case .follow:    "mappin.and.ellipse"
         case .friends:   "person.2"
         case .contacts:  "person.2"
+        }
+    }
+
+    /// A step in the Big art look's soft colour at the top (onboarding 43, mock v2 `ART`); nil while the
+    /// step keeps Luma's grey.
+    var tint: Color? {
+        switch self {
+        case .profile:  Hue.bigArtProfile
+        case .birthday: Hue.bigArtBirthday
+        default:        nil
         }
     }
 
@@ -247,6 +258,12 @@ final class OnboardingStore {
         forward = way != nil
     }
 
+    /// Back from Log in or Create account to the Welcome, or a step back through Forgot password.
+    func accountBack() {
+        account = account?.back
+        forward = false
+    }
+
     /// The account is made: on to the first question.
     func created() {
         account = nil
@@ -280,7 +297,8 @@ final class OnboardingStore {
         defaults.removeObject(forKey: HelloDrop.lastSeenKey)
         answersPending = false
         tooYoung = false
-        account = nil
+        // Log in stays up: someone on it is there to log in, as after backing out of a new password.
+        if account != .logIn { account = nil }
         welcoming = false
         finished = false
         finishedHere = false
@@ -313,7 +331,9 @@ final class OnboardingStore {
     /// The server's `onboarded_at` says this account finished on another install. Taken only
     /// on the Welcome, so a slow read can't pull someone out halfway through.
     func serverSaysFinished() {
-        guard step == .welcome else { return }
+        // Forgot password's code signs the phone in before the new password is made: that screen
+        // stays up, and its Log in goes in (`loggedIn`).
+        guard step == .welcome, account?.resets != true else { return }
         markFinished()
     }
 
@@ -455,7 +475,9 @@ struct OnboardingFlow: View {
     /// that moves, the question.
     private var questions: some View {
         ZStack(alignment: .top) {
-            OnboardingBackdrop()
+            // The step's colour glides to the next one's (mock v2); Reduce Motion changes it at once.
+            OnboardingBackdrop(tint: tint)
+                .animation(reduceMotion ? nil : BigArt.glide, value: tint)
 
             if !onWelcome {
                 question
@@ -467,10 +489,14 @@ struct OnboardingFlow: View {
 
             HStack(spacing: 4) {
                 // None on the first question: the account is made, there's no going back to make another.
-                OnboardingBackChevron(action: go { [store] in if store.account != nil { store.open(nil) } else { store.back() } })
-                    .opacity(store.step == .profile ? 0 : 1)
+                OnboardingBackChevron(action: go { [store] in
+                    // The code signed the phone in for its new password: back out of it is a sign-out.
+                    if store.account == .newPassword { Task { await AuthStore.shared.signOut() } }
+                    if store.account != nil { store.accountBack() } else { store.back() }
+                })
+                    .opacity(noBack ? 0 : 1)
                     // Nor while Log in or Create account waits on the server: its answer moves on.
-                    .disabled(store.step == .profile || form.busy)
+                    .disabled(noBack || form.busy)
                 OnboardingProgressBar(index: store.barIndex, total: OnboardingStep.barTotal)
                     .opacity(store.account == nil ? 1 : 0)
             }
@@ -485,7 +511,7 @@ struct OnboardingFlow: View {
         }
         .overlay(alignment: .bottom) {
             if store.step == .birthday {
-                OnboardingBirthdayWheel(date: birthday, now: .now)
+                OnboardingBirthdayWheel(date: birthday, now: .now, canvas: Hue.bigArtCanvas)
                     .ignoresSafeArea(.container, edges: .bottom)
                     .transition(.move(edge: .bottom))
             }
@@ -499,12 +525,12 @@ struct OnboardingFlow: View {
         Binding(get: { [store] in store.birthday ?? .now }, set: { [store] in store.birthday = $0 })
     }
 
-    /// Where a scrolling step meets the top row: the backdrop fading out over 16 pt.
+    /// The colour at the top of the step that is up, on a Big art step; Log in and Create account have none.
+    private var tint: Color? { store.account == nil ? store.step.tint : nil }
+
+    /// Where a scrolling step meets the top row: what's behind it there fading out over 16 pt.
     private var scrollEdge: some View {
-        LinearGradient(colors: [Hue.onboardingCanvas, Hue.onboardingCanvas.opacity(0)], startPoint: .top, endPoint: .bottom)
-            .frame(height: 16)
-            .padding(.top, FollowGridMetric.scrollTop)
-            .allowsHitTesting(false)
+        OnboardingScrollEdge(color: tint ?? Hue.onboardingCanvas)
     }
 
     /// Over a list that scrolls under the Next bar, the backdrop comes back over the bottom
@@ -526,7 +552,7 @@ struct OnboardingFlow: View {
     private var question: some View {
         Group {
             if on(.profile) {
-                // Luma's profile screen whole (onboarding 35): its own band, photo and title, no icon circle.
+                // Its photo is its art (onboarding 43): it draws its own heading.
                 OnboardingProfile(store: store, headingFocused: $questionFocused, bottomClear: bottomClear)
             } else if store.step == .follow {
                 // Follow 3's question scrolls away with its grid (onboarding 26).
@@ -579,12 +605,12 @@ struct OnboardingFlow: View {
                 // of it; where it fits it holds still.
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
-                        heading
+                        if on(.birthday) { cake } else { heading }
                         answer
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, FollowGridMetric.gutter)
-                    .padding(.top, FollowGridMetric.headingTop - FollowGridMetric.scrollTop)
+                    .padding(.top, (tint == nil ? FollowGridMetric.headingTop : BigArt.top) - FollowGridMetric.scrollTop)
                 }
                 .scrollBounceBehavior(.basedOnSize)
                 .scrollIndicators(.hidden)
@@ -601,11 +627,20 @@ struct OnboardingFlow: View {
         }
     }
 
+    /// Birthday's Big art (onboarding 43): Jesse's cake, 124 pt tall, over the question.
+    private var cake: some View {
+        OnboardingBigArt(question: store.step.question, focused: $questionFocused) {
+            Image(decorative: OnboardingBirthdayField.cakeImage)
+                .resizable()
+                .scaledToFit()
+                .frame(height: BigArt.art)
+        }
+    }
+
     /// The icon circle and the question under it (Luma's, onboarding 34).
     private var heading: some View {
         OnboardingHeading(symbol: store.account?.symbol ?? store.step.symbol,
                           question: store.account?.title ?? (firstHere ? "You're one of the first here" : store.step.question),
-                          cake: on(.birthday),
                           focused: $questionFocused)
             .contentTransition(.opacity)
             .animation(.easeInOut(duration: 0.2), value: firstHere)
@@ -626,10 +661,16 @@ struct OnboardingFlow: View {
         return onApp.contains { $0.relation == .stranger }
     }
 
+    /// No back chevron on the first question: the account is made, there's no going back to make
+    /// another.
+    private var noBack: Bool { store.account == nil && store.step == .profile }
+
     /// What the step asks for, under its question; nothing yet on the placeholder steps.
     @ViewBuilder private var answer: some View {
         if let way = store.account {
-            AccountFields(form: form, way: way, submit: submitAccount)
+            AccountFields(form: form, way: way, submit: submitAccount,
+                          forgot: go { [store] in store.open(.forgot) },
+                          resend: { Task { await form.resend(auth: .shared) } })
         } else {
             stepAnswer
         }
@@ -638,7 +679,7 @@ struct OnboardingFlow: View {
     @ViewBuilder private var stepAnswer: some View {
         switch store.step {
         case .birthday:
-            OnboardingBirthdayField(date: store.birthday ?? .now, now: .now)
+            OnboardingBirthdayField(date: store.birthday ?? .now, now: .now, bigArt: true)
                 .padding(.top, 24)
             OnboardingGenderRow(pick: Binding(get: { store.gender }, set: { store.gender = $0 }))
         default:
@@ -715,7 +756,7 @@ struct OnboardingFlow: View {
         #if DEBUG
         if LaunchFlags.has(.onboardingNotYet) { return false }
         #endif
-        if store.account != nil { return form.canSubmit }
+        if let way = store.account { return form.canSubmit(way) }
         switch store.step {
         case .profile: return store.profileDone
         case .birthday: return store.birthday != nil
@@ -741,19 +782,23 @@ struct OnboardingFlow: View {
         return store.step == .friends ? askContacts : go { [store] in store.next() }
     }
 
-    /// Log in or Create account's Next. A new account goes on to the first question; a logged-in
-    /// one reads Your profile first, and its onboarded stamp sends it straight in or to the first
-    /// question. No answer from the read keeps the screen up with a line, to try again.
+    /// Log in or Create account's Next, or a Forgot password step's. A new account goes on to the
+    /// first question; a logged-in one (Log in, or the new password) reads Your profile first, and
+    /// its onboarded stamp sends it straight in or to the first question. No answer from the read
+    /// keeps the screen up with a line, to try again. The email's code sent goes on to the code, and
+    /// the code taken to the new password.
     private func submitAccount() {
         guard let way = store.account else { return }
         Task {
             await form.submit(way, auth: .shared) {
-                if way == .logIn {
+                switch way {
+                case .logIn, .newPassword:
                     guard await profile.read() else { return AuthStore.Words.offline }
                     let onboarded = profile.onboardedAt != nil
                     go { [store] in store.loggedIn(onboarded: onboarded) }()
-                } else {
-                    go { [store] in store.created() }()
+                case .create: go { [store] in store.created() }()
+                case .forgot: go { [store] in store.open(.code) }()
+                case .code: go { [store] in store.open(.newPassword) }()
                 }
                 return nil
             }
