@@ -28,7 +28,11 @@ struct ShareHost: View {
 
 struct ShareSheet: View {
     let payload: SharePayload
-    let height: CGFloat
+    /// Whether the people row shows: an Event, shared by someone signed in.
+    private let withPeople: Bool
+    /// The sheet's height: Hypelist's, top 88 pt down the screen, when the people row shows; else it ends just under
+    /// the apps (Jesse at Check-in 2).
+    private let height: CGFloat
 
     @ObservedObject private var center = ShareCenter.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -42,8 +46,13 @@ struct ShareSheet: View {
 
     @State private var searchOpen = false
 
-    init(payload: SharePayload, height: CGFloat) {
+    init(payload: SharePayload, height room: CGFloat) {
+        let center = ShareCenter.shared
+        let people = payload.card != nil && center.chats != nil && center.friends != nil
+            && AuthStore.shared.isSignedIn && !AuthStore.shared.isAnonymous
+        let height = people ? room : min(room, ShareMetric.peopleTop + ShareMetric.rowFoot)
         self.payload = payload
+        self.withPeople = people
         self.height = height
         _detent = State(initialValue: .height(height))
     }
@@ -58,7 +67,7 @@ struct ShareSheet: View {
                 sheet
             }
         }
-        .presentationDetents([.height(height), .large], selection: $detent)
+        .presentationDetents(withPeople ? [.height(height), .large] : [.height(height)], selection: $detent)
         .presentationDragIndicator(.visible)
         .presentationBackground(Hue.surface)
         .onChange(of: detent) { _, now in
@@ -148,8 +157,7 @@ struct ShareSheet: View {
     // MARK: The people an Event goes to
 
     private func loadPeople() async {
-        guard let card = payload.card, let chats = center.chats, let book = center.friends,
-              AuthStore.shared.isSignedIn, !AuthStore.shared.isAnonymous else { return }
+        guard withPeople, let card = payload.card, let chats = center.chats, let book = center.friends else { return }
         let list = ChatSendList(card: card, chats: chats, book: book)
         self.list = list
         await list.load(you: center.you, actions: center.actions)
