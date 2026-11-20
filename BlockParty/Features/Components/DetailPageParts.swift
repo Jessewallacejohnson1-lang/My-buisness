@@ -85,6 +85,74 @@ struct PhotoPager: View {
     }
 }
 
+/// A cover's photos whole, on black, from a tap on the cover (a business page's, a Profile's), as
+/// Facebook opens a cover: they swipe one to the next, and X or a drag down closes it (Apple's zoom).
+/// The page it is on follows, so the zoom lands back on the photo you left on.
+struct CoverPhotoViewer: View {
+    let photos: [PlacePicture]
+    @Binding var page: Int?
+    /// A photo's shape when its size isn't known: the cover's, so it opens as the cover cropped it.
+    let fallbackAspect: CGFloat
+    /// With no photos: a bundled one (a Profile's town photo, until they pick a cover).
+    var image: UIImage? = nil
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            Color.black.ignoresSafeArea()
+            GeometryReader { proxy in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHStack(spacing: 0) {
+                        ForEach(Array(photos.enumerated()), id: \.offset) { index, photo in
+                            let fit = Self.fit(aspect: Self.aspect(photo) ?? fallbackAspect, in: proxy.size)
+                            FeedCardURLPhoto(url: photo.url, loadingFill: .clear)
+                                .frame(width: fit.width, height: fit.height)
+                                .frame(width: proxy.size.width, height: proxy.size.height)
+                                .id(index)
+                        }
+                    }
+                    .scrollTargetLayout()
+                }
+                .scrollTargetBehavior(.paging)
+                .scrollPosition(id: $page)
+                .scrollDisabled(photos.count < 2)
+                if photos.isEmpty, let image {
+                    let fit = Self.fit(aspect: image.size.width / max(image.size.height, 1), in: proxy.size)
+                    Image(uiImage: image).resizable()
+                        .frame(width: fit.width, height: fit.height)
+                        .frame(width: proxy.size.width, height: proxy.size.height)
+                }
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Photos")
+            .accessibilityValue(EventPage.counterText(page: page ?? 0, count: photos.count) ?? "")
+            Button { dismiss() } label: {
+                Image(systemName: "xmark")
+                    .font(.glyph(17, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: PageMetric.tapMin, height: PageMetric.tapMin)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.press(.squish))
+            .accessibilityLabel("Close")
+            .padding(.trailing, EventPage.Metric.inset - (PageMetric.tapMin - EventPage.Metric.button) / 2)
+        }
+    }
+
+    private static func aspect(_ photo: PlacePicture) -> CGFloat? {
+        guard let w = photo.width, let h = photo.height, w > 0, h > 0 else { return nil }
+        return CGFloat(w) / CGFloat(h)
+    }
+
+    /// The largest box of `aspect` (width over height) inside `room`.
+    static func fit(aspect: CGFloat, in room: CGSize) -> CGSize {
+        guard aspect > 0, room.width > 0, room.height > 0 else { return room }
+        return room.width / room.height > aspect
+            ? CGSize(width: room.height * aspect, height: room.height)
+            : CGSize(width: room.width, height: room.width / aspect)
+    }
+}
+
 /// "2/3" in the photo's bottom right corner. The pager says it to VoiceOver, with the credit.
 struct PhotoCounter: View {
     let text: String
