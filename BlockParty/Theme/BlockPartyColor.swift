@@ -268,8 +268,10 @@ nonisolated enum Hue {
     /// The dot before "Now" on a Town card whose event is on (Jesse, 2026-10-20: "use the word
     /// now with green dot"): Apple's own green. A game's "Live" keeps Apple's red.
     static let now           = Color(uiColor: .systemGreen)
-    /// The share sheet's WhatsApp and Messenger buttons (BP app share-sheet 01): each app's own colours, for its own
-    /// mark and nothing else.
+    /// The share sheet's Messages, WhatsApp and Messenger buttons (BP app share-sheet 01): each app's own colours,
+    /// for its own mark and nothing else.
+    static let messagesTop   = Color(hex: 0x5CF777)
+    static let messagesFoot  = Color(hex: 0x0DBD2B)
     static let whatsApp      = Color(hex: 0x25D366)
     static let messengerBlue = Color(hex: 0x0099FF)
     static let messengerPurple = Color(hex: 0xA033FF)

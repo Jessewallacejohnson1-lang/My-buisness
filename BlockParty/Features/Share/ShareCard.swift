@@ -13,7 +13,7 @@ import SwiftUI
 struct ShareCard: View {
     let story: ShareStory
     let look: ShareLook
-    /// The picture, decoded. Nil with a photo to come shows ink until it lands; nil with none, the yellow face.
+    /// The picture, decoded. Nil with a photo to come shimmers until it lands; nil with none, the yellow face.
     let photo: CGImage?
 
     var body: some View {
@@ -44,8 +44,10 @@ struct ShareCard: View {
                     .clipped()
                 LinearGradient(colors: [.clear, .black.opacity(ShareMetric.shade)], startPoint: .top, endPoint: .bottom)
                     .frame(height: ShareMetric.faceHeight * ShareMetric.shadeReach)
+            } else if yellow {
+                Hue.brandDisc
             } else {
-                (yellow ? Hue.brandDisc : Hue.ink)
+                SkeletonBlock(cornerRadius: 0).shimmering()
             }
             VStack(alignment: .leading, spacing: ShareMetric.lineGap) {
                 Text(story.title)
@@ -147,6 +149,10 @@ nonisolated enum ShareMetric {
     static let peopleTop: CGFloat = 542
     static let ruleTop: CGFloat = 635.7
     static let appsTop: CGFloat = 652
+    /// A row's circle, its word and the space under it, from the row's top.
+    static let rowFoot: CGFloat = 106
+    /// The space under the card a short phone gives up first, of its 69: down to 24.
+    static let gapGive: CGFloat = 45
 
     static let cardWidth: CGFloat = 216
     static let cardHeight: CGFloat = 385

@@ -20,18 +20,9 @@ struct ShareHost: View {
             .sheet(isPresented: $center.showing, onDismiss: center.sheetGone) {
                 if let payload = center.payload {
                     ShareSheet(payload: payload, height: center.sheetHeight)
-                        .modifier(YouAround(you: center.you))
+                        .environment(center.you)
                 }
             }
-    }
-}
-
-/// The share window is outside the shell, so a chat's face reads your Groups only when handed them.
-private struct YouAround: ViewModifier {
-    let you: YouModel?
-
-    func body(content: Content) -> some View {
-        if let you { content.environment(you) } else { content }
     }
 }
 
@@ -86,6 +77,16 @@ struct ShareSheet: View {
         }
     }
 
+    /// On a phone too short for Hypelist's layout (an iPhone SE, a mini), how far the rows move up: first out of
+    /// the space under the card, then out of the card's own size, so the apps still fit.
+    private var short: CGFloat {
+        max(0, (list != nil ? ShareMetric.appsTop : ShareMetric.peopleTop) + ShareMetric.rowFoot - height)
+    }
+
+    private var cardScale: CGFloat {
+        (ShareMetric.cardHeight - max(0, short - ShareMetric.gapGive)) / ShareMetric.cardHeight
+    }
+
     private var sheet: some View {
         ZStack(alignment: .top) {
             Text("Share")
@@ -94,16 +95,17 @@ struct ShareSheet: View {
                 .padding(.top, ShareMetric.titleTop)
                 .accessibilityAddTraits(.isHeader)
             cards
+                .scaleEffect(cardScale, anchor: .top)
                 .padding(.top, ShareMetric.cardsTop)
             if list != nil {
                 people
-                    .padding(.top, ShareMetric.peopleTop)
+                    .padding(.top, ShareMetric.peopleTop - short)
                 Hue.hairline
                     .frame(height: 1 / 3)
-                    .padding(.top, ShareMetric.ruleTop)
+                    .padding(.top, ShareMetric.ruleTop - short)
             }
             apps
-                .padding(.top, list != nil ? ShareMetric.appsTop : ShareMetric.peopleTop)
+                .padding(.top, (list != nil ? ShareMetric.appsTop : ShareMetric.peopleTop) - short)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
@@ -120,7 +122,7 @@ struct ShareSheet: View {
                                 card.scaleEffect(1 - (1 - ShareMetric.sideScale) * min(1, abs(phase.value)))
                             }
                             .id(index)
-                            .accessibilityLabel(index == 0 ? "Card, colour" : "Card, light")
+                            .accessibilityLabel("\(payload.story.title), \(index == 0 ? "colour" : "light") card")
                     }
                 }
                 .scrollTargetLayout()
@@ -146,7 +148,8 @@ struct ShareSheet: View {
     // MARK: The people an Event goes to
 
     private func loadPeople() async {
-        guard let card = payload.card, let chats = center.chats, let book = center.friends else { return }
+        guard let card = payload.card, let chats = center.chats, let book = center.friends,
+              AuthStore.shared.isSignedIn, !AuthStore.shared.isAnonymous else { return }
         let list = ChatSendList(card: card, chats: chats, book: book)
         self.list = list
         await list.load(you: center.you, actions: center.actions)
@@ -174,10 +177,13 @@ struct ShareSheet: View {
                         .accessibilityLabel(done ? "Sent to \(target.name)" : "Send to \(target.name)")
                     }
                 } else {
-                    ForEach(0..<4, id: \.self) { _ in
-                        SkeletonCircle(diameter: ShareMetric.circle)
+                    HStack(spacing: ShareMetric.circleGap) {
+                        ForEach(0..<4, id: \.self) { _ in
+                            SkeletonCircle(diameter: ShareMetric.circle)
+                        }
                     }
                     .shimmering()
+                    .accessibilityElement(children: .ignore)
                     .accessibilityLabel("Loading")
                 }
             }
@@ -201,8 +207,11 @@ struct ShareSheet: View {
                     copied = true
                 }
                 if center.canSendMessages {
-                    ShareRound(word: "Messages", fill: Color(uiColor: .systemGreen)) {
-                        Image(systemName: "message.fill").font(.glyph(ShareMetric.glyph, weight: .regular)).foregroundStyle(.white)
+                    ShareRound(word: "Messages") {
+                        ZStack {
+                            LinearGradient(colors: [Hue.messagesTop, Hue.messagesFoot], startPoint: .top, endPoint: .bottom)
+                            Image(systemName: "message.fill").font(.glyph(ShareMetric.glyph, weight: .regular)).foregroundStyle(.white)
+                        }
                     } action: { center.sendMessages() }
                 }
                 if center.onPhone(.whatsApp) {

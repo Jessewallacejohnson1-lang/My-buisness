@@ -26,7 +26,7 @@ struct ShareStory: Equatable {
 /// One share: the card, the words that go with it, and for an Event, the Event a chat gets.
 struct SharePayload: Identifiable {
     let id = UUID()
-    let story: ShareStory
+    var story: ShareStory
     let shareText: String
     /// An Event's share, the one that counts toward "Shared your first event!" (hello-drop 02).
     var isEvent = false
@@ -58,7 +58,7 @@ final class ShareCenter: ObservableObject {
     /// The sheet's height: Hypelist's, its top 88 pt down the screen.
     private(set) var sheetHeight: CGFloat = 0
 
-    /// Who the people row lists and sends through; the shell sets them. Without them (signed out) the row hides.
+    /// Who the people row lists and sends through; the shell sets them. Signed out, or without them, the row hides.
     weak var chats: ChatBook?
     weak var friends: FriendsBook?
     weak var you: YouModel?
@@ -182,7 +182,7 @@ final class ShareCenter: ObservableObject {
     }
 
     /// WhatsApp and Messenger, each only where it's on the phone (`LSApplicationQueriesSchemes`).
-    enum OtherApp: CaseIterable {
+    enum OtherApp {
         case whatsApp, messenger
 
         var scheme: URL { URL(string: self == .whatsApp ? "whatsapp://" : "fb-messenger://")! }
@@ -240,14 +240,14 @@ extension SharePayload {
         return payload
     }
 
-    /// A feed card's Event: the card's share, and its Event page's.
+    /// A feed card's Event: the card's share, and its Event page's. The card's line writes the day out
+    /// ("Thu, Nov 19 · 6:30 PM"), never "Today": it's a picture that's kept.
     static func event(_ item: FeedCardItem) -> SharePayload {
         var payload = SharePayload.event(title: item.title, dateLabel: item.dateChip, time: item.shareTime,
                                          location: item.shareLocation)
-        payload = SharePayload(story: ShareStory(title: payload.story.title, line: payload.story.line,
-                                                 photo: photo(item.image)),
-                               shareText: payload.shareText)
-        payload.isEvent = true
+        let when = FeedWhenLine(eventDate: item.eventDate, startTime: item.shareTime, fallbackDate: item.dateChip,
+                                relative: false)
+        payload.story = ShareStory(title: item.title, line: when?.text ?? "", photo: photo(item.image))
         payload.eventID = item.id
         payload.card = item
         return payload

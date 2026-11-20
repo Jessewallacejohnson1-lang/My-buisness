@@ -77,7 +77,8 @@ final class ShareSheetTests: XCTestCase {
 
         XCTAssertEqual(payload.story.title, "Holiday Market")
         XCTAssertEqual(payload.story.photo, Self.photo)
-        XCTAssertTrue(payload.story.line.hasPrefix(card.dateChip), "the day first")
+        XCTAssertTrue(payload.story.line.hasPrefix("Tue, Dec 6"), "the day written out, not the feed's capitals: \(payload.story.line)")
+        XCTAssertTrue(payload.story.line.hasSuffix("4 PM"), payload.story.line)
         XCTAssertEqual(payload.card?.id, "share-1", "an Event goes to a chat")
         XCTAssertTrue(payload.isEvent)
     }
