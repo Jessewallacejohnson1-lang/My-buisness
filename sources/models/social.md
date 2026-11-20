@@ -124,7 +124,7 @@ carry on with the rest.
    are read by the next. Run it once, at the end, and never before the write.
 
 **Answer** with the summary as `save` printed it, keep's `[photos]` line, `done`'s lines (the pictures line is what
-   reading pictures added to the cost), every `[social] FAILED` and `[social] Events tab lists events` line
+   reading pictures added to the cost), every `[social] FAILED`, `[social] Events tab lists events` and `[social] Hosts a found Event` line
    from Prepare, then one line per flag you dropped that a neighbour might have wanted, and why. After Prepare's
    `[social] stories:` line, say what each `stories-` page became: the Event or News title it gave (or the one it
    repeats), else left out and why (BP app watch-every-place 25). A
@@ -132,6 +132,8 @@ carry on with the rest.
    and is named once in the summary, as is a weekly page with no new post four reads in a row (read
    once a month from then on); fixing its address or hiding it in
    `sources/social/st-joseph-mn.json` is the registry job's, with Jesse's yes.
+   A `Hosts a found Event` line is a proposed page (watch-every-place 34): it joins the page list when two separate
+   agent checks agree it is the own page of a place in or serving the town (the registry job's, after this check).
 
 ## Rules
 

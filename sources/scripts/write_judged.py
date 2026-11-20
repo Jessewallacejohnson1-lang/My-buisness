@@ -1185,6 +1185,56 @@ def repeat_of(n, recent):
     return None
 
 
+# Words every event title may carry, which tell nothing of which one: "Birthday Day" is the birthday.
+EVENT_FILLER = set("day days night nights week weekend event".split())
+CHANGED = re.compile(r"\b(cancel+ed|cancel+ations?|postponed|moved|rescheduled|called off|clos(?:ed|ures?|ing)|"
+                     r"sold out|new (?:time|date|place)|rain date|weather|parking|detours?)\b", re.I)
+
+
+def event_told(n, events, today):
+    """The Event from a News's own place, on in the News's days, that tells the same thing, or None (BP app
+    watch-every-place 35): Mission Nutrition's daily-read page made the Event "Mission Nutrition Birthday Day" (Nov 19),
+    then the News "Scratch-Off Week" ("Birthday celebration, Nov 16 to 22"). A match only puts the pair to the model
+    (out["ask"]): a News may add facts to its Event. Only a News that names its days (a start or
+    an end; from today when it has no start), and an Event still to come after today: an undated post sharing a word
+    ("Soft pink" and "Pink Friday") or a game's result posted that day is not one, and news of a change (cancelled,
+    moved, road closures, sold out, a rain date, parking) is news. The same thing: at least half the Event's title words, the hosts' names and EVENT_FILLER aside, are
+    in the News's title or blurb. Any status: a copy taken out stays out. The rest is the model's (told)."""
+    if not (n.get("starts_at") or n.get("ends_on")) or CHANGED.search(f"{n['title']} {n.get('blurb') or ''}"):
+        return None
+    first = news_day(n) or today
+    last = date.fromisoformat(n["ends_on"][:10]) if n.get("ends_on") else first
+    host = words(n["source_name"])
+    said = words(f"{n['title']} {n.get('blurb') or ''}", STOP | FILLER) - host
+    for ev in events:
+        if not ev.get("event_date") or not same_host(ev, n):
+            continue
+        start, end = event_days(ev)
+        if end < today or end < first or start > last:
+            continue
+        theirs, mine = word_forms(words(ev["title"], STOP | FILLER | EVENT_FILLER) - host - words(ev["source_name"]), said)
+        if theirs and 2 * len(theirs & mine) >= len(theirs):
+            return ev
+    return None
+
+
+def events_read(items, town):
+    """This read's own Events as told() and event_told() read rows: a News and the Event made from one post meet here."""
+    out = []
+    for it in items:
+        if skip_reason(it, town) or it.get("kind") != "event" or it.get("game") or not it.get("start"):
+            continue
+        try:
+            first = when(it["start"], it.get("all_day"))[0]
+            last = when(it["end"], it.get("all_day"))[0] if it.get("end") else None
+        except ValueError:
+            continue
+        out.append({"title": tidy_title(it["title"], it["source_name"]), "event_date": first.isoformat(),
+                    "end_at": last and last > first and datetime.combine(last + timedelta(1), time(), LOCAL).isoformat(),
+                    "source_name": it["source_name"].strip(), "place_entry_id": where(None, it["source_name"])})
+    return out
+
+
 def word_forms(a, b):
     """Two titles' words with plurals as one ("hours" is "hour") and "pre" off a word the other title has
     without it: Flour & Flower's "Thanksgiving pre-orders" is its "Thanksgiving orders open" (Nov 2)."""
@@ -1238,8 +1288,9 @@ def news_written(row, today):
 
 
 def event_days(row):
+    """(first day, last day). A run's end_at is the midnight after its last day (event_of), so a minute before it."""
     first = date.fromisoformat(str(row["event_date"])[:10])
-    last = local(row["end_at"]).date() if row.get("end_at") else first
+    last = (local(row["end_at"]) - timedelta(minutes=1)).date() if row.get("end_at") else first
     return first, max(first, last)
 
 
@@ -1330,7 +1381,7 @@ def plan(items, existing, today, interests, town=TOWNS[DEFAULT], titles=None, te
     `history`: the News (any status) and Events its News's places have from the last two weeks (history_in_db). The
     title rule reads its News too, so a take-out stands; a News it leaves gets a question in
     out["ask"], [(News, what its place has)], for a model (sources/models/repeat.md), unless `asked` answers it: {repeat_key(News as read): the row it repeats,
-    or None} (BP app smooth-mornings 16). With no history, nothing is asked.
+    or None} (BP app smooth-mornings 16). With no history, only a News event_told() matches to this read's Events is asked.
     `titles`: this morning's shorter titles for long ones, {tidied title: short} (long_titles, long_headlines).
     `teams`: known_teams(); without it a game's names become ids, which apply() refuses."""
     home = town["label"]
@@ -1338,6 +1389,7 @@ def plan(items, existing, today, interests, town=TOWNS[DEFAULT], titles=None, te
            "teams_checked": teams is not None, "ask": []}
     asked = asked or {}
     taken_out = [r for r in history or () if not r.get("event_date") and r.get("status") != "published"]
+    events = [r for r in history or () if r.get("event_date")] + events_read(items, town)
     made = {}  # this run's new teams, by id: their one name
     schedules, called_off = [], set()
     # A host's Facebook event this read gives one start (the same event read twice is still one): known by its number.
@@ -1388,13 +1440,18 @@ def plan(items, existing, today, interests, town=TOWNS[DEFAULT], titles=None, te
                 out["outcomes"][i] = ("folded", f"{n['title']!r} into {post['title']!r}, the News of the post they share")
                 continue
             # The word rules leave it: a model reads it beside what its place has (smooth-mornings 16).
+            # An Event from its place on its days telling the same thing (event_told) goes first in the question.
             mine = {**n, "title": read}
-            if history is not None and repeat_key(mine) in asked:
+            if repeat_key(mine) in asked:
                 if same := asked[repeat_key(mine)]:
                     out["outcomes"][i] = ("repeat", f"{read!r}, the same story as {same['title']!r} (the model says)")
                     continue
-            elif history is not None and (candidates := told(mine, [*history, *news.values()], today)):
-                out["ask"].append((mine, candidates))
+            else:
+                candidates = told(mine, [*history, *news.values()], today) if history is not None else []
+                if ev := event_told(n, events, today):
+                    candidates = [ev, *(c for c in candidates if c is not ev)][:REPEAT_MOST]
+                if candidates:
+                    out["ask"].append((mine, candidates))
             n["status"] = "published"
             news[(n["title"].lower(), n["source_name"], n["starts_at"])] = n
             out["outcomes"][i] = ("news", "")
@@ -1861,7 +1918,7 @@ def outcome(r, i):
 
 
 def t_event_or_news():
-    r = run([item(), item(kind="news", title="St. Joseph office closed", start=None, category="business")])
+    r = run([item(), item(kind="news", title="St. Joseph office closed", start=None, category="business", blurb=None)])
     assert [g["row"]["title"] for g in r["events"]] == ["Plant Bingo"], r["events"]
     assert [n["title"] for n in r["news"]] == ["St. Joseph office closed"], r["news"]
     assert r["news"][0]["category"] == "business" and r["news"][0]["status"] == "published"
@@ -2531,7 +2588,7 @@ def t_a_dated_news_blocks_its_repeat_until_its_day():
 
 
 def t_writes_are_one_safe_call():
-    r = run([item(blurb="$$ drop table x; $$"), item(kind="news", title="Closed Monday", start=None)])
+    r = run([item(blurb="$$ drop table x; $$"), item(kind="news", title="Closed Monday", start=None, blurb=None)])
     p = payloads(r)
     assert [len(p[k]) for k in KEYS] == [1, 1, 0, 1, 0, 0], p
     assert p["p_events"][0]["description"] == "$$ drop table x; $$", "the payload carries text as data"
@@ -3160,7 +3217,79 @@ def t_a_title_names_its_own_day():
     assert own_day("Weekday Mass", sun) == "Weekday Mass"
 
 
-TESTS = [t_a_title_names_its_own_day, t_facebook_event_read_again, t_made_with_other_businesses, t_a_repeat_is_asked_about, t_gender_only_as_a_page_says, t_ages_only_as_a_source_says, t_read_with_no_time_keeps_the_listed_time, t_one_facebook_event_is_one, t_news_state_initials_tell_nothing, t_one_host_no_place_is_one, t_real_copies, t_one_host_two_names, t_two_hosts_one_place_inside_another, t_two_hosts_an_address_names_its_shops, t_two_hosts_copy_kept,
+def t_news_repeats_an_event():
+    """BP app watch-every-place 35: Mission Nutrition's Facebook page, read daily, made the Event "Mission Nutrition
+    Birthday Day" (Nov 19) on Nov 15, and that evening the News "Scratch-Off Week" ("Birthday celebration, Nov 16 to
+    22") from the same page. A News from the Event's place, in its days, telling the same thing is not written, with or
+    without the model (history), and whether the Event is listed already or comes in this same read."""
+    today = date(2026, 11, 15)
+    mission = dict(kind="news", category="business", source_name="Mission Nutrition", all_day=True,
+                   source_url="https://www.facebook.com/MissionNutritionStJoe/posts/pfbid0g9oaCtkC932")
+    birthday = {"title": "Mission Nutrition Birthday Day", "description": "Paula's birthday at Mission Nutrition.",
+                "event_date": "2026-11-19", "end_at": None, "source_name": "Mission Nutrition",
+                "place_entry_id": where(None, "Mission Nutrition"), "status": "approved"}
+    news = [item(title="Scratch-Off Week", blurb="Birthday celebration, Nov 16 to 22", start="2026-11-16",
+                 end="2026-11-22", **mission),
+            item(title="New weekly specials", blurb="A different deal each weekday, Monday to Friday", start=None,
+                 **dict(mission, source_url="https://www.facebook.com/MissionNutritionStJoe/posts/pfbid02oJh6")),
+            item(title="Birthday sale", blurb="Our birthday week, Nov 16 to 22", start="2026-11-16", end="2026-11-22",
+                 **dict(mission, source_name="Kay's Kitchen", source_url="https://www.facebook.com/kays/posts/1")),
+            item(title="Birthday party", blurb="Our birthday, Dec 5", start="2026-12-05", end="2026-12-05",
+                 **dict(mission, source_url="https://www.facebook.com/MissionNutritionStJoe/posts/pfbid0dec"))]
+    # The words only put the pair to the model (review fix, 2026-11-20): a News that adds facts to its Event is news.
+    for history in ([birthday], None):  # listed already; or read this same evening, with no history read
+        items = news if history else [item(title="Mission Nutrition Birthday Day", start="2026-11-19", all_day=True,
+                                           end=None, place="Mission Nutrition", source_name="Mission Nutrition",
+                                           source_url=mission["source_url"], blurb="Paula's birthday.")] + news
+        r = plan(items, [], today, INTERESTS, history=history)
+        asks = {n["title"]: c for n, c in r["ask"]}
+        assert asks["Scratch-Off Week"][0]["title"] == "Mission Nutrition Birthday Day", (history, r["ask"])
+        assert history or set(asks) == {"Scratch-Off Week"}, "another place's, or another day's, is not put to the words"
+        assert [outcome(r, i) for i in range(len(items))][-4:] == ["news"] * 4, "not asked, it goes up"
+        said = {repeat_key(n): (c[0] if n["title"] == "Scratch-Off Week" else None) for n, c in r["ask"]}
+        r = plan(items, [], today, INTERESTS, history=history, asked=said)
+        got = [outcome(r, i) for i in range(len(r["outcomes"]))][-4:]
+        assert got == ["repeat", "news", "news", "news"], (history, r["outcomes"])
+        assert "Mission Nutrition Birthday Day" in r["outcomes"][-4][1], r["outcomes"][-4]
+        assert all(n["title"] != "Scratch-Off Week" for n in r["news"]), r["news"]
+    # News of a change to the Event is news, never put to the words: road closures for the Tree Lighting.
+    lighting = dict(birthday, title="Tree Lighting", event_date="2026-11-21")
+    for blurb in ("Road closures on Minnesota St from 4 PM", "Sold out", "Rain date Nov 22", "New time: 6 PM",
+                  "Parking at the school lot"):
+        r = plan([item(title="Tree Lighting", blurb=blurb, start="2026-11-21", end="2026-11-21", **mission)], [], today,
+                 INTERESTS)
+        assert not r["ask"] and outcome(r, 0) == "news", (blurb, r["ask"])
+    # Review fix 8: an Event ending today is still on; one Event's end reads the same from a row or from this read.
+    told_n = lambda title, day: {"title": title, "blurb": None, "starts_at": f"{day}T00:00:00-06:00", "ends_on": day,
+                                 "source_name": "Mission Nutrition", "place_entry_id": where(None, "Mission Nutrition")}
+    assert event_told(told_n("Birthday Day sale", "2026-11-15"), [dict(birthday, event_date="2026-11-15")], today), \
+        "an Event ending today is still on"
+    run_ = dict(birthday, event_date="2026-11-16", end_at="2026-11-19T00:00:00-06:00")  # Nov 16 to 18, as event_of writes it
+    late = told_n("Birthday Day treats", "2026-11-19")
+    read = events_read([item(title="Mission Nutrition Birthday Day", start="2026-11-16", end="2026-11-18", all_day=True,
+                             place="Mission Nutrition", source_name="Mission Nutrition", source_url=mission["source_url"])],
+                       TOWNS[DEFAULT])
+    assert not event_told(late, [run_], today) and not event_told(late, read, today) \
+        and event_told(told_n("Birthday Day treats", "2026-11-18"), read, today), \
+        "a run ends on its last day, read from a row (end_at the midnight after) or from this read"
+    # The dry run over Nov 13 to 20 (BP app watch-every-place assets/35-dry-run): what is not a repeat. An undated post
+    # sharing a word ("Soft pink" and Nov 20's "Pink Friday"), a result posted the day of its game, and News that the
+    # Event changed are told by the model or go up.
+    peony = dict(mission, end=None, source_name="White Peony Boutique", source_url="https://www.instagram.com/p/DfPJ/", start=None)
+    sju = dict(mission, end=None, source_name="SJU Athletic Activities", source_url="https://gojohnnies.com/news/1", start=None)
+    church = dict(mission, end=None, source_name="Church of Saint Joseph", source_url="https://churchstjoseph.org/news/1", start=None)
+    host = lambda name, **kw: dict(birthday, source_name=name, place_entry_id=where(None, name), **kw)
+    history = [host("White Peony Boutique", title="Pink Friday", event_date="2026-11-20"),
+               host("SJU Athletic Activities", title="SJU Soccer vs MSOE: NCAA Regional", event_date="2026-11-15"),
+               host("Church of Saint Joseph", title="Our Loss Our Gain", event_date="2026-11-19")]
+    r = plan([item(title="Holiday Satin Pajama Sets", blurb="Soft pink, wreath or cocktail print", **peony),
+              item(title="Johnnies soccer falls 1-0 to MSOE", blurb="Ends the season in the NCAA Regional", **sju),
+              item(title="Our Loss Our Gain cancelled Nov 19", blurb=None, **church)],
+             [], today, INTERESTS, history=history)
+    assert [outcome(r, i) for i in range(3)] == ["news"] * 3, r["outcomes"]
+
+
+TESTS = [t_news_repeats_an_event, t_a_title_names_its_own_day, t_facebook_event_read_again, t_made_with_other_businesses, t_a_repeat_is_asked_about, t_gender_only_as_a_page_says, t_ages_only_as_a_source_says, t_read_with_no_time_keeps_the_listed_time, t_one_facebook_event_is_one, t_news_state_initials_tell_nothing, t_one_host_no_place_is_one, t_real_copies, t_one_host_two_names, t_two_hosts_one_place_inside_another, t_two_hosts_an_address_names_its_shops, t_two_hosts_copy_kept,
          t_two_hosts_maybe_the_same, t_two_hosts_no_place_asked, t_two_hosts_kept_apart, t_one_place_two_names, t_followers_only, t_place_entry, t_wording, t_interest_list_is_the_apps, t_event_or_news, t_official_one_mention, t_everything_kept_goes_live, t_news_repeat_left_out,
          t_one_news_one_link, t_news_same_link_this_week, t_news_says_when_it_ends, t_closings_wait, t_a_dated_news_blocks_its_repeat_until_its_day, t_one_post_is_one_news, t_news_look_back_is_the_feeds_week, t_news_shouted_or_hyphened_is_one,
          t_all_day_a_day_apart_is_one, t_no_time_joins_the_timed_one, t_later_read_fills_the_time, t_merge_true_pair,
