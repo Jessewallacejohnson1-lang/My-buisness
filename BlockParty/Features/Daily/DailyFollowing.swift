@@ -15,6 +15,9 @@ struct DailyFollowing: Identifiable {
     var name: String
     /// Their round photo; a person without one shows their initial.
     var avatar: URL?
+    /// `avatar` is a logo: drawn whole on a white disc, as a Town card's host, not filled and cut by the
+    /// circle as a face is (River Lakes' wordmark showed "iver La", Jesse 2026-11-19).
+    var logo = false
     /// What, after the name: "vs Sartell." Working words; Jesse writes the final ones.
     var what: String
     var event: DailyEvent
@@ -37,14 +40,17 @@ struct DailyFollowing: Identifiable {
         return cards.compactMap { card in
             guard let name = card.followed, card.eventDate == day, !card.cancelled,
                   let event = YouCalendar.event(from: card) else { return nil }
-            return DailyFollowing(id: "follow-\(card.id)", name: name, avatar: avatar(of: card, name: name),
+            let face = avatar(of: card, name: name)
+            return DailyFollowing(id: "follow-\(card.id)", name: name, avatar: face.url, logo: face.logo,
                                   what: what(card, name: name), event: event)
         }
     }
 
-    /// Your side's logo for a game (`Game.sides`, a co-op's too), else who puts it on.
-    static func avatar(of card: FeedCardItem, name: String) -> URL? {
-        card.game?.sides(followed: name)?.mine.logo ?? card.hostPicture?.url ?? card.hostAvatar
+    /// Your side's logo for a game (`Game.sides`, a co-op's too), else who puts it on, and whether it's a logo.
+    static func avatar(of card: FeedCardItem, name: String) -> (url: URL?, logo: Bool) {
+        if let logo = card.game?.sides(followed: name)?.mine.logo { return (logo, true) }
+        if let picture = card.hostPicture { return (picture.url, picture.kind == .logo) }
+        return (card.hostAvatar, false)
     }
 
     /// After the name: "vs Sartell." for a game (Jesse, 2026-10-26), else the Event's own title without the name
@@ -75,13 +81,23 @@ struct DailyFollowing: Identifiable {
 
     #if DEBUG
     /// INVENTED: a neighbour, a club and a place you might follow, with the bundled town photos, the
-    /// round photo never the same as the small one, as in Instagram's rows. Every name but the real
-    /// places', every time and every word is made up. The cards under them are `DailyFollowingCard.samples`.
+    /// round photo never the same as the small one, as in Instagram's rows, then three schools' games. Every
+    /// name but the real places' and schools', every time and every word is made up. The cards under them are `DailyFollowingCard.samples`.
     static func samples(on date: Date) -> [DailyFollowing] {
         let calendar = Town.gregorian
         let day = calendar.startOfDay(for: date)
         func at(_ hour: Double) -> Date { day.addingTimeInterval(hour * 3600) }
         func photo(_ name: String) -> URL? { Bundle.main.url(forResource: name, withExtension: "jpg") }
+        func game(_ id: String, _ name: String, logo: String, against: String, hour: Double) -> DailyFollowing {
+            DailyFollowing(
+                id: id, name: name,
+                avatar: URL(string: "https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/places/teams/\(logo).webp"),
+                logo: true, what: "vs \(against).",
+                event: DailyEvent.sample(
+                    id: "daily-\(id)", title: "\(name) vs \(against)", host: name, photo: "memorial-park",
+                    place: "Memorial Park", starts: at(hour), ends: at(hour + 2), category: .sports,
+                    description: "A home game."))
+        }
         return [
             DailyFollowing(
                 id: "follow-1", name: "Kay Lindqvist", avatar: nil, what: "is hosting a porch sale.",
@@ -103,6 +119,11 @@ struct DailyFollowing: Identifiable {
                     id: "daily-f3", title: "Group run", host: "St. Joseph Running Group",
                     photo: "centennial-park", place: "Klinefelter Park", starts: at(17.5), ends: at(18.5),
                     category: .sports, description: "Three or five miles at an easy pace. Everyone welcome.")),
+            // Three schools' saved logos, read from the network (`TownFixtures`' games do the same): River Lakes' wide
+            // wordmark (ROCORI's girls' hockey co-op), ROCORI's square crest and Saint John's J, each to sit whole.
+            game("follow-4", "ROCORI", logo: "river-lakes/logo-4f698b753d", against: "Detroit Lakes", hour: 19),
+            game("follow-5", "ROCORI", logo: "rocori/logo-5904ca0046", against: "Sauk Rapids-Rice", hour: 19.5),
+            game("follow-6", "Saint John's", logo: "saint-johns/logo-65d82ce9fc", against: "Concordia", hour: 20),
         ]
     }
     #endif
@@ -294,7 +315,15 @@ private struct FollowingRow: View {
 
     private var face: some View {
         HStack(spacing: DailyMetric.followingGap) {
-            Avatar(item.avatar, size: DailyMetric.followingPhoto, blank: .initial(item.name))
+            if item.logo {
+                // Its ink kept inside the edge line by a Town host mark's margin.
+                LogoDisc(logo: item.avatar, initial: item.name.first(where: \.isLetter).map { String($0).uppercased() } ?? "",
+                         logoSide: DailyMetric.followingPhoto - 2 * HostMarkDisc.ring, letter: .sansSemibold(14), fits: true)
+                    .frame(width: DailyMetric.followingPhoto, height: DailyMetric.followingPhoto)
+                    .overlay(Circle().strokeBorder(Hue.hairline.onLightCanvas, lineWidth: 0.5))
+            } else {
+                Avatar(item.avatar, size: DailyMetric.followingPhoto, blank: .initial(item.name))
+            }
             Text(words)
                 .font(.sans(15))
                 .foregroundStyle(Hue.ink)
