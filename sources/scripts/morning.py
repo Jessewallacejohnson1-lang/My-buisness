@@ -1927,7 +1927,7 @@ def counts_what_the_database_did():
                                                                            (2, "Pumpkin Carving", "2026-10-28")]]
     held_events = {(e["source_name"], e["source_uid"]) for e in listed}
     held_news = {f"post number {k}" for k in range(25)}
-    news = lambda title: write_judged.item(kind="news", title=title, start=None, category="business",
+    news = lambda title: write_judged.item(kind="news", title=title, start=None, end=None, blurb=None, category="business",
                                            source_url="https://www.instagram.com/p/" + title.replace(" ", ""))
     items = ([write_judged.item(), write_judged.item(title="Cider Tasting", start="2026-10-25T18:00:00-05:00", end=None),
               write_judged.item(title="Harvest Market", start="2026-10-26", end=None, all_day=True)]
