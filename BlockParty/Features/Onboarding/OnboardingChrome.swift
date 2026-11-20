@@ -3,7 +3,7 @@
 //  Block Party — the pieces every onboarding question screen shares, in Luma's look (BP app
 //  onboarding 34, mock v8): the pale grey canvas, the back chevron, the icon circle over the question,
 //  the one Next pill, the grey field box. The Big art look (onboarding 43, mock v2) is arriving a step
-//  at a time: its dashes track every step, and Profile and Birthday wear its colour, large drawing,
+//  at a time: its dashes track every step, and Profile, Birthday and Find your friends wear its colour, large drawing,
 //  centred question and white boxes. `OnboardingFlow` owns where they sit; the steps draw none of them.
 //  Edit Profile's interests take the same Next pill.
 //
@@ -241,15 +241,7 @@ struct OnboardingNextBar: View {
     var busy = false
     /// Bumped when the server said no (a wrong password): the bar shakes as on a tap too early.
     var refused = 0
-    var style = Style.standard
     let action: () -> Void
-
-    /// The pill's one approved exception (ONBOARDING.md), in the same frame as every step's.
-    enum Style {
-        case standard
-        /// Find your friends' Luma's white pill, ink words, a soft shadow and a hair of edge (mock v8 `.btn.white`).
-        case white
-    }
 
     static let height: CGFloat = 48
 
@@ -273,7 +265,7 @@ struct OnboardingNextBar: View {
                     .animation(.snappy, value: title)
             }
         }
-        .buttonStyle(NextBarStyle(allowed: allowed, style: style))
+        .buttonStyle(NextBarStyle(allowed: allowed))
         .keyframeAnimator(initialValue: CGFloat(0), trigger: shakes) { bar, x in
             bar.offset(x: x)
         } keyframes: { _ in
@@ -292,25 +284,16 @@ struct OnboardingNextBar: View {
 
 private struct NextBarStyle: ButtonStyle {
     let allowed: Bool
-    let style: OnboardingNextBar.Style
 
     func makeBody(configuration: Configuration) -> some View {
         let down = configuration.isPressed && allowed
-        let fill, pressed, off, words, offWords: Color
-        switch style {
-        case .standard: (fill, pressed, off, words, offWords) = (Hue.ink, Hue.nextPressed, Hue.nextOff, .white, Hue.nextOffWords)
-        case .white: (fill, pressed, off, words, offWords) = (Hue.surface, Hue.nextWhiteDown, Hue.nextOff, Hue.ink, Hue.nextOffWords)
-        }
         return configuration.label
-            .foregroundStyle(allowed ? words : offWords)
+            .foregroundStyle(allowed ? Color.white : Hue.nextOffWords)
             .frame(maxWidth: .infinity)
             .frame(height: OnboardingNextBar.height)
             .background {
                 Capsule()
-                    .fill(allowed ? (down ? pressed : fill) : off)
-                    .strokeBorder(Hue.ink.opacity(style == .white ? 0.04 : 0), lineWidth: 1)
-                    // Luma's soft shadow under the white pill (mock v8 `0 6px 20px` at 9%).
-                    .shadow(color: Hue.ink.opacity(style == .white ? 0.09 : 0), radius: 10, y: 6)
+                    .fill(allowed ? (down ? Hue.nextPressed : Hue.ink) : Hue.nextOff)
                     .animation(.easeOut(duration: Press.inSeconds), value: down)
             }
             .contentShape(Capsule())

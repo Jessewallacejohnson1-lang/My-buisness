@@ -5,7 +5,7 @@
 //  six question steps on one fixed frame in Luma's look (onboarding 34, mock v8): the grey canvas,
 //  back and the dashes on top, an icon circle over each question, and the one
 //  Next pill 84 pt from the bottom with its slot under it. Only the question moves between
-//  steps. Profile and Birthday wear the Big art look (onboarding 43, mock v2); the other steps
+//  steps. Profile, Birthday and Find your friends wear the Big art look (onboarding 43, 51); the other steps
 //  take it in tickets of their own.
 //
 
@@ -51,6 +51,7 @@ enum OnboardingStep: Int, CaseIterable {
         switch self {
         case .profile:  Hue.bigArtProfile
         case .birthday: Hue.bigArtBirthday
+        case .friends:  Hue.bigArtFriends
         default:        nil
         }
     }
@@ -583,7 +584,7 @@ struct OnboardingFlow: View {
                 .overlay(alignment: .top) { scrollEdge }
                 .ignoresSafeArea(.container)
             } else if on(.friends) {
-                // Luma's contacts ask whole (onboarding 37): its faces and white sheet, no icon circle.
+                // Jesse's market drawing over the ask (onboarding 51), no icon circle.
                 OnboardingFriendsAsk(focused: $questionFocused)
             } else if on(.contacts) {
                 // Contacts' question scrolls away with its search and rows, as Interests' does (onboarding 37).
@@ -692,7 +693,7 @@ struct OnboardingFlow: View {
     private var bottom: some View {
         VStack(spacing: 6) {
             OnboardingNextBar(title: nextTitle, count: stillToPick, allowed: nextAllowed,
-                              busy: form.busy, refused: form.refusals, style: nextStyle, action: nextAction)
+                              busy: form.busy, refused: form.refusals, action: nextAction)
             if !keyboardUp && store.step != .birthday { slot.frame(height: 44) }
         }
         .padding(.horizontal, FollowGridMetric.gutter)
@@ -764,11 +765,6 @@ struct OnboardingFlow: View {
         case .follow: return followsNeeded == 0
         default:     return true
         }
-    }
-
-    /// The white pill on Find your friends (onboarding 37); Save Profile is every step's pill (46).
-    private var nextStyle: OnboardingNextBar.Style {
-        on(.friends) ? .white : .standard
     }
 
     /// The Welcome, alone: nothing past it is up yet.
