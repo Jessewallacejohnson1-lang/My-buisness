@@ -45,6 +45,7 @@ struct MapEventCard: View {
     private static let photoAspect: CGFloat = 352.7 / 198.6
     private static let circle: CGFloat = 32
     private static let circleInset: CGFloat = 12
+    private static let circleGap: CGFloat = 12
     /// Directions, off the mock's CSS: 38 pt tall, 14 pt in at each end, Inter Tight SemiBold 14, white on ink.
     private static let pillHeight: CGFloat = 38
     private static let pillPad: CGFloat = 14
@@ -123,7 +124,8 @@ struct MapEventCard: View {
     private var buttons: some View {
         let hearted = actions.heart(item).isHearted
         let failures = actions.heartFailureCount(item.id)
-        return HStack(spacing: 44 - Self.circle) {
+        // The 44 pt targets touch, so the 32 pt circles sit 12 pt apart, as Airbnb's do.
+        return HStack(spacing: Self.circleGap - (44 - Self.circle)) {
             Button {
                 heartTappedAt = failures
                 withAnimation(reduceMotion ? .easeInOut(duration: 0.15) : .spring(response: 0.3, dampingFraction: 0.5)) {
@@ -189,25 +191,29 @@ struct MapEventCard: View {
 
     // MARK: Words
 
-    /// The four lines, with Directions at the end of the last.
+    /// The four lines: the title across the card with Now at its right edge, where Airbnb puts its
+    /// rating, then the rest, with Directions at the end of the last.
     private var lines: some View {
-        HStack(alignment: .bottom, spacing: Self.pillGap) {
-            words
-            if let url = directions(item) {
-                Button {
-                    Haptics.light()
-                    openURL(url)
-                } label: {
-                    Text("Directions")
-                        .font(.displaySemi(Self.pillWord))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, Self.pillPad)
-                        .frame(height: Self.pillHeight)
-                        .background(Hue.ink.onLightCanvas, in: Capsule())
-                        .contentShape(Capsule())
+        VStack(alignment: .leading, spacing: 0) {
+            titleRow
+            HStack(alignment: .bottom, spacing: Self.pillGap) {
+                words
+                if let url = directions(item) {
+                    Button {
+                        Haptics.light()
+                        openURL(url)
+                    } label: {
+                        Text("Directions")
+                            .font(.displaySemi(Self.pillWord))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, Self.pillPad)
+                            .frame(height: Self.pillHeight)
+                            .background(Hue.ink.onLightCanvas, in: Capsule())
+                            .contentShape(Capsule())
+                    }
+                    .buttonStyle(.press(.squish))
+                    .accessibilityHint("Opens in Maps")
                 }
-                .buttonStyle(.press(.squish))
-                .accessibilityHint("Opens in Maps")
             }
         }
         .padding(.horizontal, 12)
@@ -215,25 +221,35 @@ struct MapEventCard: View {
         .padding(.bottom, 15)
     }
 
+    private var live: Bool { item.isNow(at: TodayBubbleClock.now()) }
+    private var place: String? { item.whereLine ?? (item.hostName.isEmpty ? nil : item.hostName) }
+
+    /// VoiceOver hears it inside the words' element below.
+    private var titleRow: some View {
+        HStack(spacing: 8) {
+            Text(item.title)
+                .font(.sansSemibold(16))
+                .foregroundStyle(Hue.ink)
+                .lineLimit(1)
+            Spacer(minLength: 0)
+            if live {
+                HStack(spacing: 5) {
+                    Circle().fill(Hue.now).frame(width: 7, height: 7)
+                    Text("Now").font(.sans(16)).foregroundStyle(Hue.ink)
+                }
+                .fixedSize()
+            }
+        }
+        .accessibilityHidden(true)
+    }
+
     private var words: some View {
         let going = actions.going(item).count
-        let live = item.isNow(at: TodayBubbleClock.now())
+        let friends = RSVPWords.friendsLine(item.friendsGoing.map(\.name), bar: false)
+        let spoken = [item.title, live ? "Now" : nil, place, Self.timeLine(item, now: TodayBubbleClock.now()),
+                     friends ?? (going > 0 ? "\(going) going" : nil)].compactMap { $0 }
         return VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 8) {
-                Text(item.title)
-                    .font(.sansSemibold(16))
-                    .foregroundStyle(Hue.ink)
-                    .lineLimit(1)
-                Spacer(minLength: 0)
-                if live {
-                    HStack(spacing: 5) {
-                        Circle().fill(Hue.now).frame(width: 7, height: 7)
-                        Text("Now").font(.sans(16)).foregroundStyle(Hue.ink)
-                    }
-                    .fixedSize()
-                }
-            }
-            if let place = item.whereLine ?? (item.hostName.isEmpty ? nil : item.hostName) {
+            if let place {
                 Text(place).lineLimit(1)
             }
             Text(Self.timeLine(item, now: TodayBubbleClock.now()))
@@ -252,7 +268,8 @@ struct MapEventCard: View {
         .font(.sans(16))
         .foregroundStyle(Hue.inkSecondary)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(spoken.joined(separator: ", "))
         .accessibilityAddTraits(.isButton)
         // The event before its heart and close.
         .accessibilitySortPriority(1)
