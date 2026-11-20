@@ -174,6 +174,9 @@ struct BlockPartyTabBar: View {
     /// Taps on Search, each one a swoop of the magnifier's shine (`MagnifierGlyph`).
     @State private var searchSwoops = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// The app's appearance, read here, outside the glass: inside it the glass hands its
+    /// items its own trait.
+    @Environment(\.colorScheme) private var colorScheme
 
     struct Touch: Equatable {
         var x: CGFloat
@@ -213,7 +216,8 @@ struct BlockPartyTabBar: View {
                     .transaction { $0.animation = nil }
                 Items(selection: selection, capsuleWidth: width, onSelect: onSelect,
                       avatarURL: avatarURL, lensX: lens == nil ? nil : bubbleX, dailyHops: dailyHops,
-                      searchSwoops: searchSwoops, friendsDot: friendsDot, friendsLabel: friendsLabel)
+                      searchSwoops: searchSwoops, friendsDot: friendsDot, friendsLabel: friendsLabel,
+                      dark: colorScheme == .dark)
             }
             .contentShape(Rectangle())
             .gesture(
@@ -363,14 +367,19 @@ struct BlockPartyTabBar: View {
         /// A new friend request's dot on the Friends icon.
         var friendsDot = false
         var friendsLabel: String? = nil
+        /// Dark mode: the glass is dark, so the icons take the dark ramp's light ink, as
+        /// Instagram's dark bar draws white icons (BP app backlog 36).
+        var dark = false
         @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+        /// Fixed to the app's appearance, never the glass's trait: glass that flips over a
+        /// dark photo in light mode handed adaptive `Hue.ink` a dark trait and drew white
+        /// (measured 2026-09-26).
+        var ink: Color { dark ? Hue.ink.onDarkCanvas : Hue.ink.onLightCanvas }
 
         var body: some View {
             ZStack(alignment: .topLeading) {
-                // Instagram's bar: icons only, all one ink, the selected one filled.
-                // Ink is the LIGHT-canvas value, fixed: glass that flips hands its
-                // items a dark trait, and adaptive `Hue.ink` then drew white
-                // (measured 2026-09-26).
+                // Instagram's bar: icons only, all one ink (`ink`), the selected one filled.
                 ForEach(Tab.allCases) { tab in
                     icon(tab)
                         .scaleEffect(magnification(tab))
@@ -413,7 +422,7 @@ struct BlockPartyTabBar: View {
         private func icon(_ tab: Tab) -> some View {
             let selected = selection == tab
             if tab == .you, let avatarURL {
-                TabAvatar(url: avatarURL, selected: selected)
+                TabAvatar(url: avatarURL, selected: selected, ink: ink)
             } else {
                 symbol(tab, selected: selected)
                     // Outside the symbol's no-animation transaction, so the dot grows in.
@@ -443,7 +452,7 @@ struct BlockPartyTabBar: View {
                         .font(.glyph(TabBarMetric.iconSize))
                 }
             }
-            .foregroundStyle(Hue.ink.onLightCanvas)
+            .foregroundStyle(ink)
             // Swapped, not crossfaded: under the tab switch's spring the outline
             // and the filled symbol blended into a grey blob for ~3 frames, and
             // `.contentTransition(.identity)` did not stop it.
@@ -479,13 +488,14 @@ struct BlockPartyTabBar: View {
 private struct TabAvatar: View {
     let url: String
     let selected: Bool
+    let ink: Color
 
     var body: some View {
         Avatar(avatarUrl: url, size: TabBarMetric.avatarSize)
             .padding(3)
             .overlay {
                 if selected {
-                    Circle().strokeBorder(Hue.ink.onLightCanvas, lineWidth: 1.5)
+                    Circle().strokeBorder(ink, lineWidth: 1.5)
                 }
             }
     }

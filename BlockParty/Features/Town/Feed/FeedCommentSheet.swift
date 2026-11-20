@@ -140,7 +140,9 @@ struct FeedCommentSheet: View {
                 Button(action: send) {
                     Image(systemName: "arrow.up")
                         .font(.sansSemibold(16))
-                        .foregroundStyle(.white)
+                        // The sheet's own colour: white on the ink button in light, dark on
+                        // the near-white one in dark (BP app backlog 36).
+                        .foregroundStyle(Hue.surface)
                         .frame(width: 44, height: 44)
                         .background(
                             canSend ? Hue.ink : Hue.ink.opacity(0.35),

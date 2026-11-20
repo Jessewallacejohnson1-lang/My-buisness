@@ -61,6 +61,12 @@ extension Color {
         Color(UIColor(self).resolvedColor(with: UITraitCollection(userInterfaceStyle: .light)))
     }
 
+    /// This token as it renders in DARK appearance, whatever the trait under it says: for
+    /// ink on the tab bar's glass in dark mode, which hands its items its own trait.
+    var onDarkCanvas: Color {
+        Color(UIColor(self).resolvedColor(with: UITraitCollection(userInterfaceStyle: .dark)))
+    }
+
     /// The reverse of `init(hex:)` — a `"#RRGGBB"` string, for APIs (like Mapbox's
     /// runtime style setters) that want a hex string rather than a `Color`. Lets a
     /// call site reuse a `Hue` token instead of duplicating its hex as a literal.
