@@ -27,7 +27,7 @@ final class GameFeedReadTests: XCTestCase {
 
     private let basketball = #"""
     {"score":[34,29],"period":"Q2","clock":"2:30","clock_s":150,"complete":false,"at":"2026-11-07T20:30:00Z",
-     "period_n":2,"regulation":4,"period_s":600}
+     "period_n":2,"regulation":4,"period_s":600,"fouls":{"period":2,"ids":[["a","b","c","d","e"],[]]}}
     """#
 
     func testSoccersMinuteReadsFromTheFeed() throws {
@@ -43,6 +43,7 @@ final class GameFeedReadTests: XCTestCase {
     func testBasketballsBarReadsFromTheFeed() throws {
         let (update, feed) = try both(basketball, sport: "Basketball")
         XCTAssertEqual(feed.live?.barFill, [1, 0.75, 0, 0], "Q2 with 2:30 left")
+        XCTAssertEqual(feed.live?.fouls, [5, 0], "the Bonus's fouls count once the bar's period reads")
         XCTAssertEqual(feed.live, update.live)
     }
 
