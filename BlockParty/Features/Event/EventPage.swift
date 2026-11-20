@@ -551,13 +551,14 @@ struct EventPage: View {
             let pull = max(0, proxy.frame(in: .scrollView(axis: .vertical)).minY)
             return content.scaleEffect(1 + pull / max(proxy.size.height, 1), anchor: .bottom)
         }
-        // Two fingers lift it where it sits, its heart and credit too (BP app photo-zoom). The melt's
-        // ground is clear, so the whole picture takes the fingers.
+        // Two fingers lift the picture alone where it sits (BP app photo-zoom): its heart and credit step aside
+        // till it lands (Jesse, 2026-11-20: "i only want photo to be zoomed on"). The melt's ground is clear,
+        // so the whole picture takes the fingers.
         .contentShape(Rectangle())
         .pinchToZoom(slot: wash.map { Color(hex: $0.top) } ?? Hue.gameNight, lifted: $heroLifted)
         // After the stretch, so they stay put, unscaled.
         .overlay(alignment: .bottomTrailing) {
-            if chrome, !reviewing {
+            if chrome, !reviewing, !heroLifted {
                 TownCardHeart(item: item)
                     .padding(.trailing, isFlyer ? (width - flyerSize.width) / 2 + EventLook.heartFlyerInset : EventLook.heartInset)
                     .padding(.bottom, isFlyer ? EventLook.flyerBottom + EventLook.heartFlyerInset
@@ -565,7 +566,7 @@ struct EventPage: View {
             }
         }
         .overlay(alignment: .bottomLeading) {
-            if chrome, !isFlyer, let credit = picture.attribution, PhotoPager.isShown(url, in: shownPhotos) {
+            if chrome, !heroLifted, !isFlyer, let credit = picture.attribution, PhotoPager.isShown(url, in: shownPhotos) {
                 PhotoCredit(names: [credit], report: picture.report(place: item.whereLine), spoken: false)
                     .padding(.leading, EventLook.heartInset - PhotoCredit.edgeInset)
                     .padding(.bottom, EventLook.creditAboveFoot - PhotoCredit.edgeInset)
@@ -648,7 +649,7 @@ struct EventPage: View {
         }
         .frame(height: height)
         .overlay(alignment: .top) {
-            if !reviewing {
+            if !reviewing, !heroLifted {
                 EventPageDots(count: pages.count, page: swipe)
                     .offset(y: dot - EventPageDots.side / 2)
             }

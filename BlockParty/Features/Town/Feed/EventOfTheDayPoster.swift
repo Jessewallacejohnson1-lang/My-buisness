@@ -82,8 +82,8 @@ struct EventOfTheDayPoster: View {
             .accessibilityIdentifier("event-of-the-day-poster")
             .accessibilityLabel(spoken)
             // Over a flyer, the words wait for their first measure, so they never land on its foot for a frame.
-            .overlay(alignment: .bottom) { copy.opacity(item.whole && copyHeight == 0 ? 0 : 1) }
-            // Two fingers lift the poster, its words too, where it sits (BP app photo-zoom).
+            .overlay(alignment: .bottom) { copy.opacity(item.whole && copyHeight == 0 ? 0 : 1).stepsAside(lifted) }
+            // Two fingers lift the poster's photo where it sits; its words, chip and credit step aside (BP app photo-zoom).
             .pinchToZoom(corner: Radius.poster, slot: Hue.paper, lifted: $lifted)
             // Held: Apple's menu with the poster lifted as itself, words and buttons included
             // (inside-cards 24).
@@ -136,6 +136,7 @@ struct EventOfTheDayPoster: View {
                 }
                 .frame(minHeight: PhotoChip.height)
                 .padding(Metric.chipInset)
+                .stepsAside(lifted)
             }
             // Inside the clip: the poster's own edge takes the heart away.
             .feedCardLikeBurst(likeBurst, reduceMotion: reduceMotion)
