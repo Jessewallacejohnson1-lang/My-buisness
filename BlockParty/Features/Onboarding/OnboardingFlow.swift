@@ -553,8 +553,7 @@ struct OnboardingFlow: View {
         Group {
             if on(.profile) {
                 // Its photo is its art (onboarding 43): it draws its own heading.
-                OnboardingProfile(store: store, headingFocused: $questionFocused, bottomClear: bottomClear,
-                                  keyboardUp: keyboardUp)
+                OnboardingProfile(store: store, headingFocused: $questionFocused, bottomClear: bottomClear)
             } else if store.step == .follow {
                 // Follow 3's question scrolls away with its grid (onboarding 26).
                 OnboardingFollowGrid(suggestions: suggestions, interests: store.interests,

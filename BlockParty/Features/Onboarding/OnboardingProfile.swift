@@ -16,8 +16,6 @@ struct OnboardingProfile: View {
     @AccessibilityFocusState.Binding var headingFocused: Bool
     /// What the column keeps clear at the bottom: Save Profile and its slot, or Save Profile over the keyboard.
     let bottomClear: CGFloat
-    /// The keyboard is up: the column rides up `lift` and the photo fades (mock v2 `.lifts.up`).
-    let keyboardUp: Bool
 
     /// How far the column rides up over the keyboard: the photo's row leaves under the top row, and the
     /// question sits just under the dashes with both boxes clear of Save Profile.
@@ -25,6 +23,11 @@ struct OnboardingProfile: View {
 
     private enum Field: Hashable { case name, bio }
     @FocusState private var focus: Field?
+
+    /// A box is being typed in: the column rides up `lift` and the photo fades (mock v2 `.lifts.up`). Read
+    /// from the focus, not the keyboard, which iOS drops and raises again between Name and Bio (their
+    /// keyboards differ), so the column holds still through that.
+    private var typing: Bool { focus != nil }
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -34,7 +37,7 @@ struct OnboardingProfile: View {
                     OnboardingBigArt(question: OnboardingStep.profile.question,
                                      line: "So your neighbors know it's you.",
                                      focused: $headingFocused) {
-                        OnboardingProfilePhoto(store: store, hidden: keyboardUp)
+                        OnboardingProfilePhoto(store: store, hidden: typing)
                     }
                     label("Name")
                     nameBox.id(Field.name)
@@ -44,8 +47,10 @@ struct OnboardingProfile: View {
                 .padding(.horizontal, FollowGridMetric.gutter)
                 // Less room at the top than the photo's row takes: the column sits that much higher, and
                 // the scroll measures what is left, so a box still scrolls clear on a small phone.
-                .padding(.top, BigArt.top - FollowGridMetric.scrollTop - (keyboardUp ? Self.lift : 0))
+                .padding(.top, BigArt.top - FollowGridMetric.scrollTop - (typing ? Self.lift : 0))
                 .frame(maxWidth: .infinity, alignment: .leading)
+                // On the keyboard's own spring (the Next pill's, `OnboardingFlow`).
+                .animation(Motion.sheet, value: typing)
             }
             .scrollBounceBehavior(.basedOnSize)
             .scrollIndicators(.hidden)
@@ -202,10 +207,9 @@ struct OnboardingProfilePhoto: View {
         Avatar(nil, size: Self.side, picked: store.photo.flatMap(UIImage.init(data:)))
             .shadow(color: Hue.ink.opacity(0.16), radius: 12, y: 10)
             .opacity(hidden ? 0 : 1)
-            .overlay(alignment: .bottomTrailing) {
-                // Glass can't be dimmed (docs/rules/swift-traps.md), so the badge leaves with the photo.
-                if !hidden { badge.transition(.opacity) }
-            }
+            // Glass can't be dimmed, and glass put back draws late (docs/rules/swift-traps.md): the badge
+            // stays mounted and shrinks to nothing while the photo is faded.
+            .overlay(alignment: .bottomTrailing) { badge }
             // The mock's 0.2 s fade, whatever moves the column.
             .animation(.easeOut(duration: 0.2), value: hidden)
             .contentShape(Circle())
@@ -217,7 +221,8 @@ struct OnboardingProfilePhoto: View {
         Image(systemName: "photo.badge.plus")
             .font(.glyph(19, weight: .regular))
             .foregroundStyle(Hue.ink)
-            .frame(width: 38, height: 38)
+            .opacity(hidden ? 0 : 1)
+            .frame(width: hidden ? 0 : 38, height: hidden ? 0 : 38)
             .glassEffect(.regular.interactive(), in: Circle())
             .environment(\.colorScheme, .light)
     }
