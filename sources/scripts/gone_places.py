@@ -49,8 +49,13 @@ def city(address):
 
 def google_says(place, hits):
     """One Google Maps answer, read the way ticket 32 read it: 'open', 'closed', 'not found' or 'other town'."""
-    ours = words(place["name"])
-    share = lambda h: len(ours & words(h.get("title"))) / max(1, len(ours))
+    w = words
+    if not words(place["name"]):  # a short name (BP, MN 511): its every word counts
+        w = lambda s: set(re.findall(r"[a-z0-9]+", (s or "").lower()))
+    ours = w(place["name"])
+    if not ours:
+        return "unclear"
+    share = lambda h: len(ours & w(h.get("title"))) / max(1, len(ours))
     best = max(hits, key=share, default=None)
     if not best or share(best) < 0.5:
         return "not found"
@@ -95,7 +100,8 @@ def decide(places, google, agent, entries, busy):
     return out
 
 
-ENTRY = re.compile(r"^## [^\n]*\n```yaml\n(.*?)\n```\n(?:(Notes:[^\n]*)\n)?", re.M | re.S)
+# Notes run to the next blank line or heading: they wrap over lines.
+ENTRY = re.compile(r"^## [^\n]*\n```yaml\n(.*?)\n```\n(?:(Notes:.*?)(?=\n\n|\n## |\n?\Z)\n?)?", re.M | re.S)
 
 
 def entry_notes(text):
@@ -192,12 +198,33 @@ def hints(p, rows, entries, resolves=resolves):
 MAX_SEARCHES = 75   # of SerpAPI's 250 a month; 118 places / 2 = about 59 today
 
 
+def every_row(db, path):
+    """Every row of a read, PostgREST answering at most 1,000 at a time."""
+    rows = []
+    while True:
+        got = db.rest("GET", f"{path}&order=id&limit=1000&offset={len(rows)}") or []
+        rows += got
+        if len(got) < 1000:
+            return rows
+
+
 def busy_entries(db, today):
     """Entry ids with an Event or a News in the last 90 days or ahead (Heim-kins, ticket 32: a Facebook event kept it)."""
     since = today - timedelta(days=90)
-    ev = db.rest("GET", f"club_events?select=place_entry_id&place_entry_id=not.is.null&event_date=gte.{since}") or []
-    news = db.rest("GET", f"board_items?select=place_entry_id&place_entry_id=not.is.null&created_at=gte.{since}") or []
+    ev = every_row(db, f"club_events?select=place_entry_id&place_entry_id=not.is.null&event_date=gte.{since}")
+    news = every_row(db, f"board_items?select=place_entry_id&place_entry_id=not.is.null&created_at=gte.{since}")
     return {r["place_entry_id"] for r in ev + news}
+
+
+def shared_entries(rows):
+    """Entry ids two or more open places carry (Coborn's grocery and pharmacy)."""
+    seen = [r.get("entry_id") for r in rows if r.get("entry_id")]
+    return {e for e in seen if seen.count(e) > 1}
+
+
+def retirable(hides, entries, shared):
+    """The hidden places' registry entries to retire: never one another open place still shares."""
+    return [p["entry_id"] for p, _ in hides if p.get("entry_id") in entries and p["entry_id"] not in shared]
 
 
 def run_pick(db, folder, month, today):
@@ -213,7 +240,8 @@ def run_pick(db, folder, month, today):
         sys.exit(f"{len(half)} places is over {MAX_SEARCHES} searches; raise MAX_SEARCHES only with SerpAPI room to spare")
     Path(folder).mkdir(parents=True, exist_ok=True)
     busy = sorted(busy_entries(db, today))
-    (Path(folder) / "pick.json").write_text(json.dumps({"month": month, "places": half, "busy": busy}, indent=1))
+    (Path(folder) / "pick.json").write_text(json.dumps({"month": month, "places": half, "busy": busy,
+                                                        "shared": sorted(shared_entries(every))}, indent=1))
     print(f"{month}: {len(half)} of {len(rows)} places with no Apple Maps place to check, {len(half)} Google searches "
           f"(of SerpAPI's 250 a month); {sum(p.get('entry_id') in busy for p in half)} have Events or News in 90 days")
     for p in half:
@@ -254,9 +282,9 @@ def run_decide(folder, retire_them, sample):
             print(f"  - {p['name']} ({p.get('address')}): {agent[p['id']].get('evidence')} {agent[p['id']].get('sources')}")
     (f / "hide.sql").write_text(hide_sql(out["hide"]))
     if retire_them:
-        for p, why in out["hide"]:
-            if p.get("entry_id") and p["entry_id"] in entry_notes(text):
-                text = retire(text, p["entry_id"], why, str(date.today()))
+        whys = {p.get("entry_id"): why for p, why in out["hide"]}
+        for e in retirable(out["hide"], entry_notes(text), set(picked.get("shared", ()))):
+            text = retire(text, e, whys[e], str(date.today()))
         town_file.write_text(text)
 
 
@@ -348,6 +376,30 @@ def selftest():
                   "a dead domain and an Apple-matched place of the same kind at the address are hints"))
     cases.append((hints({**birdie, "entry_id": "joetown"}, [house], {"joetown": {"inside": "food-house-tap"}}, lambda h: True) == [],
                   "an `inside` entry at its host's address is no hint"))
+    # Review fixes, 2026-11-20.
+    wrapped = ("## Joetown\n```yaml\nid: joetown\nstatus: active\n```\nNotes: Burgers inside the Food House,\n"
+               "kept as a place (Jesse, 2026-11-18).\n\n## Next\n```yaml\nid: next\nstatus: active\n```\n")
+    cases.append(("jesse" in entry_notes(wrapped)["joetown"]["notes"].lower(), "Notes read to the paragraph's end"))
+    after = retire(wrapped, "joetown", "why", "2026-12-01")
+    cases.append(("(Jesse, 2026-11-18). Retired 2026-12-01" in after and after.count("kept as a place") == 1
+                  and "\n\n## Next" in after, "a wrapped Notes paragraph gets the reason at its end"))
+    cases.append((google_says({"name": "BP", "address": "1 Main St, St. Joseph, MN"},
+                              [{"title": "BP", "address": "1 Main St, St Joseph, MN"}]) == "open"
+                  and google_says({"name": "BP"}, [{"title": "Casey's", "address": "2 Elm St, St Joseph, MN"}]) == "not found",
+                  "a short name (BP) is matched by its whole words"))
+
+    class Pages:
+        def rest(self, method, path):
+            off = int(re.search(r"offset=(\d+)", path).group(1))
+            if path.startswith("board_items"):
+                return []
+            return [{"place_entry_id": "quiet"}] * 1000 if off == 0 else [{"place_entry_id": "busy"}] if off == 1000 else []
+    cases.append(("busy" in busy_entries(Pages(), date(2026, 12, 1)), "busy places are read past PostgREST's 1,000 rows"))
+    hides = [({"id": "g", "entry_id": "coborns"}, "w"), ({"id": "o", "entry_id": "oasis"}, "w"), ({"id": "n"}, "w")]
+    cases.append((retirable(hides, {"coborns": {}, "oasis": {}}, {"coborns"}) == ["oasis"],
+                  "an entry another open place shares (Coborn's grocery and pharmacy) is not retired"))
+    cases.append((shared_entries([{"entry_id": "coborns"}, {"entry_id": "coborns"}, {"entry_id": "oasis"}, {}]) == {"coborns"},
+                  "an entry two open places carry is shared"))
     failed = [what for ok, what in cases if not ok]
     for what in failed:
         print(f"FAIL {what}")

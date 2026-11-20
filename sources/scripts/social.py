@@ -882,8 +882,9 @@ def post_pages(kind, rows, by_url):
 
 
 def fb_key(url):
-    """A Facebook page's handle or number, lowercased: one page under its name or under profile.php?id=."""
-    m = re.search(r"facebook\.com/(?:profile\.php\?(?:.*&)?id=)?([^/?#&]+)", url or "")
+    """A Facebook page's handle or number, lowercased: one page under its name, under profile.php?id=, or under
+    /people/<name>/<number> or /pages/<name>/<number> (known by the number)."""
+    m = re.search(r"facebook\.com/(?:(?:people|pages)/[^/?#]+/(?=\d)|profile\.php\?(?:.*&)?id=)?([^/?#&]+)", url or "")
     return m.group(1).lower() if m else ""
 
 
@@ -1279,6 +1280,14 @@ def selftest():
                                              "WR Home & Clothing Co. https://www.facebook.com/wrhomecompany"],
           "each host or co-host of a found Event the list lacks is proposed once, by its page or its number; one of a past "
           "Event, a family's own day or an Event far from town is not, nor a group (never read: no login)")
+    # Review fix, 2026-11-20: a /people/ or /pages/ link is known by its number, not by "people".
+    check(fb_key("https://www.facebook.com/people/Jo-Bakery/61550000000001/") == "61550000000001"
+          and fb_key("https://www.facebook.com/pages/St-Joe-Deli/123456?ref=x") == "123456"
+          and unlisted_hosts([found("ppl", {"name": "Downtown St. Joseph"}, organizators=[
+              {"name": "Jo Bakery", "url": "https://www.facebook.com/people/Jo-Bakery/61550000000001/"}])],
+              [{"kind": "facebook", "url": "https://www.facebook.com/people/Other-Shop/61550000000002/"}])
+          == ["Jo Bakery https://www.facebook.com/people/Jo-Bakery/61550000000001"],
+          "a /people/ or /pages/ page is told apart by its number")
     # BP app watch-every-place 24: an Event in the app linked to a Facebook event is read again on the search's days,
     # named for its own host; its words and cover ride along as fingerprints; a cancelled one goes to the writer.
     check([p["file"] for p in got] == ["search-la", "search-church", "search-obbink"] and all("listing" in p for p in got),

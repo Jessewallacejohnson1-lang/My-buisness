@@ -611,11 +611,11 @@ def repeat_questions(run):
 
 
 def told_before(items, today, db):
-    """write_judged.history_in_db, or None when it can't be read: the repeat check is skipped and the morning goes on."""
+    """write_judged.history_in_db, or None when it can't be read: the repeat check asks only of this read's Events, and the morning goes on."""
     try:
         return write_judged.history_in_db(items, today, db)
     except Exception as e:  # a read the check needs failing must never stop the save
-        print(f"[repeats] what the News's places have couldn't be read, so nothing is asked: {type(e).__name__}: {e}")
+        print(f"[repeats] what the News's places have couldn't be read, so only News matching this read's Events are asked: {type(e).__name__}: {e}")
         return None
 
 

@@ -103,8 +103,10 @@ test('the same place in other words is no move; another place or spot is (watch-
     ['St. Joseph Church and School', 'church-jospehs-st']), false, 'Young Adult Praise Night');
   assert.equal(await spot(['The Abbey Church, Collegeville', 'saint-johns-abbey'],
     ["Saint John's Abbey Church, Collegeville", 'saint-johns-abbey', ...abbey]), false, 'AMCofA Big Sing');
-  assert.equal(await spot(['414 8th Ave NE'], ['Amy Hedtke State Farm', 'amy-farm-hedtke-state']), false,
-    'Pumpkin Pie Giveaway: a place found for an address');
+  // Pumpkin Pie Giveaway: a place found for an address. The old row has neither a place nor a spot, so
+  // the words decide, and they differ; the migration clears its mark by id.
+  assert.equal(await spot(['414 8th Ave NE'], ['Amy Hedtke State Farm', 'amy-farm-hedtke-state']), true,
+    'Pumpkin Pie Giveaway');
   assert.equal(await spot(['The Bloom Room at Sunny Mary Meadow', 'mary-meadow-sunny'],
     ['Sunny Mary Meadow', 'mary-meadow-sunny', ...meadow]), false, 'Market at the Meadow');
   assert.equal(await spot(['The Bloom Room at Sunny Mary Meadow', 'mary-meadow-sunny', ...meadow],
@@ -120,6 +122,25 @@ test('the same place in other words is no move; another place or spot is (watch-
     "a host's place on both, spots 7 km apart");
   assert.equal(await spot(['Church of St. Joseph lawn', null, 45.56417, -94.31874],
     ['Tree lighting, Minnesota St W', null, 45.5650, -94.3190]), false, 'one spot, ~100 m off');
+  // Review fix 3: a known place to an address with no place or spot is compared in words.
+  assert.equal(await spot(['Church of St. Joseph', 'church-jospehs-st'], ['Sartell High School']), true,
+    'a known place to an un-geocoded address in other words');
+  assert.equal(await spot(['Church of St. Joseph', 'church-jospehs-st'], ['Church of St. Joseph lawn']), false,
+    'a known place to the same place in words with no place or spot');
+});
+
+// Review fix 2: a mark written before ticket 39 keeps only {event_date, start_time, location}; a second
+// move must not read as a move back.
+test('an Event moved under the old words-only mark that moves again stays moved', async () => {
+  const id = (await db.query(`insert into public.club_events (title, status, event_date, start_time, location,
+    place_entry_id) values ('x', 'approved', $1, '7 PM', 'Stephen B. Humphrey Theater, Collegeville', 'sju')
+    returning id`, [soon(5)])).rows[0].id;
+  await db.query(`update public.club_events set moved_at = now(), moved_from = $2 where id = $1`,
+    [id, { event_date: soon(5), start_time: '7 PM', location: 'Kennedy Community School Kennedy Gym' }]);
+  await edit(id, `location = $2, place_entry_id = $3`, ["Saint John's Abbey Church, Collegeville", 'saint-johns-abbey']);
+  const m = await moved(id);
+  assert.equal(m.moved, true);
+  assert.equal(m.moved_from.location, 'Kennedy Community School Kennedy Gym');
 });
 
 test('Notifications lists what you follow and are Going to, and nothing else', async () => {

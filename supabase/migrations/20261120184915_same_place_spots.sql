@@ -1,7 +1,9 @@
 -- Same place in other words is not a move (BP app docs/plans/watch-every-place, ticket 39; Jesse's yes
 -- 2026-11-20). A re-read Facebook Event writes its host's place text every time, and the words alone
 -- marked 6 of 7 such Events moved though they stayed put. A new place is now a new place_entry_id, or
--- a spot (lat, lng) over about 150 m off; the words decide only when neither row has a place or a spot.
+-- a spot (lat, lng) over about 150 m off. The words decide when the two rows carry no place id on both
+-- sides and no spot on both sides: a row with neither (an un-geocoded address, or a moved_from written
+-- before this migration with only {event_date, start_time, location}) is compared in words.
 
 -- Two places, each {location, place_entry_id, lat, lng}, are one.
 create or replace function private.same_place(a jsonb, b jsonb)
@@ -11,7 +13,8 @@ immutable
 set search_path = ''
 as $$
   select case
-    when coalesce(a->>'place_entry_id', b->>'place_entry_id', a->>'lat', b->>'lat') is null then private.same_place(a->>'location', b->>'location')
+    when (a->>'place_entry_id' is null or b->>'place_entry_id' is null)
+     and (a->>'lat' is null or b->>'lat' is null) then private.same_place(a->>'location', b->>'location')
     else not coalesce(a->>'place_entry_id' <> b->>'place_entry_id', false)
      and not coalesce(111320 * sqrt(((a->>'lat')::float8 - (b->>'lat')::float8) ^ 2
            + (((a->>'lng')::float8 - (b->>'lng')::float8) * cos(radians((a->>'lat')::float8))) ^ 2) > 150, false)
@@ -67,7 +70,8 @@ end;
 $$;
 
 -- The 6 false marks (ticket 39's table). The Magic of Motown (498853ef) really moved and keeps its
--- mark. Only Santa Knows has neither a place nor a spot, so the rule still reads it as moved: cleared by id.
+-- mark. Only Santa Knows and Pumpkin Pie Giveaway have a row with neither a place nor a spot, so the rule
+-- still reads them as moved by their words: cleared by id.
 update public.club_events set moved_at = null, moved_from = null
 where id in ('faaa2c51-0851-48f9-84f9-5bff9931b085',  -- Young Adult Praise Night
              'cd887295-7f4f-4285-8a5b-20b644de63cd',  -- AMCofA Big Sing

@@ -1187,16 +1187,18 @@ def repeat_of(n, recent):
 
 # Words every event title may carry, which tell nothing of which one: "Birthday Day" is the birthday.
 EVENT_FILLER = set("day days night nights week weekend event".split())
-CHANGED = re.compile(r"\b(cancel+ed|cancel+ations?|postponed|moved|rescheduled|called off)\b", re.I)
+CHANGED = re.compile(r"\b(cancel+ed|cancel+ations?|postponed|moved|rescheduled|called off|clos(?:ed|ures?|ing)|"
+                     r"sold out|new (?:time|date|place)|rain date|weather|parking|detours?)\b", re.I)
 
 
 def event_told(n, events, today):
     """The Event from a News's own place, on in the News's days, that tells the same thing, or None (BP app
     watch-every-place 35): Mission Nutrition's daily-read page made the Event "Mission Nutrition Birthday Day" (Nov 19),
-    then the News "Scratch-Off Week" ("Birthday celebration, Nov 16 to 22"). Only a News that names its days (a start or
+    then the News "Scratch-Off Week" ("Birthday celebration, Nov 16 to 22"). A match only puts the pair to the model
+    (out["ask"]): a News may add facts to its Event. Only a News that names its days (a start or
     an end; from today when it has no start), and an Event still to come after today: an undated post sharing a word
     ("Soft pink" and "Pink Friday") or a game's result posted that day is not one, and news of a change (cancelled,
-    moved) is news. The same thing: at least half the Event's title words, the hosts' names and EVENT_FILLER aside, are
+    moved, road closures, sold out, a rain date, parking) is news. The same thing: at least half the Event's title words, the hosts' names and EVENT_FILLER aside, are
     in the News's title or blurb. Any status: a copy taken out stays out. The rest is the model's (told)."""
     if not (n.get("starts_at") or n.get("ends_on")) or CHANGED.search(f"{n['title']} {n.get('blurb') or ''}"):
         return None
@@ -1208,7 +1210,7 @@ def event_told(n, events, today):
         if not ev.get("event_date") or not same_host(ev, n):
             continue
         start, end = event_days(ev)
-        if end <= today or end < first or start > last:
+        if end < today or end < first or start > last:
             continue
         theirs, mine = word_forms(words(ev["title"], STOP | FILLER | EVENT_FILLER) - host - words(ev["source_name"]), said)
         if theirs and 2 * len(theirs & mine) >= len(theirs):
@@ -1228,7 +1230,7 @@ def events_read(items, town):
         except ValueError:
             continue
         out.append({"title": tidy_title(it["title"], it["source_name"]), "event_date": first.isoformat(),
-                    "end_at": last and datetime.combine(last, time(), LOCAL).isoformat(),
+                    "end_at": last and last > first and datetime.combine(last + timedelta(1), time(), LOCAL).isoformat(),
                     "source_name": it["source_name"].strip(), "place_entry_id": where(None, it["source_name"])})
     return out
 
@@ -1286,8 +1288,9 @@ def news_written(row, today):
 
 
 def event_days(row):
+    """(first day, last day). A run's end_at is the midnight after its last day (event_of), so a minute before it."""
     first = date.fromisoformat(str(row["event_date"])[:10])
-    last = local(row["end_at"]).date() if row.get("end_at") else first
+    last = (local(row["end_at"]) - timedelta(minutes=1)).date() if row.get("end_at") else first
     return first, max(first, last)
 
 
@@ -1378,7 +1381,7 @@ def plan(items, existing, today, interests, town=TOWNS[DEFAULT], titles=None, te
     `history`: the News (any status) and Events its News's places have from the last two weeks (history_in_db). The
     title rule reads its News too, so a take-out stands; a News it leaves gets a question in
     out["ask"], [(News, what its place has)], for a model (sources/models/repeat.md), unless `asked` answers it: {repeat_key(News as read): the row it repeats,
-    or None} (BP app smooth-mornings 16). With no history, nothing is asked.
+    or None} (BP app smooth-mornings 16). With no history, only a News event_told() matches to this read's Events is asked.
     `titles`: this morning's shorter titles for long ones, {tidied title: short} (long_titles, long_headlines).
     `teams`: known_teams(); without it a game's names become ids, which apply() refuses."""
     home = town["label"]
@@ -1428,9 +1431,6 @@ def plan(items, existing, today, interests, town=TOWNS[DEFAULT], titles=None, te
             if old:
                 out["outcomes"][i] = ("repeat", f"of {old['title']!r} ({'taken out' if old in taken_out else 'already in the app'})")
                 continue
-            if ev := event_told(n, events, today):
-                out["outcomes"][i] = ("repeat", f"of the Event {ev['title']!r} {str(ev['event_date'])[:10]} (same place, same days)")
-                continue
             # One post is one News (smooth-mornings 05): a second News from the same post joins the first's
             # blurb by its title (Well & Company's one post was three News on Oct 23).
             post = own_link(n["source_url"]) and next((m for m in news.values() if m["source_name"] == n["source_name"]
@@ -1440,13 +1440,18 @@ def plan(items, existing, today, interests, town=TOWNS[DEFAULT], titles=None, te
                 out["outcomes"][i] = ("folded", f"{n['title']!r} into {post['title']!r}, the News of the post they share")
                 continue
             # The word rules leave it: a model reads it beside what its place has (smooth-mornings 16).
+            # An Event from its place on its days telling the same thing (event_told) goes first in the question.
             mine = {**n, "title": read}
-            if history is not None and repeat_key(mine) in asked:
+            if repeat_key(mine) in asked:
                 if same := asked[repeat_key(mine)]:
                     out["outcomes"][i] = ("repeat", f"{read!r}, the same story as {same['title']!r} (the model says)")
                     continue
-            elif history is not None and (candidates := told(mine, [*history, *news.values()], today)):
-                out["ask"].append((mine, candidates))
+            else:
+                candidates = told(mine, [*history, *news.values()], today) if history is not None else []
+                if ev := event_told(n, events, today):
+                    candidates = [ev, *(c for c in candidates if c is not ev)][:REPEAT_MOST]
+                if candidates:
+                    out["ask"].append((mine, candidates))
             n["status"] = "published"
             news[(n["title"].lower(), n["source_name"], n["starts_at"])] = n
             out["outcomes"][i] = ("news", "")
@@ -3231,15 +3236,42 @@ def t_news_repeats_an_event():
                  **dict(mission, source_name="Kay's Kitchen", source_url="https://www.facebook.com/kays/posts/1")),
             item(title="Birthday party", blurb="Our birthday, Dec 5", start="2026-12-05", end="2026-12-05",
                  **dict(mission, source_url="https://www.facebook.com/MissionNutritionStJoe/posts/pfbid0dec"))]
+    # The words only put the pair to the model (review fix, 2026-11-20): a News that adds facts to its Event is news.
     for history in ([birthday], None):  # listed already; or read this same evening, with no history read
-        r = plan(news if history else [item(title="Mission Nutrition Birthday Day", start="2026-11-19", all_day=True,
-                                            end=None, place="Mission Nutrition", source_name="Mission Nutrition",
-                                            source_url=mission["source_url"], blurb="Paula's birthday.")] + news,
-                 [], today, INTERESTS, history=history)
+        items = news if history else [item(title="Mission Nutrition Birthday Day", start="2026-11-19", all_day=True,
+                                           end=None, place="Mission Nutrition", source_name="Mission Nutrition",
+                                           source_url=mission["source_url"], blurb="Paula's birthday.")] + news
+        r = plan(items, [], today, INTERESTS, history=history)
+        asks = {n["title"]: c for n, c in r["ask"]}
+        assert asks["Scratch-Off Week"][0]["title"] == "Mission Nutrition Birthday Day", (history, r["ask"])
+        assert history or set(asks) == {"Scratch-Off Week"}, "another place's, or another day's, is not put to the words"
+        assert [outcome(r, i) for i in range(len(items))][-4:] == ["news"] * 4, "not asked, it goes up"
+        said = {repeat_key(n): (c[0] if n["title"] == "Scratch-Off Week" else None) for n, c in r["ask"]}
+        r = plan(items, [], today, INTERESTS, history=history, asked=said)
         got = [outcome(r, i) for i in range(len(r["outcomes"]))][-4:]
         assert got == ["repeat", "news", "news", "news"], (history, r["outcomes"])
         assert "Mission Nutrition Birthday Day" in r["outcomes"][-4][1], r["outcomes"][-4]
         assert all(n["title"] != "Scratch-Off Week" for n in r["news"]), r["news"]
+    # News of a change to the Event is news, never put to the words: road closures for the Tree Lighting.
+    lighting = dict(birthday, title="Tree Lighting", event_date="2026-11-21")
+    for blurb in ("Road closures on Minnesota St from 4 PM", "Sold out", "Rain date Nov 22", "New time: 6 PM",
+                  "Parking at the school lot"):
+        r = plan([item(title="Tree Lighting", blurb=blurb, start="2026-11-21", end="2026-11-21", **mission)], [], today,
+                 INTERESTS)
+        assert not r["ask"] and outcome(r, 0) == "news", (blurb, r["ask"])
+    # Review fix 8: an Event ending today is still on; one Event's end reads the same from a row or from this read.
+    told_n = lambda title, day: {"title": title, "blurb": None, "starts_at": f"{day}T00:00:00-06:00", "ends_on": day,
+                                 "source_name": "Mission Nutrition", "place_entry_id": where(None, "Mission Nutrition")}
+    assert event_told(told_n("Birthday Day sale", "2026-11-15"), [dict(birthday, event_date="2026-11-15")], today), \
+        "an Event ending today is still on"
+    run_ = dict(birthday, event_date="2026-11-16", end_at="2026-11-19T00:00:00-06:00")  # Nov 16 to 18, as event_of writes it
+    late = told_n("Birthday Day treats", "2026-11-19")
+    read = events_read([item(title="Mission Nutrition Birthday Day", start="2026-11-16", end="2026-11-18", all_day=True,
+                             place="Mission Nutrition", source_name="Mission Nutrition", source_url=mission["source_url"])],
+                       TOWNS[DEFAULT])
+    assert not event_told(late, [run_], today) and not event_told(late, read, today) \
+        and event_told(told_n("Birthday Day treats", "2026-11-18"), read, today), \
+        "a run ends on its last day, read from a row (end_at the midnight after) or from this read"
     # The dry run over Nov 13 to 20 (BP app watch-every-place assets/35-dry-run): what is not a repeat. An undated post
     # sharing a word ("Soft pink" and Nov 20's "Pink Friday"), a result posted the day of its game, and News that the
     # Event changed are told by the model or go up.
