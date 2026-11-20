@@ -377,6 +377,30 @@ final class SearchModelTests: XCTestCase {
         XCTAssertEqual(GroupPage.tile("2026-10-20").day, "20")
     }
 
+    /// Coming up lays the found Events among the meetings, soonest first: an Event on a meeting's day takes its
+    /// place, in the Event's words, and opens its page; a meeting with no Event stays as it was (rsvp-and-groups 10).
+    func testGroupComingUpWithFoundEvents() {
+        func event(_ title: String, _ day: String?, _ time: String?) -> FeedCardItem {
+            var card = FeedCardItem(id: title, title: title, dateChip: "", metaLine: "", image: .fallback, recurrence: nil,
+                                    goingCount: 0, goingAvatars: [], likeCount: 0, isLiked: false, isJoined: false)
+            card.eventDate = day
+            card.startTime = time
+            return card
+        }
+        let meetings = [TownGroup.Meeting(what: "Meeting", day: "2026-12-01", time: "18:00"),
+                        TownGroup.Meeting(what: "Meeting", day: "2026-12-15", time: "18:00"),
+                        TownGroup.Meeting(what: "Meeting", day: "2027-01-05", time: "18:00")]
+        let rows = GroupPage.comingUp(meetings, events: [event("Pancake Breakfast", "2026-12-06", "8 AM"),
+                                                         event("Monthly Meeting", "2026-12-15", "7 PM"),
+                                                         event("No day", nil, nil)])
+        XCTAssertEqual(rows.map(\.meeting.what), ["Meeting", "Pancake Breakfast", "Monthly Meeting", "Meeting"])
+        XCTAssertEqual(rows.map { $0.event?.id }, [nil, "Pancake Breakfast", "Monthly Meeting", nil])
+        XCTAssertEqual(GroupPage.meetingLine(rows[1].meeting), "Sun, Dec 6 · 8 AM", "the Event's own time, read as a meeting's")
+        XCTAssertEqual(GroupPage.comingUp(meetings, events: []).map(\.meeting), meetings, "no Events: the meetings as they were")
+        let sameDay = GroupPage.comingUp([], events: [event("Evening", "2026-12-06", "7 PM"), event("Morning", "2026-12-06", "8 AM")])
+        XCTAssertEqual(sameDay.map(\.meeting.what), ["Morning", "Evening"], "two on one day: by time")
+    }
+
     /// Typing finds by name and by kind of place; the Businesses pill takes food too.
     func testTypedSearch() {
         let model = SearchModel(supabase: supabase, defaults: defaults)
