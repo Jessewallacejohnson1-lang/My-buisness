@@ -316,8 +316,9 @@ private struct FollowingRow: View {
     private var face: some View {
         HStack(spacing: DailyMetric.followingGap) {
             if item.logo {
-                LogoDisc(logo: item.avatar, initial: item.name.first.map { String($0).uppercased() } ?? "",
-                         logoSide: DailyMetric.followingPhoto, letter: .sansSemibold(14), fits: true)
+                // Its ink kept inside the edge line by a Town host mark's margin.
+                LogoDisc(logo: item.avatar, initial: item.name.first(where: \.isLetter).map { String($0).uppercased() } ?? "",
+                         logoSide: DailyMetric.followingPhoto - 2 * HostMarkDisc.ring, letter: .sansSemibold(14), fits: true)
                     .frame(width: DailyMetric.followingPhoto, height: DailyMetric.followingPhoto)
                     .overlay(Circle().strokeBorder(Hue.hairline.onLightCanvas, lineWidth: 0.5))
             } else {
