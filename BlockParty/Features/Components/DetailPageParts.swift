@@ -96,10 +96,14 @@ struct CoverPhotoViewer: View {
     /// With no photos: a bundled one (a Profile's town photo, until they pick a cover).
     var image: UIImage? = nil
     @Environment(\.dismiss) private var dismiss
+    /// How far a drag down has carried the photo; past `closeAt` (or flicked) it closes.
+    @State private var drop: CGFloat = 0
+    static let closeAt: CGFloat = 100
+    static let closeFlick: CGFloat = 800
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            Color.black.ignoresSafeArea()
+            Color.black.opacity(1 - min(drop / 400, 0.6)).ignoresSafeArea()
             GeometryReader { proxy in
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(spacing: 0) {
@@ -123,6 +127,17 @@ struct CoverPhotoViewer: View {
                         .frame(width: proxy.size.width, height: proxy.size.height)
                 }
             }
+            .offset(y: drop)
+            .scaleEffect(1 - min(drop / 2000, 0.15))
+            // The zoom's own drag down never began on the simulator (AXe swipes and touches, 2026-11-20),
+            // so the photo follows the finger here and the zoom's is off.
+            .gesture(DownPan(changed: { drop = $0 }, ended: { speed in
+                if drop > Self.closeAt || speed > Self.closeFlick {
+                    dismiss()
+                } else {
+                    withAnimation(Motion.smooth) { drop = 0 }
+                }
+            }))
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Photos")
             .accessibilityValue(EventPage.counterText(page: page ?? 0, count: photos.count) ?? "")
@@ -136,6 +151,46 @@ struct CoverPhotoViewer: View {
             .buttonStyle(.press(.squish))
             .accessibilityLabel("Close")
             .padding(.trailing, EventPage.Metric.inset - (PageMetric.tapMin - EventPage.Metric.button) / 2)
+            .opacity(drop > 0 ? 0 : 1)
+            .animation(Motion.smooth, value: drop > 0)
+        }
+        .interactiveDismissDisabled()
+    }
+
+    /// A finger moving down, more down than across; the photos' pager waits for it to say no, which it
+    /// does at once for a sideways one (`ChatTimesPan`).
+    private struct DownPan: UIGestureRecognizerRepresentable {
+        let changed: (CGFloat) -> Void
+        /// With the finger's speed down, in points a second.
+        let ended: (CGFloat) -> Void
+
+        func makeCoordinator(converter: CoordinateSpaceConverter) -> Coordinator { Coordinator() }
+
+        func makeUIGestureRecognizer(context: Context) -> UIPanGestureRecognizer {
+            let pan = UIPanGestureRecognizer()
+            pan.maximumNumberOfTouches = 1
+            pan.delegate = context.coordinator
+            return pan
+        }
+
+        func handleUIGestureRecognizerAction(_ pan: UIPanGestureRecognizer, context: Context) {
+            switch pan.state {
+            case .began, .changed: changed(max(0, pan.translation(in: nil).y))
+            case .ended, .cancelled: ended(pan.velocity(in: nil).y)
+            default: break
+            }
+        }
+
+        final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+            func gestureRecognizerShouldBegin(_ recognizer: UIGestureRecognizer) -> Bool {
+                guard let pan = recognizer as? UIPanGestureRecognizer else { return false }
+                let speed = pan.velocity(in: nil)
+                return speed.y > 0 && speed.y > abs(speed.x)
+            }
+
+            func gestureRecognizer(_ recognizer: UIGestureRecognizer, shouldBeRequiredToFailBy other: UIGestureRecognizer) -> Bool {
+                other.view is UIScrollView
+            }
         }
     }
 
