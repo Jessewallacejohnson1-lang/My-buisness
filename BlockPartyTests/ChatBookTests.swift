@@ -366,12 +366,9 @@ final class ChatBookTests: XCTestCase {
         server.answers["rpc/get_chats"] = .init(body: "[\(chatJSON(unread: true))]")
         let book = ChatBook(supabase: supabase, live: true)
         await book.refresh()
-        book.sending = FeedCardItem(UpcomingEvent(id: "e", title: "t", eventDate: "2026-11-03", startTime: nil, location: nil,
-                                                  goingCount: 0, createdAt: ""))
         book.accountChanged()
         XCTAssertNil(book.chats)
         XCTAssertFalse(book.unread)
-        XCTAssertNil(book.sending)
     }
 
     func testFindsTheChatWithAPerson() async throws {

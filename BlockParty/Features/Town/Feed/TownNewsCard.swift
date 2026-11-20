@@ -139,16 +139,8 @@ struct TownNewsCard: View {
 
     static func share(_ news: TownNews) {
         ShareCenter.shared.present(
-            SharePayload(title: news.place,
-                         shareText: shareText(news),
-                         includesImage: false) {
-                // The card alone, no heart: the share window has none of the app's environment its hold reads.
-                whiteFace(news, room: 0)
-                    .padding(.horizontal, TownFeedMetric.contentInset)
-                    .frame(width: 320)
-                    .padding(.vertical, 16)
-                    .background(Hue.surface)
-            }
+            SharePayload(story: ShareStory(title: news.headline, line: "News · \(news.place)", photo: news.photo),
+                         shareText: shareText(news))
         )
     }
 }

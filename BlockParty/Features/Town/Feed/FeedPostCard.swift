@@ -269,14 +269,8 @@ struct FeedPostCard: View {
     private func share() {
         let name = post.poster.name
         ShareCenter.shared.present(
-            SharePayload(title: name,
-                         shareText: post.words.isEmpty ? "\(name) posted on Block Party." : "\(name): \(post.words)",
-                         includesImage: false) {
-                FeedPostCard(post: post, sendable: false)
-                    .frame(width: 320)
-                    .padding(.vertical, 16)
-                    .background(Hue.surface)
-            }
+            SharePayload(story: ShareStory(title: post.words.isEmpty ? name : post.words, line: name, photo: post.photo),
+                         shareText: post.words.isEmpty ? "\(name) posted on Block Party." : "\(name): \(post.words)")
         )
     }
 }

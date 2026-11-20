@@ -14,8 +14,6 @@ final class ChatBook {
     private(set) var chats: [Chat]?
     /// The last read failed.
     private(set) var failed = false
-    /// The Event page's "Send in a chat": its picker is up (`ChatPicker`).
-    var sending: FeedCardItem?
 
     let api: ChatAPI
     private let live: Bool
@@ -131,7 +129,6 @@ final class ChatBook {
         latestRead &+= 1
         chats = live ? nil : []
         failed = false
-        sending = nil
         mayGroupChat = false
     }
 

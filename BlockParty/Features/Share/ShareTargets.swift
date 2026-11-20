@@ -1,62 +1,12 @@
 //
 //  ShareTargets.swift
-//  Block Party — the share sheet's target row (Messages · Save image · More) and the
-//  platform bridges behind each (Messages composer, Photos save, OS share sheet).
+//  Block Party — the platform bridges behind the share sheet's apps: Messages' composer and the Photos save.
 //
 
 import SwiftUI
 import UIKit
 import MessageUI
 import Photos
-
-/// The Duolingo-style row of round targets. Adapts: link-only shares (no image)
-/// drop "Save image".
-struct ShareTargetRow: View {
-    @ObservedObject private var center = ShareCenter.shared
-    let includesImage: Bool
-
-    var body: some View {
-        HStack(spacing: 30) {
-            // A chat on Block Party first: the Event's own card, with Going on it (five-tabs 05).
-            if center.payload?.card != nil, center.sendInChat != nil {
-                target("paperplane", "Chat", tint: .white, bg: Hue.ink) {
-                    center.sendCardInChat()
-                }
-            }
-            if center.canSendMessages {
-                target("message.fill", "Messages", tint: .white, bg: Hue.ink) {
-                    center.sendMessages()
-                }
-            }
-            if includesImage {
-                target("square.and.arrow.down", "Save image", tint: Hue.ink, bg: Hue.paper) {
-                    center.saveImage()
-                }
-            }
-            target("ellipsis", "More", tint: Hue.ink, bg: Hue.paper) {
-                center.shareMore()
-            }
-        }
-    }
-
-    private func target(_ symbol: String, _ label: String,
-                        tint: Color, bg: Color, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            VStack(spacing: 8) {
-                Image(systemName: symbol)
-                    .font(.sansSemibold(22))
-                    .foregroundStyle(tint)
-                    .frame(width: 60, height: 60)
-                    .background(bg, in: Circle())
-                    .overlay(Circle().stroke(Hue.hairline, lineWidth: 1))
-                Text(label)
-                    .font(.sans(12))
-                    .foregroundStyle(Hue.inkSecondary)
-            }
-        }
-        .buttonStyle(.press(.squish))
-    }
-}
 
 /// MFMessageComposeViewController bridge — presented imperatively from the
 /// overlay window's root VC, with a retained delegate.

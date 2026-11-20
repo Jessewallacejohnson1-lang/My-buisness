@@ -143,17 +143,12 @@ struct TownFeedColumn: View {
     static func share(_ posting: PostingItem) {
         ShareCenter.shared.present(
             SharePayload(
-                title: posting.authorName,
+                story: ShareStory(title: posting.caption.isEmpty ? posting.authorName : posting.caption,
+                                  line: posting.authorName, photo: SharePayload.photo(posting.image)),
                 shareText: posting.caption.isEmpty
                     ? "\(posting.authorName) posted on Block Party."
-                    : "\(posting.authorName): \(posting.caption)",
-                includesImage: false
-            ) {
-                PostingCard(posting: posting)
-                    .frame(width: 320)
-                    .padding(16)
-                    .background(Hue.surface)
-            }
+                    : "\(posting.authorName): \(posting.caption)"
+            )
         )
     }
 }

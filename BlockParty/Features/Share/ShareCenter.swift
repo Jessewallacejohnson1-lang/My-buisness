@@ -1,47 +1,48 @@
 //
 //  ShareCenter.swift
-//  Block Party — the one entry point for the app-wide "share reveal".
+//  Block Party — the one entry point for every share in the app (BP app share-sheet 01).
 //
-//  Any share in the app calls `ShareCenter.shared.present(...)`. The reveal is a
-//  preview card of exactly what's being shared (the same view is rendered to the
-//  shared image), springing up over a dimmed backdrop with a Duolingo-style
-//  target row. Ported from a reference recording — see
-//  docs/superpowers/specs/2026-07-11-share-reveal-animation-design.md.
+//  Any share calls `ShareCenter.shared.present(...)`. It raises Apple's sheet in a window of its own, above the tab
+//  bar and any sheet already up: the story card (`ShareCard`) in two looks to swipe between, the people to send it to
+//  in a chat, and the apps (`ShareSheet`). Hypelist's share sheet is its Reference
+//  (BP app `references/share-sheet/`).
 //
-//  To add a NEW share anywhere in the app, that's the whole integration:
-//      ShareCenter.shared.present(SharePayload(title: "SHARE THIS THING",
-//                                              shareText: "…",
-//                                              includesImage: true) { MyCard(…) })
+//  To add a new share anywhere in the app, that's the whole integration:
+//      ShareCenter.shared.present(SharePayload(story: ShareStory(title: "…", line: "…", photo: url),
+//                                              shareText: "…"))
 //
 
 import SwiftUI
 import UIKit
 import Combine
 
-/// Describes one share: the card to preview + render, the sheet title, the text,
-/// and whether a rendered image is part of the share (drives "Save image").
+/// What a share's card shows: its title and line over its picture (none: the Event page's yellow).
+struct ShareStory: Equatable {
+    var title: String
+    var line: String
+    var photo: URL?
+}
+
+/// One share: the card, the words that go with it, and for an Event, the Event a chat gets.
 struct SharePayload: Identifiable {
     let id = UUID()
-    let preview: AnyView
-    let title: String
+    var story: ShareStory
     let shareText: String
-    let includesImage: Bool
     /// An Event's share, the one that counts toward "Shared your first event!" (hello-drop 02).
     var isEvent = false
     /// The Event's id, so a share that went out counts in the weekly numbers (town-feed 26).
     var eventID: String?
-    /// The Event itself: what "Send in a chat" sends (BP app five-tabs 05).
+    /// The Event itself: what a face in the people row sends (BP app five-tabs 05).
     var card: FeedCardItem?
 
-    init<V: View>(title: String,
-                  shareText: String,
-                  includesImage: Bool,
-                  @ViewBuilder preview: () -> V) {
-        self.title = title
+    init(story: ShareStory, shareText: String) {
+        self.story = story
         self.shareText = shareText
-        self.includesImage = includesImage
-        self.preview = AnyView(preview())
     }
+
+    /// What Copy link copies: the words and the website, since an Event has no page of its own on it yet
+    /// (Jesse, share-sheet round 2).
+    var copied: String { shareText + " " + FriendsInvite.link.host()! }
 }
 
 @MainActor
@@ -50,51 +51,44 @@ final class ShareCenter: ObservableObject {
     private init() {}
 
     @Published private(set) var payload: SharePayload?
-    /// The off→on state the reveal animates against. false = card small/hidden.
-    @Published var revealed: Bool = false
+    /// The sheet is up; false lets it go down, and its going tears the window down.
+    @Published var showing = false
 
     private var window: UIWindow?
-    /// Set by the shell: opens the picker for an Event once this sheet has gone.
-    var sendInChat: ((FeedCardItem) -> Void)?
+    /// The sheet's height: Hypelist's, its top 88 pt down the screen.
+    private(set) var sheetHeight: CGFloat = 0
+
+    /// Who the people row lists and sends through; the shell sets them. Signed out, or without them, the row hides.
+    weak var chats: ChatBook?
+    weak var friends: FriendsBook?
+    weak var you: YouModel?
+    weak var actions: RealLifeActions?
+
+    /// The card as the sheet shows it now, which is what Messages, Save image and More send.
+    var shownLook = ShareLook.charcoal
+    var shownPhoto: CGImage?
 
     func present(_ payload: SharePayload) {
         guard self.payload == nil else { return }   // one at a time
         self.payload = payload
-        self.revealed = false
+        shownLook = .charcoal
+        shownPhoto = nil
         guard showWindow() else {
-            // No foreground window scene to present into — don't wedge the
-            // singleton for future shares.
+            // No foreground window scene to present into: don't wedge the singleton for future shares.
             self.payload = nil
-            self.revealed = false
             return
         }
         Haptics.light()
-        // Let the reveal render in its off-state, then spring it in next runloop.
-        DispatchQueue.main.async {
-            withAnimation(.spring(response: 0.58, dampingFraction: 0.76)) {
-                self.revealed = true
-            }
-        }
+        // The window is up with nothing in it; the sheet rises on the next turn, as Apple's does.
+        DispatchQueue.main.async { self.showing = true }
     }
 
-    /// Hands the Event to the shell's picker as this sheet goes.
-    func sendCardInChat() {
-        guard let card = payload?.card else { return }
-        dismiss()
-        sendInChat?(card)
-    }
-
-    func dismiss() {
-        withAnimation(.spring(response: 0.32, dampingFraction: 0.9)) {
-            self.revealed = false
-        }
-        // Tear down after the dismiss spring settles.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.36) { [weak self] in
-            guard let self, self.revealed == false else { return }
-            self.window?.isHidden = true
-            self.window = nil
-            self.payload = nil
-        }
+    /// The sheet has gone: so do its window and its share.
+    func sheetGone() {
+        window?.isHidden = true
+        window = nil
+        payload = nil
+        shownPhoto = nil
     }
 
     private func showWindow() -> Bool {
@@ -107,13 +101,11 @@ final class ShareCenter: ObservableObject {
         let window = UIWindow(windowScene: scene)
         window.windowLevel = .alert + 1          // above the tab bar and any .sheet
         window.backgroundColor = .clear
-        // This is a SECOND window, so `RootView`'s `.preferredColorScheme` does not
-        // reach it — the reveal would follow the phone while the app behind it
-        // followed the neighbour's choice. `.unspecified` is the `.system` case, so
-        // the default behaviour is unchanged. Read at creation rather than observed:
-        // the window exists only for the few seconds of one share.
+        // A second window, so `RootView`'s `.preferredColorScheme` does not reach it. `.unspecified` is the
+        // `.system` case. Read at creation rather than observed: the window exists only for one share.
         window.overrideUserInterfaceStyle = AppearanceStore.shared.choice.interfaceStyle
-        let host = UIHostingController(rootView: ShareRevealView())
+        sheetHeight = max(0, window.bounds.height - ShareMetric.sheetTop)
+        let host = UIHostingController(rootView: ShareHost())
         host.view.backgroundColor = .clear
         window.rootViewController = host
         window.isHidden = false
@@ -121,14 +113,18 @@ final class ShareCenter: ObservableObject {
         return true
     }
 
-    /// The topmost VC in the overlay window — the presenter for Messages / the
-    /// iOS share sheet (used by ShareTargets in a later task).
-    var overlayPresenter: UIViewController? { window?.rootViewController }
+    /// The topmost controller in the share window, the sheet itself once it's up: the presenter for Messages and
+    /// Apple's share sheet.
+    var presenter: UIViewController? {
+        var top = window?.rootViewController
+        while let next = top?.presentedViewController { top = next }
+        return top
+    }
 
-    /// Render the current payload's preview card to a shareable image (scale 3).
+    /// The card as shown, drawn to a picture at 3x.
     func renderedImage() -> UIImage? {
         guard let payload else { return nil }
-        let r = ImageRenderer(content: payload.preview)
+        let r = ImageRenderer(content: ShareCard(story: payload.story, look: shownLook, photo: shownPhoto))
         r.scale = 3
         return r.uiImage
     }
@@ -136,13 +132,13 @@ final class ShareCenter: ObservableObject {
     private func activityItems() -> [Any] {
         guard let payload else { return [] }
         var items: [Any] = [payload.shareText]
-        if payload.includesImage, let img = renderedImage() { items.insert(img, at: 0) }
+        if let img = renderedImage() { items.insert(img, at: 0) }
         return items
     }
 
-    /// "More" → the OS share sheet, presented above the reveal.
+    /// "More": Apple's share sheet, over this one.
     func shareMore() {
-        guard let presenter = overlayPresenter else { return }
+        guard let presenter else { return }
         Haptics.light()
         let vc = UIActivityViewController(activityItems: activityItems(), applicationActivities: nil)
         let event = isEvent, id = payload?.eventID
@@ -157,18 +153,61 @@ final class ShareCenter: ObservableObject {
         presenter.present(vc, animated: true)
     }
 
-    /// "Messages" → the SMS/iMessage composer seeded with image + text.
+    /// "Messages": Apple's composer with the card and the words.
     func sendMessages() {
-        guard let presenter = overlayPresenter else { return }
+        guard let presenter else { return }
         Haptics.light()
         let event = isEvent, id = payload?.eventID
         MessagesComposer.present(from: presenter,
                                  text: payload?.shareText ?? "",
-                                 image: (payload?.includesImage ?? false) ? renderedImage() : nil,
+                                 image: renderedImage(),
                                  sent: {
                                      if event { HelloMoments.shared.reach(.firstShare) }
                                      Self.recordShare(id)
                                  })
+    }
+
+    /// "Copy link": the words and the website.
+    func copyLink() {
+        guard let payload else { return }
+        UIPasteboard.general.string = payload.copied
+        Haptics.light()
+    }
+
+    /// "Save image": the card as shown, to Photos (add-only).
+    func saveImage() {
+        guard let img = renderedImage() else { return }
+        Haptics.light()
+        PhotoSaver.save(img)
+    }
+
+    /// WhatsApp and Messenger, each only where it's on the phone (`LSApplicationQueriesSchemes`).
+    enum OtherApp {
+        case whatsApp, messenger
+
+        var scheme: URL { URL(string: self == .whatsApp ? "whatsapp://" : "fb-messenger://")! }
+
+        /// WhatsApp takes the words; Messenger only a link.
+        func url(for payload: SharePayload) -> URL? {
+            var parts = URLComponents()
+            switch self {
+            case .whatsApp:
+                parts.scheme = "whatsapp"; parts.host = "send"
+                parts.queryItems = [URLQueryItem(name: "text", value: payload.copied)]
+            case .messenger:
+                parts.scheme = "fb-messenger"; parts.host = "share"
+                parts.queryItems = [URLQueryItem(name: "link", value: FriendsInvite.link.absoluteString)]
+            }
+            return parts.url
+        }
+    }
+
+    func onPhone(_ app: OtherApp) -> Bool { UIApplication.shared.canOpenURL(app.scheme) }
+
+    func open(_ app: OtherApp) {
+        guard let payload, let url = app.url(for: payload) else { return }
+        Haptics.light()
+        UIApplication.shared.open(url)
     }
 
     /// A share that went out, sent straight away; one that fails is dropped, as a lost view is.
@@ -183,16 +222,9 @@ final class ShareCenter: ObservableObject {
         }
     }
 
-    /// "Save image" → write the rendered card to Photos (add-only auth).
-    func saveImage() {
-        guard let img = renderedImage() else { return }
-        Haptics.light()
-        PhotoSaver.save(img)
-    }
-
     private var isEvent: Bool { payload?.isEvent ?? false }
 
-    /// Messages target only makes sense on a device that can send texts.
+    /// Messages only makes sense on a device that can send texts.
     var canSendMessages: Bool { MessagesComposer.canSend }
 }
 
@@ -202,17 +234,20 @@ extension SharePayload {
         if let time, !time.isEmpty { text += " at \(time)" }
         if let location, !location.isEmpty { text += ", \(location)" }
         text += ". Shared from Block Party."
-        var payload = SharePayload(title: "Share this event", shareText: text, includesImage: true) {
-            InviteCard(title: title, dateLabel: dateLabel, time: time, location: location)
-        }
+        let line = [dateLabel, time].compactMap { $0?.isEmpty == false ? $0 : nil }.joined(separator: " · ")
+        var payload = SharePayload(story: ShareStory(title: title, line: line), shareText: text)
         payload.isEvent = true
         return payload
     }
 
-    /// A feed card's event: the card's share, and its event page's.
+    /// A feed card's Event: the card's share, and its Event page's. The card's line writes the day out
+    /// ("Thu, Nov 19 · 6:30 PM"), never "Today": it's a picture that's kept.
     static func event(_ item: FeedCardItem) -> SharePayload {
         var payload = SharePayload.event(title: item.title, dateLabel: item.dateChip, time: item.shareTime,
                                          location: item.shareLocation)
+        let when = FeedWhenLine(eventDate: item.eventDate, startTime: item.shareTime, fallbackDate: item.dateChip,
+                                relative: false)
+        payload.story = ShareStory(title: item.title, line: when?.text ?? "", photo: photo(item.image))
         payload.eventID = item.id
         payload.card = item
         return payload
@@ -225,16 +260,22 @@ extension SharePayload {
         if let detail { text += ": \(detail)" }
         if let page = group.pageUrl { text += ". \(page)" }
         text += ". Shared from Block Party."
-        return SharePayload(title: "Share this group", shareText: text, includesImage: true) {
-            PlaceShareCard(name: group.name, categoryLabel: GroupPage.kindLine(group), detail: detail)
-        }
+        let line = detail ?? GroupPage.kindLine(group)
+        return SharePayload(story: ShareStory(title: group.name, line: line,
+                                              photo: group.photos.first { $0.kind == .photo }?.url),
+                            shareText: text)
     }
 
     static func appInvite() -> SharePayload {
-        SharePayload(
-            title: "Share Block Party",
-            shareText: "Come see what's happening in \(Town.everyday). Block Party has today's events, the town calendar, and a live map.",
-            includesImage: true
-        ) { AppInviteCard() }
+        SharePayload(story: ShareStory(title: "Come see what's happening in town", line: "\(Town.everyday), \(Town.state)"),
+                     shareText: "Come see what's happening in \(Town.everyday). Block Party has today's events, the town calendar, and a live map.")
+    }
+
+    /// A photo the card can show: an Event's own or its place's; a logo isn't one.
+    static func photo(_ image: FeedCardImageSource) -> URL? {
+        switch image {
+        case .eventPhoto(let url), .placePhoto(let url, _, _, _): url
+        case .placeLogo, .fallback: nil
+        }
     }
 }
