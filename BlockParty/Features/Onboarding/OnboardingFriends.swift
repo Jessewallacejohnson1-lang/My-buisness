@@ -11,15 +11,14 @@ import SwiftUI
 
 /// Find your friends at 402 pt (BP app onboarding 51, mock v2), measured from the screen's top.
 private enum AskMetric {
-    /// Jesse's drawing runs full width from under the dashes, up to 470 pt tall, its foot fading out
-    /// over 90 pt; 12 pt spare on each side for the drag.
+    /// Jesse's drawing runs full width from under the dashes down to the words (522 pt tall at 874), its
+    /// foot fading out over 90 pt; 12 pt spare on each side for the drag.
     static let artTop: CGFloat = 92
-    static let artMax: CGFloat = 470
     static let fade: CGFloat = 90
     static let spare: CGFloat = 12
-    /// The words sit 150 pt up, 18 over the Next pill. Height the drawing leaves them: 162 pt.
+    /// The words sit 150 pt up, 18 over the Next pill; the drawing stops 110 pt over them, its fade under their top.
     static let wordsBottom: CGFloat = 150
-    static let wordsRoom: CGFloat = 162
+    static let wordsRoom: CGFloat = 110
     /// The logo at 210 pt wide.
     static let logo: CGFloat = 210 / BlockPartyWordmark.aspect
     /// A drag moves the drawing a third of the finger's way, held to 12 pt across, 10 up and 18 down.
@@ -44,7 +43,7 @@ struct OnboardingFriendsAsk: View {
                 // The drawing is decoration: at the accessibility text sizes it steps aside for the words.
                 if !textSize.isAccessibilitySize {
                     drawing(width: geo.size.width,
-                            height: min(AskMetric.artMax, geo.size.height - AskMetric.artTop - AskMetric.wordsBottom - AskMetric.wordsRoom))
+                            height: geo.size.height - AskMetric.artTop - AskMetric.wordsBottom - AskMetric.wordsRoom)
                 }
                 words
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
