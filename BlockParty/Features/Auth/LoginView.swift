@@ -108,8 +108,9 @@ final class AccountForm {
             if refused == nil { code = "" }
         case .code:
             refused = await auth.verifyResetCode(email: mail, code: code)
-            // The new password's box starts empty, not with the one that didn't work.
-            if refused == nil { password = "" }
+            // The new password's box starts empty, not with the one that didn't work, and this
+            // code's new password is still to be saved (a reset backed out of and done again).
+            if refused == nil { password = ""; passwordSaved = false }
         case .newPassword where passwordSaved:
             refused = nil
         case .newPassword:

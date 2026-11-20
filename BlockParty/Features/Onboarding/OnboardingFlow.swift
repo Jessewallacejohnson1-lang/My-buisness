@@ -639,8 +639,8 @@ struct OnboardingFlow: View {
         return onApp.contains { $0.relation == .stranger }
     }
 
-    /// No back chevron on the first question (the account is made, there's no going back to make
-    /// another) nor on the new password (the code has signed the phone in).
+    /// No back chevron on the first question: the account is made, there's no going back to make
+    /// another.
     private var noBack: Bool { store.account == nil && store.step == .profile }
 
     /// What the step asks for, under its question; nothing yet on the placeholder steps.
