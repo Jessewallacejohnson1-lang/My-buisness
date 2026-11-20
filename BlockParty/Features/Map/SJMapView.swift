@@ -80,13 +80,20 @@ struct SJMapView: View {
     /// The Event asked for, whose card opens as the camera flies in once its bubble is drawn: the shell's ask as the
     /// map opens, or an Event page's on the map's own stack.
     @State private var arriving: String?
+    /// Mapbox's map, made a moment after the screen comes on: making it froze the tap for 80 ms (300 the first
+    /// time), and the screen rising waits for nothing now, its ground the map's own until the map draws (tab-lag 02).
+    @State private var mapMade = false
 
     private var selected: TodayBubble? { shown.first { $0.id == focus.selectedID } }
 
     var body: some View {
         NavigationStack(path: $path) {
             ZStack(alignment: .top) {
-                MapReader { proxy in mapLayer(proxy) }
+                if mapMade {
+                    MapReader { proxy in mapLayer(proxy) }
+                } else {
+                    Hue.mapLand.ignoresSafeArea()
+                }
                 chrome
                 if let bubble = selected {
                     MapEventCard(events: bubble.events, page: $focus.page,
@@ -126,6 +133,11 @@ struct SJMapView: View {
             }
             model.start(auth: auth, feed: townFeed, live: liveGames)
             Haptics.prepare()
+        }
+        // A timer's moment, so the first frame, the one the screen starts rising from, has gone without it.
+        .task {
+            try? await Task.sleep(for: .milliseconds(1))
+            mapMade = true
         }
         .onDisappear { model.stop() }
         .onChange(of: scenePhase) { _, phase in
