@@ -258,6 +258,12 @@ final class OnboardingStore {
         forward = way != nil
     }
 
+    /// Back from Log in or Create account to the Welcome, or a step back through Forgot password.
+    func accountBack() {
+        account = account?.back
+        forward = false
+    }
+
     /// The account is made: on to the first question.
     func created() {
         account = nil
@@ -291,7 +297,8 @@ final class OnboardingStore {
         defaults.removeObject(forKey: HelloDrop.lastSeenKey)
         answersPending = false
         tooYoung = false
-        account = nil
+        // Log in stays up: someone on it is there to log in, as after backing out of a new password.
+        if account != .logIn { account = nil }
         welcoming = false
         finished = false
         finishedHere = false
@@ -324,7 +331,9 @@ final class OnboardingStore {
     /// The server's `onboarded_at` says this account finished on another install. Taken only
     /// on the Welcome, so a slow read can't pull someone out halfway through.
     func serverSaysFinished() {
-        guard step == .welcome else { return }
+        // Forgot password's code signs the phone in before the new password is made: that screen
+        // stays up, and its Log in goes in (`loggedIn`).
+        guard step == .welcome, account?.resets != true else { return }
         markFinished()
     }
 
@@ -480,10 +489,14 @@ struct OnboardingFlow: View {
 
             HStack(spacing: 4) {
                 // None on the first question: the account is made, there's no going back to make another.
-                OnboardingBackChevron(action: go { [store] in if store.account != nil { store.open(nil) } else { store.back() } })
-                    .opacity(store.step == .profile ? 0 : 1)
+                OnboardingBackChevron(action: go { [store] in
+                    // The code signed the phone in for its new password: back out of it is a sign-out.
+                    if store.account == .newPassword { Task { await AuthStore.shared.signOut() } }
+                    if store.account != nil { store.accountBack() } else { store.back() }
+                })
+                    .opacity(noBack ? 0 : 1)
                     // Nor while Log in or Create account waits on the server: its answer moves on.
-                    .disabled(store.step == .profile || form.busy)
+                    .disabled(noBack || form.busy)
                 OnboardingProgressBar(index: store.barIndex, total: OnboardingStep.barTotal)
                     .opacity(store.account == nil ? 1 : 0)
             }
@@ -648,10 +661,16 @@ struct OnboardingFlow: View {
         return onApp.contains { $0.relation == .stranger }
     }
 
+    /// No back chevron on the first question: the account is made, there's no going back to make
+    /// another.
+    private var noBack: Bool { store.account == nil && store.step == .profile }
+
     /// What the step asks for, under its question; nothing yet on the placeholder steps.
     @ViewBuilder private var answer: some View {
         if let way = store.account {
-            AccountFields(form: form, way: way, submit: submitAccount)
+            AccountFields(form: form, way: way, submit: submitAccount,
+                          forgot: go { [store] in store.open(.forgot) },
+                          resend: { Task { await form.resend(auth: .shared) } })
         } else {
             stepAnswer
         }
@@ -737,7 +756,7 @@ struct OnboardingFlow: View {
         #if DEBUG
         if LaunchFlags.has(.onboardingNotYet) { return false }
         #endif
-        if store.account != nil { return form.canSubmit }
+        if let way = store.account { return form.canSubmit(way) }
         switch store.step {
         case .profile: return store.profileDone
         case .birthday: return store.birthday != nil
@@ -763,19 +782,23 @@ struct OnboardingFlow: View {
         return store.step == .friends ? askContacts : go { [store] in store.next() }
     }
 
-    /// Log in or Create account's Next. A new account goes on to the first question; a logged-in
-    /// one reads Your profile first, and its onboarded stamp sends it straight in or to the first
-    /// question. No answer from the read keeps the screen up with a line, to try again.
+    /// Log in or Create account's Next, or a Forgot password step's. A new account goes on to the
+    /// first question; a logged-in one (Log in, or the new password) reads Your profile first, and
+    /// its onboarded stamp sends it straight in or to the first question. No answer from the read
+    /// keeps the screen up with a line, to try again. The email's code sent goes on to the code, and
+    /// the code taken to the new password.
     private func submitAccount() {
         guard let way = store.account else { return }
         Task {
             await form.submit(way, auth: .shared) {
-                if way == .logIn {
+                switch way {
+                case .logIn, .newPassword:
                     guard await profile.read() else { return AuthStore.Words.offline }
                     let onboarded = profile.onboardedAt != nil
                     go { [store] in store.loggedIn(onboarded: onboarded) }()
-                } else {
-                    go { [store] in store.created() }()
+                case .create: go { [store] in store.created() }()
+                case .forgot: go { [store] in store.open(.code) }()
+                case .code: go { [store] in store.open(.newPassword) }()
                 }
                 return nil
             }
