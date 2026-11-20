@@ -72,8 +72,9 @@ struct OnboardingFriendsAsk: View {
             .contentShape(Rectangle())
             .gesture(DragGesture(minimumDistance: 0)
                 .onChanged { drag in
-                    pull = CGSize(width: clamp(drag.translation.width * AskMetric.follow, -AskMetric.reach.across, AskMetric.reach.across),
-                                  height: clamp(drag.translation.height * AskMetric.follow, -AskMetric.reach.up, AskMetric.reach.down))
+                    // A short spring, not a jump: a grab mid spring-back carries on from where the drawing is.
+                    withAnimation(reduceMotion ? nil : .interactiveSpring(response: 0.15)) { pull = CGSize(width: clamp(drag.translation.width * AskMetric.follow, -AskMetric.reach.across, AskMetric.reach.across),
+                                  height: clamp(drag.translation.height * AskMetric.follow, -AskMetric.reach.up, AskMetric.reach.down)) }
                 }
                 .onEnded { _ in
                     withAnimation(reduceMotion ? nil : .spring(response: 0.52, dampingFraction: 0.6)) { pull = .zero }
