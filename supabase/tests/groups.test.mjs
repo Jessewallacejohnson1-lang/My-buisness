@@ -200,3 +200,40 @@ test('Coming up: from now on, the next 3 or every one through this weekday next 
     'a broken day costs only itself, never the list; a broken time reads as no time');
   await db.exec("delete from public.clubs where name in ('Runners', 'Quiet club', 'Empty club', 'Broken club', 'Weekly club')");
 });
+
+test("a Group's found Events: its own page's and its name at its place, next three, as cards", async () => {
+  const lions = await idOf('St. Joseph Lions Club'), rod = await idOf('St. Joe Rod and Gun Club');
+  await db.exec(`insert into public.sources (entry_id, url, town, name, status, method) values
+      ('st-joseph-lions-club', 'https://facebook.com/stjoelions', 'st-joseph-mn', 'St. Joseph Lions Club Facebook', 'active', 'fetch')
+    on conflict do nothing`);
+  const add = async (title, days, more = {}) => (await db.query(
+    `insert into public.club_events (title, event_date, status, kind, source_name, place_entry_id, cancelled_at, friends_only)
+     values ($1, (now() at time zone 'America/Chicago')::date + $2::int, $3, 'event', $4, $5, $6, $7) returning id`,
+    [title, days, more.status ?? 'approved', more.source ?? 'St. Joseph Lions Club Facebook', more.place ?? null,
+     more.cancelled ? 'now()' : null, more.friendsOnly ?? false])).rows[0].id;
+  const breakfast = await add('Pancake Breakfast', 30);
+  const soon = await add('Eye glass drive', 3);
+  const later = await add('Pancake Breakfast', 60);
+  await add('Fourth one', 90);
+  await add('Last year', -5);
+  await add('Turned down', 4, { status: 'rejected' });
+  await add('Called off', 5, { cancelled: true });
+  await add('Just friends', 6, { friendsOnly: true });
+  await add('Someone else', 7, { source: 'Another page' });
+  const rodPlace = (await db.query('select place_entry_id from public.clubs where id = $1', [rod])).rows[0].place_entry_id;
+  assert.ok(rodPlace, 'Rod and Gun meets at a place');
+  const byName = await add('St. Joe Rod and Gun Club', 10, { source: 'Legion calendar', place: rodPlace });
+  const read = async (club, as) => {
+    await db.exec(as ? `set role authenticated; set request.jwt.claim.sub = '${as}'` : 'set role anon; reset request.jwt.claim.sub');
+    const { rows } = await db.query('select card from public.get_group_events($1)', [club]);
+    await db.exec('reset role; reset request.jwt.claim.sub');
+    return rows.map((r) => r.card);
+  };
+  for (const as of [null, ME]) {
+    const cards = await read(lions, as);
+    assert.deepEqual(cards.map((c) => c.id), [soon, breakfast, later], 'its own page\'s, soonest first, three at most');
+    assert.equal(cards[1].title, 'Pancake Breakfast', 'a whole card, as the Town feed has it');
+  }
+  assert.deepEqual((await read(rod, ME)).map((c) => c.id), [byName], 'its name at its place');
+  await db.exec("delete from public.club_events; delete from public.sources where entry_id = 'st-joseph-lions-club'");
+});
