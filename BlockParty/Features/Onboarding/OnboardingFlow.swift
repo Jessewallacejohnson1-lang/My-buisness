@@ -553,7 +553,8 @@ struct OnboardingFlow: View {
         Group {
             if on(.profile) {
                 // Its photo is its art (onboarding 43): it draws its own heading.
-                OnboardingProfile(store: store, headingFocused: $questionFocused, bottomClear: bottomClear)
+                OnboardingProfile(store: store, headingFocused: $questionFocused, bottomClear: bottomClear,
+                                  keyboardUp: keyboardUp)
             } else if store.step == .follow {
                 // Follow 3's question scrolls away with its grid (onboarding 26).
                 OnboardingFollowGrid(suggestions: suggestions, interests: store.interests,
@@ -766,9 +767,9 @@ struct OnboardingFlow: View {
         }
     }
 
-    /// Save Profile on Profile (onboarding 35), the white pill on Find your friends (37).
+    /// The white pill on Find your friends (onboarding 37); Save Profile is every step's pill (46).
     private var nextStyle: OnboardingNextBar.Style {
-        on(.profile) ? .profile : on(.friends) ? .white : .standard
+        on(.friends) ? .white : .standard
     }
 
     /// The Welcome, alone: nothing past it is up yet.

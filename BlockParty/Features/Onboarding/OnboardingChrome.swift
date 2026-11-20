@@ -244,18 +244,14 @@ struct OnboardingNextBar: View {
     var style = Style.standard
     let action: () -> Void
 
-    /// The pill's two approved exceptions (ONBOARDING.md), each in the same spot as every step's.
+    /// The pill's one approved exception (ONBOARDING.md), in the same frame as every step's.
     enum Style {
         case standard
-        /// Profile's Save Profile (onboarding 35): Luma's 352 x 49 pt pill, words at 17 pt medium, a soft
-        /// shadow under it, its bottom edge where every step's sits.
-        case profile
         /// Find your friends' Luma's white pill, ink words, a soft shadow and a hair of edge (mock v8 `.btn.white`).
         case white
     }
 
     static let height: CGFloat = 48
-    static let profileSize = CGSize(width: 352, height: 49)
 
     @State private var shakes = 0
 
@@ -268,7 +264,7 @@ struct OnboardingNextBar: View {
                 ProgressView().tint(.white)
             } else {
                 Text(title)
-                    .font(.apple(17, weight: style == .profile ? .medium : .semibold))
+                    .font(.apple(17, weight: .semibold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                     // "Follow 3 more" rolls to 2, and back up on an unfollow (onboarding 26): Apple's number
@@ -278,7 +274,6 @@ struct OnboardingNextBar: View {
             }
         }
         .buttonStyle(NextBarStyle(allowed: allowed, style: style))
-        .frame(maxWidth: style == .profile ? Self.profileSize.width : .infinity)
         .keyframeAnimator(initialValue: CGFloat(0), trigger: shakes) { bar, x in
             bar.offset(x: x)
         } keyframes: { _ in
@@ -304,21 +299,18 @@ private struct NextBarStyle: ButtonStyle {
         let fill, pressed, off, words, offWords: Color
         switch style {
         case .standard: (fill, pressed, off, words, offWords) = (Hue.ink, Hue.nextPressed, Hue.nextOff, .white, Hue.nextOffWords)
-        case .profile: (fill, pressed, off, words, offWords) = (Hue.saveProfile, Hue.nextPressed, Hue.saveProfileOff, .white, Hue.saveProfileOffWords)
         case .white: (fill, pressed, off, words, offWords) = (Hue.surface, Hue.nextWhiteDown, Hue.nextOff, Hue.ink, Hue.nextOffWords)
         }
         return configuration.label
             .foregroundStyle(allowed ? words : offWords)
             .frame(maxWidth: .infinity)
-            .frame(height: style == .profile ? OnboardingNextBar.profileSize.height : OnboardingNextBar.height)
+            .frame(height: OnboardingNextBar.height)
             .background {
                 Capsule()
                     .fill(allowed ? (down ? pressed : fill) : off)
                     .strokeBorder(Hue.ink.opacity(style == .white ? 0.04 : 0), lineWidth: 1)
-                    // Luma's soft shadow under Save Profile (mock v8 `0 12px 24px -12px`), and under the white
-                    // pill (`0 6px 20px` at 9%).
-                    .shadow(color: Hue.ink.opacity(style == .profile ? 0.2 : style == .white ? 0.09 : 0), radius: 10,
-                            y: style == .white ? 6 : 10)
+                    // Luma's soft shadow under the white pill (mock v8 `0 6px 20px` at 9%).
+                    .shadow(color: Hue.ink.opacity(style == .white ? 0.09 : 0), radius: 10, y: 6)
                     .animation(.easeOut(duration: Press.inSeconds), value: down)
             }
             .contentShape(Capsule())

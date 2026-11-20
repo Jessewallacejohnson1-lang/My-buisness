@@ -3,6 +3,7 @@
 //  Block Party — onboarding's Profile step (BP app onboarding 35) in the Big art look (onboarding 43,
 //  mock v2 "Profile"): on its sand colour, the 124 pt photo with its glass badge is the step's art,
 //  "Your Profile" and its line centred under it, then the Name and Bio boxes, white with a soft edge.
+//  With the keyboard up the column rides up 120 pt and the photo fades (onboarding 46).
 //  It took the place of the Name and Photo steps. The answers live in `OnboardingStore`;
 //  `OnboardingFlow` owns the backdrop, the back arrow, the dashes and Save Profile.
 //
@@ -15,6 +16,12 @@ struct OnboardingProfile: View {
     @AccessibilityFocusState.Binding var headingFocused: Bool
     /// What the column keeps clear at the bottom: Save Profile and its slot, or Save Profile over the keyboard.
     let bottomClear: CGFloat
+    /// The keyboard is up: the column rides up `lift` and the photo fades (mock v2 `.lifts.up`).
+    let keyboardUp: Bool
+
+    /// How far the column rides up over the keyboard: the photo's row leaves under the top row, and the
+    /// question sits just under the dashes with both boxes clear of Save Profile.
+    static let lift: CGFloat = 120
 
     private enum Field: Hashable { case name, bio }
     @FocusState private var focus: Field?
@@ -25,9 +32,9 @@ struct OnboardingProfile: View {
                 VStack(alignment: .leading, spacing: 0) {
                     // The photo, the question and its line sit centred; the boxes stay full width.
                     OnboardingBigArt(question: OnboardingStep.profile.question,
-                                     line: "Introduce yourself to others in your events.",
+                                     line: "So your neighbors know it's you.",
                                      focused: $headingFocused) {
-                        OnboardingProfilePhoto(store: store)
+                        OnboardingProfilePhoto(store: store, hidden: keyboardUp)
                     }
                     label("Name")
                     nameBox.id(Field.name)
@@ -35,7 +42,9 @@ struct OnboardingProfile: View {
                     bioBox.id(Field.bio)
                 }
                 .padding(.horizontal, FollowGridMetric.gutter)
-                .padding(.top, BigArt.top - FollowGridMetric.scrollTop)
+                // Less room at the top than the photo's row takes: the column sits that much higher, and
+                // the scroll measures what is left, so a box still scrolls clear on a small phone.
+                .padding(.top, BigArt.top - FollowGridMetric.scrollTop - (keyboardUp ? Self.lift : 0))
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .scrollBounceBehavior(.basedOnSize)
@@ -67,7 +76,7 @@ struct OnboardingProfile: View {
     }
 
     private var nameBox: some View {
-        TextField("Name", text: $store.name, prompt: Text("What Mom calls you").foregroundStyle(Hue.inkSecondary))
+        TextField("Name", text: $store.name, prompt: Text("What Mom calls you").foregroundStyle(Hue.bigArtHint))
             .textContentType(.name)
             .textInputAutocapitalization(.words)
             .autocorrectionDisabled()
@@ -81,12 +90,14 @@ struct OnboardingProfile: View {
 
     /// Grows with what's typed; Return closes the keyboard rather than starting a new line. Nextdoor's
     /// 150 letters, as Edit profile's bio, which this is.
+    private static let bioHint = "A little about you. Optional."
+
     private var bioBox: some View {
-        // Luma's two-line prompt drawn as words of its own, so it wraps at any text size (a prompt
-        // stops at the box's least lines) and holds the box's height while typing starts.
+        // The hint drawn as words of its own, so it wraps at any text size (a prompt stops at the
+        // box's least lines) and holds the box's height while typing starts.
         ZStack(alignment: .topLeading) {
-            Text("Share a little about your background and interests.")
-                .foregroundStyle(Hue.inkSecondary)
+            Text(Self.bioHint)
+                .foregroundStyle(Hue.bigArtHint)
                 .fixedSize(horizontal: false, vertical: true)
                 .opacity(store.bio.isEmpty ? 1 : 0)
                 .accessibilityHidden(true)
@@ -96,7 +107,7 @@ struct OnboardingProfile: View {
                 .submitLabel(.done)
                 .focused($focus, equals: .bio)
                 .accessibilityLabel("Bio")
-                .accessibilityHint("Share a little about your background and interests.")
+                .accessibilityHint(Self.bioHint)
         }
         .profileBox(size: 15, minHeight: 58, top: 9)
         .onTapGesture { focus = .bio }
@@ -127,11 +138,13 @@ private extension View {
     }
 }
 
-/// The 124 pt photo, the step's art (mock v2 `.pic .avatar`): empty, a plain colour circle; picked, the
-/// photo. The 38 pt Liquid Glass badge (Luma's photo-plus icon) sits on its bottom right. A tap opens Apple's
-/// photo picker, or asks library or camera when the phone has one.
+/// The 124 pt photo, the step's art (mock v2 `.pic .avatar`): empty, Instagram's blank picture (onboarding
+/// 46); picked, the photo. The 38 pt Liquid Glass badge (Luma's photo-plus icon) sits on its bottom right. A
+/// tap opens Apple's photo picker, or asks library or camera when the phone has one.
 struct OnboardingProfilePhoto: View {
     @Bindable var store: OnboardingStore
+    /// Faded out, its badge gone, while the keyboard is up (onboarding 46).
+    var hidden = false
 
     @State private var asking = false
     @State private var library = false
@@ -151,6 +164,8 @@ struct OnboardingProfilePhoto: View {
             if Self.hasCamera { asking = true } else { library = true }
         } label: { circle }
         .buttonStyle(.press(.squish))
+        .allowsHitTesting(!hidden)
+        .accessibilityHidden(hidden)
         .accessibilityLabel(store.photo == nil ? "Add a photo" : "Change photo")
         .confirmationDialog("Add a profile picture", isPresented: $asking, titleVisibility: .hidden) {
             Button("Choose from library") { library = true }
@@ -183,31 +198,28 @@ struct OnboardingProfilePhoto: View {
     }
 
     private var circle: some View {
-        ZStack {
-            if let picked = store.photo.flatMap(UIImage.init(data:)) {
-                Avatar(nil, size: Self.side, picked: picked)
-            } else {
-                blank
+        // `Avatar` draws both: the picked photo, or the blank picture until there is one.
+        Avatar(nil, size: Self.side, picked: store.photo.flatMap(UIImage.init(data:)))
+            .shadow(color: Hue.ink.opacity(0.16), radius: 12, y: 10)
+            .opacity(hidden ? 0 : 1)
+            .overlay(alignment: .bottomTrailing) {
+                // Glass can't be dimmed (docs/rules/swift-traps.md), so the badge leaves with the photo.
+                if !hidden { badge.transition(.opacity) }
             }
-        }
-        .frame(width: Self.side, height: Self.side)
-        .shadow(color: Hue.ink.opacity(0.16), radius: 12, y: 10)
-        .overlay(alignment: .bottomTrailing) {
-            // Apple's Liquid Glass, as the tab bar's (Jesse, 2026-11-10). Light scheme so it doesn't
-            // follow dark mode; over a dark photo the glass still takes the photo's tone.
-            Image(systemName: "photo.badge.plus")
-                .font(.glyph(19, weight: .regular))
-                .foregroundStyle(Hue.ink)
-                .frame(width: 38, height: 38)
-                .glassEffect(.regular.interactive(), in: Circle())
-                .environment(\.colorScheme, .light)
-        }
-        .contentShape(Circle())
+            // The mock's 0.2 s fade, whatever moves the column.
+            .animation(.easeOut(duration: 0.2), value: hidden)
+            .contentShape(Circle())
     }
 
-    /// Empty: one flat circle in the blank-photo grey (ticket 35: a plain colour circle).
-    private var blank: some View {
-        Circle().fill(Hue.blankAvatar)
+    /// Apple's Liquid Glass, as the tab bar's (Jesse, 2026-11-10). Light scheme so it doesn't follow dark
+    /// mode; over a dark photo the glass still takes the photo's tone.
+    private var badge: some View {
+        Image(systemName: "photo.badge.plus")
+            .font(.glyph(19, weight: .regular))
+            .foregroundStyle(Hue.ink)
+            .frame(width: 38, height: 38)
+            .glassEffect(.regular.interactive(), in: Circle())
+            .environment(\.colorScheme, .light)
     }
 }
 

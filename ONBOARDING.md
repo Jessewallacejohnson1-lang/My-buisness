@@ -33,7 +33,7 @@ for the top 150 pt and fading to #FBFAFD by 440 pt, which glides to the next ste
 tall heads the step and pops in; the question is centred, 26 pt bold on a 31 pt line; boxes are white
 with a soft edge; the tracker is one 4 pt dash for each step, this step's filling as it arrives. Built so
 far (onboarding 43): the dashes on every step, and the whole look on Profile (sand, its photo as the art)
-and Birthday (lilac, Jesse's cake). Each other step keeps Luma's look below until its own ticket (48 to
+and Birthday (lilac, Jesse's cake). Profile's own ticket (onboarding 46) added the rest of mock v2's Profile: with the keyboard up its column rides up 120 pt and the photo fades, and its empty photo is Instagram's blank picture. Each other step keeps Luma's look below until its own ticket (48 to
 52), as do Log in and Create account. Where mock v2 and Luma's mock differ on a step that wears Big art,
 mock v2 wins. **Until then the look is Luma's** (Jesse,
 2026-11-08; approved 2026-11-09): the Reference for every screen is mock v8,
@@ -74,11 +74,10 @@ re-hunt is the friction — it reads as the app being unsteady, and it is the di
 between a flow that feels premium and one that feels assembled.
 
 What may change per step: the button's **title** (`Continue`, `Continue · 3`, `Done`)
-and its **enabled state**. Nothing else, apart from two looks Jesse approved in mock v8
-(2026-11-09): Profile's Save Profile is Luma's 352 x 49 pt pill with a soft shadow (BP app
-onboarding 35), and Find your friends' pill is white with ink words (onboarding 37). Neither
-moves the spot: Save Profile's bottom edge sits where every step's does, and the white pill is
-the same frame. Specifically not allowed:
+and its **enabled state**. Nothing else, apart from one look Jesse approved in mock v8
+(2026-11-09): Find your friends' pill is white with ink words (onboarding 37), in the same frame.
+Profile's Save Profile is every step's pill since BP app onboarding 46 (2026-11-19). Specifically
+not allowed:
 
 - A centred button on one screen and a bottom-pinned one on the next.
 - A button that rides up or down with the content length (short step = button in the

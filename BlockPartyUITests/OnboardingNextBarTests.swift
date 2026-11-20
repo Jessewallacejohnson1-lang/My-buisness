@@ -2,8 +2,8 @@
 //  OnboardingNextBarTests.swift
 //  Block Party — onboarding's locked rule (ONBOARDING.md): the Next bar never moves, except
 //  to ride with the keyboard. Walks every question step and reads the bar's frame on each,
-//  then steps back once. Profile needs a name to go on (ticket 35), and its Save Profile is Luma's
-//  352 x 49 pt pill with its bottom edge where every step's sits; Birthday starts on a saved one, so
+//  then steps back once. Profile needs a name to go on (ticket 35), and its Save Profile is every
+//  step's pill in every step's spot (onboarding 46); Birthday starts on a saved one, so
 //  Next is allowed (ticket 19); Interests takes 3 picks (20);
 //  Follow 3 takes 3 follows once its places are read (22); Find your friends' Next asks iPhone for
 //  contacts, which the test allows, from a fresh answer each run (23).
@@ -76,12 +76,10 @@ final class OnboardingNextBarTests: XCTestCase {
 
         let next = app.buttons["onboarding-next"]
         XCTAssertTrue(next.waitForExistence(timeout: 15), "no Next bar")
-        // Profile (step 1): Luma's Save Profile, grey until a name is in. Its bottom edge is the spot
-        // every step's pill shares (onboarding 35).
+        // Profile (step 1): Save Profile, grey until a name is in, is every step's pill (onboarding 46).
         XCTAssertTrue(bar(app, 1).waitForExistence(timeout: 5), "not on Profile")
         let save = resting(next)
-        XCTAssertEqual(save.height, 49, accuracy: 0.5)
-        XCTAssertLessThanOrEqual(save.width, 352.5)
+        XCTAssertEqual(save.height, 48, accuracy: 0.5)
         let name = app.textFields["Name"]
         XCTAssertTrue(name.waitForExistence(timeout: 5), "no Name box")
         name.tap()
@@ -98,6 +96,7 @@ final class OnboardingNextBarTests: XCTestCase {
         let home = resting(next)
         XCTAssertEqual(home.height, 48, accuracy: 0.5)   // Luma's flat pill (onboarding 34)
         XCTAssertEqual(home.maxY, save.maxY, accuracy: 0.5, "Save Profile's bottom edge isn't the pill's spot")
+        XCTAssertEqual(home.width, save.width, accuracy: 0.5, "Save Profile isn't every step's pill")
         XCTAssertEqual(home.midX, save.midX, accuracy: 0.5, "Save Profile isn't centred where the pill is")
 
         // Interests (step 3) to Contacts (step 6): three moves, the frame read after each.

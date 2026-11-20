@@ -212,6 +212,9 @@ nonisolated enum Hue {
     /// The grey words on a Big art step: its line under the question, the labels over its boxes (mock v2
     /// `--ink2`). A step darker than `inkSecondary`, which fell to 4.4:1 on Birthday's lilac.
     static let bigArtWords    = Color(light: 0x63636A, dark: 0x9C9A93)
+    /// The hint inside an empty box on a Big art step (mock v2 `.field .ph`): lighter than its label, so
+    /// it reads as a hint and not as an answer.
+    static let bigArtHint     = Color(light: 0xA9A9B0, dark: 0x6E6E6E)
 
     // MARK: Onboarding in Luma's look (BP app onboarding 34, mock v8 `--canvas` and friends)
 
@@ -232,11 +235,6 @@ nonisolated enum Hue {
     /// The Next pill while not allowed, and its words.
     static let nextOff       = Color(hex: 0xC2C2C7)
     static let nextOffWords  = Color(hex: 0xF4F4F6)
-    /// Profile's Save Profile, Luma's (onboarding 35, mock v8 `.btn.lb`): on and while not allowed, with
-    /// its words then.
-    static let saveProfile      = Color(hex: 0x1A1A1C)
-    static let saveProfileOff   = Color(hex: 0xA7A7A9)
-    static let saveProfileOffWords = Color(hex: 0xE4E4E6)
     /// Find your friends, Luma's contacts ask (onboarding 37, mock v8 `.face`): the three glowing faces,
     /// one graphite and two periwinkle, each lit from the top, and the glow under the periwinkle ones.
     /// For those faces only.
