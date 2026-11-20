@@ -899,7 +899,7 @@ struct MainTabsView: View {
             guard !townFeed.cards.isEmpty else { return print("FrameGapLog: open cycle found no Town cards") }
             if friendsBook.friends.isEmpty { await friendsBook.refresh() }
             let box = CGRect(x: 160, y: 400, width: SearchMetric.logoOnTile, height: SearchMetric.logoOnTile)
-            func step(_ name: String, open: () -> Void, back: () -> Void) async {
+            @MainActor func step(_ name: String, open: () -> Void, back: () -> Void) async {
                 try? await Task.sleep(for: .seconds(1.5))
                 FrameGapLog.shared.tapped(name)
                 open()
