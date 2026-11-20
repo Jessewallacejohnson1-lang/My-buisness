@@ -86,6 +86,42 @@ test('moved back where it first was, it never moved; moved twice, it keeps where
   assert.equal(m.moved_from.start_time, '7:00 PM');
 });
 
+// watch-every-place 39: the live rows a re-read Facebook Event marked moved (2026-11-16 to 11-18), before
+// and after, same day and time. A move is another place (place_entry_id) or a spot over ~150 m off; the
+// words count only when neither row has a place or a spot.
+test('the same place in other words is no move; another place or spot is (watch-every-place 39)', async () => {
+  const spot = async (was, now) => {
+    const id = (await db.query(`insert into public.club_events (title, status, event_date, start_time, location,
+      place_entry_id, lat, lng) values ('x', 'approved', $1, '7 PM', $2, $3, $4, $5) returning id`,
+      [soon(5), was[0], was[1] ?? null, was[2] ?? null, was[3] ?? null])).rows[0].id;
+    await edit(id, `location = $2, place_entry_id = $3, lat = $4, lng = $5`, [now[0], now[1] ?? null, now[2] ?? null, now[3] ?? null]);
+    return (await moved(id)).moved;
+  };
+  const abbey = [45.58003, -94.39229];
+  const meadow = [45.64415, -94.29044];
+  assert.equal(await spot(['Church of St. Joseph', 'church-jospehs-st'],
+    ['St. Joseph Church and School', 'church-jospehs-st']), false, 'Young Adult Praise Night');
+  assert.equal(await spot(['The Abbey Church, Collegeville', 'saint-johns-abbey'],
+    ["Saint John's Abbey Church, Collegeville", 'saint-johns-abbey', ...abbey]), false, 'AMCofA Big Sing');
+  assert.equal(await spot(['414 8th Ave NE'], ['Amy Hedtke State Farm', 'amy-farm-hedtke-state']), false,
+    'Pumpkin Pie Giveaway: a place found for an address');
+  assert.equal(await spot(['The Bloom Room at Sunny Mary Meadow', 'mary-meadow-sunny'],
+    ['Sunny Mary Meadow', 'mary-meadow-sunny', ...meadow]), false, 'Market at the Meadow');
+  assert.equal(await spot(['The Bloom Room at Sunny Mary Meadow', 'mary-meadow-sunny', ...meadow],
+    ['The Bloom Room, Sunny Mary Meadow', 'mary-meadow-sunny', ...meadow]), false, 'Wreath Workshop');
+  // Only Santa Knows: neither row has a place or a spot, so the words decide, and they differ. The rule
+  // can't see it; the migration clears its mark by id.
+  assert.equal(await spot(["Jeanne B's Tours"], ['1st Ave SE']), true, 'Only Santa Knows Mystery Tour');
+
+  assert.equal(await spot(['Stephen B. Humphrey Theater, Collegeville', 'sju'],
+    ["Saint John's Abbey Church, Collegeville", 'saint-johns-abbey', ...abbey]), true, 'The Magic of Motown');
+  assert.equal(await spot(['Kennedy Community School Kennedy Gym', 'kennedy-community-school', 45.5421, -94.30472],
+    ['Prince of Peace Lutheran School', 'kennedy-community-school', 45.5862, -94.2147]), true,
+    "a host's place on both, spots 7 km apart");
+  assert.equal(await spot(['Church of St. Joseph lawn', null, 45.56417, -94.31874],
+    ['Tree lighting, Minnesota St W', null, 45.5650, -94.3190]), false, 'one spot, ~100 m off');
+});
+
 test('Notifications lists what you follow and are Going to, and nothing else', async () => {
   await db.exec(`delete from public.club_events; delete from public.town_follows; delete from public.event_rsvps`);
   const volleyball = (await db.query(`select id from public.team_activities where team_id = 'apollo'
