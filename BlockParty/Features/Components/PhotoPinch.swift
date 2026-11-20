@@ -57,6 +57,13 @@ extension View {
     func pinchToZoom(corner: CGFloat = 0, slot: Color, lifted: Binding<Bool>? = nil) -> some View {
         modifier(PinchToZoom(corner: corner, slot: slot, lifted: lifted))
     }
+
+    /// What sits on a photo (heart, credit, words, counter) steps aside while two fingers lift it: only the
+    /// photo zooms (Jesse, 2026-11-20: "i only want photo to be zoomed on"). Gone at once, before the lift's
+    /// snapshot; back with a fade once it has landed. Opacity, so nothing around it moves.
+    func stepsAside(_ lifted: Bool) -> some View {
+        opacity(lifted ? 0 : 1).animation(lifted ? nil : Motion.smooth, value: lifted)
+    }
 }
 
 private struct PinchToZoom: ViewModifier {

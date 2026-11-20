@@ -295,6 +295,8 @@ struct PostPhotos: View {
     var label = "Photos"
 
     @State private var shown: Set<URL> = []
+    /// Two fingers have lifted the photo: its counter steps aside till it lands.
+    @State private var lifted = false
     /// A photo that can't load leaves the set rather than holding a grey page.
     @State private var failed: Set<URL> = []
 
@@ -315,9 +317,10 @@ struct PostPhotos: View {
                     if counter && urls.count > 1 {
                         PhotoCounter(text: "\(on + 1)/\(urls.count)")
                             .padding(Metric.counterInset)
+                            .stepsAside(lifted)
                     }
                 }
-                .modifier(Zooms(on: zooms))
+                .modifier(Zooms(on: zooms, lifted: $lifted))
             if urls.count > 1 {
                 EventPageDots(count: urls.count, page: CGFloat(on), onPaper: true)
                     .padding(.top, Metric.dotsCentre - EventPageDots.side / 2)
@@ -343,8 +346,9 @@ struct PostPhotos: View {
 
     private struct Zooms: ViewModifier {
         let on: Bool
+        let lifted: Binding<Bool>
         func body(content: Content) -> some View {
-            if on { content.pinchToZoom(slot: Hue.paper) } else { content }
+            if on { content.pinchToZoom(slot: Hue.paper, lifted: lifted) } else { content }
         }
     }
 }
