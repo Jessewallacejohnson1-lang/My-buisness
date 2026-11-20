@@ -112,6 +112,42 @@ final class AuthStore: ObservableObject, TokenProviding {
         }
     }
 
+    // MARK: Forgot password (BP app onboarding 40): an emailed 6-digit code, then a new password.
+
+    /// Emails a reset code to `email`. The server answers the same whether or not an account
+    /// has that email, so nobody can learn who is on Block Party from it.
+    func sendResetCode(email: String) async -> String? {
+        do {
+            _ = try await SupabaseHTTP.auth("recover", body: ["email": email])
+            return nil
+        } catch {
+            return Self.line(for: error)
+        }
+    }
+
+    /// The emailed code signs this phone in to that account, ready for its new password.
+    func verifyResetCode(email: String, code: String) async -> String? {
+        do {
+            let data = try await SupabaseHTTP.auth("verify",
+                                                   body: ["type": "recovery", "email": email, "token": code])
+            try setSession(from: data)
+            return nil
+        } catch {
+            return Self.line(for: error)
+        }
+    }
+
+    /// The signed-in account's new password.
+    func setPassword(_ password: String) async -> String? {
+        do {
+            let token = try await validAccessToken()
+            _ = try await SupabaseHTTP.auth("user", method: "PUT", body: ["password": password], bearer: token)
+            return nil
+        } catch {
+            return Self.line(for: error)
+        }
+    }
+
     /// Deletes this account and everything tied to it on the server, then signs out: "Come back
     /// when you're 13"'s Close, so "We didn't save anything you entered" stays true (BP app onboarding
     /// 19, 27). ponytail: signs out even when the delete didn't go through (offline); the account
@@ -134,6 +170,8 @@ final class AuthStore: ObservableObject, TokenProviding {
         case "weak_password": return Words.short
         case "email_address_invalid", "validation_failed": return Words.badEmail
         case "over_request_rate_limit", "over_email_send_rate_limit": return Words.tooMany
+        case "otp_expired": return Words.badCode
+        case "same_password": return Words.samePassword
         default: break
         }
         switch failure?.status {
@@ -151,6 +189,8 @@ final class AuthStore: ObservableObject, TokenProviding {
         static let tooMany = "Too many tries. Wait a minute, then try again."
         static let offline = "Couldn't reach Block Party. Check your connection and try again."
         static let other = "Something went wrong. Try again."
+        static let badCode = "That code didn't work. Check it, or send a new one."
+        static let samePassword = "That's your old password. Pick a new one."
     }
 
     func signOut() async {
