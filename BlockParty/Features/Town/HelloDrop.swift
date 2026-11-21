@@ -21,6 +21,35 @@ enum HelloDrop {
         case person(Neighbor)
         /// An Event by its id, from the Town feed's cards; Town when it has gone (hello-drop 07).
         case eventID(String)
+        /// A count's Events: a tap opens the pill down into them (hello-drop 10).
+        case events([Listed])
+    }
+
+    /// One Event in a count's list (hello-drop 10): its picture, title, and when · where.
+    struct Listed: Hashable, Identifiable {
+        let item: FeedCardItem
+        let picture: URL?
+        /// The picture is a logo, drawn whole on white rather than filling the square.
+        var logo = false
+        /// "6 PM · The Middy", another day's "Sat 6 PM", an untimed one's "Sunday".
+        let line: String
+        var id: String { item.id }
+
+        init(_ event: DailyEvent, now: Date) {
+            item = event.item
+            if let photo = event.photo {
+                picture = photo
+            } else {
+                let found = HelloItem.Added.picture(event.item)
+                picture = found?.url
+                logo = found.map { !$0.photo } ?? false
+            }
+            let when = Town.day(event.starts) == Town.day(now) ? event.startTime(now: now)
+                : event.timed ? "\(Town.format(event.starts, "EEE")) \(Town.clock(event.starts))"
+                : Town.format(event.starts, "EEEE")
+            let place = [event.item.location, event.item.hostName].compactMap { $0 }.first { !$0.isEmpty }
+            line = [when, place].compactMap { $0 }.joined(separator: " · ")
+        }
     }
 
     struct Message: Hashable {
@@ -51,7 +80,7 @@ enum HelloDrop {
     static func final(_ final: TeamFinal) -> Message? {
         guard let text = final.text, let team = final.team else { return nil }
         let colors = team.colors.isEmpty ? team.rgb.map { [$0] } ?? [] : team.colors
-        return Message(text: text, target: .town, logo: team.logo,
+        return Message(text: text, target: .eventID(final.eventId), logo: team.logo,
                        tint: final.won ? colors.first : nil,
                        confetti: final.won ? colors : nil)
     }
@@ -181,7 +210,11 @@ enum HelloDrop {
         func count(_ events: [DailyEvent], _ words: (Int) -> String) {
             let ids = Set(events.map(\.item.id))
             guard !ids.isEmpty, !counts.contains(where: { $0.events == ids }) else { return }
-            counts.append((Message(text: words(ids.count), target: .town), ids))
+            // Each Event once, soonest first: one opens straight to it, more open the pill down (hello-drop 10).
+            var seen = Set<String>()
+            let listed = events.sorted { $0.starts < $1.starts }.filter { seen.insert($0.item.id).inserted }
+            let target: Target = listed.count == 1 ? .event(listed[0].item) : .events(listed.map { Listed($0, now: now) })
+            counts.append((Message(text: words(ids.count), target: target), ids))
         }
         if let lastSeen {
             let overnight = Town.day(lastSeen) == Town.day(calendar.date(byAdding: .day, value: -1, to: now) ?? now)
@@ -340,6 +373,8 @@ struct HelloDropView: View {
     @State private var hello = ""
     @State private var said: HelloDrop.Message?
     @State private var dragY: CGFloat = 0
+    /// A count's line, tapped: the pill is open down into its Events (hello-drop 10).
+    @State private var expanded = false
     @State private var run: Task<Void, Never>?
     /// A first or milestone on the pill: it hugs its words and the tick (hello-drop 02).
     @State private var moment: HelloMoment?
@@ -355,7 +390,30 @@ struct HelloDropView: View {
 
     /// The pill's top sits 6 pt above the safe area's: 56 pt on a 16 Pro, just under its island.
     static let aboveSafeTop: CGFloat = 6
-    static let height: CGFloat = 58
+    /// Instagram's toast, measured on Jesse's 2026-11-21 screenshot at 3x (BP app references/hello-pill-list):
+    /// 56 tall, its 32 pt picture 24 in from the left, 15 to the words, 24 past them.
+    static let height: CGFloat = 56
+    static let lead: CGFloat = 24
+    static let gap: CGFloat = 15
+    static let picture: CGFloat = 32
+    static let logoSide: CGFloat = 24
+    /// A count's three photos overlap by this much, each with a white ring (the approved Figma L1).
+    static let stackOverlap: CGFloat = 12
+    static let stackRing: CGFloat = 1.5
+    static let chevronSize: CGFloat = 13
+    static let chevronInset: CGFloat = 22
+    /// The white layer under the glass: closed 50%, open 78%, from the approved Figma (L1, L2).
+    static let underlay: Double = 0.5
+    static let openUnderlay: Double = 0.78
+    /// The open list (Figma L2): 60 pt rows, 44 pt photos, the whole pill at most 560 pt tall.
+    static let rowHeight: CGFloat = 60
+    static let rowPhoto: CGFloat = 44
+    static let rowLogo: CGFloat = 34
+    static let rowGap: CGFloat = 12
+    static let rowSide: CGFloat = 8
+    static let listInset: CGFloat = 6
+    static let listBottom: CGFloat = 10
+    static let listMax: CGFloat = 560
     /// More than any phone's safe area top: hidden, the pill waits this far above it.
     static let offscreen: CGFloat = 100
     static let side: CGFloat = 12
@@ -375,12 +433,21 @@ struct HelloDropView: View {
             HelloConfetti(burst: confetti, colors: confettiColors)
                 .ignoresSafeArea()
                 .allowsHitTesting(false)
+            // Open, a tap anywhere else closes it.
+            if expanded {
+                Color.clear
+                    .contentShape(Rectangle())
+                    .ignoresSafeArea()
+                    .onTapGesture { dismiss() }
+                    .accessibilityHidden(true)
+            }
             if step != .hidden {
                 capsule
                     .padding(.top, topGap)
                     .offset(y: dragY)
                     // Up past the screen's top and back the same way.
-                    .transition(reduceMotion ? .opacity : .offset(y: -(Self.offscreen + Self.height)))
+                    .transition(reduceMotion ? .opacity
+                        : .offset(y: -(Self.offscreen + (expanded ? Self.listMax : Self.height))))
             }
         }
         .frame(maxWidth: .infinity, alignment: .top)
@@ -434,12 +501,37 @@ struct HelloDropView: View {
         (UIApplication.shared.connectedScenes.first as? UIWindowScene)?.keyWindow?.safeAreaInsets.top ?? 62
     }
 
+    /// Liquid Glass, as Instagram's "Switched to" toast (hello-drop 10): clear, dark words, hugging its
+    /// picture and words; a count's list opens it wider and down, more frosted.
     private var capsule: some View {
+        VStack(spacing: 0) {
+            line
+                .frame(height: Self.height)
+                .contentShape(Rectangle())
+                .onTapGesture { tapped() }
+                .gesture(drag)
+                .accessibilityElement(children: .combine)
+                .accessibilityAddTraits(step == .message && moment == nil ? .isButton : [])
+            if expanded, let rows {
+                list(rows)
+                    .transition(.opacity)
+            }
+        }
+        .frame(maxWidth: expanded ? .infinity : nil)
+        .foregroundStyle(words)
+        .background { glass }
+        .clipShape(shape)
+        .shadow(color: .black.opacity(0.12), radius: 14, y: 8)
+        .padding(.horizontal, Self.side)
+    }
+
+    /// What the closed pill says: the hello, a first with its tick, or a line with its picture.
+    private var line: some View {
         ZStack {
             if step == .hello {
                 Text(hello)
                     .font(.sansSemibold(17))
-                    .padding(.horizontal, 24)
+                    .padding(.horizontal, Self.lead)
                     // Gone before the message comes in, so the two never show at once.
                     .transition(.asymmetric(insertion: .opacity,
                                             removal: .opacity.animation(.easeOut(duration: 0.12))))
@@ -456,71 +548,181 @@ struct HelloDropView: View {
                 .padding(.trailing, 10)
                 .transition(.asymmetric(insertion: .opacity.animation(.easeIn(duration: 0.2).delay(0.12)),
                                         removal: .opacity))
-            } else if step == .message, let said, let logo = said.logo {
-                HStack(spacing: 10) {
-                    Group {
-                        if said.photo {
-                            Avatar(logo, size: 34, blank: .initial(""))
-                        } else {
-                            LogoDisc(logo: logo, initial: "", logoSide: 26, letter: .sansSemibold(12))
-                        }
-                    }
-                    .frame(width: 34, height: 34)
+            } else if step == .message, let said {
+                HStack(spacing: Self.gap) {
+                    if !expanded { picture(said) }
                     Text(said.text)
                         .font(.sansSemibold(15))
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
+                    if rows != nil, !expanded { chevron("chevron.down") }
                 }
-                // Hugs its picture and words, as a pill with the tick does (Jesse, 2026-10-26).
-                .padding(.leading, 12)
-                .padding(.trailing, 22)
+                .padding(.horizontal, Self.lead)
+                .frame(maxWidth: expanded ? .infinity : nil)
+                .overlay(alignment: .trailing) {
+                    if expanded { chevron("chevron.up").padding(.trailing, Self.chevronInset) }
+                }
                 .transition(.asymmetric(insertion: .opacity.animation(.easeIn(duration: 0.2).delay(0.12)),
                                         removal: .opacity))
-            } else if step == .message, let said {
-                Text(said.text)
-                    .font(.sansSemibold(15))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                    .padding(.horizontal, 22)
-                    .frame(maxWidth: .infinity)
-                    .transition(.asymmetric(insertion: .opacity.animation(.easeIn(duration: 0.2).delay(0.12)),
-                                            removal: .opacity))
             }
         }
-        .foregroundStyle(said?.tint.map { HelloDrop.light($0) } == true ? Hue.ink.onLightCanvas : .white)
-        .frame(height: Self.height)
-        .background(said?.tint.map { Color(hex: $0) } ?? Hue.ink, in: Capsule())
-        .shadow(color: .black.opacity(0.18), radius: 9, y: 6)
-        .padding(.horizontal, step == .message && moment == nil ? Self.side : 0)
-        .contentShape(Capsule())
-        .onTapGesture {
-            if moment != nil { dismiss(); return }
-            guard step == .message, let said else { return }
-            open(said.target)
-            dismiss()
-        }
-        .gesture(
-            DragGesture(minimumDistance: 4)
-                .onChanged { value in
-                    // Up follows the finger; down only stretches a little, then stops.
-                    let y = value.translation.height
-                    dragY = y < 0 ? y : y / 6
-                    // Held on the message, it stays; held on the hello, the message still comes.
-                    if step == .message { run?.cancel() }
-                }
-                .onEnded { value in
-                    // Let go still raised and heading up: away. Brought back down: it stays.
-                    if value.translation.height < -12, value.predictedEndTranslation.height < -30 {
-                        dismiss()
-                    } else {
-                        withAnimation(Motion.card) { dragY = 0 }
-                        if step == .message { run = Task { await finish(after: Self.stay) } }
-                    }
-                }
-        )
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(step == .message && moment == nil ? .isButton : [])
     }
+
+    /// The picture at the line's left: a person or a news photo round, a logo on its white disc, a count's
+    /// first three Events overlapping (hello-drop 10).
+    @ViewBuilder
+    private func picture(_ said: HelloDrop.Message) -> some View {
+        if let rows {
+            HStack(spacing: -Self.stackOverlap) {
+                ForEach(Array(rows.prefix(3).enumerated()), id: \.element.id) { index, row in
+                    Hue.fill
+                        .overlay { if let url = row.picture { FeedCardURLPhoto(url: url, loadingFill: Hue.fill) } }
+                        .frame(width: Self.picture, height: Self.picture)
+                        .clipShape(Circle())
+                        .overlay { Circle().stroke(Hue.surface.onLightCanvas, lineWidth: Self.stackRing) }
+                        .zIndex(Double(3 - index))
+                }
+            }
+            .accessibilityHidden(true)
+        } else if let logo = said.logo {
+            Group {
+                if said.photo {
+                    Avatar(logo, size: Self.picture, blank: .initial(""))
+                } else {
+                    LogoDisc(logo: logo, initial: "", logoSide: Self.logoSide, letter: .sansSemibold(12))
+                }
+            }
+            .frame(width: Self.picture, height: Self.picture)
+        }
+    }
+
+    private func chevron(_ name: String) -> some View {
+        Image(systemName: name)
+            .font(.glyph(Self.chevronSize, weight: .semibold))
+            .opacity(0.45)
+            .accessibilityHidden(true)
+    }
+
+    /// A count's Events, soonest first: photo, title, when · where. It stops at `listMax` and scrolls inside.
+    private func list(_ rows: [HelloDrop.Listed]) -> some View {
+        ScrollView {
+            LazyVStack(spacing: 0) {
+                ForEach(rows) { row in
+                    Button {
+                        open(.event(row.item))
+                        dismiss()
+                    } label: {
+                        HelloListRow(row: row)
+                    }
+                    .buttonStyle(.press(.row))
+                    .accessibilityLabel("\(row.item.title), \(row.line)")
+                }
+            }
+            .padding(.horizontal, Self.listInset)
+        }
+        .frame(height: min(CGFloat(rows.count) * Self.rowHeight, Self.listMax - Self.height - Self.listBottom))
+        .scrollBounceBehavior(.basedOnSize)
+        .scrollEdgeEffectStyle(.soft, for: .bottom)
+        .padding(.bottom, Self.listBottom)
+    }
+
+    /// The pill's glass on a white layer, so it can't flip dark over a dark photo (the tab bar's
+    /// rule); thicker open, so six lines of small words stay easy to read. A win tints it.
+    private var glass: some View {
+        shape
+            .fill(Hue.surface.onLightCanvas.opacity(expanded ? Self.openUnderlay : Self.underlay))
+            .glassEffect(said?.tint.map { Glass.regular.tint(Color(hex: $0)) } ?? .regular, in: shape)
+    }
+
+    private var shape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: expanded ? Radius.helloList : Self.height / 2, style: .continuous)
+    }
+
+    /// Ink on the glass; white on a dark team's tint.
+    private var words: Color {
+        said?.tint.map { HelloDrop.light($0) } == false ? .white : Hue.ink.onLightCanvas
+    }
+
+    /// The count's Events, when the line on the pill is one.
+    private var rows: [HelloDrop.Listed]? {
+        if case .events(let rows)? = said?.target { rows } else { nil }
+    }
+
+    /// A first closes; a count opens down into its Events, or closes when open; any other line opens
+    /// what it names.
+    private func tapped() {
+        if moment != nil { dismiss(); return }
+        guard step == .message, let said else { return }
+        if rows != nil {
+            if expanded { dismiss(); return }
+            // Open, it stays until a tap outside or a swipe up.
+            run?.cancel()
+            withAnimation(reduceMotion ? Motion.smooth : Motion.sheet) { expanded = true }
+            return
+        }
+        open(said.target)
+        dismiss()
+    }
+
+    private var drag: some Gesture {
+        DragGesture(minimumDistance: 4)
+            .onChanged { value in
+                // Up follows the finger; down only stretches a little, then stops.
+                let y = value.translation.height
+                dragY = y < 0 ? y : y / 6
+                // Held on the message, it stays; held on the hello, the message still comes.
+                if step == .message { run?.cancel() }
+            }
+            .onEnded { value in
+                // Let go still raised and heading up: away. Brought back down: it stays.
+                if value.translation.height < -12, value.predictedEndTranslation.height < -30 {
+                    dismiss()
+                } else {
+                    withAnimation(Motion.card) { dragY = 0 }
+                    if step == .message, !expanded { run = Task { await finish(after: Self.stay) } }
+                }
+            }
+    }
+}
+
+/// One Event in the open pill: its photo (a logo whole on white), title, and when · where (hello-drop 10).
+private struct HelloListRow: View {
+    let row: HelloDrop.Listed
+
+    var body: some View {
+        HStack(spacing: HelloDropView.rowGap) {
+            Group {
+                if row.logo, let url = row.picture {
+                    Hue.surface.onLightCanvas
+                        .overlay {
+                            LogoDisc(logo: url, initial: String(row.item.title.prefix(1)),
+                                     logoSide: HelloDropView.rowLogo, letter: .sansSemibold(14), fits: true, disc: false)
+                        }
+                } else {
+                    Hue.fill
+                        .overlay { if let url = row.picture { FeedCardURLPhoto(url: url, loadingFill: Hue.fill) } }
+                }
+            }
+            .frame(width: HelloDropView.rowPhoto, height: HelloDropView.rowPhoto)
+            .clipShape(RoundedRectangle(cornerRadius: Radius.helloRowPhoto, style: .continuous))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(row.item.title)
+                    .font(.sansSemibold(15))
+                    .lineLimit(1)
+                Text(row.line)
+                    .font(.sans(13))
+                    .opacity(0.55)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, HelloDropView.rowSide)
+        .frame(height: HelloDropView.rowHeight)
+        .contentShape(Rectangle())
+    }
+}
+
+extension HelloDropView {
 
     /// The day's first open says the hello once, as the day's first pill; false when this open
     /// isn't it (a later open, or the last pill under an hour ago).
@@ -611,6 +813,7 @@ struct HelloDropView: View {
             step = .hidden
         } completion: {
             dragY = 0
+            expanded = false
             said = nil
             moment = nil
             tick = 0
