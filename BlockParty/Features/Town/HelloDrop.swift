@@ -405,6 +405,8 @@ struct HelloDropView: View {
     /// The white layer under the glass: closed 50%, open 78%, from the approved Figma (L1, L2).
     static let underlay: Double = 0.5
     static let openUnderlay: Double = 0.78
+    /// A win's team colour under its tinted glass: picked on BP Build so white words stay readable (hello-drop 10).
+    static let tintUnderlay: Double = 0.75
     /// The open list (Figma L2): 60 pt rows, 44 pt photos, the whole pill at most 560 pt tall.
     static let rowHeight: CGFloat = 60
     static let rowPhoto: CGFloat = 44
@@ -629,8 +631,10 @@ struct HelloDropView: View {
     /// The pill's glass on a white layer, so it can't flip dark over a dark photo (the tab bar's
     /// rule); thicker open, so six lines of small words stay easy to read. A win tints it.
     private var glass: some View {
+        // A win's layer is its team's colour, so white words keep their contrast on the tinted glass.
         shape
-            .fill(Hue.surface.onLightCanvas.opacity(expanded ? Self.openUnderlay : Self.underlay))
+            .fill(said?.tint.map { Color(hex: $0).opacity(Self.tintUnderlay) }
+                  ?? Hue.surface.onLightCanvas.opacity(expanded ? Self.openUnderlay : Self.underlay))
             .glassEffect(said?.tint.map { Glass.regular.tint(Color(hex: $0)) } ?? .regular, in: shape)
     }
 
