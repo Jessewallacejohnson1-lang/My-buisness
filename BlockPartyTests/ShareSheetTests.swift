@@ -99,4 +99,30 @@ final class ShareSheetTests: XCTestCase {
         let payload = SharePayload.event(item(imageUrl: nil))
         XCTAssertEqual(payload.copied, payload.shareText + " blockpartymn.com")
     }
+
+    // MARK: A place (BP app place-pages 11)
+
+    /// A place's share shows its name and what it is over its own photo, never its logo, and Copy link adds the website.
+    func testAPlacesShareShowsItsNameKindAndPhotoNotItsLogo() {
+        let logo = URL(string: "https://x.co/logo.png")!, photo = URL(string: "https://x.co/photo.webp")!
+        var item = SearchItem(id: "p:1", kind: .restaurant, name: "Flour & Flower")
+        item.sub = "Bakery"
+        item.photos = [PlacePicture(url: logo, kind: .logo), PlacePicture(url: photo, kind: .photo)]
+        let payload = SharePayload.place(item)
+
+        XCTAssertEqual(payload.story, ShareStory(title: "Flour & Flower", line: "Bakery", photo: photo))
+        XCTAssertTrue(payload.copied.hasPrefix("Flour & Flower"))
+        XCTAssertTrue(payload.copied.hasSuffix("blockpartymn.com"))
+        XCTAssertFalse(payload.isEvent, "not an Event's share")
+    }
+
+    /// Report a wrong detail mails us, naming the place even with an "&" in it.
+    func testReportAWrongDetailMailsUsThePlace() throws {
+        let parts = try XCTUnwrap(URLComponents(url: PhotoReport.wrongDetail(place: "Flour & Flower"),
+                                                resolvingAgainstBaseURL: false))
+        XCTAssertEqual(parts.scheme, "mailto")
+        XCTAssertEqual(parts.path, "contact@blockpartyapp.com")
+        XCTAssertEqual(parts.queryItems?.first { $0.name == "subject" }?.value, "Wrong detail on Flour & Flower")
+        XCTAssertEqual(parts.queryItems?.count, 2)
+    }
 }
