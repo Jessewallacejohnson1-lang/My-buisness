@@ -14,7 +14,8 @@ MIN_PX on its short side. The files go on one sheet for two helpers (sources/mod
 
 `keep`, a step of `morning.py finish`: a place whose two helpers picked the same file gets it made by the logo module
 (logo.make: sharpened, cut off its page, fine print trimmed, cleaned, lit), its white inside kept only when both said
-so. The logo and pin are saved once in Storage where BP app's logo-3d keeps them (places/<town>/<key>/), their file
+so, and shown flat, not lit, when both call it a picture (a scene, a cartoon, painted art: Jesse, 2026-11-20, BP app
+logo-cutouts 07). The logo and pin are saved once in Storage where BP app's logo-3d keeps them (places/<town>/<key>/), their file
 and its options in the private place-sources bucket (so `check` can make it again), and the place's search_logo
 (`by: morning`, which BP app's publish leaves alone) and logo_url are set. Each place looked at today gets
 logo_looked and one report line: live, with the migration that takes it down, or why not.
@@ -309,16 +310,18 @@ def kept_lines(run_, dry_run):
             lines.append(f"- No logo yet: {p['name']}: the checks picked a file it doesn't have ({picks[0]})")
             continue
         white = all(a.get("white_inside") is True for a in said)
+        drawn = all(a.get("picture") is True for a in said)  # a picture shows flat, as drawn (Jesse, 2026-11-20)
+        o = {**({"keep": True} if white else {}), **({"gloss": False} if drawn else {})}
         try:
-            made = logo.make(c["file"], {"keep": True} if white else {})
+            made = logo.make(c["file"], o)
             if made.bare.getchannel("A").getbbox() is None:
                 raise ValueError("nothing left after the cut")
         except Exception as e:
             lines.append(f"- No logo yet: {p['name']}: its logo couldn't be made ({' '.join(str(e).split())[:120]})")
             continue
         src = Path(c["file"]).read_bytes()
-        notes = {"flat": {"name": p["name"], "src": f"flat-src/{p['id']}/theirs.png", "from": c["from"],
-                          **({"keep": True} if white else {})}, "by": "morning", "day": found["today"]}
+        notes = {"flat": {"name": p["name"], "src": f"flat-src/{p['id']}/theirs.png", "from": c["from"], **o},
+                 "by": "morning", "day": found["today"]}
         if not dry_run:
             try:
                 row, pin = save(run_.db, place_photos.TOWN, p, made, src, notes, by="morning")
@@ -332,7 +335,8 @@ def kept_lines(run_, dry_run):
                 lines.append(f"- Logo already there: {p['name']} has one now, so the one found was left out")
                 continue
         lines.append(f"- Logo live: {p['name']}, from {c['from']}; both checks picked it"
-                     f"{', its white inside kept' if white else ''}. Wrong? Take it down with a migration: "
+                     f"{', its white inside kept' if white else ''}{', shown flat: a picture' if drawn else ''}. "
+                     f"Wrong? Take it down with a migration: "
                      f"{take_down(p, c['from'])}" + (" (dry run: nothing written)" if dry_run else ""))
     for m in found["missed"]:
         looked.append(m)
@@ -487,8 +491,8 @@ def selftest():
 
         r = Run(Path(tmp) / "morning", today, FakeDb())
         r.db.url = "https://db.test"
-        (r.folder / READINGS[0]).write_text('{"place": "p1", "logo": 1, "white_inside": true, "why": "its name"}\n')
-        (r.folder / READINGS[1]).write_text('{"place": "p1", "logo": 1, "white_inside": false, "why": "its name"}\n')
+        (r.folder / READINGS[0]).write_text('{"place": "p1", "logo": 1, "white_inside": true, "picture": true, "why": "its name"}\n')
+        (r.folder / READINGS[1]).write_text('{"place": "p1", "logo": 1, "white_inside": false, "picture": true, "why": "its name"}\n')
         real = logo.make
         asked = []
         logo.make = lambda f, o: (asked.append(o), real(f, o))[1]
@@ -500,12 +504,13 @@ def selftest():
             logo.make = real
         puts = [c[1] for c in r.db.calls if c[0] == "PUT"]
         patch = next(c for c in r.db.calls if c[0] == "PATCH" and "search_logo=is.null" in c[1])
-        ok(lines[0].startswith("- Logo live: B Never, from https://b.test/logo.png; both checks picked it.")
+        ok(lines[0].startswith("- Logo live: B Never, from https://b.test/logo.png; both checks picked it, shown flat: a picture.")
            and "array_append(logo_refused, 'https://b.test/logo.png') where entry_id = 'never'" in lines[0]
            and lines[1:] == ["- No logo yet: A Old: the checks gave no answer",
                              "- No logo yet: C Empty: its website shows no logo file"],
            f"a logo both checks picked goes live with its take-down line; a place with none is a line: {lines}")
-        ok(asked == [{}], f"its white inside is kept only when both checks say so: {asked}")
+        ok(asked == [{"gloss": False}], f"its white inside is kept only when both checks say so; a picture both call one "
+                                         f"shows flat: {asked}")
         ok([p.split("/")[0] for p in puts] == ["places", "places", "place-sources", "place-sources"]
            and puts[0].startswith(f"places/{__import__('place_photos').TOWN}/never/logo-") and puts[3].endswith("never/notes.json"),
            f"the logo and pin in places, their file and notes in place-sources: {puts}")
