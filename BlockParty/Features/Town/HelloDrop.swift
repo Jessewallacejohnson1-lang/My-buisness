@@ -514,11 +514,15 @@ struct HelloDropView: View {
                 .gesture(drag)
                 .accessibilityElement(children: .combine)
                 .accessibilityAddTraits(step == .message && moment == nil ? .isButton : [])
+                .accessibilityValue(rows == nil ? "" : expanded ? "Open" : "Closed")
             if expanded, let rows {
                 list(rows)
+                    // A list that fits doesn't scroll, so a swipe up on its rows sends the pill away too.
+                    .gesture(drag, including: fits(rows) ? .all : .subviews)
                     .transition(.opacity)
             }
         }
+        .accessibilityAddTraits(expanded ? .isModal : [])
         .frame(maxWidth: expanded ? .infinity : nil)
         .foregroundStyle(words)
         .background { glass }
@@ -551,13 +555,16 @@ struct HelloDropView: View {
                 .transition(.asymmetric(insertion: .opacity.animation(.easeIn(duration: 0.2).delay(0.12)),
                                         removal: .opacity))
             } else if step == .message, let said {
-                HStack(spacing: Self.gap) {
-                    if !expanded { picture(said) }
-                    Text(said.text)
-                        .font(.sansSemibold(15))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                    if rows != nil, !expanded { chevron("chevron.down") }
+                // A long count drops its photos to one, then none, before its words cut off; any other
+                // line keeps its picture and cuts off at the width (taste/town.md 2026-10-26).
+                ViewThatFits(in: .horizontal) {
+                    lineWords(said, photos: 3).fixedSize(horizontal: true, vertical: false)
+                    if rows != nil {
+                        lineWords(said, photos: 1).fixedSize(horizontal: true, vertical: false)
+                        lineWords(said, photos: 0)
+                    } else {
+                        lineWords(said, photos: 3)
+                    }
                 }
                 .padding(.horizontal, Self.lead)
                 .frame(maxWidth: expanded ? .infinity : nil)
@@ -570,15 +577,26 @@ struct HelloDropView: View {
         }
     }
 
+    /// A line's picture, words and, for a count, its chevron; `photos` 0 leaves the picture out.
+    private func lineWords(_ said: HelloDrop.Message, photos: Int) -> some View {
+        HStack(spacing: Self.gap) {
+            if !expanded, photos > 0 { picture(said, photos: photos) }
+            Text(said.text)
+                .font(.sansSemibold(15))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            if rows != nil, !expanded { chevron("chevron.down") }
+        }
+    }
+
     /// The picture at the line's left: a person or a news photo round, a logo on its white disc, a count's
-    /// first three Events overlapping (hello-drop 10).
+    /// first Events overlapping, three at most (hello-drop 10).
     @ViewBuilder
-    private func picture(_ said: HelloDrop.Message) -> some View {
+    private func picture(_ said: HelloDrop.Message, photos: Int) -> some View {
         if let rows {
             HStack(spacing: -Self.stackOverlap) {
-                ForEach(Array(rows.prefix(3).enumerated()), id: \.element.id) { index, row in
-                    Hue.fill
-                        .overlay { if let url = row.picture { FeedCardURLPhoto(url: url, loadingFill: Hue.fill) } }
+                ForEach(Array(rows.prefix(photos).enumerated()), id: \.element.id) { index, row in
+                    HelloRowPicture(row: row, logoSide: Self.logoSide)
                         .frame(width: Self.picture, height: Self.picture)
                         .clipShape(Circle())
                         .overlay { Circle().stroke(Hue.surface.onLightCanvas, lineWidth: Self.stackRing) }
@@ -596,6 +614,11 @@ struct HelloDropView: View {
             }
             .frame(width: Self.picture, height: Self.picture)
         }
+    }
+
+    /// Every row shows without scrolling.
+    private func fits(_ rows: [HelloDrop.Listed]) -> Bool {
+        CGFloat(rows.count) * Self.rowHeight <= Self.listMax - Self.height - Self.listBottom
     }
 
     private func chevron(_ name: String) -> some View {
@@ -695,18 +718,7 @@ private struct HelloListRow: View {
 
     var body: some View {
         HStack(spacing: HelloDropView.rowGap) {
-            Group {
-                if row.logo, let url = row.picture {
-                    Hue.surface.onLightCanvas
-                        .overlay {
-                            LogoDisc(logo: url, initial: String(row.item.title.prefix(1)),
-                                     logoSide: HelloDropView.rowLogo, letter: .sansSemibold(14), fits: true, disc: false)
-                        }
-                } else {
-                    Hue.fill
-                        .overlay { if let url = row.picture { FeedCardURLPhoto(url: url, loadingFill: Hue.fill) } }
-                }
-            }
+            HelloRowPicture(row: row, logoSide: HelloDropView.rowLogo)
             .frame(width: HelloDropView.rowPhoto, height: HelloDropView.rowPhoto)
             .clipShape(RoundedRectangle(cornerRadius: Radius.helloRowPhoto, style: .continuous))
             VStack(alignment: .leading, spacing: 2) {
@@ -723,6 +735,25 @@ private struct HelloListRow: View {
         .padding(.horizontal, HelloDropView.rowSide)
         .frame(height: HelloDropView.rowHeight)
         .contentShape(Rectangle())
+    }
+}
+
+/// An Event's picture in the pill: its photo filling the frame, or its logo whole on white.
+private struct HelloRowPicture: View {
+    let row: HelloDrop.Listed
+    let logoSide: CGFloat
+
+    var body: some View {
+        if row.logo, let url = row.picture {
+            Hue.surface.onLightCanvas
+                .overlay {
+                    LogoDisc(logo: url, initial: String(row.item.title.prefix(1)), logoSide: logoSide,
+                             letter: .sansSemibold(14), fits: true, disc: false)
+                }
+        } else {
+            Hue.fill
+                .overlay { if let url = row.picture { FeedCardURLPhoto(url: url, loadingFill: Hue.fill) } }
+        }
     }
 }
 
