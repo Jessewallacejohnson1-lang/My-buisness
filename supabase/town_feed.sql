@@ -994,7 +994,9 @@ as $$
          -- @names in its words still good for you (town-feed 60).
          pp.poster || jsonb_strip_nulls(jsonb_build_object('aspect', p.image_aspect, 'more_photos', p.more_photos,
                                                            'friends_only', p.friends_only,
-                                                           'at_names', private.post_at_names(p.at_names))),
+                                                           'at_names', private.post_at_names(p.at_names),
+                                                           -- Its comments as its sheet lists them (backlog 38).
+                                                           'comments', private.comment_count(p.id))),
          null::jsonb,
          s.spot
   from posts_scored p

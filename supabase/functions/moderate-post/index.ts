@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2"
 // Supabase Edge Function: Claude's instant check (text + image) on a neighbour's new Event from
-// New event (`submit`, BP app references/town-plus), on an edit of a live post (`edit`, BP app town-feed 44), and on a reported posting read again
-// (`recheck`, BP app town-feed 22).
+// New event (`submit`, BP app references/town-plus), on an edit of a live post (`edit`, BP app town-feed 44), on a reported posting read again
+// (`recheck`, BP app town-feed 22), and on a new comment on a post (`comment`, BP app backlog 38).
 // Deploy: supabase functions deploy moderate-post
 // Secret: supabase secrets set ANTHROPIC_API_KEY=...
 //
@@ -26,6 +26,15 @@ Respond with ONLY a JSON object: {"ok": true|false, "reason": "<short reason; em
 const NOTE_RULE = `You read short notes neighbors add when they report that an Event on Block Party, a warm, calm, hyper-local community app for the real town of St. Joseph, Minnesota, has wrong information: its time, day, place, or that it was called off. Only Block Party's admin reads these notes.
 
 Reject a note that is abusive, hateful, harassing, threatening, sexual, spam or advertising, or that gives a person's private details (a phone number, a home address, an email). Approve every other note, even when it is short, blunt, misspelled or off topic.
+
+Respond with ONLY a JSON object: {"ok": true|false, "reason": "<short reason; empty when ok>"}`
+
+// A comment on a neighbour's post (BP app backlog 38): read before anyone else sees it.
+const COMMENT_RULE = `You read comments neighbors leave on each other's posts on Block Party, a warm, calm, hyper-local community app for the real town of St. Joseph, Minnesota. You get the post's words for context, then the comment.
+
+Approve a comment that is a plausible reply between neighbors, even when it is short, blunt, joking, only emoji, misspelled or off topic. Reject a comment that is abusive, hateful, harassing, bullying, threatening, sexual, spam, advertising or a scam, or that gives a person's private details (a phone number, a home address, an email).
+
+Reject only with a clear, kind, specific reason the writer can act on, in one short sentence.
 
 Respond with ONLY a JSON object: {"ok": true|false, "reason": "<short reason; empty when ok>"}`
 
@@ -61,8 +70,9 @@ Deno.serve(async (req) => {
 
   // The model's yes or no on one posting, or on a report's note about it, read here and never taken from
   // the caller; null when it gave no answer.
-  const verdict = async (e: any, note?: string): Promise<{ ok: boolean, reason: string } | null> => {
-    const facts = note !== undefined ? `Event: ${e.title}\nNote: ${note}` : [
+  const verdict = async (e: any, note?: string, comment?: string): Promise<{ ok: boolean, reason: string } | null> => {
+    const facts = comment !== undefined ? `Post: ${e.title || '(just a photo)'}\nComment: ${comment}`
+      : note !== undefined ? `Event: ${e.title}\nNote: ${note}` : [
       `Kind: ${e.kind}`,
       e.kind === 'post' ? `Words: ${e.title || '(none, just the photo)'}` : `Title: ${e.title}`,
       e.event_date ? `When: ${e.event_date}${e.start_time ? ` ${e.start_time}` : ''}` : null,
@@ -71,7 +81,7 @@ Deno.serve(async (req) => {
     ].filter(Boolean).join('\n')
     const content: any[] = [{ type: 'text', text: facts }]
     // Every photo, in the poster's order (BP app town-feed 46): one alone as before, several each after its number.
-    const photos = note === undefined ? [e.image_url, ...(e.more_photos ?? [])].filter((u) => typeof u === 'string') : []
+    const photos = note === undefined && comment === undefined ? [e.image_url, ...(e.more_photos ?? [])].filter((u) => typeof u === 'string') : []
     photos.forEach((url, i) => {
       if (photos.length > 1) content.push({ type: 'text', text: `Photo ${i + 1} of ${photos.length}` })
       content.push({ type: 'image', source: { type: 'url', url } })
@@ -86,7 +96,7 @@ Deno.serve(async (req) => {
           model: 'claude-haiku-5-5',
           max_tokens: 1024,
           output_config: { effort: 'low' },
-          system: note === undefined ? SYSTEM : NOTE_RULE,
+          system: comment !== undefined ? COMMENT_RULE : note === undefined ? SYSTEM : NOTE_RULE,
           messages: [{ role: 'user', content }],
         }),
       })
@@ -179,6 +189,25 @@ Deno.serve(async (req) => {
       await admin.from('reports').update(said?.ok ? { note_ok: true } : { note: null, note_ok: null }).eq('id', n.id)
     }
     return json({ ok: true, reason: '' })
+  }
+
+  // A neighbour's new comment on a post (BP app backlog 38). claim_comment lets it through once, only while it's the
+  // caller's, pending, on a post they may still see, and one of their 50 that day. Yes shows it; no declines it (it
+  // stays out of every read, still counted in the day's 50) and gives the reason; no answer leaves it pending, which no
+  // read shows, and the app takes it back. Nothing claimed is a 429 the app reads as not posted.
+  if (body?.comment) {
+    const id = String(body.comment)
+    const { data: claimed, error } = await admin.rpc('claim_comment', { p_comment: id, p_user: caller })
+    if (error) return json({ ok: false, reason: 'Could not auto-check.' }, 502)
+    if (!claimed) return json({ ok: false, reason: 'Not checked.' }, 429)
+    const { data: c } = await admin.from('event_comments').select('body, event_id').eq('id', id).single()
+    const { data: e } = c ? await admin.from('club_events').select('title').eq('id', c.event_id).single() : { data: null }
+    const said = c ? await verdict(e ?? {}, undefined, String(c.body)) : null
+    if (!said) return json({ ok: false, reason: 'Could not auto-check.' }, 502)
+    const { error: up } = await admin.from('event_comments').update({ status: said.ok ? 'shown' : 'declined' })
+      .eq('id', id).eq('status', 'pending')
+    if (up) return json({ ok: false, reason: 'Could not auto-check.' }, 502)
+    return json(said)
   }
 
   if (!body?.recheck) return json({ ok: false, reason: 'Bad request.' }, 400)

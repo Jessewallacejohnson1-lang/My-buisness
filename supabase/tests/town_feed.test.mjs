@@ -3625,7 +3625,7 @@ test('a neighbour\'s post shows for 7 days with who posted it, and only to an ap
   const [row] = await posts('2026-10-08 12:00');
   assert.equal(row.title, 'Anyone up for sledding?');
   assert.equal(row.event_date, null);
-  assert.deepEqual(row.poster, { id: ANNA, name: 'Anna Lee', photo: PHOTO, tagged: [], friends_only: false });
+  assert.deepEqual(row.poster, { id: ANNA, name: 'Anna Lee', photo: PHOTO, tagged: [], friends_only: false, comments: 0 });
   assert.deepEqual(await posts('2026-10-08 12:00', false), [], 'an older app never gets a row with no date');
   assert.deepEqual(await postTitles('2026-10-15 08:59'), ['Anyone up for sledding?']);
   assert.deepEqual(await postTitles('2026-10-15 09:01'), [], 'gone after 7 days');
