@@ -1,7 +1,7 @@
 # Place logo: which of these files is this place's own logo?
 
 Each place in your batch is a business or group in the app with no logo yet. A script read its website and saved the
-pictures that page marks as a logo, an icon or its share picture. You pick the one that is the place's **own** logo,
+files that page marks as a logo, an icon or its share image. You pick the one that is the place's **own** logo,
 or none. Your pick goes on the place's Search tile, its map pin and its Event cards with no person looking first. A
 second reader picks on their own, and a logo goes live only when both pick the same file. A wrong logo is worse than
 none: none only leaves the place on its plain tile until a later look.
@@ -30,11 +30,20 @@ sheet under its key (`p1`), its files numbered left to right with their size in 
    - a badge: a member association, an award, a certification, a sponsor, a supplier or partner, a payment or social
      network's icon;
    - a photograph or a screenshot: a building, a product, a person, a truck, a statue, the site's own page;
-   - a site builder's or theme's stock icon, or a picture too blurred to read;
+   - a site builder's or theme's stock icon, or a file too blurred to read;
    - a logo drawn only in white, made for a dark header: it vanishes on the app's light tile.
 4. For a pick, say whether white inside the logo belongs to it (`white_inside`): `true` when the logo draws white
    shapes inside its own outline (white letters on a coloured badge, a badge's white middle); `false` when its white
    is only the page around it and the holes of its letters.
+5. For a pick, say whether it is a **picture** or a **mark** (`picture`). The app lights a mark like an enamel pin
+   and shows a picture flat, as drawn (Jesse, 2026-11-20):
+   - a **mark** is something an enamel pin could be made of: bold letters, a monogram, a simple badge or shape in a
+     few big flat colours (Saint John's red hexagon and cross, McDonald's arches, Bad Habit's round badge, Kwik
+     Trip's red square). A small icon inside a badge keeps it a mark;
+   - a **picture** is a scene or an illustration: a landscape or skyline (JOETOWN's skyline and river, Milk & Honey's
+     sunset), a cartoon or drawing in black outlines (Geri's doghouse and dog, a deer's head), painted art with its
+     own light and shadow (DJ's flowers), many small parts, or a pale badge with fine lettering (Darling Dog Care).
+   `picture: true` for a picture, `false` for a mark.
 
 You are done when every place in the batch has its line.
 
@@ -43,7 +52,7 @@ You are done when every place in the batch has its line.
 One JSON line per place, nothing else:
 
 ```
-{"place": "p1", "logo": 2, "white_inside": false, "why": "red script 'Kay's Kitchen', its name; 1 is a photo of a plate"}
+{"place": "p1", "logo": 2, "white_inside": false, "picture": true, "why": "'Kay's Kitchen' with a cartoon cook, its name; 1 is a photo of a plate"}
 {"place": "p2", "logo": null, "why": "1 and 2 are TCC Materials' mark, its parent company's name, not Amcon's"}
 ```
 

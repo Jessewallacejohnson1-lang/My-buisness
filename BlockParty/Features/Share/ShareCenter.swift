@@ -266,6 +266,14 @@ extension SharePayload {
                             shareText: text)
     }
 
+    /// A place, from its page (BP app place-pages 11): its name and what it is over its cover. Copy link adds the
+    /// website, as a place has no page of its own there yet.
+    static func place(_ item: SearchItem) -> SharePayload {
+        SharePayload(story: ShareStory(title: item.name, line: item.sub ?? "\(Town.everyday), \(Town.state)",
+                                       photo: item.photos.first { $0.kind == .photo }?.url ?? item.cover),
+                     shareText: "\(item.name) in \(Town.everyday). Shared from Block Party.")
+    }
+
     static func appInvite() -> SharePayload {
         SharePayload(story: ShareStory(title: "Come see what's happening in town", line: "\(Town.everyday), \(Town.state)"),
                      shareText: "Come see what's happening in \(Town.everyday). Block Party has today's events, the town calendar, and a live map.")
