@@ -169,11 +169,13 @@ struct InterestCircles: View {
     }
 
     /// Grow 0.12 s as the words fade, gather 0.24 s, then out 0.3 s, speeding up so the circles leave the screen
-    /// as it ends: 0.66 s, then on. Reduce Motion never starts it (the flow moves on at once).
+    /// as it ends. The move on starts with the way out: the next step takes about that long to come in (measured on
+    /// BP Build, 2026-11-21), so it arrives as the circles leave. Reduce Motion never starts it (the flow moves on).
     private func play() {
         withAnimation(.easeOut(duration: 0.12)) { burst = .grow } completion: {
             withAnimation(.easeIn(duration: 0.24)) { burst = .gather } completion: {
-                withAnimation(.easeIn(duration: 0.3)) { burst = .out } completion: { done() }
+                withAnimation(.easeIn(duration: 0.3)) { burst = .out }
+                done()
             }
         }
     }
