@@ -500,6 +500,21 @@ final class FrameGapLog {
         return nil
     }
 
+    /// The earliest start of a move (position, transform, frame) on this view or any layer above it, since the tap.
+    private static func slideBegan(_ view: UIView, after from: TimeInterval) -> TimeInterval? {
+        var layer: CALayer? = view.layer, best: TimeInterval?
+        while let here = layer {
+            for key in here.animationKeys() ?? [] {
+                guard let a = here.animation(forKey: key), a.beginTime > from else { continue }
+                let path = key + " " + ((a as? CAPropertyAnimation)?.keyPath ?? "")
+                guard ["position", "transform", "bounds", "frame"].contains(where: path.contains) else { continue }
+                best = min(best ?? a.beginTime, a.beginTime)
+            }
+            layer = here.superlayer
+        }
+        return best
+    }
+
     private static func firstStack(in vc: UIViewController) -> UINavigationController? {
         var queue = vc.children
         while !queue.isEmpty {
@@ -548,15 +563,21 @@ final class FrameGapLog {
         // The first frame drawn after the screen came on: the one that shows it (plus the frame or two the
         // system takes to put it on the glass, which this can't see).
         if let from = moveFrom {
-            if let vc = Self.top(), ObjectIdentifier(vc) != topAtTap, let w = vc.viewIfLoaded?.window,
-               let pl = vc.view.layer.presentation(), let wl = w.layer.presentation(),
-               pl.convert(pl.bounds, to: wl).intersects(w.bounds.insetBy(dx: 0.5, dy: 0.5)) {
-                let name = tapName == "touch" ? tapOpened ?? "screen" : tapName
-                print("FrameGapLog: MOVE \(name) +\(Int((l.targetTimestamp - from) * 1000))ms")
-                moveFrom = nil
-            } else if l.timestamp - from > 3 {
-                moveFrom = nil
+            if let vc = Self.top(), ObjectIdentifier(vc) != topAtTap, let w = vc.viewIfLoaded?.window {
+                // The slide's own start, as Core Animation keeps it: a frame this tick comes late to (the main
+                // thread busy after the commit) still moved on the glass from then.
+                let began = Self.slideBegan(vc.view, after: from)
+                let pl = vc.view.layer.presentation(), wl = w.layer.presentation()
+                let onGlass = pl.flatMap { p in wl.map { p.convert(p.bounds, to: $0) } }?
+                    .intersects(w.bounds.insetBy(dx: 0.5, dy: 0.5)) ?? false
+                if began != nil || onGlass {
+                    let name = tapName == "touch" ? tapOpened ?? "screen" : tapName
+                    let at = began ?? l.targetTimestamp
+                    print("FrameGapLog: MOVE \(name) +\(Int((at - from) * 1000))ms\(began == nil ? "" : " (slide)") tick +\(Int((l.targetTimestamp - from) * 1000))ms")
+                    moveFrom = nil
+                }
             }
+            if moveFrom != nil, l.timestamp - from > 3 { moveFrom = nil }
         }
         if let from = openFrom {
             if let name = openName {
