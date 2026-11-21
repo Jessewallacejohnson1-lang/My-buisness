@@ -2018,7 +2018,7 @@ sources:
     method: submission
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Unreviewed — tier `listed`, so it publishes nothing until promoted. 2026-11-20 (BP app watch-every-place 34): the St. Joseph campus of a church with four campuses, meeting at Kennedy Community School, 1300 Jade Rd, Sundays 10:30 AM. Its own Instagram @stjoechurch ("River of Life - St. Joseph") is read weekly; two separate checks agreed: rlcmn.church/st-joseph links it, and its bio gives the same address. The same page links the campus Facebook page facebook.com/rlcmnstj, not yet on the list (the whole church's riveroflifechurchmn is).
 
 ## Rock for Alzheimers
 ```yaml
@@ -6450,7 +6450,7 @@ sources:
     method: fetch
     trust: official
 ```
-Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 10 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022).
+Notes: Proposed on 2026-10-05 from overture, lakesnwoods.com. Verified 2026-10-04: Google Maps lists it, not closed (Open · Closes 10 PM). Watched since 2026-10-15: Jesse approved it in one batch with its picked pages (ADR-022). 2026-11-20 (BP app watch-every-place 34): Instagram @neighborseatery ("Neighbors Eatery & Saloon") is read weekly. It is the account of the Albertville and St. Joseph restaurants together: two separate checks agreed (its posts say "Albertville & St. Joseph", and neighborsbarandgrill.com names the same group), so a post about Albertville alone is the judge's wrong place, as on 2026-10-23.
 
 ## North Central Distributing
 ```yaml
@@ -9258,3 +9258,22 @@ sources:
     trust: official
 ```
 Notes: Proposed on 2026-10-18 for BP app place-photos 04: an app place (Search) that had no entry. One of four restaurants inside The House (13 2nd Ave NW), each run on its own (Jesse, 2026-10-18); Google Maps lists only The House Food and Tap there. Named Joetown Burgers, as its crest reads (Jesse, 2026-10-19); the id keeps the old name. Unreviewed — tier `listed`, so it publishes nothing until promoted. Retired 2026-11-16: a double: Joetown Smashburger is the kitchen inside The House Food and Tap (food-house-tap). Hidden in the app (`places.closed_at`); two separate checks agreed (Google Maps and web research), Jesse's yes (BP app watch-every-place 32). Back 2026-11-18 (Jesse: "joetown burgers is a place"): a place by his word, not a double; a sweep for closed places or doubles leaves it alone (BP app watch-every-place 38). Its own page on The House's site and Instagram @joetownsmash, run by chefs Mateo Mackbee and Erin Lucas; `inside: food-house-tap` since 2026-11-19 (Jesse: "i agree", BP app place-pages 09).
+
+## Jeanne B's Tours
+```yaml
+id: jeanne-bs-tours
+status: active
+tier: listed
+category: "travel_service"
+place_type: "Business"
+address: "124 1st Ave SE"
+phone: "+13203451581"
+aka: ["Jeanne B's Tours and Shoppe", "What Not's Shoppe"]
+added_by: agent:source-registry
+sources:
+  - url: https://www.jeannebstours.com/
+    kind: website
+    method: fetch
+    trust: official
+```
+Notes: Added 2026-11-20 for BP app watch-every-place 34: the social search kept finding its Facebook events (Holiday Hooplah sale, Fly-Out Tour Meet & Greet, Mystery Daycation tours) with no entry to read them from. A tour company with a gift shop (What Not's Shoppe) at its office, 124 1st Ave SE, the building Little Saints Academy uses too. Two separate checks agreed: its own website gives the office address, phone (320) 345-1581 and Facebook page jeannebstoursandshoppe, and that page's own Facebook events name the same office. Its Facebook page and Events tab are read weekly (`sources/social/st-joseph-mn.json`); the website (`/upcomingtours`, `/meet-greet-schedule`) stays `listed` until Jesse says to watch it.

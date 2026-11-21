@@ -23,7 +23,7 @@ side, not a wave of closings. Undo a hide in a migration that empties `closed_at
 gets its Apple id when it is added, else the morning report counts it as unmatched.
 """
 import argparse, json, subprocess, sys
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import quote
 
@@ -59,6 +59,7 @@ def check(db, write, today, get=None):
     lines = [f"- Apple Maps: {len(checked) - len(bad)} places checked, {len(closed)} closed for good, "
              f"{len(rows) - len(checked)} with no Apple Maps place"]
     lines += [f"  - unreadable: {', '.join(bad[:10])}" + (f" and {len(bad) - 10} more" if len(bad) > 10 else "")] * bool(bad)
+    lines += unseen_hides(db, today)
     if len(closed) > MAX_AT_ONCE:
         return lines + [f"  - {len(closed)} read as closed at once, so none hidden; check by hand: "
                         + ", ".join(r["name"] for r in closed)]
@@ -76,6 +77,22 @@ def check(db, write, today, get=None):
         lines.append(f"  - {'Hidden' if write else 'Would hide'}: {r['name']} (Apple Maps: permanently closed{events}). "
                      "Undo: empty its closed_at and apple_place_id")
     return lines
+
+
+def unseen_hides(db, today):
+    """Places with no Apple Maps place hidden since the last report: the monthly check's hides
+    (gone_places.py, BP app watch-every-place 33), or a hand hide of one. This check never reads them.
+    Read from the start of the last report's day, not its save: a hide between that morning's check and its save
+    was told by neither; the ones that report already named are left out."""
+    last = db.rest("GET", f"morning_reports?select=day,report&day=lt.{today}&order=day.desc&limit=1") or []
+    since = f"{last[0]['day'] if last else today - timedelta(days=1)}T00:00:00+00:00"
+    told = next((ln for ln in (last[0].get("report") or "").splitlines() if HIDDEN_LINE in ln), "") if last else ""
+    hidden = db.rest("GET", f"places?select=name&apple_place_id=is.null&closed_at=gte.{quote(since, safe='')}&order=name") or []
+    hidden = [r for r in hidden if r["name"] not in told]
+    return [f"  - {HIDDEN_LINE} {', '.join(r['name'] for r in hidden)}"] * bool(hidden)
+
+
+HIDDEN_LINE = "no Apple Maps place, hidden since the last report:"
 
 
 def match(places_file):
@@ -99,12 +116,14 @@ def sql_lines(found):
 # --- self-test -----------------------------------------------------------------------------------------
 
 class FakeDb:
-    def __init__(self, rows, events=()):
+    def __init__(self, rows, events=(), hidden=(), last=()):
         self.rows, self.events, self.patched = rows, list(events), []
+        self.hidden, self.last, self.gets = list(hidden), list(last), []
 
     def rest(self, method, path, body=None, prefer=None):
         if method == "GET":
-            return self.rows
+            self.gets.append(path)
+            return self.last if path.startswith("morning_reports") else self.hidden if "closed_at=gte." in path else self.rows
         self.patched.append((path.split("?")[0], path, body))
         return self.events if path.startswith("club_events") else None
 
@@ -149,6 +168,23 @@ def selftest():
                      {"id": "u2", "entry_id": "home", "name": "Home", "missing": "none"}])
     cases.append((sql[0].startswith("update public.places set apple_place_id = 'IF1' where id = 'u1';")
                   and sql[1].startswith("-- no Apple Maps place: Home"), "match writes one update per place, keyed by its own id"))
+
+    db = FakeDb(rows[1:2], hidden=[{"name": "The Oasis Bar and Pit"}, {"name": "V-Twin Tavern"}],
+                last=[{"day": "2026-12-01", "saved_at": "2026-12-01T12:30:00+00:00", "report": ""}])
+    lines = check(db, False, date(2026, 12, 2), get)
+    cases.append(("  - no Apple Maps place, hidden since the last report: The Oasis Bar and Pit, V-Twin Tavern" in lines
+                  and any("apple_place_id=is.null" in g and "closed_at=gte.2026-12-01T00%3A00%3A00" in g
+                          for g in db.gets), "the report lists the monthly check's hides since the last report"))
+    lines = check(FakeDb(rows[1:2]), False, date(2026, 12, 2), get)
+    cases.append((len(lines) == 1, "no hides, no extra line"))
+    # Review fix: a hide made after Dec 1's check but before its report was saved is told on Dec 2, once.
+    db = FakeDb(rows[1:2], hidden=[{"name": "The Oasis Bar and Pit"}, {"name": "Joetown Burgers"}],
+                last=[{"day": "2026-12-01", "saved_at": "2026-12-01T12:30:00+00:00",
+                       "report": "- Apple Maps\n  - no Apple Maps place, hidden since the last report: The Oasis Bar and Pit"}])
+    lines = check(db, False, date(2026, 12, 2), get)
+    cases.append(("  - no Apple Maps place, hidden since the last report: Joetown Burgers" in lines
+                  and any("closed_at=gte.2026-12-01T00%3A00%3A00" in g for g in db.gets),
+                  "hides are read from the last report's day, less the ones it already told"))
 
     for ok, what in cases:
         if not ok:

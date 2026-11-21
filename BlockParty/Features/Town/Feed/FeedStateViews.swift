@@ -30,6 +30,20 @@ nonisolated enum FeedStateCopy {
     /// The Town feed's pill when a read fails over a kept list: the map sheet's words
     /// (Jesse, 2026-10-09).
     static let offline = "You’re offline."
+    /// The pill when the server failed or was too slow: Instagram's words (Jesse, 2026-11-20,
+    /// BP app town-feed 68).
+    static let serverFault = "Couldn’t refresh feed."
+}
+
+/// Why a read over a kept list failed, as the Town feed's pill says it (BP app town-feed 68).
+nonisolated enum FeedFault: Equatable {
+    /// The phone has no connection.
+    case offline
+    /// The server failed or was too slow; the phone may be fine.
+    case server
+
+    var words: String { self == .offline ? FeedStateCopy.offline : FeedStateCopy.serverFault }
+    var symbol: String { self == .offline ? "wifi.slash" : "exclamationmark.arrow.circlepath" }
 }
 
 /// Title + explanation + retry, with no surface of its own. Used directly when the

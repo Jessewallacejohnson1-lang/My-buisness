@@ -86,6 +86,80 @@ test('moved back where it first was, it never moved; moved twice, it keeps where
   assert.equal(m.moved_from.start_time, '7:00 PM');
 });
 
+// watch-every-place 39: the live rows a re-read Facebook Event marked moved (2026-11-16 to 11-18), before
+// and after, same day and time. A move is another place (place_entry_id) or a spot over ~150 m off; the
+// words count only when neither row has a place or a spot.
+test('the same place in other words is no move; another place or spot is (watch-every-place 39)', async () => {
+  const spot = async (was, now) => {
+    const id = (await db.query(`insert into public.club_events (title, status, event_date, start_time, location,
+      place_entry_id, lat, lng) values ('x', 'approved', $1, '7 PM', $2, $3, $4, $5) returning id`,
+      [soon(5), was[0], was[1] ?? null, was[2] ?? null, was[3] ?? null])).rows[0].id;
+    await edit(id, `location = $2, place_entry_id = $3, lat = $4, lng = $5`, [now[0], now[1] ?? null, now[2] ?? null, now[3] ?? null]);
+    return (await moved(id)).moved;
+  };
+  const abbey = [45.58003, -94.39229];
+  const meadow = [45.64415, -94.29044];
+  assert.equal(await spot(['Church of St. Joseph', 'church-jospehs-st'],
+    ['St. Joseph Church and School', 'church-jospehs-st']), false, 'Young Adult Praise Night');
+  assert.equal(await spot(['The Abbey Church, Collegeville', 'saint-johns-abbey'],
+    ["Saint John's Abbey Church, Collegeville", 'saint-johns-abbey', ...abbey]), false, 'AMCofA Big Sing');
+  // Pumpkin Pie Giveaway: a place found for an address. The old row has neither a place nor a spot, so
+  // the words decide, and they differ; the migration clears its mark by id.
+  assert.equal(await spot(['414 8th Ave NE'], ['Amy Hedtke State Farm', 'amy-farm-hedtke-state']), true,
+    'Pumpkin Pie Giveaway');
+  assert.equal(await spot(['The Bloom Room at Sunny Mary Meadow', 'mary-meadow-sunny'],
+    ['Sunny Mary Meadow', 'mary-meadow-sunny', ...meadow]), false, 'Market at the Meadow');
+  assert.equal(await spot(['The Bloom Room at Sunny Mary Meadow', 'mary-meadow-sunny', ...meadow],
+    ['The Bloom Room, Sunny Mary Meadow', 'mary-meadow-sunny', ...meadow]), false, 'Wreath Workshop');
+  // Only Santa Knows: neither row has a place or a spot, so the words decide, and they differ. The rule
+  // can't see it; the migration clears its mark by id.
+  assert.equal(await spot(["Jeanne B's Tours"], ['1st Ave SE']), true, 'Only Santa Knows Mystery Tour');
+
+  assert.equal(await spot(['Stephen B. Humphrey Theater, Collegeville', 'sju'],
+    ["Saint John's Abbey Church, Collegeville", 'saint-johns-abbey', ...abbey]), true, 'The Magic of Motown');
+  assert.equal(await spot(['Kennedy Community School Kennedy Gym', 'kennedy-community-school', 45.5421, -94.30472],
+    ['Prince of Peace Lutheran School', 'kennedy-community-school', 45.5862, -94.2147]), true,
+    "a host's place on both, spots 7 km apart");
+  assert.equal(await spot(['Church of St. Joseph lawn', null, 45.56417, -94.31874],
+    ['Tree lighting, Minnesota St W', null, 45.5650, -94.3190]), false, 'one spot, ~100 m off');
+  // Review fix 3: a known place to an address with no place or spot is compared in words.
+  assert.equal(await spot(['Church of St. Joseph', 'church-jospehs-st'], ['Sartell High School']), true,
+    'a known place to an un-geocoded address in other words');
+  assert.equal(await spot(['Church of St. Joseph', 'church-jospehs-st'], ['Church of St. Joseph lawn']), false,
+    'a known place to the same place in words with no place or spot');
+});
+
+test('a game that moves to another arena is a move, though its place stays the home school (watch-every-place 40)', async () => {
+  const at = async (was, now) => {
+    const id = await game({ title: 'Girls Hockey vs Thief River Falls · JV', sport: 'Girls Hockey · JV',
+      team_ids: ['thief-river-falls', 'rocori'], location: was });
+    await edit(id, `place_entry_id = 'rocori-high-school'`);
+    await edit(id, `location = $2`, [now]);
+    return (await moved(id)).moved;
+  };
+  assert.equal(await at('Huck Olson Memorial Arena', 'Ralph Engelstad Arena, Thief River Falls'), true, 'the Rocori case');
+  assert.equal(await at('Willmar Kennedy Elementary Main Gym', 'Willmar High School WHS West Gym'), true, 'another school');
+  // A school site renames the room every week: the same building stays put.
+  assert.equal(await at('St. Cloud Apollo High School Main Gym Main Court', 'St. Cloud Apollo High School Gym Center Court'), false);
+  assert.equal(await at('St. Cloud Tech High School Auxiliary Gym', 'St. Cloud Tech High School Gym, Aux'), false);
+  assert.equal(await at('ROCORI High School High School Gym North Court #3', 'ROCORI High School Gym North Court #3'), false);
+  assert.equal(await at('Ralph Engelstad Arena', 'Ralph Engelstad Arena, Thief River Falls'), false, 'the town added');
+});
+
+// Review fix 2: a mark written before ticket 39 keeps only {event_date, start_time, location}; a second
+// move must not read as a move back.
+test('an Event moved under the old words-only mark that moves again stays moved', async () => {
+  const id = (await db.query(`insert into public.club_events (title, status, event_date, start_time, location,
+    place_entry_id) values ('x', 'approved', $1, '7 PM', 'Stephen B. Humphrey Theater, Collegeville', 'sju')
+    returning id`, [soon(5)])).rows[0].id;
+  await db.query(`update public.club_events set moved_at = now(), moved_from = $2 where id = $1`,
+    [id, { event_date: soon(5), start_time: '7 PM', location: 'Kennedy Community School Kennedy Gym' }]);
+  await edit(id, `location = $2, place_entry_id = $3`, ["Saint John's Abbey Church, Collegeville", 'saint-johns-abbey']);
+  const m = await moved(id);
+  assert.equal(m.moved, true);
+  assert.equal(m.moved_from.location, 'Kennedy Community School Kennedy Gym');
+});
+
 test('Notifications lists what you follow and are Going to, and nothing else', async () => {
   await db.exec(`delete from public.club_events; delete from public.town_follows; delete from public.event_rsvps`);
   const volleyball = (await db.query(`select id from public.team_activities where team_id = 'apollo'

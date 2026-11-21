@@ -72,6 +72,15 @@ enum SupabaseHTTP {
         return status == 0 || status == 401 || status == 408 || status == 429 || status >= 500
     }
 
+    /// True only when the phone itself has no connection (BP app town-feed 68). A timeout, a
+    /// host that won't answer or any status from the server is not this: the server may be at
+    /// fault, and "You're offline." would be wrong.
+    nonisolated static func noSignal(_ error: Error) -> Bool {
+        guard let code = (error as? URLError)?.code else { return false }
+        return [.notConnectedToInternet, .networkConnectionLost, .dataNotAllowed,
+                .internationalRoamingOff, .callIsActive].contains(code)
+    }
+
     // MARK: - Error parsing
 
     private static func parseAuthError(_ data: Data) -> String? {
