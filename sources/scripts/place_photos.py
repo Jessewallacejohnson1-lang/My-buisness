@@ -385,20 +385,32 @@ def _q(s):
 
 def subject_sql():
     """SUBJECTS as the database's private.event_subject, so the picker and the skill agree.
-    Postgres regex spells a word edge \\y (its \\b is a backspace)."""
-    whens = '\n'.join(f"    when t.x ~ {_q(pat.replace(chr(92) + 'b', chr(92) + 'y'))} then {_q(s)}" for s, pat in SUBJECTS)
+    Postgres regex spells a word edge \\y (its \\b is a backspace). A pattern of plain words is checked with
+    `like`: 34 regexes outgrow Postgres's cache of 32, so each call compiled them all again. plpgsql keeps the
+    function planned for the session; a SQL one inside event_picture was planned again on every call
+    (BP app town-feed 81: 0.7 ms a call)."""
+    def when(s, pat):
+        pat = pat.replace(chr(92) + 'b', chr(92) + 'y')
+        if re.search(r'[\\()?\[\]^$.*+{}]', pat):
+            return f"    when t.x ~ {_q(pat)} then {_q(s)}"
+        return f"    when t.x like any (array[{', '.join(_q('%' + w + '%') for w in pat.split('|'))}]) then {_q(s)}"
+    whens = '\n'.join(when(s, pat) for s, pat in SUBJECTS)
     cats = ', '.join(f'{_q(k)}, {_q(v)}' for k, v in BY_CATEGORY.items())
     return f"""create or replace function private.event_subject(p_title text, p_sport text, p_category text)
 returns text
-language sql
+language plpgsql
 immutable
 set search_path = public
 as $$
+begin
+  return (
   select case
 {whens}
     else coalesce(jsonb_build_object({cats}) ->> p_category, 'place')
   end
   from (select lower(coalesce(p_sport, '') || ' ' || coalesce(p_title, '')) as x) t
+  );
+end
 $$;"""
 
 

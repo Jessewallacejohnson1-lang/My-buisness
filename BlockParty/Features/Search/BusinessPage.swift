@@ -329,7 +329,7 @@ private struct BusinessPageBody: View {
                            width: full.width, top: insets.top, progress: opener.progress, page: page)
 
                 // Over the logo, which scrolls up under it.
-                BackCircle(opener: opener, top: insets.top)
+                TopButtons(item: item, opener: opener, page: page, top: insets.top)
             }
             .frame(width: full.width, height: full.height, alignment: .topLeading)
             .offset(x: -insets.leading, y: -insets.top)
@@ -887,23 +887,50 @@ private struct CoverClosePan: UIGestureRecognizerRepresentable {
     }
 }
 
-/// The Event page's Back circle, where the Event page has it, fading and growing in as the page
-/// opens. It stays put while the page scrolls under it.
-private struct BackCircle: View {
+/// Back, Share and •••, the Profile's glass circles where the Profile has them (BP app place-pages 11, the
+/// place-pages 08 mock): white glass on the cover, solid white with a hairline on a page with no photo. They
+/// fade and grow in as the page opens, and stay put while the page scrolls under them. Share opens the app's
+/// share sheet; ••• Apple's menu, whose one row mails us the wrong detail (as Report photo does).
+private struct TopButtons: View {
+    let item: SearchItem
     let opener: BusinessOpener
+    let page: PageState
     let top: CGFloat
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.openURL) private var openURL
 
     var body: some View {
-        let p = opener.progress.value
-        let m = EventPage.Metric.self
-        let pad = (m.tapBox - m.button) / 2
-        EventPage.circleButton(glyph: Image(systemName: "arrow.left"), label: "Back") { opener.close() }
-            .opacity(min(max(p * 2 - 1, 0), 1))
-            .scaleEffect(lerp(SearchMetric.bizBackFrom, 1, min(max(p, 0), 1)))
-            .offset(x: m.inset - pad, y: top + m.buttonTop - pad)
-            // VoiceOver reads it first, as it sits.
-            .accessibilitySortPriority(1)
+        let p = min(max(opener.progress.value, 0), 1)
+        let flat = !page.hasPhotos
+        // Each circle grows in about its own middle, as Back did alone.
+        let grow = lerp(SearchMetric.bizBackFrom, 1, p)
+        HStack(spacing: ProfileMetric.glassBoxGap) {
+            ProfileGlassButton(glyph: Image(systemName: "arrow.left"), label: "Back", flat: flat) { opener.close() }
+                .scaleEffect(grow)
+            Spacer(minLength: 0)
+            ProfileGlassButton(glyph: Image(systemName: "square.and.arrow.up"), label: "Share \(item.name)", flat: flat) {
+                ShareCenter.shared.present(.place(item))
+            }
+            .scaleEffect(grow)
+            Menu {
+                Button("Report a wrong detail", systemImage: "exclamationmark.bubble") {
+                    openURL(PhotoReport.wrongDetail(place: item.name))
+                }
+            } label: {
+                ProfileGlassCircle(glyph: Image(systemName: "ellipsis"), flat: flat)
+            }
+            .menuStyle(.button)
+            .buttonStyle(.press(.squish))
+            .scaleEffect(grow)
+            .accessibilityLabel("More options, \(item.name)")
+        }
+        .padding(.horizontal, ProfileMetric.glassSide - (PageMetric.tapMin - ProfileMetric.glass) / 2)
+        .padding(.top, top - (PageMetric.tapMin - ProfileMetric.glass) / 2)
+        // Every photo failing turns the glass solid white with the page, not in one frame.
+        .animation(Motion.smooth, value: flat)
+        .opacity(min(max(p * 2 - 1, 0), 1))
+        // VoiceOver reads them first, as they sit.
+        .accessibilityElement(children: .contain)
+        .accessibilitySortPriority(1)
     }
 }
 

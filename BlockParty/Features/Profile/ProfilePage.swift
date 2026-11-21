@@ -630,15 +630,38 @@ struct ProfileGlassButton<Glyph: View>: View {
     let glyph: Glyph
     let label: String
     var dark = false
+    var flat = false
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            glyph
-                .font(.glyph(17, weight: .semibold))
-                .foregroundStyle(dark ? Color.white : Hue.ink)
-                .frame(width: ProfileMetric.glass, height: ProfileMetric.glass)
-                .background {
+            ProfileGlassCircle(glyph: glyph, dark: dark, flat: flat)
+        }
+        .buttonStyle(.press(.squish))
+        .accessibilityLabel(label)
+    }
+}
+
+/// The glass circle in its 44 pt tap box, alone, so a menu's label draws it too (a place's •••, place-pages
+/// 11). `flat`: on a page with no photo under it, solid white with a hairline round it, the mock's.
+struct ProfileGlassCircle<Glyph: View>: View {
+    let glyph: Glyph
+    var dark = false
+    var flat = false
+
+    var body: some View {
+        glyph
+            .font(.glyph(17, weight: .semibold))
+            .foregroundStyle(dark ? Color.white : Hue.ink)
+            .frame(width: ProfileMetric.glass, height: ProfileMetric.glass)
+            .background {
+                if flat {
+                    Circle()
+                        .fill(Hue.surface)
+                        .overlay { Circle().strokeBorder(Hue.hairline, lineWidth: ProfileMetric.glassRim) }
+                        .shadow(color: .black.opacity(ProfileMetric.glassShadow), radius: ProfileMetric.glassBlur,
+                                y: ProfileMetric.glassDrop)
+                } else {
                     Circle()
                         .fill(dark ? Color.black.opacity(ProfileMetric.darkGlass) : Color.white.opacity(ProfileMetric.whiteGlass))
                         .background(.ultraThinMaterial, in: Circle())
@@ -649,11 +672,9 @@ struct ProfileGlassButton<Glyph: View>: View {
                         .shadow(color: .black.opacity(ProfileMetric.glassShadow), radius: ProfileMetric.glassBlur,
                                 y: ProfileMetric.glassDrop)
                 }
-                .environment(\.colorScheme, .light)
-                .frame(width: PageMetric.tapMin, height: PageMetric.tapMin)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.press(.squish))
-        .accessibilityLabel(label)
+            }
+            .environment(\.colorScheme, .light)
+            .frame(width: PageMetric.tapMin, height: PageMetric.tapMin)
+            .contentShape(Rectangle())
     }
 }

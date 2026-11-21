@@ -265,6 +265,26 @@ test("team logos: a new team's logo and colors", async () => {
   await asJob('team logos: the ones taken down before', 'select id, name, logo_refused from public.teams where logo_url is null');
 });
 
+// The morning's place logos step (place_logos.py, BP app logo-cutouts 06): the places with no logo are read, a logo
+// both helpers picked goes live with its file kept in place-sources, every place looked at is marked, and on Sundays a
+// Search logo an older logo module made is read back from place-sources and replaced.
+test("place logos: a place's first logo, its file kept, and the Sunday remake", async () => {
+  await db.query(`insert into public.places (entry_id, name, lat, lon, family, links)
+    values ('angels-touch', 'Angel''s Touch Massage', 45.56, -94.32, 'business', '[{"kind": "website", "url": "https://a.test/"}]')`);
+  assert.equal((await asJob('place logos: the places with no logo', `select place_id, entry_id, name, primary_type, links,
+    logo_looked, logo_refused from public.places where search_logo is null and logo_url is null and closed_at is null`))
+    .filter((r) => r.entry_id === 'angels-touch').length, 1);
+  await asJob('place logos: the logo', `insert into storage.objects (bucket_id, name) values ('places', 'st-joseph/angels-touch/logo-0a1b2c3d.webp')`);
+  await asJob('place logos: its file', `insert into storage.objects (bucket_id, name) values ('place-sources', 'st-joseph/angels-touch/flat/theirs.png')`);
+  await asJob('place logos: the place takes it', `update public.places set search_logo = $2, logo_url = $3, logo_looked = $4
+    where entry_id = $1 and search_logo is null`, ['angels-touch', { url: 'https://x/logo.webp', hue: 40, made: 'abc', by: 'morning' },
+    'https://x/pin.png', '2026-11-22']);
+  assert.deepEqual(await asJob('read back', `select search_logo->>'by' as by, logo_looked::text from public.places where entry_id = 'angels-touch'`),
+    [{ by: 'morning', logo_looked: '2026-11-22' }]);
+  assert.equal((await asJob('Sunday: its file read back', `select name from storage.objects where bucket_id = 'place-sources'
+    and name = 'st-joseph/angels-touch/flat/theirs.png'`)).length, 1);
+});
+
 // The weekly step for what has nothing scheduled (BP app nothing-scheduled 04): the Sunday finish counts the things due
 // (nothing_scheduled.read_rows and last_walks), and a walk remembers each thing it walked.
 test('nothing scheduled: the Sunday count reads, and each thing walked is remembered', async () => {
@@ -373,6 +393,8 @@ test('the Watch key is refused: deleting an Event, the waitlist, sign-in account
   await refused('rename a Place', `update public.places set name = 'x'`);
   await refused('rename a team', `update public.teams set name = 'x'`);
   await refused('put back a logo taken down', `update public.teams set logo_refused = '{}'`);
+  await refused("put back a place's logo taken down", `update public.places set logo_refused = '{}'`);
+  await refused('delete a logo source', `delete from storage.objects where bucket_id = 'place-sources'`);
   await refused("change a Place's Apple Maps id", `update public.places set apple_place_id = 'x'`);
   await refused('take a place photo down', `update public.place_photos set status = 'retired'`);
   await refused("decide a take-down (Jesse's Keep)", 'update public.photo_takedowns set kept_at = now()');

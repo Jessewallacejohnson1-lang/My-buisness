@@ -54,6 +54,15 @@ class Db:
         txt = self._send(method, f"/rest/v1/{path}", data, headers)
         return json.loads(txt) if txt.strip() else None
 
+    def storage_get(self, path):
+        """A file's bytes from Storage ("<bucket>/<name>"), a private bucket's too."""
+        req = urllib.request.Request(f"{self.url}/storage/v1/object/{urllib.parse.quote(path)}", headers=self.keys)
+        try:
+            with urllib.request.urlopen(req, timeout=self.timeout) as r:
+                return r.read()
+        except urllib.error.HTTPError as e:
+            raise DbError("GET", path, e.code, e.read().decode(errors="replace")) from None
+
     def storage_put(self, path, data, content_type="image/webp"):
         """Upload `data` to Storage at `path` ("<bucket>/<name>"). Never overwrites (a name
         already taken raises DbError 400 or 409), so a file is cached for a year."""

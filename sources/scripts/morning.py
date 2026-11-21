@@ -92,6 +92,7 @@ import social
 import spots
 import find_spots
 import apple_maps
+import place_logos
 import team_logos
 import venue_spots
 import audience
@@ -1260,6 +1261,7 @@ def finish(run, dry_run):
     for what, step in (("tags", lambda: tag(run, dry_run)), ("Abouts", lambda: describe(run, dry_run)),
                        ("standouts", lambda: standouts(run, dry_run)),
                        ("team logos", lambda: team_logos.keep(run, dry_run)),
+                       ("place logos", lambda: place_logos.keep(run, dry_run)),
                        ("venue spots", lambda: venue_spots.keep(run, dry_run)),
                        ("who it's for", lambda: audience.keep(run, dry_run)),
                        ("event parts", lambda: event_parts.keep(run, dry_run)),
@@ -1312,13 +1314,17 @@ def map_spots(run, dry_run):
 
 
 def sunday_lines(run, dry_run):
-    """On Sundays, the photo dig's weekly day, the weekly steps' lines: each school's club page read for its clubs'
-    meeting times (BP app nothing-scheduled 05), then how many things with nothing scheduled are due for a walk (04).
-    Any other day, none."""
+    """On Sundays, the photo dig's weekly day, the weekly steps' lines: each Search logo an older logo module made,
+    made again, and how many today's made (BP app logo-cutouts 06); each school's club page read for its clubs' meeting
+    times (BP app nothing-scheduled 05); then how many things with nothing scheduled are due for a walk (04). Any
+    other day, none."""
     from event_photos import WEEKLY_DAY  # here: event_photos imports morning
     if run.today.weekday() != WEEKLY_DAY:
         return []
-    return meeting_lines(run, dry_run) + nothing_scheduled.due_line(run.db, run.today)
+    logos = place_logos.check(run, dry_run)
+    if logos[0].startswith("[morning] run again"):
+        return logos
+    return logos + meeting_lines(run, dry_run) + nothing_scheduled.due_line(run.db, run.today)
 
 
 def meeting_lines(run, dry_run):
@@ -1418,21 +1424,26 @@ def credits_told():
 
 
 def sundays_only():
-    """The weekly steps run on Sundays only, the meeting times first; any other day they read nothing."""
+    """The weekly steps run on Sundays only, the logos first, then the meeting times; any other day they read nothing.
+    The logos' part whose time is spent says run again before the others start."""
     import tempfile
     global meeting_lines
-    was = meeting_lines, nothing_scheduled.due_line
+    was = meeting_lines, nothing_scheduled.due_line, place_logos.check
     meeting_lines = lambda run, dry_run: ["[meets] read"]  # noqa: E731
     nothing_scheduled.due_line = lambda db, today: ["[scheduled] due"]
+    place_logos.check = lambda run, dry_run: ["[logos] made"]
     try:
         with tempfile.TemporaryDirectory() as tmp:
             db = FakeDb()
             monday = sunday_lines(Run(Path(tmp), date(2026, 11, 16), db), False)
             sunday = sunday_lines(Run(Path(tmp), date(2026, 11, 15), db), False)
+            place_logos.check = lambda run, dry_run: ["[morning] run again: logos"]
+            again = sunday_lines(Run(Path(tmp), date(2026, 11, 15), db), False)
     finally:
-        meeting_lines, nothing_scheduled.due_line = was
-    return [(monday == [] and not db.calls and sunday == ["[meets] read", "[scheduled] due"],
-             f"the weekly steps on Sundays only: {monday} {sunday}")]
+        meeting_lines, nothing_scheduled.due_line, place_logos.check = was
+    return [(monday == [] and not db.calls and sunday == ["[logos] made", "[meets] read", "[scheduled] due"]
+             and again == ["[morning] run again: logos"],
+             f"the weekly steps on Sundays only: {monday} {sunday} {again}")]
 
 
 def map_spots_without_maps():
