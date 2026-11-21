@@ -172,15 +172,15 @@ struct InterestCircles: View {
         }
     }
 
-    /// Grow 0.12 s as the words fade, gather 0.24 s, then out over 0.42 s. The next step comes 0.3 s into the
-    /// way out, the circles nearly off the screen, so the move begins 0.66 s after Next.
+    /// Grow 0.12 s as the words fade, gather 0.24 s, then out over 0.42 s. The next step comes 0.15 s into the
+    /// way out, as the first circles leave the screen, so the move begins about 0.5 s after Next.
     private func play() {
         guard !reduceMotion else { return done() }
         withAnimation(.easeOut(duration: 0.12)) { burst = .grow } completion: {
             withAnimation(.easeIn(duration: 0.24)) { burst = .gather } completion: {
                 withAnimation(.easeOut(duration: 0.42)) { burst = .out }
                 Task { @MainActor in
-                    try? await Task.sleep(for: .milliseconds(300))
+                    try? await Task.sleep(for: .milliseconds(150))
                     done()
                 }
             }
