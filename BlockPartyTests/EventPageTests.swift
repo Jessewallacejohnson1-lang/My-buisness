@@ -184,6 +184,18 @@ final class EventPageTests: XCTestCase {
                        "a flyer that fails gives way to the place's photo")
     }
 
+    /// A flyer already says what it is, so its card sets no title of ours; a lineup's flyer names other Events too, so
+    /// its title stays (BP app town-feed 82).
+    func testAFlyerThatSaysItDropsTheTitleButALineupKeepsIt() {
+        let card = { (whole: Bool, lineup: Bool) in
+            FeedCardItem({ var e = self.event(imageUrl: nil)
+                e.placePicture = PlacePicture(url: Self.photoURL, kind: .photo, whole: whole, lineup: lineup); return e }())
+        }
+        XCTAssertTrue(card(true, false).flyerSaysIt, "Banff's poster says Banff Mountain Film Festival")
+        XCTAssertFalse(card(true, true).flyerSaysIt, "Bad Habit's week of Events: the title says which one")
+        XCTAssertFalse(card(false, false).flyerSaysIt, "a photo keeps its title")
+    }
+
     /// An exhibit's page swipes through its pieces, then its flyer (BP app event-photos 25; town-feed 59 for the flyer).
     /// One that fails to load leaves the set; one picture alone doesn't swipe.
     func testAnExhibitsPageSwipesThroughItsPiecesThenItsFlyer() {
