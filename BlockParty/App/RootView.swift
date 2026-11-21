@@ -902,7 +902,8 @@ struct MainTabsView: View {
         Task {
             for _ in 0..<120 where townFeed.cards.isEmpty { try? await Task.sleep(for: .milliseconds(250)) }
             guard !townFeed.cards.isEmpty else { return print("FrameGapLog: open cycle found no Town cards") }
-            if friendsBook.friends.isEmpty { await friendsBook.refresh() }
+            if friendsBook.friends.isEmpty { await friendsBook.refresh(); await friendsBook.refreshSuggestions() }
+            if friendsBook.friends.isEmpty, friendsBook.suggested.isEmpty { print("FrameGapLog: open cycle has no person for a Profile") }
             let box = CGRect(x: 160, y: 400, width: SearchMetric.logoOnTile, height: SearchMetric.logoOnTile)
             @MainActor func step(_ name: String, open: () -> Void, back: () -> Void) async {
                 try? await Task.sleep(for: .seconds(1.5))
