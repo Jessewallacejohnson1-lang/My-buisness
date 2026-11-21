@@ -452,7 +452,8 @@ private struct EventHostLine: View {
                 Group {
                     // A logo as the plain row draws it, trimmed on a white disc (BP app inside-cards 34).
                     if host.pictureKind == "logo", let url = host.picture.flatMap(URL.init) {
-                        HostMarkDisc(picture: PlacePicture(url: url, kind: .logo), name: host.name, size: EventHostRow.picture)
+                        HostMarkDisc(picture: PlacePicture(url: url, kind: .logo), name: host.name, size: EventHostRow.picture,
+                                     ringColor: .white)
                             .accessibilityHidden(true)
                     } else {
                         FollowPicture(row: host, size: EventHostRow.picture,

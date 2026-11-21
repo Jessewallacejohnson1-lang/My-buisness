@@ -740,6 +740,8 @@ struct HostMarkDisc: View {
     let name: String
     /// Across: a Town card's, else a page's own (the News page's 40 pt, as a post's picture; town-feed 65).
     var size: CGFloat = HostMarkDisc.side
+    /// The ring's colour: the page's, else white where the page behind it isn't (a game page's grey host card).
+    var ringColor: Color = Hue.surface
 
     /// The photo chip's height and 15% more, room for a square logo inside the circle (Jesse,
     /// 2026-11-10). A mark, not text, so it does not scale.
@@ -762,7 +764,7 @@ struct HostMarkDisc: View {
                 Avatar(photo ?? picture?.url, size: size, blank: .initial(name))
             }
         }
-        .overlay(Circle().strokeBorder(Hue.surface, lineWidth: Self.ring))
+        .overlay(Circle().strokeBorder(ringColor, lineWidth: Self.ring))
     }
 }
 
