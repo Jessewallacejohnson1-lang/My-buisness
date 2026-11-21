@@ -453,6 +453,10 @@ final class FrameGapLog {
     private var openFrom: TimeInterval?
     private var openName: String?
     private var tapOpened: String?
+    /// The screen on top at the tap, and the tap's clock for its `MOVE` line: the first frame where another screen's
+    /// layer, as Core Animation draws it, is on the glass. A cover's onAppear can come later than that, or sooner.
+    private var moveFrom: TimeInterval?
+    private var topAtTap: ObjectIdentifier?
 
     func start() {
         guard link == nil else { return }
@@ -478,6 +482,32 @@ final class FrameGapLog {
         openFrom = up
         openName = nil
         tapOpened = nil
+        moveFrom = up
+        topAtTap = Self.top().map(ObjectIdentifier.init)
+    }
+
+    /// The screen on top: the last one presented, and down any stack in it to the page on top.
+    private static func top() -> UIViewController? {
+        var vc = UIApplication.shared.connectedScenes.compactMap { ($0 as? UIWindowScene)?.keyWindow }.first?.rootViewController
+        while let here = vc {
+            if let next = here.presentedViewController ?? (here as? UINavigationController)?.topViewController
+                ?? firstStack(in: here) {
+                vc = next
+            } else {
+                return here
+            }
+        }
+        return nil
+    }
+
+    private static func firstStack(in vc: UIViewController) -> UINavigationController? {
+        var queue = vc.children
+        while !queue.isEmpty {
+            let c = queue.removeFirst()
+            if let n = c as? UINavigationController { return n }
+            queue += c.children
+        }
+        return nil
     }
 
     /// A screen came on (`timesOpen`): with a tap waiting, the next frame prints `OPEN <name> +N ms`, from the
@@ -517,6 +547,17 @@ final class FrameGapLog {
         }
         // The first frame drawn after the screen came on: the one that shows it (plus the frame or two the
         // system takes to put it on the glass, which this can't see).
+        if let from = moveFrom {
+            if let vc = Self.top(), ObjectIdentifier(vc) != topAtTap, let w = vc.viewIfLoaded?.window,
+               let pl = vc.view.layer.presentation(), let wl = w.layer.presentation(),
+               pl.convert(pl.bounds, to: wl).intersects(w.bounds.insetBy(dx: 0.5, dy: 0.5)) {
+                let name = tapName == "touch" ? tapOpened ?? "screen" : tapName
+                print("FrameGapLog: MOVE \(name) +\(Int((l.targetTimestamp - from) * 1000))ms")
+                moveFrom = nil
+            } else if l.timestamp - from > 3 {
+                moveFrom = nil
+            }
+        }
         if let from = openFrom {
             if let name = openName {
                 print("FrameGapLog: OPEN \(name) +\(Int((l.targetTimestamp - from) * 1000))ms")
