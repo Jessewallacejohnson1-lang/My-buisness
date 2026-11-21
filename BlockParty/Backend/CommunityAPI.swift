@@ -210,6 +210,12 @@ struct CommunityAPI {
         try Supabase.decode(await db.rpc("get_groups", anon: true))
     }
 
+    /// The Events found for a group (its own page, or its name at its place), its next three as cards
+    /// (`get_group_events`, BP app rsvp-and-groups 10): the Group page lays them among its meetings.
+    func groupEvents(_ groupID: String) async throws -> [FeedCardItem] {
+        try Self.myGoingRows(from: await db.rpc("get_group_events", ["p_group": groupID], anon: true)).map { FeedCardItem($0) }
+    }
+
     func joinClub(_ clubId: String) async throws {
         let uid = try db.userID
         // ignore-duplicates: membership is presence-only and club_members has no
