@@ -505,6 +505,9 @@ struct MainTabsView: View {
                 .navigationDestination(for: TagRoute.self) { TagPage(tag: $0.tag).environment(townFeed) }
                 // A News with its post's own words, from its card or the hello pill (town-feed 65).
                 .navigationDestination(for: NewsRoute.self) { NewsPage(news: $0.news).timesOpen("news") }
+                #if DEBUG
+                .navigationDestination(for: BlankRoute.self) { _ in Color.red.ignoresSafeArea().timesOpen("blank") }
+                #endif
         }
         // A host's name on a card or an Event page opens its own page (follows 08).
         .environment(\.hostOpener, hostOpener)
@@ -897,6 +900,7 @@ struct MainTabsView: View {
     /// `-open-cycle` (with `-frame-gap-log`, from Town): once the Town feed is in, each screen a tap opens, in
     /// turn every 3 s, timed as a tap (`FrameGapLog.tapped`), and back 1.5 s later, so the phone can be timed with
     /// no hand on it (BP app tab-lag 02). It writes nothing: an Event open isn't counted, Messages but no chat.
+    struct BlankRoute: Hashable {}
     private static var cyclingOpens = false
     private func cycleOpens() {
         Task {
@@ -915,6 +919,7 @@ struct MainTabsView: View {
             for round in 0... {
                 let cards = townFeed.cards
                 let card = cards[round % cards.count]
+                await step("blank", open: { path.append(BlankRoute()) }, back: { path.removeLast() })
                 await step("event", open: { reopened = card.id; path.append(card) }, back: { path.removeLast() })
                 await step("bell", open: { path.append(NotificationsRoute()) }, back: { path.removeLast() })
                 await step("map", open: { showMap = true }, back: { showMap = false })
