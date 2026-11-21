@@ -41,6 +41,8 @@ struct NoticeEventRoute: Hashable {
 /// A post opened from the bell's page (town-feed 60): its card alone on a page of its own.
 struct PostRoute: Hashable {
     let post: TownPost
+    /// From a comment row (backlog 38): its comments open over it.
+    var comments = false
 }
 
 struct NotificationsPage: View {
@@ -169,16 +171,16 @@ private struct NoticeRow: View {
 }
 
 /// "**Marlene Ostendorf** mentioned you in a post. 5m" with the post's photo as Instagram's thumbnail (town-feed 60),
-/// opening the post.
+/// opening the post; "**Ana** and **2 others** commented on your post. 12m" (backlog 38) opens it with its comments up.
 private struct NamedRow: View {
     let named: NamedNotice
     let now: Date
 
     var body: some View {
-        NavigationLink(value: PostRoute(post: named.post)) {
+        NavigationLink(value: PostRoute(post: named.post, comments: named.opensComments)) {
             HStack(spacing: NoticeMetric.gap) {
-                Avatar(named.post.posterPhoto, size: NoticeMetric.face, outlined: true)
-                Text("\(Text(named.post.poster.name).font(.sansSemibold(15))) \(named.words) \(Text(PostingCard.relativeLabel(for: named.post.posted, now: now)).foregroundStyle(Hue.inkSecondary))")
+                Avatar(named.photo, size: NoticeMetric.face, outlined: true)
+                Text("\(who) \(named.words) \(Text(PostingCard.relativeLabel(for: named.when, now: now)).foregroundStyle(Hue.inkSecondary))")
                     .font(.sans(15))
                     .foregroundStyle(Hue.ink)
                     .multilineTextAlignment(.leading)
@@ -196,18 +198,27 @@ private struct NamedRow: View {
         }
         .buttonStyle(.press(.row))
     }
+
+    /// "**Ana**", or "**Ana** and **2 others**".
+    private var who: Text {
+        let name = Text(named.name).font(.sansSemibold(15))
+        guard let others = named.othersLabel else { return name }
+        return Text("\(name) and \(Text(others).font(.sansSemibold(15)))")
+    }
 }
 
 /// A post on its own page, opened from the bell (town-feed 60): its card under a small "Post" bar, as Instagram opens
 /// a post from its notifications.
 struct PostPage: View {
     let post: TownPost
+    /// Its comments open over it as it lands (a comment row on the bell, backlog 38).
+    var comments = false
 
     var body: some View {
         ZStack(alignment: .top) {
             Hue.paper.ignoresSafeArea()
             ScrollView {
-                FeedPostCard(post: post)
+                FeedPostCard(post: post, opensComments: comments)
                     .padding(.top, PageMetric.bar + 8)
             }
             FriendsTitleBar(title: "Post", titleUnder: true).accessibilitySortPriority(1)

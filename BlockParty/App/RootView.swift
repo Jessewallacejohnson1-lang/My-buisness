@@ -501,7 +501,7 @@ struct MainTabsView: View {
                     EventPage(item: route.item).environment(townFeed)
                 }
                 // A post that names you, from the bell (town-feed 60).
-                .navigationDestination(for: PostRoute.self) { PostPage(post: $0.post).environment(townFeed) }
+                .navigationDestination(for: PostRoute.self) { PostPage(post: $0.post, comments: $0.comments).environment(townFeed) }
                 .navigationDestination(for: TagRoute.self) { TagPage(tag: $0.tag).environment(townFeed) }
                 // A News with its post's own words, from its card or the hello pill (town-feed 65).
                 .navigationDestination(for: NewsRoute.self) { NewsPage(news: $0.news).timesOpen("news") }

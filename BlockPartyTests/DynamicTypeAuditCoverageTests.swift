@@ -50,7 +50,7 @@ final class DynamicTypeAuditCoverageTests: XCTestCase {
         "FriendMenu.swift:$addingName": .notYetAudited(reason: "Edit profile, from a friend request refused for want of a name: the same screen as ProfileView.swift:$editing, not yet audited either."),
         "FeedCardMenu.swift:$isPresented": .notYetAudited(reason: "A Town feed card's and the Event of the day poster's ••• sheet (one `FeedCardMenuSheet`, ticket 21). Three short lines and a row; its height follows its content. The admin's ten-row Score box has no scroll, so at the largest sizes it can run off the screen. Text-size checks wait for Jesse (MEMORY.md, 2026-09-24)."),
         "FeedCardMenu.swift:$editingInterests": .notYetAudited(reason: "Edit profile, opened from the ••• sheet: the same screen as ProfileView.swift:$editing, not yet audited either."),
-        "PostingCard.swift:$commentsPresented": .notYetAudited(reason: "Post comments. Same as above."),
+        "FeedPostCard.swift:$commentsOpen": .notYetAudited(reason: "A post's comments (BP app backlog 38): Apple's sheet at 70% and full, each comment's name line and words wrap, Reply is one short word, the box grows to five lines. Text-size checks wait for Jesse (MEMORY.md, 2026-09-24)."),
         "ProfileView.swift:$editing": .notYetAudited(reason: "Edit profile. A form at AX5 is exactly where truncation hurts — high priority."),
         "ProfileView.swift:$showAbout": .notYetAudited(reason: "About. Long copy."),
         "TeamPage.swift:$opened": .notYetAudited(reason: "A school activity's coming events (school-activities 02): a plain List of dates and titles, which wraps at any size. Text-size checks wait for Jesse (MEMORY.md, 2026-09-24)."),

@@ -17,10 +17,13 @@ struct FeedPostCard: View {
     private let given: TownPost
     /// Off in the share sheet's picture, which draws the post without its controls.
     var sendable = true
+    /// Its comments open as it lands: a comment row on the bell (backlog 38).
+    var opensComments = false
 
-    init(post: TownPost, sendable: Bool = true) {
+    init(post: TownPost, sendable: Bool = true, opensComments: Bool = false) {
         given = post
         self.sendable = sendable
+        self.opensComments = opensComments
     }
 
     @Environment(RealLifeActions.self) private var actions: RealLifeActions?
@@ -43,6 +46,10 @@ struct FeedPostCard: View {
     @State private var heartTappedAt = 0
     /// The photo on show of several (town-feed 46).
     @State private var photoPage: Int?
+    /// Its comments (backlog 38), read the first time the sheet opens and kept, so the pill follows the sheet.
+    @State private var thread: CommentThread?
+    @State private var commentsOpen = false
+    @State private var openedComments = false
 
     /// Card A's measurements (checkin1.py `.fb`): 16 pt sides, a 40 pt picture 10 pt from the name, words
     /// 16 on 22 with 10 above and 12 below, the row 14 pt in, an 8 pt band.
@@ -92,6 +99,19 @@ struct FeedPostCard: View {
                 .accessibilityHidden(true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .sheet(isPresented: $commentsOpen) {
+            if let thread { FeedCommentSheet(thread: thread) }
+        }
+        .task {
+            guard opensComments, !openedComments else { return }
+            openedComments = true
+            openComments()
+        }
+    }
+
+    private func openComments() {
+        if thread == nil { thread = CommentThread(post: post, api: CommunityAPI(auth: AuthStore.shared)) }
+        commentsOpen = true
     }
 
     // MARK: - Header
@@ -245,11 +265,12 @@ struct FeedPostCard: View {
             .accessibilityLabel(post.words.isEmpty ? "Photo from \(post.poster.name)" : "Photo")
     }
 
-    // MARK: - Heart and send
+    // MARK: - Heart, comments and send
 
     private func actionRow(_ actions: RealLifeActions) -> some View {
         FeedEventCardActionRow(
-            kind: .event,
+            kind: .posting,
+            commentCount: thread?.count ?? post.comments,
             showsHeart: actions.canAct,
             heartFailures: actions.heartFailureCount(post.id),
             state: Binding {
@@ -261,7 +282,7 @@ struct FeedPostCard: View {
             reduceMotion: reduceMotion,
             autoplayStep: 0,
             onLike: nil,
-            onComment: {},
+            onComment: openComments,
             onShare: share
         )
     }

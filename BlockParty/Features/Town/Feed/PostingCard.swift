@@ -6,7 +6,7 @@
 //  hands you and what everyone's thumb already knows how to read. The chrome around
 //  it stays ink on paper, so the photo is the only colour on the card.
 //
-//  Shares the event card's image loader, action state and comment sheet — the two
+//  Shares the event card's image loader and action state — the two
 //  cards differ in shape and in which verbs they offer, not in machinery.
 //
 
@@ -17,8 +17,6 @@ struct PostingCard: View {
     var onLike: ((Bool) -> Void)?
     var onShare: (() -> Void)?
     var onFollow: ((Bool) -> Void)?
-    var onLoadComments: (() async throws -> [EventComment])?
-    var onComment: ((String) async throws -> EventComment)?
 
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -27,29 +25,21 @@ struct PostingCard: View {
     /// posting catches up on the next refresh; waiting for it would leave a button
     /// sitting there that you have already used.
     @State private var isFollowing: Bool
-    @State private var commentState: FeedCommentState
-    @State private var commentsPresented = false
     @State private var captionExpanded = false
     @State private var likeBurst = FeedLikeBurst()
 
     init(
         posting: PostingItem,
-        comments: [EventComment] = [],
         onLike: ((Bool) -> Void)? = nil,
         onShare: (() -> Void)? = nil,
-        onFollow: ((Bool) -> Void)? = nil,
-        onLoadComments: (() async throws -> [EventComment])? = nil,
-        onComment: ((String) async throws -> EventComment)? = nil
+        onFollow: ((Bool) -> Void)? = nil
     ) {
         self.posting = posting
         self.onLike = onLike
         self.onShare = onShare
         self.onFollow = onFollow
-        self.onLoadComments = onLoadComments
-        self.onComment = onComment
         _actionState = State(initialValue: FeedCardActionState(posting: posting))
         _isFollowing = State(initialValue: posting.isFollowed)
-        _commentState = State(initialValue: FeedCommentState(comments: comments))
     }
 
     var body: some View {
@@ -60,14 +50,15 @@ struct PostingCard: View {
             // not reading off the bezel.
             imageSection
 
+            // A debug sample, never a real post (`-town-feed postings`): no comments to open, so no comment pill
+            // (backlog 38; a real post's is FeedPostCard's).
             FeedEventCardActionRow(
-                kind: .posting,
-                commentCount: posting.commentCount,
+                kind: .event,
                 state: $actionState,
                 reduceMotion: motionIsReduced,
                 autoplayStep: 0,
                 onLike: onLike,
-                onComment: { commentsPresented = true },
+                onComment: {},
                 onShare: onShare
             )
             .padding(.top, 2)
@@ -78,13 +69,6 @@ struct PostingCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
-        .sheet(isPresented: $commentsPresented) {
-            FeedCommentSheet(
-                commentState: $commentState,
-                onLoad: onLoadComments,
-                onSend: onComment
-            )
-        }
         .onChange(of: posting) { _, updated in actionState.sync(with: updated) }
     }
 
