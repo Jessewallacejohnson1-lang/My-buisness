@@ -57,8 +57,7 @@ enum DateHelpers {
     //   free time    "7:00 PM", "19:00" (`club_events.start_time`)  → `EventWhen.minutes`
     //
     // `nonisolated`: the module defaults to MainActor, and these run off it (decoders,
-    // `CommunityAPI`). The formatters live in `ServerDateFormatters`, made once and never
-    // changed after, which is what makes sharing them across threads safe.
+    // `CommunityAPI`). The ISO 8601 styles are Sendable values, so one copy serves every thread.
 
     /// A Postgres `timestamptz` (`club_events.end_at`, `created_at`, a live score's `at`) → `Date`.
     ///
@@ -70,14 +69,19 @@ enum DateHelpers {
     nonisolated static func timestamp(_ s: String?) -> Date? {
         guard let s = s?.trimmingCharacters(in: .whitespacesAndNewlines), !s.isEmpty
         else { return nil }
-        let formatters = ServerDateFormatters.shared
-        return formatters.fractional.date(from: s) ?? formatters.whole.date(from: s)
+        return (try? fractional.parse(s)) ?? (try? whole.parse(s))
     }
+
+    /// Foundation's Swift readers and writer: the strings `ISO8601DateFormatter` read and wrote, 0.4 us each where it
+    /// took 60 to 100 on the Mac. The feed's read of hundreds of rows lands on the main thread, and froze a tap there
+    /// (BP app tab-lag 02).
+    private nonisolated static let fractional = Date.ISO8601FormatStyle(includingFractionalSeconds: true)
+    private nonisolated static let whole = Date.ISO8601FormatStyle()
 
     /// A `Date` as the timestamp the app sends the server ("2026-11-01T17:05:09Z"): UTC,
     /// whole seconds, the same string a default ISO 8601 formatter writes.
     nonisolated static func timestampString(_ date: Date) -> String {
-        ServerDateFormatters.shared.whole.string(from: date)
+        whole.format(date)
     }
 
     /// A Postgres `date` ("2026-10-31") → that day's midnight on the Town's clock
@@ -100,25 +104,5 @@ enum DateHelpers {
         let read = calendar.dateComponents([.year, .month, .day], from: date)
         guard read.year == year, read.month == month, read.day == day else { return nil }
         return date
-    }
-}
-
-/// The readers behind `DateHelpers.timestamp(_:)` and `timestampString(_:)`, built once:
-/// a formatter is slow to make and the feed reads hundreds of rows. Apple documents
-/// `ISO8601DateFormatter` as thread-safe, and nothing here sets an option after `init`,
-/// which is the condition for that; hence `@unchecked Sendable`.
-private nonisolated final class ServerDateFormatters: @unchecked Sendable {
-    static let shared = ServerDateFormatters()
-
-    /// "2026-10-24T18:21:32.123456+00:00".
-    let fractional: ISO8601DateFormatter
-    /// "2026-10-24T18:21:32+00:00", "2026-10-24T18:21:32Z"; writes "…Z".
-    let whole: ISO8601DateFormatter
-
-    private init() {
-        fractional = ISO8601DateFormatter()
-        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        whole = ISO8601DateFormatter()
-        whole.formatOptions = [.withInternetDateTime]
     }
 }
