@@ -2411,7 +2411,7 @@ def steps_alone():
     codebase-health-2 11; prepare's are in_parts and one_town): what each writes, and what it writes when it
     is refused or stopped part way and run again."""
     import io, tempfile
-    global own_page
+    global own_page, firecrawl_credits
     day = date(2026, 10, 20)
     rows = [{"id": f"e{i}", "title": f"Supper {i}", "event_date": str(day), "start_time": "7 PM", "location": "Hall",
              "description": "", "category": None, "source_name": "Hall", "source_url": "https://hall.example/", "sport": None,
@@ -2441,8 +2441,11 @@ def steps_alone():
             printed.write(f"exit {e.code}\n")
         return printed.getvalue()
     saved = (spots.fill, apple_maps.check, social.limits, social.missed_checks, write_judged.interest_ids, own_page, find_spots.read,
-             social.blocked)
+             social.blocked, firecrawl_credits)
     social.blocked = lambda: None  # never the real Apify
+    # never the real Firecrawl: asked twice over the network, a busy Mac timed one out and the two reports differed (BP app backlog 30)
+    firecrawl_credits = lambda: {"remainingCredits": 1000, "planCredits": 1000,
+                                 "billingPeriodStart": "2026-10-01T00:00:00Z", "billingPeriodEnd": "2026-11-01T00:00:00Z"}
     spots.fill, apple_maps.check = (lambda db, today, write, maps: ["- Map spots"]), (lambda db, write, today: ["- Apple Maps"])
     find_spots.read = lambda folder, minutes: None
     social.limits, social.missed_checks = (lambda: {"current": {"monthlyUsageUsd": 1}, "limits": {"maxMonthlyUsageUsd": 25}}), (lambda: [])
@@ -2509,7 +2512,7 @@ def steps_alone():
             caught_up = db.writes()[n:]
     finally:
         (spots.fill, apple_maps.check, social.limits, social.missed_checks, write_judged.interest_ids, own_page, find_spots.read,
-         social.blocked) = saved
+         social.blocked, firecrawl_credits) = saved
     ids = lambda calls, key: [p.rsplit("=", 1)[1][-2:] for _, p, b in calls if p.startswith("club_events?id=eq.") and key in b]
     return [
         (listed == f"{long_title}\nNews, 30 characters at most:\n{long_news}\n" and titled[0] == titled[1]
@@ -2540,7 +2543,8 @@ def steps_alone():
          f"finish run again sends only what was left (the stopped write again), then the Abouts, standouts and report, which "
          f"says when no Ready line was kept: {finished}"),
         ([c[1] for c in finished_again] == ["morning_reports?on_conflict=day"] and again == report,
-         f"finish once more writes nothing new but the report's one row, and says the same: {finished_again}"),
+         f"finish once more writes nothing new but the report's one row, and says the same: {finished_again}"
+         + ("" if again == report else f"\n--- first report:\n{report}\n--- again:\n{again}")),
         (out_of_time == "[morning] run again: 0 of 2 Abouts saved\n" and not late_wrote and ids(caught_up, "described_at") == ["e0", "e1"],
          f"Abouts out of time say run again with no report, and the next part saves them: {out_of_time!r}, {late_wrote}"),
     ]
