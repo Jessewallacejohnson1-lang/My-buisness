@@ -452,7 +452,6 @@ final class FrameGapLog {
     /// TAP line's 0.6 s: a cold map can take longer.
     private var openFrom: TimeInterval?
     private var openName: String?
-    private var tapOpened: String?
     /// The screen on top at the tap, and the tap's clock for its `MOVE` line: the first frame where another screen's
     /// layer, as Core Animation draws it, is on the glass. A cover's onAppear can come later than that, or sooner.
     private var moveFrom: TimeInterval?
@@ -481,7 +480,6 @@ final class FrameGapLog {
         tapStallMs = 0
         openFrom = up
         openName = nil
-        tapOpened = nil
         moveFrom = up
         topAtTap = Self.top().map(ObjectIdentifier.init)
     }
@@ -530,7 +528,6 @@ final class FrameGapLog {
     func opened(_ name: String) {
         guard openFrom != nil, openName == nil else { return }
         openName = name
-        tapOpened = name
     }
 
     @objc private func tick(_ l: CADisplayLink) {
@@ -555,7 +552,7 @@ final class FrameGapLog {
             if gapMs > budgetMs { tapStallMs += gapMs - l.duration * 1000 }
             if now - up > 0.6 {
                 // A finger's tap is named by the screen it opened.
-                let name = tapName == "touch" ? tapOpened.map { "touch-\($0)" } ?? tapName : tapName
+                let name = tapName == "touch" ? openName.map { "touch-\($0)" } ?? tapName : tapName
                 print("FrameGapLog: TAP \(name) worst=\(Int(tapWorstMs))ms stall=\(Int(tapStallMs))ms")
                 tapUp = nil
             }
@@ -571,7 +568,7 @@ final class FrameGapLog {
                 let onGlass = pl.flatMap { p in wl.map { p.convert(p.bounds, to: $0) } }?
                     .intersects(w.bounds.insetBy(dx: 0.5, dy: 0.5)) ?? false
                 if began != nil || onGlass {
-                    let name = tapName == "touch" ? tapOpened ?? "screen" : tapName
+                    let name = tapName == "touch" ? openName ?? "screen" : tapName
                     let at = began ?? l.targetTimestamp
                     print("FrameGapLog: MOVE \(name) +\(Int((at - from) * 1000))ms\(began == nil ? "" : " (slide)") tick +\(Int((l.targetTimestamp - from) * 1000))ms")
                     moveFrom = nil
