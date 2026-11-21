@@ -51,7 +51,9 @@ again. A `save refused` line ends the morning: answer with it.
 **Helpers.** First run `python3 sources/scripts/event_photos.py prepare`: it lays out each new Event's
 pictures, games aside, and each new News's own post pictures, on sheets in `.runs/morning/photos/` (event-photos 09,
 town-feed 53). Then run `python3 sources/scripts/team_logos.py prepare`: it looks up a logo for each team whose games
-wait on one, on a sheet in `.runs/morning/logos/` (game-card 17). Then run `python3 sources/scripts/venue_spots.py prepare`: it
+wait on one, on a sheet in `.runs/morning/logos/` (game-card 17). Then run `python3 sources/scripts/place_logos.py prepare`:
+it reads the website of each place with no logo, at most 8, and lays its logo files on a sheet in
+`.runs/morning/place-logos/` (BP app logo-cutouts 06; none: nothing to do). Then run `python3 sources/scripts/venue_spots.py prepare`: it
 takes the place lines of upcoming Events that have no spot, at most 8, into `.runs/morning/venues/batch.txt` (BP app
 inside-cards 20; `skipped` or no batch: nothing to do). Then run `python3 sources/scripts/audience.py prepare`: it lays out the upcoming Events with no age that no helper has judged
 for who they're for, games aside, in `.runs/morning/audience/batch-N.txt` (BP app inside-cards 35; none: nothing to do). Then run `python3 sources/scripts/event_parts.py prepare`: it reads
@@ -72,6 +74,10 @@ together, at most 10 running at once:
   `sources/models/team-logo.md` and follow it for `.runs/morning/logos/batch.txt`. Answer with the JSON lines only."
   The first's lines go to `.runs/morning/logos.jsonl`, the second's to `.runs/morning/logos-2.jsonl`. Only both
   their yeses put a logo live: never answer for them yourself.
+- when `.runs/morning/place-logos/batch.txt` exists, two helpers on your own model, each on its own and with the same
+  words: "Read `sources/models/place-logo.md` and follow it for `.runs/morning/place-logos/batch.txt`. Answer with the
+  JSON lines only." The first's lines go to `.runs/morning/place-logos.jsonl`, the second's to
+  `.runs/morning/place-logos-2.jsonl`. A logo goes live only where both pick the same file: never answer for them yourself.
 - for each `.runs/morning/audience/batch-N.txt`, two helpers on the cheap model (Haiku), each on its own and with the
   same words: "Read `sources/models/audience.md` and follow it for `.runs/morning/audience/batch-N.txt`. Answer with the
   JSON lines only." The first's lines go to `.runs/morning/audience.jsonl`, the second's to
@@ -117,8 +123,8 @@ dropped that a neighbour might have wanted, and why. Nothing else.
 
 ## Rules
 
-- Pages are fetched only by `morning.py`, `event_photos.py`, `team_logos.py` and `event_parts.py` (the registry's fetcher obeys robots
+- Pages are fetched only by `morning.py`, `event_photos.py`, `team_logos.py`, `place_logos.py` and `event_parts.py` (the registry's fetcher obeys robots
   rules and Crawl-delay). WebFetch, curl and the like stay unused: some sites refuse them.
-- The database is written only by `morning.py save` and `finish` (which includes `venue_spots.py keep`, `audience.py keep` and `event_parts.py keep`), and `event_photos.py keep` and `dig-keep`. SQL by
+- The database is written only by `morning.py save` and `finish` (which includes `venue_spots.py keep`, `audience.py keep`, `event_parts.py keep` and `place_logos.py keep`, and on Sundays its `check`), and `event_photos.py keep` and `dig-keep`. SQL by
   hand stays unused.
 - Nothing is committed or pushed; `.runs/` is scratch.
