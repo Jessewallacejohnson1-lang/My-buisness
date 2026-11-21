@@ -924,6 +924,8 @@ private struct TopButtons: View {
         }
         .padding(.horizontal, ProfileMetric.glassSide - (PageMetric.tapMin - ProfileMetric.glass) / 2)
         .padding(.top, top - (PageMetric.tapMin - ProfileMetric.glass) / 2)
+        // Every photo failing turns the glass solid white with the page, not in one frame.
+        .animation(Motion.smooth, value: flat)
         .opacity(min(max(p * 2 - 1, 0), 1))
         // VoiceOver reads them first, as they sit.
         .accessibilityElement(children: .contain)
