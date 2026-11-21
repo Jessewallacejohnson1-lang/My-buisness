@@ -370,6 +370,8 @@ struct FeedEventCard: View {
     /// blur, under the host's mark and credit, the words under it (Jesse, 2026-11-10, BP app town-feed 57: "shrink the
     /// flyers down so nothing is covering them"). One that fails to load is the ink card instead.
     private var wholeFlyer: Bool { item.whole && item.game == nil && displayImage.isPhoto }
+    /// The flyer on screen says the title, so the card sets none (town-feed 82); one that fails to load gets it back.
+    private var flyerSaysIt: Bool { wholeFlyer && item.flyerSaysIt }
     private var photoArea: some View {
         shaped(GeometryReader { proxy in
             ZStack(alignment: .bottom) {
@@ -549,25 +551,27 @@ struct FeedEventCard: View {
         // Called off: the photo goes black and white and the red pill under it says so; no
         // tag over the photo (Jesse, 2026-10-17).
         VStack(alignment: .leading, spacing: 4) {
-            Text(item.title)
-                // 28, the `.title` step. 22 measured ~20% smaller than the Apple News
-                // reference relative to card width, and the token scale has nothing
-                // between the two (`nearestTextStyle` snaps 24–31 to `.title`).
-                .font(.eventDisplay(28))
-                // No `.tracking` here any more. It used to pull a system face in to
-                // where Apple sets its headlines; this face carries the sheet's own
-                // spacing, tuned so a set line matches the drawing, and tightening it
-                // again would just double-count that.
-                // A two-line headline at this size sits ~1.21em apart by default,
-                // which reads airy next to the reference's ~1.1em. Negative spacing
-                // is how this codebase has always tightened a heading.
-                .lineSpacing(-2)
-                .foregroundStyle(.white)
-                // Two lines on a photo wider than 3:2: with the time under it, a third ran up into the
-                // credit on a 1.91:1 photo (BP app inside-cards 26's review). A square at accessibility
-                // sizes keeps three.
-                .lineLimit(!dynamicTypeSize.isAccessibilitySize && item.image.cardAspect > 1.5 ? 2 : 3)
-                .fixedSize(horizontal: false, vertical: true)
+            if !flyerSaysIt {
+                Text(item.title)
+                    // 28, the `.title` step. 22 measured ~20% smaller than the Apple News
+                    // reference relative to card width, and the token scale has nothing
+                    // between the two (`nearestTextStyle` snaps 24–31 to `.title`).
+                    .font(.eventDisplay(28))
+                    // No `.tracking` here any more. It used to pull a system face in to
+                    // where Apple sets its headlines; this face carries the sheet's own
+                    // spacing, tuned so a set line matches the drawing, and tightening it
+                    // again would just double-count that.
+                    // A two-line headline at this size sits ~1.21em apart by default,
+                    // which reads airy next to the reference's ~1.1em. Negative spacing
+                    // is how this codebase has always tightened a heading.
+                    .lineSpacing(-2)
+                    .foregroundStyle(.white)
+                    // Two lines on a photo wider than 3:2: with the time under it, a third ran up into the
+                    // credit on a 1.91:1 photo (BP app inside-cards 26's review). A square at accessibility
+                    // sizes keeps three.
+                    .lineLimit(!dynamicTypeSize.isAccessibilitySize && item.image.cardAspect > 1.5 ? 2 : 3)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             // When, 4 pt under the title in plain white words, turning to Now at the start minute while
             // you look at it (Jesse, 2026-11-07, BP app inside-cards 26). It took over from the white chip
@@ -593,6 +597,12 @@ struct FeedEventCard: View {
             if item.goingOverPhoto, let top = actions.rsvp(item, card: true)?.top {
                 goingLine(top)
                     .padding(.top, 4)
+            }
+        }
+        // Under a flyer that says it, VoiceOver still reads the title first.
+        .background {
+            if flyerSaysIt {
+                Color.clear.accessibilityElement().accessibilityLabel(item.title).accessibilitySortPriority(1)
             }
         }
         .feedCardPhotoTypeShadow()
@@ -730,6 +740,8 @@ struct HostMarkDisc: View {
     let name: String
     /// Across: a Town card's, else a page's own (the News page's 40 pt, as a post's picture; town-feed 65).
     var size: CGFloat = HostMarkDisc.side
+    /// The ring's colour: the page's, else white where the page behind it isn't (a game page's grey host card).
+    var ringColor: Color = Hue.surface
 
     /// The photo chip's height and 15% more, room for a square logo inside the circle (Jesse,
     /// 2026-11-10). A mark, not text, so it does not scale.
@@ -752,7 +764,7 @@ struct HostMarkDisc: View {
                 Avatar(photo ?? picture?.url, size: size, blank: .initial(name))
             }
         }
-        .overlay(Circle().strokeBorder(Hue.surface, lineWidth: Self.ring))
+        .overlay(Circle().strokeBorder(ringColor, lineWidth: Self.ring))
     }
 }
 

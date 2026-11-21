@@ -105,18 +105,27 @@ struct PhotoReport: Hashable {
 
     /// The draft the neighbour's own mail app opens, Gmail included.
     var mail: URL {
+        Self.mail(subject: place.map { "Photo of \($0)" } ?? "A photo on Block Party",
+                  body: "Please take this photo off Block Party:\n\(photo.absoluteString)")
+    }
+
+    /// A place's ••• "Report a wrong detail" (BP app place-pages 11): the same email, naming the place, for the
+    /// neighbour to say what's wrong.
+    static func wrongDetail(place: String) -> URL {
+        mail(subject: "Wrong detail on \(place)", body: "What's wrong on \(place)'s page:\n")
+    }
+
+    static func mail(subject: String, body: String) -> URL {
         // "&" "=" "+" stay legal in a query, so a place called "Flour & Flower" would split
         // its subject: encode them too.
         let allowed = CharacterSet.urlQueryAllowed.subtracting(CharacterSet(charactersIn: "&=+?#"))
         var parts = URLComponents()
         parts.scheme = "mailto"
-        parts.path = Self.address
-        parts.percentEncodedQueryItems = [
-            ("subject", place.map { "Photo of \($0)" } ?? "A photo on Block Party"),
-            ("body", "Please take this photo off Block Party:\n\(photo.absoluteString)"),
-        ].map { URLQueryItem(name: $0, value: $1.addingPercentEncoding(withAllowedCharacters: allowed)) }
+        parts.path = address
+        parts.percentEncodedQueryItems = [("subject", subject), ("body", body)]
+            .map { URLQueryItem(name: $0, value: $1.addingPercentEncoding(withAllowedCharacters: allowed)) }
         // ponytail: no mail app at all (Mail deleted, no default) and the tap does nothing;
         // copy the address as a fallback if anyone hits it.
-        return parts.url ?? URL(string: "mailto:\(Self.address)")!
+        return parts.url ?? URL(string: "mailto:\(address)")!
     }
 }

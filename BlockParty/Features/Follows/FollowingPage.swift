@@ -449,9 +449,18 @@ private struct EventHostLine: View {
     private func card(_ host: FollowRow, opens: Bool) -> some View {
         HStack(spacing: EventHostRow.gap) {
             Group {
-                FollowPicture(row: host, size: EventHostRow.picture,
-                              corner: host.targetType == .profile ? nil : EventHostRow.pictureCorner)
-                    .trackFrame(picture)
+                Group {
+                    // A logo as the plain row draws it, trimmed on a white disc (BP app inside-cards 34).
+                    if host.pictureKind == "logo", let url = host.picture.flatMap(URL.init) {
+                        HostMarkDisc(picture: PlacePicture(url: url, kind: .logo), name: host.name, size: EventHostRow.picture,
+                                     ringColor: .white)
+                            .accessibilityHidden(true)
+                    } else {
+                        FollowPicture(row: host, size: EventHostRow.picture,
+                                      corner: host.targetType == .profile ? nil : EventHostRow.pictureCorner)
+                    }
+                }
+                .trackFrame(picture)
                 VStack(alignment: .leading, spacing: 2) {
                     // Two lines at 17 pt, so a long name ("Saint Benedict's Monastery")
                     // isn't cut beside Follow (picked).

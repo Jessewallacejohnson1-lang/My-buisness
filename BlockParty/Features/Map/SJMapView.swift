@@ -86,7 +86,8 @@ struct SJMapView: View {
     var body: some View {
         NavigationStack(path: $path) {
             ZStack(alignment: .top) {
-                MapReader { proxy in mapLayer(proxy) }
+                // Mapbox's map a moment after the screen comes on, on the map's own ground till then (tab-lag 02).
+                MadeAfterOpen(ground: Hue.mapLand) { MapReader { proxy in mapLayer(proxy) } }
                 chrome
                 if let bubble = selected {
                     MapEventCard(events: bubble.events, page: $focus.page,

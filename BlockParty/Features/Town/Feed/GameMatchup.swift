@@ -278,18 +278,31 @@ struct GameMatchup: View {
         return [home, charcoal]
     }
 
-    /// The split Town card's two colors, home first (BP app game-card 33): each team's own, a light one taken
+    /// The split Town card's two colors, home first (BP app game-card 33): each team's own, a bright one taken
     /// down to `splitDepth` so the white line and the white names show on it. Two close ones keep their own,
     /// the away side `awayShade` as bright (Jesse picked it over the page's swap, 2026-11-18). None known is nil.
     static func splitColors(_ teams: [Game.Team]) -> [UInt32?] {
-        let own = teams.map { vivid($0).map { hls($0).1 > splitLightest ? tone($0, lightness: splitDepth) : $0 } }
+        let own = teams.map { vivid($0).map(splitTone) }
         guard own.count == 2, let home = own[0], let away = own[1], close(home, away) else { return own }
         return [home, scaled(away, by: awayShade)]
     }
 
-    /// Lighter than this (Cathedral's yellow, 0.78) and the white line is lost on a side; it goes to `splitDepth`.
+    /// A light side goes to `splitDepth`, as before; a bright side the lightness test misses (a gold at middle
+    /// lightness, Gustavus's #F6C904) goes to the deeper `splitGoldDepth` (BP app game-card 36). Jesse kept
+    /// the light sides at their old, brighter depth (2026-11-21).
+    static func splitTone(_ rgb: UInt32) -> UInt32 {
+        if hls(rgb).1 > splitLightest { return tone(rgb, lightness: splitDepth) }
+        return EventLook.luminance(rgb) > splitBrightest ? tone(rgb, lightness: splitGoldDepth) : rgb
+    }
+
+    /// Lighter than this (Cathedral's yellow, 0.78) and the white line is lost on a side.
     static let splitLightest = 0.6
     static let splitDepth = 0.45
+    /// Brighter than this (relative luminance) and the white line is lost too. It sits above Delano's orange
+    /// (0.373), which keeps its own: of the teams on 2026-11-21 only yellows and golds join.
+    static let splitBrightest = 0.38
+    /// Gustavus's gold at this lightness is old gold, #BF9C03 (Jesse, 2026-11-20).
+    static let splitGoldDepth = 0.38
     /// The away side of two close colors, each channel at this share: the mock's 58% mix with black.
     static let awayShade = 0.58
 
