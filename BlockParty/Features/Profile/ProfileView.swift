@@ -126,39 +126,42 @@ struct ProfileView: View {
     /// Today's rows, pushed from the gear under Liked's top (`LikedPage`), on the shell's stack.
     private var settingsPage: some View {
         ScrollViewReader { proxy in
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 22) {
-                    if model.isAdmin { organizerBadge.springReveal(0, revealed: revealed) }
-                    rows.springReveal(1, revealed: revealed)
-                    // Hidden when there is no session to end. The quiet anonymous account every
-                    // install gets counts as not signed in: signing out would only throw away
-                    // its Going.
-                    if AuthStore.shared.hasAccount {
-                        VStack(spacing: 2) {
-                            signOutButton
-                            deleteAccountButton
-                            if model.deleteFailed {
-                                Text(ProfileModel.deleteFailedLine)
-                                    .font(.sans(13))
-                                    .foregroundStyle(Hue.inkSecondary)
-                                    .multilineTextAlignment(.center)
-                                    .padding(.horizontal, 6)
+            // The rows a moment after the push starts: making them first held the tap 87 ms (tab-lag 02).
+            MadeAfterOpen {
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 22) {
+                        if model.isAdmin { organizerBadge.springReveal(0, revealed: revealed) }
+                        rows.springReveal(1, revealed: revealed)
+                        // Hidden when there is no session to end. The quiet anonymous account every
+                        // install gets counts as not signed in: signing out would only throw away
+                        // its Going.
+                        if AuthStore.shared.hasAccount {
+                            VStack(spacing: 2) {
+                                signOutButton
+                                deleteAccountButton
+                                if model.deleteFailed {
+                                    Text(ProfileModel.deleteFailedLine)
+                                        .font(.sans(13))
+                                        .foregroundStyle(Hue.inkSecondary)
+                                        .multilineTextAlignment(.center)
+                                        .padding(.horizontal, 6)
+                                }
                             }
+                            .springReveal(2, revealed: revealed)
+                            .id("bottom")
                         }
-                        .springReveal(2, revealed: revealed)
-                        .id("bottom")
+                        // Pushed over the tab bar, so it only needs breathing room.
+                        Color.clear.frame(height: 40)
                     }
-                    // Pushed over the tab bar, so it only needs breathing room.
-                    Color.clear.frame(height: 40)
+                    .padding(.horizontal, 18)
+                    .padding(.top, 12)
                 }
-                .padding(.horizontal, 18)
-                .padding(.top, 12)
+                .onAppear {
+                    revealed = true
+                    debugScrollBottom(proxy)
+                }
             }
             .safeAreaInset(edge: .top, spacing: 0) { PageBar(title: "Settings") { settings = false } }
-            .onAppear {
-                revealed = true
-                debugScrollBottom(proxy)
-            }
         }
         // While a delete runs nothing here takes a tap, so its answer can't go unseen.
         .disabled(model.deletingAccount)
