@@ -278,18 +278,23 @@ struct GameMatchup: View {
         return [home, charcoal]
     }
 
-    /// The split Town card's two colors, home first (BP app game-card 33): each team's own, a light one taken
+    /// The split Town card's two colors, home first (BP app game-card 33): each team's own, a bright one taken
     /// down to `splitDepth` so the white line and the white names show on it. Two close ones keep their own,
     /// the away side `awayShade` as bright (Jesse picked it over the page's swap, 2026-11-18). None known is nil.
     static func splitColors(_ teams: [Game.Team]) -> [UInt32?] {
-        let own = teams.map { vivid($0).map { hls($0).1 > splitLightest ? tone($0, lightness: splitDepth) : $0 } }
+        let own = teams.map { vivid($0).map { luminance($0) > splitBrightest ? tone($0, lightness: splitDepth) : $0 } }
         guard own.count == 2, let home = own[0], let away = own[1], close(home, away) else { return own }
         return [home, scaled(away, by: awayShade)]
     }
 
-    /// Lighter than this (Cathedral's yellow, 0.78) and the white line is lost on a side; it goes to `splitDepth`.
-    static let splitLightest = 0.6
-    static let splitDepth = 0.45
+    /// Brighter than this (relative luminance) and the white line is lost on a side; it goes to `splitDepth`
+    /// (BP app game-card 36). Brightness, not lightness, so a bright gold at middle lightness (Gustavus's
+    /// #F6C904) counts. It sits between the dimmest side the lightness test already took down (Zimmerman's
+    /// light blue, 0.385) and the brightest orange it left alone (Delano's, 0.373), so only yellows and
+    /// golds join.
+    static let splitBrightest = 0.38
+    /// Gustavus's gold at this lightness is old gold, #BF9C03 (Jesse, 2026-11-20).
+    static let splitDepth = 0.38
     /// The away side of two close colors, each channel at this share: the mock's 58% mix with black.
     static let awayShade = 0.58
 
@@ -345,6 +350,15 @@ struct GameMatchup: View {
             return UInt32((v * 255).rounded())
         }
         return channel(hue + 1 / 3) << 16 | channel(hue) << 8 | channel(hue - 1 / 3)
+    }
+
+    /// Relative luminance (WCAG): how bright the color looks, 0 to 1.
+    static func luminance(_ rgb: UInt32) -> Double {
+        let linear = [16, 8, 0].map { shift -> Double in
+            let v = Double(rgb >> UInt32(shift) & 0xFF) / 255
+            return v <= 0.04045 ? v / 12.92 : pow((v + 0.055) / 1.055, 2.4)
+        }
+        return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
     }
 
     /// Hue (0 to 1), lightness and saturation.
