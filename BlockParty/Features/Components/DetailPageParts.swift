@@ -85,6 +85,140 @@ struct PhotoPager: View {
     }
 }
 
+/// A cover's photos whole, on black, from a tap on the cover (a business page's, a Profile's), as
+/// Facebook opens a cover: they swipe one to the next, and X or a drag down closes it (Apple's zoom).
+struct CoverPhotoViewer: View {
+    let photos: [PlacePicture]
+    @Binding var page: Int?
+    /// A photo's shape when its size isn't known: the cover's, so it opens as the cover cropped it.
+    let fallbackAspect: CGFloat
+    /// With no photos: a bundled one (a Profile's town photo, until they pick a cover).
+    var image: UIImage? = nil
+    @Environment(\.dismiss) private var dismiss
+    /// How far a drag down has carried the photo; past `closeAt` (or flicked) it closes.
+    @State private var drop: CGFloat = 0
+    static let closeAt: CGFloat = 100
+    static let closeFlick: CGFloat = 800
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            Color.black.opacity(1 - min(drop / 400, 0.6)).ignoresSafeArea()
+            GeometryReader { proxy in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHStack(spacing: 0) {
+                        ForEach(Array(photos.enumerated()), id: \.offset) { index, photo in
+                            // The cover's bitmap, already decoded, stands in until the whole one lands, so
+                            // the zoom never opens on black (`ProfilePhotoView`), and gives its shape.
+                            let held = FeedCardImageLoader.shared.largest(for: photo.url)
+                            let heldAspect = held.map { CGFloat($0.width) / CGFloat(max($0.height, 1)) }
+                            let fit = Self.fit(aspect: Self.aspect(photo) ?? heldAspect ?? fallbackAspect, in: proxy.size)
+                            ZStack {
+                                if let held { Image(decorative: held, scale: 1).resizable() }
+                                FeedCardURLPhoto(url: photo.url, loadingFill: .clear)
+                            }
+                                .frame(width: fit.width, height: fit.height)
+                                .frame(width: proxy.size.width, height: proxy.size.height)
+                                .id(index)
+                        }
+                    }
+                    .scrollTargetLayout()
+                }
+                .scrollTargetBehavior(.paging)
+                .scrollPosition(id: $page)
+                .scrollDisabled(photos.count < 2)
+                if photos.isEmpty, let image {
+                    Image(uiImage: image).resizable().scaledToFit()
+                        .frame(width: proxy.size.width, height: proxy.size.height)
+                }
+            }
+            .offset(y: drop)
+            .scaleEffect(1 - min(drop / 2000, 0.15))
+            // The zoom's own drag down never began on the simulator (AXe swipes and touches, 2026-11-20),
+            // so the photo follows the finger here and the zoom's is off.
+            .gesture(DownPan(changed: { drop = $0 }, ended: { speed in
+                if drop > Self.closeAt || speed > Self.closeFlick {
+                    dismiss()
+                } else {
+                    withAnimation(Motion.smooth) { drop = 0 }
+                }
+            }))
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Photos")
+            .accessibilityValue(EventPage.counterText(page: page ?? 0, count: photos.count) ?? "")
+            .accessibilityAdjustableAction { direction in
+                let next = (page ?? 0) + (direction == .increment ? 1 : -1)
+                guard photos.indices.contains(next) else { return }
+                withAnimation(Motion.smooth) { page = next }
+            }
+            Button { dismiss() } label: {
+                Image(systemName: "xmark")
+                    .font(.glyph(17, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: PageMetric.tapMin, height: PageMetric.tapMin)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.press(.squish))
+            .accessibilityLabel("Close")
+            .padding(.trailing, EventPage.Metric.inset - (PageMetric.tapMin - EventPage.Metric.button) / 2)
+            .opacity(drop > 0 ? 0 : 1)
+            .animation(Motion.smooth, value: drop > 0)
+        }
+        .interactiveDismissDisabled()
+        // The page shows through as the black fades under a drag down.
+        .presentationBackground(.clear)
+    }
+
+    /// A finger moving down, more down than across; the photos' pager waits for it to say no, which it
+    /// does at once for a sideways one (`ChatTimesPan`).
+    private struct DownPan: UIGestureRecognizerRepresentable {
+        let changed: (CGFloat) -> Void
+        /// With the finger's speed down, in points a second.
+        let ended: (CGFloat) -> Void
+
+        func makeCoordinator(converter: CoordinateSpaceConverter) -> Coordinator { Coordinator() }
+
+        func makeUIGestureRecognizer(context: Context) -> UIPanGestureRecognizer {
+            let pan = UIPanGestureRecognizer()
+            pan.maximumNumberOfTouches = 1
+            pan.delegate = context.coordinator
+            return pan
+        }
+
+        func handleUIGestureRecognizerAction(_ pan: UIPanGestureRecognizer, context: Context) {
+            switch pan.state {
+            case .began, .changed: changed(max(0, pan.translation(in: nil).y))
+            case .ended, .cancelled: ended(pan.velocity(in: nil).y)
+            default: break
+            }
+        }
+
+        final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+            func gestureRecognizerShouldBegin(_ recognizer: UIGestureRecognizer) -> Bool {
+                guard let pan = recognizer as? UIPanGestureRecognizer else { return false }
+                let speed = pan.velocity(in: nil)
+                return speed.y > 0 && speed.y > abs(speed.x)
+            }
+
+            func gestureRecognizer(_ recognizer: UIGestureRecognizer, shouldBeRequiredToFailBy other: UIGestureRecognizer) -> Bool {
+                other.view is UIScrollView
+            }
+        }
+    }
+
+    private static func aspect(_ photo: PlacePicture) -> CGFloat? {
+        guard let w = photo.width, let h = photo.height, w > 0, h > 0 else { return nil }
+        return CGFloat(w) / CGFloat(h)
+    }
+
+    /// The largest box of `aspect` (width over height) inside `room`.
+    static func fit(aspect: CGFloat, in room: CGSize) -> CGSize {
+        guard aspect > 0, room.width > 0, room.height > 0 else { return room }
+        return room.width / room.height > aspect
+            ? CGSize(width: room.height * aspect, height: room.height)
+            : CGSize(width: room.width, height: room.width / aspect)
+    }
+}
+
 /// "2/3" in the photo's bottom right corner. The pager says it to VoiceOver, with the credit.
 struct PhotoCounter: View {
     let text: String

@@ -29,6 +29,8 @@ struct GroupPage: View {
     @State private var shownPhotos: Set<URL> = []
     /// Photos that could not be loaded leave the pager, so a failure never holds a skeleton.
     @State private var failedPhotos: Set<URL> = []
+    /// The Events found for the group (`get_group_events`), laid among its meetings once read.
+    @State private var events: [FeedCardItem] = []
 
     /// The Figma frame's sizes, on a 420 pt phone. The round buttons, the sheet's corner, its
     /// side inset and the title's rhythm are the Event page's (`EventPage.Metric`).
@@ -230,12 +232,23 @@ struct GroupPage: View {
                     .padding(.top, Metric.sectionBodyTop)
             }
 
-            let meetings = Self.upcoming(group.meetings)
-            if !meetings.isEmpty {
+            let rows = Self.comingUp(Self.upcoming(group.meetings), events: events)
+            if !rows.isEmpty {
                 section("Coming up")
-                ForEach(Array(meetings.enumerated()), id: \.offset) { _, meeting in
-                    meetingRow(meeting)
-                        .padding(.top, Metric.rowTop)
+                // Kept by what each row is, so an Event that arrives fades in where its meeting was.
+                ForEach(rows) { row in
+                    Group {
+                        if let event = row.event {
+                            // A found Event opens its page, as a Town card does.
+                            NavigationLink(value: event) {
+                                meetingRow(row.meeting).frame(maxWidth: .infinity, alignment: .leading).contentShape(.rect)
+                            }
+                            .buttonStyle(.press(.row))
+                        } else {
+                            meetingRow(row.meeting)
+                        }
+                    }
+                    .padding(.top, Metric.rowTop)
                 }
             }
 
@@ -249,6 +262,11 @@ struct GroupPage: View {
         .padding(.bottom, Event.contentBottom)
         .frame(maxWidth: .infinity, alignment: .leading)
         .animation(reduceMotion ? .easeInOut(duration: 0.15) : Motion.smooth, value: actions.member(group).count)
+        .animation(reduceMotion ? .easeInOut(duration: 0.15) : Motion.smooth, value: events)
+        .task(id: group.id) {
+            // A failed or cut-off read keeps the Events already shown.
+            if let read = try? await CommunityAPI(auth: AuthStore.shared).groupEvents(group.id) { events = read }
+        }
         .background(Hue.paper, in: UnevenRoundedRectangle(topLeadingRadius: Event.sheetCorner,
                                                          topTrailingRadius: Event.sheetCorner, style: .continuous))
         .padding(.top, hasHero ? 0 : Event.buttonTop + Event.button + Event.noPhotoGap)
@@ -391,6 +409,29 @@ struct GroupPage: View {
     static func upcoming(_ meetings: [TownGroup.Meeting], today: Date = Date()) -> [TownGroup.Meeting] {
         let day = Town.day(today)
         return meetings.filter { $0.day >= day }
+    }
+
+    /// One Coming up row: a meeting, or a found Event in a meeting's words, which opens its page.
+    struct ComingUp: Hashable, Identifiable {
+        let meeting: TownGroup.Meeting
+        var event: FeedCardItem? = nil
+        var id: String { event?.id ?? "\(meeting.day) \(meeting.time ?? "") \(meeting.what)" }
+    }
+
+    /// The meetings and the found Events, soonest first, one row a day: an Event takes its day's meeting's
+    /// place, as it is that get-together with a page of its own (rsvp-and-groups 10).
+    static func comingUp(_ meetings: [TownGroup.Meeting], events: [FeedCardItem]) -> [ComingUp] {
+        let found = events.compactMap { event in
+            event.eventDate.map { ComingUp(meeting: .init(what: event.title, day: $0, time: event.startTime), event: event) }
+        }
+        let days = Set(found.map(\.meeting.day))
+        let rows = meetings.filter { !days.contains($0.day) }.map { ComingUp(meeting: $0) } + found
+        return rows.enumerated().sorted { a, b in
+            let x = a.element.meeting, y = b.element.meeting
+            if x.day != y.day { return x.day < y.day }
+            let (p, q) = (EventWhen.minutes(x.time) ?? -1, EventWhen.minutes(y.time) ?? -1)
+            return p != q ? p < q : a.offset < b.offset
+        }.map(\.element)
     }
 
     /// Never "0 members".
