@@ -630,6 +630,13 @@ place_type: School / college
 added_by: agent:claude
 clubs_page: https://apollo.isd742.org/activities/activities-offered-at-apollo
 sources:
+  - url: https://apollo.isd742.org/calendar
+    kind: website
+    method: fetch
+    trust: official
+    reader: finalsite-calendar
+    own_calendar: Apollo Calendar
+    own_calendar_only: true
   - url: https://www.gobound.com/mn/schools/stcloudapollo/calendar/ical
     kind: ical
     method: fetch
@@ -645,7 +652,7 @@ at: [45.57013, -94.21069]
 venue_at:
   "apollo high school": [45.57013, -94.21069]
 ```
-Notes: St. Cloud, 5.2 miles from St. Joseph. "St. Cloud Apollo" is how the league names the team. 2026-10-25: its Bound activities calendar is read for plays, concerts and clubs (reader `gobound`; BP app school-activities ticket 05; Jesse: "yes to both", "I agree with your plan").
+Notes: Page added 2026-11-21: Jesse ticked it on the nothing-scheduled walk's list (ADR-022, BP app nothing-scheduled 04); it found the Choir (Nov 23) and Orchestra (Dec 9) concerts Bound doesn't give. Only the Apollo Calendar is read: Tech's entry already reads the District Calendar (no-school days, board meetings). St. Cloud, 5.2 miles from St. Joseph. "St. Cloud Apollo" is how the league names the team. 2026-10-25: its Bound activities calendar is read for plays, concerts and clubs (reader `gobound`; BP app school-activities ticket 05; Jesse: "yes to both", "I agree with your plan").
 
 ## Tech High School
 ```yaml
@@ -8706,7 +8713,7 @@ Notes: Proposed on 2026-10-05 from overture. Verified 2026-10-04: Google Maps li
 ```yaml
 id: st-joseph-lions-club
 status: active
-tier: listed
+tier: watched
 category: "social_or_community_service"
 place_type: "Community group"
 added_by: agent:nothing-scheduled
@@ -8715,8 +8722,12 @@ sources:
     kind: facebook
     method: search_snippet
     trust: official
+  - url: https://e-clubhouse.org/sites/stjosephmn/calendar.php
+    kind: website
+    method: fetch
+    trust: official
 ```
-Notes: Added 2026-11-16 (BP app nothing-scheduled 08). The Lions Club's only current page is its Facebook page; its e-clubhouse.org site is out of date. No address: it is a Group, not a Place, and meets at the Lions Building in Millstream Park. The Group's `clubs.own_entry_id` is this entry, so an Event the social watch reads from this page names the Lions Club on its card. Tier `listed`: the morning watch reads nothing here; the social watch reads the page once Jesse ticks it.
+Notes: Watched since 2026-11-21: Jesse ticked its e-clubhouse.org calendar on the nothing-scheduled walk's list (ADR-022, BP app nothing-scheduled 04); the calendar is current again (Holiday Extravaganza board meeting, Dec 1, 2026). Added 2026-11-16 (BP app nothing-scheduled 08). No address: it is a Group, not a Place, and meets at the Lions Building in Millstream Park. The Group's `clubs.own_entry_id` is this entry, so an Event the social watch reads from this page names the Lions Club on its card. The Facebook page is not watched: the 2026-11-21 read found no post with a date and a time.
 
 ## Tour of Saints (run by Bicycle Alliance of Minnesota)
 ```yaml

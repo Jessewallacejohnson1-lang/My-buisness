@@ -100,6 +100,26 @@ final class SearchModelTests: XCTestCase {
         XCTAssertEqual(FollowSuggestions.interests(ofKind: "cidery"), ["bars"])
     }
 
+    /// A place's row says the word it uses for itself (`places.category`, search-helpful 09); with none, Google's
+    /// type in a neighbour's words, and nothing for a catch-all. The type's word still finds a place with its own.
+    func testAPlacesOwnWord() throws {
+        let json = """
+        [{"id": "a", "place_id": "stjoe-mission", "name": "Mission Nutrition", "lat": 45.5, "lon": -94.3,
+          "family": "business", "primary_type": "personal_or_beauty_service", "types": [], "address": null,
+          "logo_url": null, "category": "Nutrition club"},
+         {"id": "b", "place_id": "stjoe-impressions", "name": "Impressions Hair Studio", "lat": 45.5, "lon": -94.3,
+          "family": "business", "primary_type": "personal_or_beauty_service", "types": [], "address": null,
+          "logo_url": null, "category": null},
+         {"id": "c", "place_id": "stjoe-woodcrest", "name": "Woodcrest of Country Manor", "lat": 45.5, "lon": -94.3,
+          "family": "business", "primary_type": "point_of_interest", "types": [], "address": null, "logo_url": null}]
+        """
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let items = SearchModel.places(from: try decoder.decode([POI].self, from: Data(json.utf8)))
+        XCTAssertEqual(items.map(\.sub), ["Nutrition club", "Beauty & wellness", nil])
+        XCTAssertTrue(items[0].alsoFinds.contains("Beauty & wellness"), "today's word still finds it")
+    }
+
     /// Restaurants and coffee shops open their page as a business does, with a logo or, until one is
     /// made, their letter disc (Jesse, 2026-11-08).
     func testWhatOpens() {
