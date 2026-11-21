@@ -150,7 +150,9 @@ as $$
     select 'America/Chicago'::text as zone,
            (p_now at time zone 'America/Chicago')::date as today,
            -- Downtown St. Joseph: everyone counts as St. Joseph until a second town opens (town-feed 41).
-           45.5641::float8 as lat, -94.3183::float8 as lng
+           45.5641::float8 as lat, -94.3183::float8 as lng,
+           -- The town's own teams, whose games a Sports pick follows (BP app onboarding 48). A new town needs its own.
+           array['saint-benedict', 'saint-johns', 'kennedy', 'st-johns-prep']::text[] as own_teams
   ),
   -- p_only (feed-load): only these Events and every other Event of their hosts, each host as the spacing
   -- rule keys it (`pool` below: the campus as one, else who puts it on). An Event's points and its
@@ -600,8 +602,10 @@ as $$
            -- For the caller's gender (town-feed 52): up to an interest's points, and never a reason on the card.
            (w->>'interest')::float8 * c.gender_lean as gender_pts,
            -- Something you follow (school-activities 03, town-feed 37), or a host you've been into (ticket 30),
-           -- never routine business (draw 1).
+           -- never routine business (draw 1). A Sports pick follows the town's own teams' games (BP app onboarding
+           -- 48, Jesse 2026-11-19: "yes add fix"); their followers-only games stay followers only.
            case when c.followed is not null or (c.tapped_n > 0 and coalesce(c.draw, 2) <> 1)
+                     or ('watch_sports' = any(c.matched) and c.team_ids && (select t.own_teams from town t))
                 then (w->>'follow')::float8 else 0 end as follow_pts,
            case when c.is_new then (w->>'new')::float8 else 0 end as new_pts,
            -- How much it draws a town out, the tagger's 1-3 (ticket 34): everyone's starting point,
@@ -666,10 +670,10 @@ as $$
                        and c.part_end - c.part_start < make_interval(hours => (select (w->>'liveHours')::int from weights)),
                        false) as soon_ok,
            -- The reason: something you follow says so first (school-activities 03), then a friend
-           -- Going, a host you've been into, New, an interest.
+           -- Going, a host you've been into, New, an interest. A Sports pick's own-team game says its interest.
            case when c.followed is not null then 'follow'
                 when c.friends_n > 0 then 'friend'
-                when c.follow_pts > 0 then 'tapped'
+                when c.tapped_n > 0 and coalesce(c.draw, 2) <> 1 then 'tapped'
                 when c.is_new then 'new'
                 when c.interest_pts > 0 then 'interest' end as lift
     from scored c
