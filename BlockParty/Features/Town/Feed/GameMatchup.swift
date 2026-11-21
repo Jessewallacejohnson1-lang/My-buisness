@@ -282,19 +282,27 @@ struct GameMatchup: View {
     /// down to `splitDepth` so the white line and the white names show on it. Two close ones keep their own,
     /// the away side `awayShade` as bright (Jesse picked it over the page's swap, 2026-11-18). None known is nil.
     static func splitColors(_ teams: [Game.Team]) -> [UInt32?] {
-        let own = teams.map { vivid($0).map { EventLook.luminance($0) > splitBrightest ? tone($0, lightness: splitDepth) : $0 } }
+        let own = teams.map { vivid($0).map(splitTone) }
         guard own.count == 2, let home = own[0], let away = own[1], close(home, away) else { return own }
         return [home, scaled(away, by: awayShade)]
     }
 
-    /// Brighter than this (relative luminance) and the white line is lost on a side; it goes to `splitDepth`
-    /// (BP app game-card 36). Brightness, not lightness, so a bright gold at middle lightness (Gustavus's
-    /// #F6C904) counts. It sits between the dimmest side the lightness test already took down (Zimmerman's
-    /// light blue, 0.385) and Delano's orange (0.373), which it leaves alone: of the teams on 2026-11-21 only
-    /// yellows and golds join, though a brighter orange, lime or cyan would too.
+    /// A light side goes to `splitDepth`, as before; a bright side the lightness test misses (a gold at middle
+    /// lightness, Gustavus's #F6C904) goes to the deeper `splitGoldDepth` (BP app game-card 36). Jesse kept
+    /// the light sides at their old, brighter depth (2026-11-21).
+    static func splitTone(_ rgb: UInt32) -> UInt32 {
+        if hls(rgb).1 > splitLightest { return tone(rgb, lightness: splitDepth) }
+        return EventLook.luminance(rgb) > splitBrightest ? tone(rgb, lightness: splitGoldDepth) : rgb
+    }
+
+    /// Lighter than this (Cathedral's yellow, 0.78) and the white line is lost on a side.
+    static let splitLightest = 0.6
+    static let splitDepth = 0.45
+    /// Brighter than this (relative luminance) and the white line is lost too. It sits above Delano's orange
+    /// (0.373), which keeps its own: of the teams on 2026-11-21 only yellows and golds join.
     static let splitBrightest = 0.38
     /// Gustavus's gold at this lightness is old gold, #BF9C03 (Jesse, 2026-11-20).
-    static let splitDepth = 0.38
+    static let splitGoldDepth = 0.38
     /// The away side of two close colors, each channel at this share: the mock's 58% mix with black.
     static let awayShade = 0.58
 
