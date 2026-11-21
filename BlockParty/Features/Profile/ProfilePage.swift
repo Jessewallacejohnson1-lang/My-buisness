@@ -165,6 +165,8 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Namespace private var zoom
     @State private var showingPhoto = false
+    /// A tap on the cover opens it whole: theirs, or the town photo standing in for it.
+    @State private var showingCover = false
 
     private typealias Event = EventPage.Metric
     private typealias Sizes = GroupPage.Metric
@@ -194,6 +196,11 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
             ProfilePhotoView(url: face.avatarUrl.flatMap(URL.init(string:)), name: face.name)
                 .navigationTransition(.zoom(sourceID: "photo", in: zoom))
         }
+        .fullScreenCover(isPresented: $showingCover) {
+            CoverPhotoViewer(photos: coverURL.map { [PlacePicture(url: $0, kind: .photo)] } ?? [], page: .constant(0),
+                             fallbackAspect: Sizes.heroAspect, image: ProfileFace.town)
+                .navigationTransition(.zoom(sourceID: "cover", in: zoom))
+        }
     }
 
     // MARK: The cover
@@ -205,7 +212,7 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
             .overlay(alignment: .top) {
                 GeometryReader { proxy in
                     Group {
-                        if let url = face.coverUrl.flatMap(URL.init(string:)) {
+                        if let url = coverURL {
                             FeedCardURLPhoto(url: url, loadingFill: Hue.fill)
                         } else if face.coverKnown, let town = ProfileFace.town {
                             Image(uiImage: town).resizable().scaledToFill()
@@ -221,8 +228,24 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
                 let pull = max(0, proxy.frame(in: .scrollView(axis: .vertical)).minY)
                 return content.scaleEffect(1 + pull / max(proxy.size.height, 1), anchor: .bottom)
             }
-            .accessibilityHidden(true)
+            .matchedTransitionSource(id: "cover", in: zoom)
+            // Alongside the page's scroll, never instead of it.
+            .contentShape(Rectangle())
+            .simultaneousGesture(TapGesture().onEnded {
+                guard opensCover else { return }
+                Haptics.light()
+                showingCover = true
+            })
+            .accessibilityElement()
+            .accessibilityLabel("Cover photo")
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction { showingCover = true }
+            .accessibilityHidden(!opensCover)
     }
+
+    private var coverURL: URL? { face.coverUrl.flatMap(URL.init(string:)) }
+    /// The plain fill while their cover is unknown has nothing to open.
+    private var opensCover: Bool { coverURL != nil || (face.coverKnown && ProfileFace.town != nil) }
 
     // MARK: The sheet
 

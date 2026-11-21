@@ -324,8 +324,6 @@ private struct BusinessPageBody: View {
                     }
                 }
 
-                CloseBand(opener: opener, page: page, height: insets.top + SearchMetric.bizBand)
-
                 FlyingLogo(item: item, source: source, from: source.logo.offsetBy(dx: -origin.x, dy: -origin.y),
                            width: full.width, top: insets.top, progress: opener.progress, page: page)
 
@@ -335,6 +333,7 @@ private struct BusinessPageBody: View {
             .frame(width: full.width, height: full.height, alignment: .topLeading)
             .offset(x: -insets.leading, y: -insets.top)
             .accessibilityElement(children: .contain)
+            .gesture(CoverClosePan(opener: opener, page: page, band: insets.top + SearchMetric.bizBand))
         }
         .ignoresSafeArea(.keyboard)
         .allowsHitTesting(opener.isOpen)
@@ -363,6 +362,12 @@ private struct BusinessPageContent: View {
     @State private var shown: Set<URL> = []
     /// Photos that could not be loaded leave the pager, so a failure never holds a skeleton.
     @State private var failed: Set<URL> = []
+    /// A tap on the cover opens its photos whole.
+    @State private var showingPhotos = false
+    /// The photo open whole: it starts on the cover's, and the cover stays where it was (a pager moved
+    /// while covered showed one photo under the other's counter).
+    @State private var viewerPage: Int? = 0
+    @Namespace private var zoom
 
     private typealias Metric = EventPage.Metric
 
@@ -389,6 +394,11 @@ private struct BusinessPageContent: View {
         .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y + $0.contentInsets.top } action: { _, y in
             page.scrollY = y
         }
+        .fullScreenCover(isPresented: $showingPhotos) {
+            CoverPhotoViewer(photos: photos, page: $viewerPage,
+                             fallbackAspect: size.width / BusinessPage.edge(width: size.width, top: top, cover: true))
+                .navigationTransition(.zoom(sourceID: "cover", in: zoom))
+        }
         .onChange(of: photos.isEmpty) { _, none in page.hasPhotos = !none }
         .onChange(of: photoPage) { _, index in
             if let index, photos.indices.contains(index) { page.photo = photos[index].url }
@@ -409,6 +419,11 @@ private struct BusinessPageContent: View {
                         }
                         .frame(width: proxy.size.width, height: proxy.size.height + Metric.heroUnderlap)
                         .modifier(Landed(flight: flight, from: 1))
+                        // Alongside the pager's swipe and the page's scroll, never instead of them.
+                        .contentShape(Rectangle())
+                        .simultaneousGesture(TapGesture().onEnded { openPhotos() })
+                        .matchedTransitionSource(id: "cover", in: zoom)
+                        .accessibilityAction(named: "Open photos") { openPhotos() }
                     }
                 }
             }
@@ -426,10 +441,20 @@ private struct BusinessPageContent: View {
                         .opacity(PlaceNameArt.seeThrough)
                         .padding(.bottom, PlaceNameArt.bottom)
                         .modifier(Landed(flight: flight, from: Self.lettersFrom))
+                        // A tap through it opens the photo under it.
+                        .allowsHitTesting(false)
                 }
             }
             .overlay(alignment: .bottomLeading) { credit.modifier(Landed(flight: flight, from: Self.lettersFrom)) }
-            .overlay(alignment: .bottomTrailing) { counter.modifier(Landed(flight: flight, from: Self.lettersFrom)) }
+            .overlay(alignment: .bottomTrailing) {
+                counter.modifier(Landed(flight: flight, from: Self.lettersFrom)).allowsHitTesting(false)
+            }
+    }
+
+    private func openPhotos() {
+        Haptics.light()
+        viewerPage = photoPage
+        showingPhotos = true
     }
 
     /// Opened from a photo, the name, credit and counter fade in over its last 45% (the mock's).
@@ -797,44 +822,67 @@ private struct Rising<Content: View>: View {
     }
 }
 
-/// The band under the clock and Back: a drag down on it sends the page home, following the
-/// finger. Only while the page is at its top (scrolled, its words are under the band and scroll
-/// instead), and only for a drag that sets off up or down.
-private struct CloseBand: View {
+/// A drag down that starts in the band under the clock and Back sends the page home, following the
+/// finger, only while the page is at its top. UIKit's pan, not a SwiftUI drag over the band: that took
+/// every touch there, so the cover under it never scrolled the page, swiped its photos or opened on a
+/// tap. This one begins only for a finger moving down, more down than across; the page's scroll and the
+/// photos' pager wait for it to say no, which it does at once for any other finger (`ChatTimesPan`).
+private struct CoverClosePan: UIGestureRecognizerRepresentable {
     let opener: BusinessOpener
     let page: PageState
-    let height: CGFloat
-    @State private var dragFrom: CGFloat?
-    @State private var sideways = false
+    /// How far down the screen the band reaches.
+    let band: CGFloat
 
-    var body: some View {
-        Color.clear
-            .frame(height: height)
-            .frame(maxWidth: .infinity)
-            .contentShape(Rectangle())
-            .gesture(drag)
-            .allowsHitTesting(page.scrollY <= 1)
+    func makeCoordinator(converter: CoordinateSpaceConverter) -> Coordinator { Coordinator() }
+
+    func makeUIGestureRecognizer(context: Context) -> UIPanGestureRecognizer {
+        let pan = UIPanGestureRecognizer()
+        pan.maximumNumberOfTouches = 1
+        pan.delegate = context.coordinator
+        return pan
     }
 
-    private var drag: some Gesture {
-        DragGesture(minimumDistance: SearchMetric.bizDragStart, coordinateSpace: .global)
-            .onChanged { value in
-                if dragFrom == nil, abs(value.translation.width) > abs(value.translation.height) { sideways = true }
-                guard !sideways else { return }
-                let from = dragFrom ?? opener.progress.value
-                dragFrom = from
-                opener.progress.set(min(max(from - value.translation.height / SearchMetric.bizDrag, 0), SearchMetric.bizOverDrag))
+    func updateUIGestureRecognizer(_ pan: UIPanGestureRecognizer, context: Context) {
+        context.coordinator.band = band
+        context.coordinator.page = page
+    }
+
+    func handleUIGestureRecognizerAction(_ pan: UIPanGestureRecognizer, context: Context) {
+        let c = context.coordinator
+        switch pan.state {
+        case .began, .changed:
+            let from = c.from ?? opener.progress.value
+            c.from = from
+            let drop = pan.translation(in: nil).y
+            opener.progress.set(min(max(from - drop / SearchMetric.bizDrag, 0), SearchMetric.bizOverDrag))
+        case .ended, .cancelled:
+            c.from = nil
+            let down = pan.velocity(in: nil).y
+            let speed = -down / SearchMetric.bizDrag
+            if down > SearchMetric.bizFlick || opener.progress.value < SearchMetric.bizKeepOpen {
+                opener.close(velocity: speed)
+            } else {
+                opener.settleOpen(velocity: speed)
             }
-            .onEnded { value in
-                defer { dragFrom = nil; sideways = false }
-                guard dragFrom != nil else { return }
-                let speed = -value.velocity.height / SearchMetric.bizDrag
-                if value.velocity.height > SearchMetric.bizFlick || opener.progress.value < SearchMetric.bizKeepOpen {
-                    opener.close(velocity: speed)
-                } else {
-                    opener.settleOpen(velocity: speed)
-                }
-            }
+        default: c.from = nil
+        }
+    }
+
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        var band: CGFloat = 0
+        var page: PageState?
+        var from: CGFloat?
+
+        func gestureRecognizerShouldBegin(_ recognizer: UIGestureRecognizer) -> Bool {
+            guard let pan = recognizer as? UIPanGestureRecognizer, let page, page.scrollY <= 1 else { return false }
+            let start = pan.location(in: nil).y - pan.translation(in: nil).y
+            let speed = pan.velocity(in: nil)
+            return start < band && speed.y > 0 && speed.y > abs(speed.x)
+        }
+
+        func gestureRecognizer(_ recognizer: UIGestureRecognizer, shouldBeRequiredToFailBy other: UIGestureRecognizer) -> Bool {
+            other.view is UIScrollView
+        }
     }
 }
 

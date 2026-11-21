@@ -82,7 +82,7 @@ struct FeedEventCard: View {
                     // Only the photo sinks in on a press; the line under it stays still
                     // (Jesse, 2026-10-27).
                     face
-                        // Two fingers lift the whole face, words and buttons too, where it sits (BP app photo-zoom).
+                        // Two fingers lift the photo where it sits; its words and buttons step aside (BP app photo-zoom).
                         .pinchToZoom(corner: Radius.card, slot: Hue.paper, lifted: $faceLifted)
                         .onGeometryChange(for: CGSize.self) { $0.size } action: { photoSize = $0 }
                         .scaleEffect(pressScale)
@@ -105,6 +105,7 @@ struct FeedEventCard: View {
                     // Rides the card's corner in as it sinks.
                     TownCardHeart(item: item, onWhite: item.isPhotoless)
                         .padding(TownCardHeart.inset)
+                        .stepsAside(faceLifted)
                         .offset(x: -photoSize.width * (1 - pressScale) / 2,
                                 y: -photoSize.height * (1 - pressScale) / 2)
                         .animation(Press.animation(down: linkPressed, reduceMotion: motionIsReduced), value: linkPressed)
@@ -127,6 +128,7 @@ struct FeedEventCard: View {
                     // Rides the photo's corner in as it sinks.
                     hostMark
                         .padding(PhotoChip.inset)
+                        .stepsAside(faceLifted)
                         .offset(x: -photoSize.width * (1 - pressScale) / 2,
                                 y: photoSize.height * (1 - pressScale) / 2)
                         .animation(Press.animation(down: linkPressed, reduceMotion: motionIsReduced), value: linkPressed)
@@ -450,7 +452,7 @@ struct FeedEventCard: View {
             if wholeFlyer {
                 VStack(spacing: 0) {
                     wholeArea
-                    copyRow
+                    copyRow.stepsAside(faceLifted)
                 }
                 .background { flyerWash }
             } else {
@@ -491,11 +493,12 @@ struct FeedEventCard: View {
             // VoiceOver reads the title and when first, then the credit.
             .accessibilitySortPriority(-1)
             .allowsHitTesting(false)
+            .stepsAside(faceLifted)
         }
         // The game card sets its own sport (game-card 06, 33).
         // A whole flyer has them under it, in the stack.
         .overlay(alignment: .bottom) {
-            if item.game == nil && !wholeFlyer { copyRow }
+            if item.game == nil && !wholeFlyer { copyRow.stepsAside(faceLifted) }
         }
         .contentShape(Rectangle())
         // The heart in the photo's corner is the double-tap's control to mirror, and
