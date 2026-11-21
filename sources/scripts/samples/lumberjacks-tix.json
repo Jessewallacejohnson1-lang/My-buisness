@@ -1,0 +1,113 @@
+{
+"messageID": "OK",
+"message": null,
+"meta": null,
+"payload": {
+"groupedEvents": [
+[
+{
+"EventId": 1483868,
+"EventDate": "2026-11-25T19:30:00",
+"ActiveFlag": true,
+"ProductionName": "Granite City Lumberjacks vs MN Vulcans",
+"VenueName": "Miller Buick GMC Rink at Sports Arena East"
+}
+],
+[
+{
+"EventId": 1483869,
+"EventDate": "2026-12-11T19:30:00",
+"ActiveFlag": true,
+"ProductionName": "Granite City Lumberjacks vs MN Wilderness",
+"VenueName": "Miller Buick GMC Rink at Sports Arena East"
+},
+{
+"EventId": 1483870,
+"EventDate": "2026-12-12T19:30:00",
+"ActiveFlag": true,
+"ProductionName": "Granite City Lumberjacks vs MN Wilderness",
+"VenueName": "Miller Buick GMC Rink at Sports Arena East"
+},
+{
+"EventId": 1483876,
+"EventDate": "2027-02-19T19:30:00",
+"ActiveFlag": true,
+"ProductionName": "Granite City Lumberjacks vs MN Wilderness",
+"VenueName": "Miller Buick GMC Rink at Sports Arena East"
+},
+{
+"EventId": 1483879,
+"EventDate": "2027-03-05T19:30:00",
+"ActiveFlag": true,
+"ProductionName": "Granite City Lumberjacks vs MN Wilderness",
+"VenueName": "Miller Buick GMC Rink at Sports Arena East"
+},
+{
+"EventId": 1483880,
+"EventDate": "2027-03-06T19:30:00",
+"ActiveFlag": true,
+"ProductionName": "Granite City Lumberjacks vs MN Wilderness",
+"VenueName": "Miller Buick GMC Rink at Sports Arena East"
+}
+],
+[
+{
+"EventId": 1483871,
+"EventDate": "2027-01-02T19:30:00",
+"ActiveFlag": true,
+"ProductionName": "Granite City Lumberjacks vs Alexandria Blizzard",
+"VenueName": "Miller Buick GMC Rink at Sports Arena East"
+},
+{
+"EventId": 1483875,
+"EventDate": "2027-01-30T19:30:00",
+"ActiveFlag": true,
+"ProductionName": "Granite City Lumberjacks vs Alexandria Blizzard",
+"VenueName": "Miller Buick GMC Rink at Sports Arena East"
+},
+{
+"EventId": 1483878,
+"EventDate": "2027-02-26T19:30:00",
+"ActiveFlag": true,
+"ProductionName": "Granite City Lumberjacks vs Alexandria Blizzard",
+"VenueName": "Miller Buick GMC Rink at Sports Arena East"
+}
+],
+[
+{
+"EventId": 1483872,
+"EventDate": "2027-01-08T19:30:00",
+"ActiveFlag": true,
+"ProductionName": "Granite City Lumberjacks vs North Iowa Bulls",
+"VenueName": "Miller Buick GMC Rink at Sports Arena East"
+},
+{
+"EventId": 1483873,
+"EventDate": "2027-01-09T19:30:00",
+"ActiveFlag": true,
+"ProductionName": "Granite City Lumberjacks vs North Iowa Bulls",
+"VenueName": "Miller Buick GMC Rink at Sports Arena East"
+}
+],
+[
+{
+"EventId": 1483874,
+"EventDate": "2027-01-23T19:30:00",
+"ActiveFlag": true,
+"ProductionName": "Granite City Lumberjacks vs Willmar WarHawks",
+"VenueName": "Miller Buick GMC Rink at Sports Arena East"
+},
+{
+"EventId": 1483877,
+"EventDate": "2027-02-20T19:30:00",
+"ActiveFlag": true,
+"ProductionName": "Granite City Lumberjacks vs Willmar WarHawks",
+"VenueName": "Miller Buick GMC Rink at Sports Arena East"
+}
+]
+],
+"groupedDisplayOnTop": [],
+"presale": false,
+"orgName": "Granite City Lumberjacks"
+}
+}

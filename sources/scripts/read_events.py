@@ -33,6 +33,11 @@ exact dates, no model. A source is read when its entry is active and it names a 
                       activity; plays, concerts and clubs within 20 miles and games at the levels in
                       `game_levels` (Kennedy's middle school) for everyone, the rest for followers only;
                       varsity games within 20 miles stay the league's
+  hometeamsonline     a town baseball team's HomeTeamsOnline season page (`team` as the schedules name it): its
+                      games in the next 90 days at parks within 20 miles, one Event for a game two of ours play
+  igniter             a junior hockey team's Igniter ticket site (`team`, `venue`, `town`): its home games
+  tix                 a junior hockey team's Tix.com ticket list, the JSON its page loads (`team`, `venue`, `town`):
+                      its home games
   diocese             the diocesan paper's iCal feed (The Central Minnesota Catholic): Events within 20 miles,
                       in person, each once, hosted by who its description names
 
@@ -71,7 +76,7 @@ and writes the SQL; it sets each event's show-from day too:
 import argparse, html, json, math, re, sys, urllib.error
 from collections import Counter
 from time import sleep
-from urllib.parse import quote, urlencode, urljoin, urlparse
+from urllib.parse import quote, unquote, urlencode, urljoin, urlparse
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -1218,10 +1223,10 @@ def bound_items(text, entry, src, today):
 def one_each(items):
     """Bound lists a shared event on every school in it (the conference jazz festival on five), and a
     meet once per school entered: one Event each, by its id or its start, activity and venue, posted by
-    the school whose venue it is."""
+    the school whose venue it is. A town team's game on both teams' pages is one Event, the home team's."""
     keep, seen = [], {}
     for it in items:
-        same = it.pop("same", None)
+        same, home = it.pop("same", None), it.pop("home", False)
         if same is None:
             keep.append(it)
             continue
@@ -1230,8 +1235,8 @@ def one_each(items):
         if k is None:
             seen[it["source_uid"]] = seen[same] = len(keep)
             keep.append(it)
-        elif short_team(it["source_name"].replace(" High School", "")).split()[0].lower() in it["place"].lower():
-            keep[k] = it  # the school whose venue it is hosts it
+        elif home or short_team(it["source_name"].replace(" High School", "")).split()[0].lower() in it["place"].lower():
+            keep[k] = it  # the school whose venue it is hosts it; a town team its home game
     return keep
 
 
@@ -1421,13 +1426,164 @@ def read_rec1(src, entry, today):
     return rec1_items(catalog, entry, src, today)
 
 
+# Town and junior teams (BP app school-search 12) ------------------------------------------
+
+# Five town baseball teams post their seasons on HomeTeamsOnline as plain pages (robots.txt allows us; it bars agents
+# named crawler, spider or parser, which BlockPartyBot isn't). A summer's page goes up in spring, so from October the
+# next summer's is read. Every game in the next 90 days at a park within 20 miles comes in, home or away (the park's
+# town is in its map link). A game two of ours play is on both teams' pages and is one Event, posted by the home team.
+# Rows that aren't games ("Event Info": the Joes' fish fry and camps) and called-off rows stay out; a page read whole
+# lets the writer call off a game gone from it (THE SCHEDULE LINE).
+HTO_ROW = re.compile(r'<tr id="schedRow(\d+)" class="([^"]*)">(.*?)</tr>', re.S)
+HTO_SKIP = {"type7", "type40"}  # called off; an Event, not a game
+# A team's name that starts with its town: "Sartell Muskies" is the Muskies once the title says who plays.
+TEAM_TOWNS = sorted(NEAR_TOWNS | {"Granite City"}, key=len, reverse=True)  # the St. Cloud area's old name
+
+
+def nickname(name):
+    """"Sartell Stone Poneys" is "Stone Poneys"; a team from a town past ours keeps its town ("Albertville Anglers")."""
+    for t in TEAM_TOWNS:
+        if name.startswith(t + " ") and len(name) > len(t) + 1:
+            return name[len(t) + 1:]
+    return name
+
+
+def hto_season(today):
+    return today.year + 1 if today.month >= 10 else today.year
+
+
+def hto_cell(row, col):
+    m = re.search(rf'class="schedCell [^"]*col_{col}"[^>]*>(.*?)</td>', row, re.S)
+    return m.group(1) if m else ""
+
+
+def cell_text(markup):
+    return " ".join(html.unescape(re.sub(r"<[^>]+>", " ", markup)).split())
+
+
+def hto_listings(page):
+    """Every game row: its id, day, clock ("1:30 pm", "" when unset), opponent, whether it's away, park and town."""
+    out = []
+    for rid, cls, row in HTO_ROW.findall(page):
+        day = re.search(r"schedRowDay_(\d{8})", cls)
+        if not day or set(cls.split()) & HTO_SKIP or cell_text(hto_cell(row, "Details")) == "Event Info":
+            continue
+        opponent = cell_text(hto_cell(row, "Opponent"))
+        clock = cell_text(hto_cell(row, "Time"))
+        place = hto_cell(row, "Location")
+        address = re.search(r"daddr=([^&\"']*)", place)
+        parts = [p.strip() for p in unquote(html.unescape(address[1])).split(",")] if address else []
+        out.append({"id": rid, "day": datetime.strptime(day[1], "%Y%m%d").date(),
+                    "clock": clock if re.match(r"^\d{1,2}:\d{2} [ap]m$", clock) else "",
+                    "opponent": opponent.removeprefix("@").strip(), "away": opponent.startswith("@"),
+                    "park": cell_text(place), "town": parts[-2] if len(parts) >= 3 else ""})
+    return out
+
+
+def team_slug(name):
+    return re.sub(r"[^a-z0-9]+", "-", name.lower().replace("'", "")).strip("-")
+
+
+def team_game(entry, src, uid, start, all_day, home, away, place, town, sport):
+    """One game of a town or junior team as the league's games come: titled "<home> <sport> vs <away>" by nickname,
+    its About from the schedule alone, both teams' full names for the writer to find their teams."""
+    teams = [nickname(home), nickname(away)]
+    return {"kind": "event", "title": game_title(teams, sport), "start": start, "end": None, "all_day": all_day,
+            "place": place, "town": town, "area": "game", "source_name": entry["_name"], "source_url": src["url"],
+            "source_uid": uid, "trust": "official", "sure": True, "size": "everyday", "interest": "watch_sports",
+            "blurb": game_about("", sport, teams[0], teams[1]), "game": {"sport": sport, "teams": [home, away]}}
+
+
+def hto_items(page, entry, src, today):
+    me, items, met = src.get("team") or entry["_name"], [], Counter()
+    listings = sorted(hto_listings(page), key=lambda l: (l["day"], l["clock"]))
+    for l in listings:
+        pair = "|".join(sorted(team_slug(t) for t in (me, l["opponent"])))
+        met[(l["day"], pair)] += 1  # a doubleheader's second game is its own Event
+        if not today <= l["day"] <= today + timedelta(DAYS_AHEAD) or l["town"] not in NEAR_TOWNS:
+            continue
+        home, away = (l["opponent"], me) if l["away"] else (me, l["opponent"])
+        start = datetime.combine(l["day"], datetime.strptime(l["clock"], "%I:%M %p").time(), LOCAL).isoformat() \
+            if l["clock"] else l["day"].isoformat()
+        uid = f"hto:{l['day']}:{pair}:{met[(l['day'], pair)]}"
+        items.append({**team_game(entry, src, uid, start, not l["clock"], home, away, l["park"], l["town"], "Baseball"),
+                      "same": [uid], "home": not l["away"]})
+    if listings:
+        items.append({"kind": "schedule", "uid_prefix": "hto:", "from": today.isoformat(),
+                      "through": (today + timedelta(DAYS_AHEAD)).isoformat(), "sources": [entry["_name"]]})
+    return items
+
+
+def read_hometeamsonline(src, entry, today):
+    return hto_items(fetch(f"{src['url']}&p=schedule&viewseas=Summer_{hto_season(today)}&format=List")[1],
+                     entry, src, today)
+
+
+# The junior hockey teams' schedules come only from GameSheet, whose robots.txt bars AI bots by name, so it is never
+# read (Jesse, 2026-11-21). Their ticket sites list the home games, which are the ones within 20 miles: the Norsemen's
+# (Igniter, plain HTML) and the Lumberjacks' (Tix.com, the JSON its own page loads). A ticket list drops games once
+# played or sold out, so it never writes a schedule line: a game it drops stays as it is.
+IGNITER_GAME = re.compile(r'<p class="event-date">([^<]*)</p>\s*<p class="event-headline">([^<]*)</p>.*?'
+                          r'href="/events/(\d+)-', re.S)
+
+
+def season_day(month, day, today):
+    """A day the page writes with no year: this year's, or next year's once this year's is two months gone."""
+    d = date(today.year, month, day)
+    return d if d >= today - timedelta(60) else date(today.year + 1, month, day)
+
+
+def rival(headline, me):
+    """The other team in "<visitor> vs <home>", when one of the two is ours."""
+    teams = [t.strip() for t in html.unescape(headline).split(" vs ")]
+    return next((t for t in teams if t != me), None) if len(teams) == 2 and me in teams else None
+
+
+def igniter_items(page, entry, src, today):
+    me, items = src.get("team") or entry["_name"], []
+    for when, headline, eid in IGNITER_GAME.findall(page):
+        m = re.match(r"^\w{3}, (\w{3}) (\d{1,2}), (\d{1,2}:\d{2} [ap]m)$", when.strip())
+        other = rival(headline, me)
+        if not m or not other:
+            continue  # season tickets, a voucher
+        day = season_day(datetime.strptime(m[1], "%b").month, int(m[2]), today)
+        if not today <= day <= today + timedelta(DAYS_AHEAD):
+            continue
+        start = datetime.combine(day, datetime.strptime(m[3], "%I:%M %p").time(), LOCAL).isoformat()
+        items.append(team_game(entry, src, f"igniter:{eid}", start, False, me, other, src["venue"], src["town"], "Hockey"))
+    return items
+
+
+def read_igniter(src, entry, today):
+    return igniter_items(fetch(src["url"], headers={"Accept": "text/html"})[1], entry, src, today)
+
+
+def tix_items(data, entry, src, today):
+    me, items = src.get("team") or entry["_name"], []
+    for e in (e for group in data["payload"]["groupedEvents"] for e in group):
+        other = rival(e.get("ProductionName") or "", me)
+        if not other or not e.get("ActiveFlag", True):
+            continue
+        at = datetime.fromisoformat(e["EventDate"])
+        if not today <= at.date() <= today + timedelta(DAYS_AHEAD):
+            continue
+        items.append(team_game(entry, src, f"tix:{e['EventId']}", at.replace(tzinfo=LOCAL).isoformat(), False, me,
+                               other, e.get("VenueName") or src["venue"], src["town"], "Hockey"))
+    return items
+
+
+def read_tix(src, entry, today):
+    return tix_items(json.loads(fetch(src["url"])[1]), entry, src, today)
+
+
 # The run ---------------------------------------------------------------------------------
 
 READERS = {"ical": read_ical, "pathify": read_pathify, "cars511": read_roads,
            "finalsite-calendar": read_finalsite_calendar, "finalsite-news": read_finalsite_news,
            "csbsju-music": read_csbsju_music,
            "civicplus-hcms": read_hcms, "rec1": read_rec1, "mshsl": read_league, "gobound": read_bound,
-           "diocese": read_diocese}
+           "diocese": read_diocese, "hometeamsonline": read_hometeamsonline, "igniter": read_igniter,
+           "tix": read_tix}
 
 
 def reader_of(src):
@@ -2550,9 +2706,49 @@ def t_games_complete():
         "a title that fits is never touched"
 
 
+def t_town_teams():
+    """The town and junior teams' readers on their pages as read 2026-11-21 (2026's baseball season, read as if on
+    May 1): games within 20 miles in the next 90 days, one Event for the game two of ours play, posted by the home team;
+    no fish fry or camp; the hockey teams' home games from their ticket sites, no season tickets or voucher."""
+    joes, poneys = {"_name": "St. Joseph Joes", "_town": "st-joseph-mn"}, {"_name": "Sartell Stone Poneys", "_town": "st-joseph-mn"}
+    may = date(2026, 5, 1)
+    a = hto_items(sample("hto-joes-2026.html"), joes, {"url": "https://j", "team": "St. Joseph Joes"}, may)
+    b = hto_items(sample("hto-poneys-2026.html"), poneys, {"url": "https://p", "team": "Sartell Stone Poneys"}, may)
+    games = [i for i in a if i["kind"] == "event"]
+    assert len(games) == 16 and a[-1]["kind"] == "schedule" and a[-1]["sources"] == ["St. Joseph Joes"], (len(games), a[-1])
+    assert not any("Fish Fry" in g["title"] or "Camp" in g["title"] for g in games)
+    first = games[0]
+    assert (first["title"], first["start"], first["place"], first["town"], first["blurb"]) == (
+        "Joes Baseball vs Gussies", "2026-05-13T18:30:00-05:00", "Schneider Field", "St. Joseph",
+        "Baseball: Joes hosts Gussies."), first
+    assert first["game"] == {"sport": "Baseball", "teams": ["St. Joseph Joes", "St. Augusta Gussies"]}
+    assert all(g["town"] in NEAR_TOWNS for g in games), "an away game past 20 miles stays out"
+    both = [i for i in one_each([dict(i) for i in a + b]) if i["kind"] == "event"
+            and set(i["game"]["teams"]) == {"St. Joseph Joes", "Sartell Stone Poneys"}]
+    assert [(i["title"], i["source_name"]) for i in both] == [("Joes Baseball vs Stone Poneys", "St. Joseph Joes"),
+                                                             ("Stone Poneys Baseball vs Joes", "Sartell Stone Poneys")], both
+    assert all("home" not in i and "same" not in i for i in one_each([dict(i) for i in a + b]))
+    assert hto_season(date(2026, 11, 21)) == 2027 and hto_season(date(2027, 2, 1)) == 2027
+    assert nickname("Granite City Lumberjacks") == "Lumberjacks" and nickname("Albertville Anglers") == "Albertville Anglers"
+
+    nov = date(2026, 11, 21)
+    n = igniter_items(sample("norsemen-tickets.html"), {"_name": "St. Cloud Norsemen"},
+                      {"url": "https://n", "team": "St. Cloud Norsemen", "venue": "Municipal Athletic Complex",
+                       "town": "St. Cloud"}, nov)
+    assert len(n) == 14 and (n[0]["title"], n[0]["start"], n[0]["source_uid"]) == (
+        "Norsemen Hockey vs Austin Bruins", "2026-11-28T18:30:00-06:00", "igniter:45052"), n[0]
+    assert n[-1]["start"].startswith("2027-"), "a day the page writes with no year comes after New Year"
+    lj = tix_items(json.loads(sample("lumberjacks-tix.json")), {"_name": "Granite City Lumberjacks"},
+                   {"url": "https://t", "team": "Granite City Lumberjacks", "venue": "Sports Arena East",
+                    "town": "Sauk Rapids"}, nov)
+    assert len(lj) == 9 and (lj[0]["title"], lj[0]["start"]) == ("Lumberjacks Hockey vs MN Vulcans",
+                                                                 "2026-11-25T19:30:00-06:00"), lj[0]
+    assert all(i["game"]["teams"][0] == "Granite City Lumberjacks" for i in lj)
+
+
 TESTS = [t_closings_wait, t_games_complete, t_gobound, t_robots, t_ical, t_diocese, t_diocese_repeats, t_pathify, t_roads, t_league_retries, t_kennedy_calendar, t_tech_calendar, t_csbsju_music, t_kennedy_news, t_county, t_rec1, t_league,
          t_league_tournament_and_moves, t_league_dance_show, t_league_conference_meet, t_league_undecided_opponent, t_league_schedule_line, t_league_stops_past_the_part, t_nearby_hosts_are_registry_schools,
-         t_failure_in_summary, t_items_fit_the_writer, t_parts, t_part_file]
+         t_failure_in_summary, t_items_fit_the_writer, t_parts, t_part_file, t_town_teams]
 
 
 def selftest():
