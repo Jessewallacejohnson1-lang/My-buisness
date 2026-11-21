@@ -304,6 +304,8 @@ def label(d, xy, text, f, width, fill=(30, 30, 30)):
 SEASONS = ('winter', 'spring', 'summer', 'fall')
 # An event's subject: the first pattern its sport and title match, else its category's. Order matters
 # (a "Sauna, Yoga, Ice Bath" night is sauna; a "Jazz Festival" is band, a dance team's "Varsity Jazz" is dance).
+# An orchestra is concert, not band: a jazz band photo misread Cathedral's Orchestra Concert (BP app
+# event-photos 27, 2026-11-21).
 # Fare for All sells food boxes: a market, not a dinner (BP app event-photos 13, 2026-11-02).
 SUBJECTS = [
     ('hockey', r'hockey'), ('basketball', r'basketball'), ('wrestling', r'wrestl|matness'),
@@ -312,7 +314,7 @@ SUBJECTS = [
     ('running', r'\b5k\b|\b10k\b|fun run|marathon|turkey trot|\bshuffle\b'),
     ('soccer', r'soccer'), ('sauna', r'sauna|ice bath|plunge'), ('yoga', r'yoga|pilates|chi kung|qigong|tai chi'),
     ('dance', r'\bdance|high kick|\bkick\b|varsity jazz|jazz (?:and|&) kick'), ('choir', r'choir|vocal|chorale|singers'),
-    ('band', r'\bband\b|jazz|orchestra|ensemble|\borgan\b|symphony|informance|drumming'), ('concert', r'concert'),
+    ('band', r'\bband\b|jazz|ensemble|\borgan\b|informance|drumming'), ('concert', r'concert|orchestra|symphony'),
     ('academic', r'knowledge bowl|math league|robotics'), ('film', r'\bfilm'),
     ('festival', r'powwow|festival|fashion show'),
     ('theater', r'theat|\bplay\b|musical|mamma mia|mermaid|fall show'),
@@ -1077,6 +1079,9 @@ def selftest():
          and subject('Fare for All', None, 'markets') == 'market'),
         ('a lecture is talk; a council meeting is meeting', subject('The Nolan Lecture', None, 'faith') == 'talk'
          and subject('City Council Work Session') == 'meeting'),
+        ('an orchestra or symphony is concert, never band (event-photos 27)', subject('Orchestra Concert') == 'concert'
+         and subject('Orchestra MMEA Preview') == 'concert' and subject('Band Choir Orchestra Concert') == 'choir'
+         and subject('Middle School Band') == 'band'),
         ('nothing matched falls to the category, then the place', subject('7th Grade', None, 'watch_sports') == 'sports'
          and subject('Fall Picture Retakes') == 'place'),
         ('December to February is winter, November fall', season('2026-12-01') == 'winter'

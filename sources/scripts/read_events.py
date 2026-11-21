@@ -306,7 +306,9 @@ def ical_items(text, entry, src, today):
 
 
 def read_ical(src, entry, today):
-    return ical_items(fetch(src["url"])[1], entry, src, today)
+    # read_page, as the watch reads it: a server that refuses our client gets Firecrawl. Sal's 403s
+    # BlockPartyBot (robots.txt too) and answers a browser, so its feed went unread from 2026-11-14.
+    return ical_items(read_page(src["url"], "ical")[1], entry, src, today)
 
 
 # CSB/SJU: Pathify ------------------------------------------------------------------------

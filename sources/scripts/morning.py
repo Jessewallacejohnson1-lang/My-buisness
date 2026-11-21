@@ -1360,6 +1360,9 @@ def spend_line():
         return f"Apify: spend unknown ({' '.join(str(e).split())[:120]})"
 
 
+PACE_DAYS = 3  # the heads-up waits this many days into a cycle
+
+
 def credits_words(d, now):
     """Firecrawl's line in the report. The heads-up goes by pace, as a flat 3/4 would fire late in every month, the
     job spends so steadily (BP app backlog 12). Days are whole Chicago dates: the job spends a day's credits in one
@@ -1370,7 +1373,8 @@ def credits_words(d, now):
     if left <= 0:
         return line + ". Out of credits: pages read through Firecrawl will fail until the reset."
     used, days_gone = plan - left, (today - day(d["billingPeriodStart"])).days
-    if used > 0 and days_gone > 0 and left * days_gone / used < (end - today).days:
+    # A pace from one or two days is one busy night's research, not the month (2026-11-21: 187 on day 1 read as "out Nov 26").
+    if used > 0 and days_gone >= PACE_DAYS and left * days_gone / used < (end - today).days:
         out = today + timedelta(days=math.ceil(left * days_gone / used))
         return line + f". Heads-up: at this pace they run out around {out:%b %-d}."
     return line
@@ -1413,8 +1417,10 @@ def credits_told():
                         "Heads-up: at this pace they run out around Nov 4.",
          "spending too fast: the heads-up names the day they run out"),
         (not any("Heads-up" in line for line in steady(32)), "a pace that lasts never warns, from its first morning on"),
-        (all("Heads-up" in line for line in steady(33)[:-1]) and "Out of credits" in steady(33)[-1],
-         "a pace that runs out warns from its first morning"),
+        (not any("Heads-up" in on(400, n) for n in (0, 1)) and "Heads-up" in on(400, 2),
+         "the heads-up waits three days into a cycle (Jesse, 2026-11-21)"),
+        (all("Heads-up" in line for line in steady(33)[2:-1]) and "Out of credits" in steady(33)[-1],
+         "a pace that runs out warns from its third day (the cycle starts the evening before the first morning)"),
         (on(0, 26) == "Firecrawl: 0 of 1,000 credits left (resets after Nov 20). "
                       "Out of credits: pages read through Firecrawl will fail until the reset.",
          "no credits left says pages will fail until the reset"),

@@ -1530,7 +1530,11 @@ private struct NewEventPlace: View {
 
     private var matches: [SearchItem] {
         guard !typed.isEmpty else { return places }
-        return places.filter { $0.name.localizedStandardContains(typed) || ($0.sub?.localizedStandardContains(typed) ?? false) }
+        // Its name, its line, or what else finds it in Search: a place with its own word keeps today's word there
+        // ("salon" still finds a "Hairdresser", search-helpful 09).
+        return places.filter { item in
+            ([item.name, item.sub ?? ""] + item.alsoFinds).contains { $0.localizedStandardContains(typed) }
+        }
     }
 
     var body: some View {
