@@ -694,17 +694,20 @@ struct CommunityAPI {
     /// The Town's own schools (`teams.local`) and pages (`town_pages`), which Follow 3 suggests
     /// beside its Places (onboarding 22). Read with the public key, as there may be no account yet.
     func followableSchoolsAndPages() async throws -> (schools: [LocalSchool], pages: [TownPageRow]) {
-        async let schools = db.rest("teams", [("select", "id,uuid,name,school_name,logo_url"), ("local", "eq.true")], anon: true)
+        // Schools only: a town team is no school (BP app school-search 12).
+        async let schools = db.rest("teams", [("select", "id,uuid,name,school_name,logo_url"), ("local", "eq.true"),
+                                              ("town", "is.null")], anon: true)
         async let pages = db.rest("town_pages", [("select", "id,slug,name,kind,source_name,picture,picture_kind"),
                                                  ("town", "eq.\(Town.slug)")], anon: true)
         return (try Supabase.decode(await schools), try Supabase.decode(await pages))
     }
 
-    /// The Town's own schools with their names, crests and colours, and every activity they list in each school's
-    /// order: Search's Schools row and what typing finds there (school-search 01). Read with the public key.
+    /// The Town's own schools and town teams with their names, crests and colours, and every activity they list in each
+    /// school's order: Search's Schools row, the sports' teams and what typing finds there (school-search 01, 12). Read
+    /// with the public key.
     /// `page`: the rows asked for at a time, Supabase's most (1,000) unless a test asks for fewer.
     func schoolsAndActivities(page: Int = Supabase.pageMax) async throws -> (schools: [LocalSchool], activities: [SchoolActivity]) {
-        async let schools = db.rest("teams", [("select", "id,uuid,name,short_name,school_name,logo_url,nickname,aliases,colors"),
+        async let schools = db.rest("teams", [("select", "id,uuid,name,short_name,school_name,logo_url,nickname,aliases,colors,town"),
                                               ("local", "eq.true")], anon: true)
         // 489 activities on 2026-11-11, read a page at a time so the 1,001st isn't lost.
         async let activities: [SchoolActivity] = db.restAll("team_activities", [("select", "id,team_id,name"),

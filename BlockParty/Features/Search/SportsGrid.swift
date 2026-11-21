@@ -209,7 +209,8 @@ struct SportsGrid: View {
 
 /// A sport's teams from high school up (school-search 10, Jesse 2026-11-16: "any teams highschool and up", "Circles,
 /// like sports"): its school's logo in the same disc, the school's short name under it and what tells its teams apart
-/// (Boys, Girls) under that, colleges first. A disc opens the school's page, as the activity's row does.
+/// (Boys, Girls) under that, or a town team's town (school-search 12), every team A to Z. A disc opens the team's page,
+/// as the activity's row does.
 struct SportPage: View {
     let sport: SportShelf
     @Environment(\.dismiss) private var dismiss
@@ -315,7 +316,7 @@ private struct TeamDisc: View {
             }
             .buttonStyle(DiscPress())
             .simultaneousGesture(TapGesture().onEnded { model.remember(team.item.id) })
-            .accessibilityLabel([team.school, team.item.name].joined(separator: ", "))
+            .accessibilityLabel(([team.school, team.item.name] + [team.town].compactMap { $0 }).joined(separator: ", "))
         }
     }
 }

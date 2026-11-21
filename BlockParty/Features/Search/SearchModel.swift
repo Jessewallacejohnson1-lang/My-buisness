@@ -551,13 +551,16 @@ final class SearchModel {
         pagesLoaded = true
     }
 
-    /// The Town's schools (`teams.local`) and the activities each lists: the row's crests in `Town.searchSchools`'
-    /// order, Kennedy first, and each activity after them under its school's place, in the school's own order.
+    /// The Town's schools and town teams (`teams.local`) and the activities each lists: the row's crests in
+    /// `Town.searchSchools`' order, Kennedy first, and each activity after them under its school's place, in the
+    /// school's own order, then the town teams' (school-search 12).
     func show(schools: [LocalSchool], activities: [SchoolActivity], now: Date = .now) {
         self.schools = Self.schools(schools, activities: activities).map(withNext)
         schoolDiscs = Self.schoolDiscs(schools, rows: self.schools)
         let levels = Dictionary(schools.map { ($0.uuid, Self.level($0)) }, uniquingKeysWith: { a, _ in a })
-        sports = LocalSports.shelves(self.schools, level: { levels[$0] }, now: now)
+        let towns = Dictionary(schools.compactMap { school in school.town.map { (school.uuid, $0) } },
+                               uniquingKeysWith: { a, _ in a })
+        sports = LocalSports.shelves(self.schools, level: { levels[$0] }, town: { towns[$0] }, now: now)
         schoolsLoaded = true
         POILogoCache.shared.prefetch(schools.compactMap(\.crest?.url))
     }
@@ -981,11 +984,23 @@ final class SearchModel {
                               rank: afterSchools + schoolBlock + order, team: team,
                               activity: FollowTarget(type: .activity, id: activity.id))
         }
-        return rows + found
+        // A town or junior team (school-search 12) has no crest on the row: its one sport comes after every school's
+        // activities, found by the team's names too ("Joes"), and opens the team's page.
+        let towns = Dictionary(schools.filter { $0.town != nil }.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        let teams = activities.enumerated().compactMap { order, activity -> SearchItem? in
+            guard let town = towns[activity.teamId] else { return nil }
+            let team = Game.Team(school: town)
+            return SearchItem(id: "a:\(activity.id)", kind: .school, name: activity.name, sub: team.short, logo: town.crest,
+                              keywords: [town.shortName, town.name].compactMap { $0 },
+                              rank: rows.count + rows.count * activities.count + order, team: team,
+                              activity: FollowTarget(type: .activity, id: activity.id))
+        }
+        return rows + found + teams
     }
 
-    /// A school's level: college, high school, or the rest (Kennedy, K-8).
+    /// A school's level: college, high school, a town or junior team (school-search 12), or the rest (Kennedy, K-8).
     static func level(_ school: LocalSchool) -> DiscLevel {
+        if school.town != nil { return .town }
         let types = Town.schoolTypes.filter { $0.schools.contains { $0.key == school.id } }
         return types.contains(where: \.isCollege) ? .college : types.contains(where: \.isHighSchool) ? .highSchool : .other
     }
@@ -1005,7 +1020,7 @@ final class SearchModel {
 
     /// The schools' levels, in the order their discs come.
     enum DiscLevel: Int, Comparable {
-        case college, highSchool, other
+        case college, highSchool, town, other
 
         static func < (a: Self, b: Self) -> Bool { a.rawValue < b.rawValue }
     }

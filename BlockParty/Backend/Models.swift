@@ -541,6 +541,8 @@ struct LocalSchool: Decodable, Equatable {
     var nickname: String? = nil
     var aliases: [String]? = nil
     var colors: [String]? = nil
+    /// A town or junior team's town ("St. Joseph" for the Joes, BP app school-search 12); nil for a school.
+    var town: String? = nil
 
     /// Its crest bare on the page, as a business logo, its shadow a near-neutral shade: schools carry no logo hue.
     var crest: SearchLogo? {

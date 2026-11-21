@@ -584,9 +584,9 @@ final class SearchModelTests: XCTestCase {
     // MARK: Schools (BP app school-search 01)
 
     private func school(_ id: String, _ short: String, _ full: String? = nil, nickname: String? = nil,
-                        aliases: [String]? = nil) -> LocalSchool {
-        LocalSchool(id: id, uuid: "u-\(id)", name: short, schoolName: full, logoUrl: "https://x/\(id).webp",
-                    shortName: short, nickname: nickname, aliases: aliases)
+                        aliases: [String]? = nil, town: String? = nil) -> LocalSchool {
+        LocalSchool(id: id, uuid: "u-\(id)", name: town == nil ? short : full ?? short, schoolName: town == nil ? full : nil,
+                    logoUrl: "https://x/\(id).webp", shortName: short, nickname: nickname, aliases: aliases, town: town)
     }
 
     /// The Schools row: the Town's own Kennedy first, then the mock's order whatever the read's, and the
@@ -664,7 +664,7 @@ final class SearchModelTests: XCTestCase {
     }
 
     /// The Sports chip (school-search 10): the sports the schools play, this season's first, each with its teams from
-    /// high school up, colleges first, then the high schools A to Z, Boys before Girls; Kennedy's teams stay out.
+    /// high school up A to Z by the name under the disc (Jesse, 2026-11-21), Boys before Girls; Kennedy's teams stay out.
     func testSportsListsSportsThenTheirTeams() {
         let model = SearchModel(supabase: supabase, defaults: defaults)
         let november = Town.calendar.date(from: DateComponents(year: 2026, month: 11, day: 16))!
@@ -684,14 +684,42 @@ final class SearchModelTests: XCTestCase {
                        "winter first in November; a sport with no team from high school up is left out")
         let basketball = model.sports[0]
         XCTAssertEqual(basketball.symbol, "figure.basketball")
-        XCTAssertEqual(basketball.teams.map(\.school), ["Saint John's", "ROCORI", "ROCORI"], "the college first")
-        XCTAssertEqual(basketball.teams.map(\.variant), ["", "Boys", "Girls"])
-        XCTAssertEqual(basketball.teams[1].item.team?.id, "u-rocori", "a team opens its school's page")
-        XCTAssertEqual(basketball.teams[1].item.activity, FollowTarget(type: .activity, id: "r2"))
+        XCTAssertEqual(basketball.teams.map(\.school), ["ROCORI", "ROCORI", "Saint John's"], "A to Z, the college too")
+        XCTAssertEqual(basketball.teams.map(\.variant), ["Boys", "Girls", ""])
+        XCTAssertEqual(basketball.teams[0].item.team?.id, "u-rocori", "a team opens its school's page")
+        XCTAssertEqual(basketball.teams[0].item.activity, FollowTarget(type: .activity, id: "r2"))
         XCTAssertEqual(model.sports[1].teams.map(\.variant), ["Club"])
         XCTAssertEqual(model.sports[2].teams.map(\.variant), ["Boys Alpine"])
         let may = Town.calendar.date(from: DateComponents(year: 2027, month: 5, day: 1))!
         XCTAssertEqual(LocalSports.ordered(now: may).prefix(2).map(\.name), ["Baseball", "Softball"], "spring first in May")
+    }
+
+    /// Town and junior teams (school-search 12) join their sport's page A to Z among the schools, their town where a
+    /// school's Boys or Girls go, and open their own page; they stay off the Schools row and the Schools pill, and
+    /// typing a team's name finds its sport's row.
+    func testTownTeamsJoinTheirSport() {
+        let model = SearchModel(supabase: supabase, defaults: defaults)
+        let may = Town.calendar.date(from: DateComponents(year: 2027, month: 5, day: 1))!
+        model.show(schools: [school("sartell", "Sartell", "Sartell High School"), school("saint-johns", "Saint John's"),
+                             school("st-joseph-joes", "Joes", "St. Joseph Joes", aliases: ["St Joseph Joes"], town: "St. Joseph"),
+                             school("sartell-muskies", "Muskies", "Sartell Muskies", town: "Sartell")],
+                   activities: [SchoolActivity(id: "s1", teamId: "sartell", name: "Baseball"),
+                                SchoolActivity(id: "j1", teamId: "saint-johns", name: "Baseball"),
+                                SchoolActivity(id: "t1", teamId: "st-joseph-joes", name: "Baseball"),
+                                SchoolActivity(id: "t2", teamId: "sartell-muskies", name: "Baseball")],
+                   now: may)
+        let baseball = model.sports.first { $0.name == "Baseball" }
+        XCTAssertEqual(baseball?.teams.map(\.school), ["Joes", "Muskies", "Saint John's", "Sartell"])
+        XCTAssertEqual(baseball?.teams.map(\.variant), ["St. Joseph", "Sartell", "", ""], "the town under a town team")
+        XCTAssertEqual(baseball?.teams.first?.town, "St. Joseph")
+        XCTAssertEqual(baseball?.teams.first?.item.team?.id, "u-st-joseph-joes", "it opens the team's own page")
+        XCTAssertEqual(baseball?.teams.first?.item.team?.name, "St. Joseph Joes", "the page's title")
+        XCTAssertEqual(model.row(.school).map(\.name), ["Sartell High School", "Saint John's"], "no town team on the row")
+        XCTAssertEqual(model.schoolDiscs.map { $0.team?.short }, ["Saint John's", "Sartell"], "nor on the Schools pill")
+        let found = model.results(for: "joes", in: .all).first { $0.kind == .school }?.items ?? []
+        XCTAssertEqual(found.map(\.name), ["Baseball"])
+        XCTAssertEqual(found.first?.sub, "Joes", "its team under it")
+        XCTAssertEqual(found.first?.team?.id, "u-st-joseph-joes")
     }
 
     /// What tells a school's teams of one sport apart, read off the names the schools write.
