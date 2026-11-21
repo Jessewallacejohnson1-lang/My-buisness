@@ -44,7 +44,6 @@ struct InterestCircles: View {
 
     @State private var burst = InterestBurst.rest
     @State private var width: CGFloat = 402
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ScrollView {
@@ -60,8 +59,8 @@ struct InterestCircles: View {
         .scrollBounceBehavior(.basedOnSize)
         .scrollIndicators(.hidden)
         .scrollDisabled(burst != .rest)
-        // The burst flies past the edges.
-        .scrollClipDisabled()
+        // The burst flies past the edges; at rest a small phone's scroll stays under the dashes.
+        .scrollClipDisabled(burst != .rest)
         .contentMargins(.bottom, bottomClear, for: .scrollContent)
         .padding(.top, FollowGridMetric.scrollTop)
         .ignoresSafeArea(.container, edges: .top)
@@ -103,19 +102,18 @@ struct InterestCircles: View {
 
     private var column: CGFloat { (width - Metric.side * 2) / 3 }
 
+    /// The circles all in one stack, each at its spot, so a picked one rides over every other in the burst.
     private var grid: some View {
         let rows = Interests.circles.count / 3
-        return VStack(spacing: Metric.rowGap) {
-            ForEach(0..<rows, id: \.self) { row in
-                HStack(spacing: 0) {
-                    ForEach(0..<3, id: \.self) { col in
-                        let index = row * 3 + col
-                        cell(Interests.circles[index], index: index, rows: rows)
-                            .frame(width: column)
-                    }
-                }
+        let cell = Metric.circle + Metric.labelGap + Metric.label
+        return ZStack {
+            ForEach(Array(Interests.circles.enumerated()), id: \.element.id) { index, circle in
+                self.cell(circle, index: index, rows: rows)
+                    .frame(width: column, height: cell)
+                    .position(x: (CGFloat(index % 3) + 0.5) * column, y: CGFloat(index / 3) * Metric.pitch + cell / 2)
             }
         }
+        .frame(height: CGFloat(rows) * Metric.pitch - Metric.rowGap)
         .padding(.horizontal, Metric.side)
     }
 
@@ -134,7 +132,6 @@ struct InterestCircles: View {
                 InterestPhotoCircle(photo: Interests.photo(circle), on: on)
                     .scaleEffect(move.scale)
                     .offset(move.offset)
-                    .zIndex(1)
                 Text(circle.label)
                     .font(.apple(13, weight: .medium))
                     .foregroundStyle(Color.white)
@@ -145,11 +142,10 @@ struct InterestCircles: View {
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(.press(.squish))
+        .buttonStyle(CirclePress())
         .disabled(burst != .rest)
         .zIndex(on ? 1 : 0)
         .accessibilityLabel(circle.label)
-        .accessibilityValue(on ? "Picked" : "Not picked")
         .accessibilityIdentifier("interest-chip")
         .accessibilityAddTraits(on ? .isSelected : [])
     }
@@ -172,20 +168,26 @@ struct InterestCircles: View {
         }
     }
 
-    /// Grow 0.12 s as the words fade, gather 0.24 s, then out over 0.42 s. The next step comes 0.15 s into the
-    /// way out, as the first circles leave the screen, so the move begins about 0.5 s after Next.
+    /// Grow 0.12 s as the words fade, gather 0.24 s, then out 0.3 s, speeding up so the circles leave the screen
+    /// as it ends: 0.66 s, then on. Reduce Motion never starts it (the flow moves on at once).
     private func play() {
-        guard !reduceMotion else { return done() }
         withAnimation(.easeOut(duration: 0.12)) { burst = .grow } completion: {
             withAnimation(.easeIn(duration: 0.24)) { burst = .gather } completion: {
-                withAnimation(.easeOut(duration: 0.42)) { burst = .out }
-                Task { @MainActor in
-                    try? await Task.sleep(for: .milliseconds(150))
-                    done()
-                }
+                withAnimation(.easeIn(duration: 0.3)) { burst = .out } completion: { done() }
             }
         }
     }
+}
+
+/// The press squashes the circle alone, as the Reference's does, never its label.
+private struct CirclePress: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label.environment(\.circlePressed, configuration.isPressed)
+    }
+}
+
+private extension EnvironmentValues {
+    @Entry var circlePressed = false
 }
 
 /// One photo circle: 92 pt, with a 3 pt white ring and the green check at its top right once picked. The ring
@@ -196,6 +198,7 @@ private struct InterestPhotoCircle: View {
 
     @State private var pop: CGFloat = 1
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.circlePressed) private var pressed
 
     var body: some View {
         ZStack {
@@ -221,6 +224,7 @@ private struct InterestPhotoCircle: View {
             .offset(x: Metric.checkOut, y: -Metric.checkOut)
         }
         .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: on)
+        .press(.squish, down: pressed)
         .accessibilityHidden(true)
         .onChange(of: on) { _, now in
             guard now, !reduceMotion else { return }

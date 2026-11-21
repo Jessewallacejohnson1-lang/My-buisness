@@ -319,7 +319,7 @@ private struct NextBarStyle: ButtonStyle {
     }
 
     private var words: Color {
-        if deep { return allowed ? Hue.ink : Hue.deepOffWords }
+        if deep { return allowed ? Hue.deepPillWords : Hue.deepOffWords }
         return allowed ? Color.white : Hue.nextOffWords
     }
 

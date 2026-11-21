@@ -921,8 +921,9 @@ as $$
          case when public.is_admin() then jsonb_build_object(
            'interest', e.interest_pts, 'gender', e.gender_pts, 'yours', e.friend_pts + e.follow_pts, 'new', e.new_pts,
            'friend', e.friend_pts,
-           'follow', case when e.followed is not null then e.follow_pts else 0 end,
-           'tapped', case when e.followed is null then e.follow_pts else 0 end,
+           -- A Sports pick's own-team game counts as a follow (onboarding 48), never as tapped.
+           'follow', case when e.followed is null and e.tapped_n > 0 and coalesce(e.draw, 2) <> 1 then 0 else e.follow_pts end,
+           'tapped', case when e.followed is null and e.tapped_n > 0 and coalesce(e.draw, 2) <> 1 then e.follow_pts else 0 end,
            'town', e.town_x, 'seen', e.seen_x, 'facts', e.facts_x, 'live', e.live_ok,
            'popular', 0, 'size', 0, 'sizeStep', 1, 'draw', e.draw_pts,
            'daysAway', round(e.days_away::numeric, 2), 'soon', round(e.soon::numeric, 4),

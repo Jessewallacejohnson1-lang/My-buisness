@@ -236,6 +236,8 @@ nonisolated enum Hue {
     static let deepTrack    = Color(hex: 0xFFFFFF, alpha: 0.28)
     /// The white Next pill under the finger: a touch greyer, as the Welcome's pill goes.
     static let deepPressed  = Color(hex: 0xECECEA)
+    /// Its words: ink that stays ink in the dark, as the backdrop stays deep (mock v5 `.btn` #111).
+    static let deepPillWords = Color(hex: 0x111111)
     /// A picked circle's check (mock v5 `.bd`): Google's green, not Apple's `now`.
     static let pickCheck    = Color(hex: 0x34A853)
 

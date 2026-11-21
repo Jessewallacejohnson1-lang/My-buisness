@@ -554,6 +554,7 @@ test("a Sports pick follows the town's own teams' games and says its interest; a
   const withSports = await read(['watch_sports']);
   const own = withSports['SJU Soccer vs Augsburg'];
   assert.deepEqual([own.score.interest, own.score.yours, own.reason, own.reason_name], [3, 3, 'interest', 'watch_sports']);
+  assert.deepEqual([own.score.follow, own.score.tapped], [3, 0], 'the Score line counts it as a follow, not tapped');
   // Two teams from away: the interest alone.
   assert.equal(withSports['Augsburg Soccer vs Bethel'].score.yours, 0);
   // A followers-only game stays for its followers.
