@@ -1,10 +1,10 @@
 //
 //  InterestRows.swift
-//  Block Party — "What do you love doing?" as X's Add Topics (BP app onboarding 28), set as Luma's white
+//  Block Party — Edit Profile's interests as X's Add Topics (BP app onboarding 28), set as Luma's white
 //  card of rows on the grey canvas (onboarding 36, mock v8): each row a round icon, its words and at the
 //  end a check circle that picks at once or a chevron that opens the row in place. Schools opens to the
-//  kinds of school, and each kind to its schools, Follow 3's logos in rows of 3. Onboarding's step and
-//  Edit Profile's interests both show it.
+//  kinds of school, and each kind to its schools, Follow 3's logos in rows of 3. The rows are onboarding's
+//  12 circles since onboarding 48 (`InterestCircles`).
 //
 //  What's inside a row stays mounted and moves on one bool, so a tap halfway turns it around.
 //

@@ -54,8 +54,9 @@ struct EditProfileView: View {
     private func toggleFollow(_ target: FollowTarget) {
         heldFollows[target] = !isFollowing(target)
         let college = FollowSuggestions.collegeTargets(in: schools ?? [])
-        guard college.contains(target) else { return }
-        interests = Interests.withCollege(interests, following: college.contains(where: isFollowing))
+        // Following under the college picks Campus life; an unfollow leaves it to take off (onboarding 48).
+        guard college.contains(target), isFollowing(target) else { return }
+        interests = Interests.withCollege(interests)
     }
 
     var body: some View {
@@ -368,15 +369,8 @@ private struct InterestsSheet: View {
                 EmptyView()
             }
         }
-        // Watch sports and the rest no longer on the rows go when you come to change them.
+        // Picks no longer on the rows go when you come to change them.
         .onAppear { picked = Interests.onRows(picked) }
-        // An old Campus pick stays only with something under the college followed, once that's read.
-        .onChange(of: schools, initial: true) { _, new in
-            let college = FollowSuggestions.collegeTargets(in: new ?? [])
-            if !college.isEmpty {
-                picked = Interests.withCollege(picked, following: college.contains(where: isFollowing))
-            }
-        }
         .overlay(alignment: .bottom) {
             // Onboarding's Next pill: grey and shaking until one thing is picked or followed.
             OnboardingNextBar(title: count == 0 ? "Pick 1" : "Done", allowed: count > 0) {

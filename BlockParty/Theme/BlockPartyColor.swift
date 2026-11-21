@@ -224,6 +224,21 @@ nonisolated enum Hue {
     /// it reads as a hint and not as an answer.
     static let bigArtHint     = Color(light: 0xA9A9B0, dark: 0x6E6E6E)
 
+    // MARK: Onboarding's deep step (BP app onboarding 48, mock v5)
+
+    /// Interests' Dusk backdrop (Jesse's pick, 2026-11-19): the top colour held for the top third, then down to the
+    /// bottom one. White words and chrome on it; in the dark it stays, as it is already dark.
+    static let deepTop    = Color(hex: 0x3D4877)
+    static let deepBottom = Color(hex: 0xA0707F)
+    /// The chrome on it: the white Next pill while not allowed (white at 26%, its words at 78%), and the dashes' track.
+    static let deepOff      = Color(hex: 0xFFFFFF, alpha: 0.26)
+    static let deepOffWords = Color(hex: 0xFFFFFF, alpha: 0.78)
+    static let deepTrack    = Color(hex: 0xFFFFFF, alpha: 0.28)
+    /// The white Next pill under the finger: a touch greyer, as the Welcome's pill goes.
+    static let deepPressed  = Color(hex: 0xECECEA)
+    /// A picked circle's check (mock v5 `.bd`): Google's green, not Apple's `now`.
+    static let pickCheck    = Color(hex: 0x34A853)
+
     // MARK: Onboarding in Luma's look (BP app onboarding 34, mock v8 `--canvas` and friends)
 
     /// The pale grey behind every question step, so white cards stand off it.

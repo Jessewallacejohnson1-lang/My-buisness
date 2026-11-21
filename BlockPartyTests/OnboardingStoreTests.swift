@@ -432,13 +432,13 @@ final class OnboardingStoreTests: XCTestCase {
         XCTAssertEqual(FollowSuggestions.collegeTargets(in: all).count, 2)
     }
 
-    func testOpeningSchoolsIsKeptAndGoesWithTheFlow() {
+    func testPickingSchoolsIsKeptAndGoesWithTheFlow() {
         let store = OnboardingStore(defaults: defaults)
-        XCTAssertFalse(store.schoolsOpened)
-        store.schoolsOpened = true
-        XCTAssertTrue(OnboardingStore(defaults: defaults).schoolsOpened, "a relaunch resumes on it")
+        XCTAssertFalse(store.schoolsPicked)
+        store.schoolsPicked = true
+        XCTAssertTrue(OnboardingStore(defaults: defaults).schoolsPicked, "a relaunch resumes on it")
         store.reset()
-        XCTAssertFalse(OnboardingStore(defaults: defaults).schoolsOpened)
+        XCTAssertFalse(OnboardingStore(defaults: defaults).schoolsPicked)
     }
 
     func testFollowThreeShowsEveryPlaceAndSearchesEverything() {
