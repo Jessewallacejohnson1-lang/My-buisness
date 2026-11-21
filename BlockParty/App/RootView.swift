@@ -919,7 +919,9 @@ struct MainTabsView: View {
             for round in 0... {
                 let cards = townFeed.cards
                 let card = cards[round % cards.count]
-                await step("blank", open: { path.append(BlankRoute()) }, back: { path.removeLast() })
+                // A blank page, then another pushed from it: the push's own floor, from the shell and from a light page.
+                await step("blank", open: { path.append(BlankRoute()) }, back: {})
+                await step("blank2", open: { path.append(BlankRoute()) }, back: { path.removeLast(2) })
                 await step("event", open: { reopened = card.id; path.append(card) }, back: { path.removeLast() })
                 await step("bell", open: { path.append(NotificationsRoute()) }, back: { path.removeLast() })
                 await step("map", open: { showMap = true }, back: { showMap = false })
