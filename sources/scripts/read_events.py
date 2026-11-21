@@ -1485,10 +1485,11 @@ def team_slug(name):
 
 
 def team_game(entry, src, uid, start, all_day, home, away, place, town, sport):
-    """One game of a town or junior team as the league's games come: titled "<home> <sport> vs <away>" by nickname,
-    its About from the schedule alone, both teams' full names for the writer to find their teams."""
-    teams = [nickname(home), nickname(away)]
-    return {"kind": "event", "title": game_title(teams, sport), "start": start, "end": None, "all_day": all_day,
+    """One game of a town or junior team as the league's games come: titled "<home> <sport> vs <away>" by nickname
+    (our own team leaves a title past 40 characters first, as the league's do), its About from the schedule alone,
+    both teams' full names for the writer to find their teams."""
+    teams, me = [nickname(home), nickname(away)], src.get("team") or entry["_name"]
+    return {"kind": "event", "title": game_title(teams, sport, ours=0 if home == me else 1), "start": start, "end": None, "all_day": all_day,
             "place": place, "town": town, "area": "game", "source_name": entry["_name"], "source_url": src["url"],
             "source_uid": uid, "trust": "official", "sure": True, "size": "everyday", "interest": "watch_sports",
             "blurb": game_about("", sport, teams[0], teams[1]), "game": {"sport": sport, "teams": [home, away]}}
