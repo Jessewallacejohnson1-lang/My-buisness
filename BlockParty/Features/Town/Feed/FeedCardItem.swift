@@ -82,6 +82,10 @@ struct FeedCardItem: Identifiable, Hashable {
     var flyerCredit: String? = nil
     /// Its flyer lists other things too: About says it is part of its host's lineup (town-feed 59).
     var lineup = false
+    /// Its picture is a flyer that already says what it is, so its Town card and the Event of the day poster set no
+    /// title of ours under it, as News over its own graphic (Jesse, 2026-11-20, BP app town-feed 82). A lineup's flyer
+    /// names other Events too: its title stays, to say which one this is.
+    var flyerSaysIt: Bool { whole && !lineup }
     /// The approved group putting it on, as the Town feed names it, and whether the read said
     /// you're in it: a card shows Join beside the group's name when you aren't (rsvp-and-groups 07).
     var groupID: String? = nil

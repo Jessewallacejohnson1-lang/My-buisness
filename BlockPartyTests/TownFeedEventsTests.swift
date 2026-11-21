@@ -1552,6 +1552,12 @@ final class TownFeedEventsTests: XCTestCase {
         let cathedral = try team(##"{"name":"Cathedral","color":"#FEE291"}"##)
         XCTAssertEqual(GameMatchup.splitColors([cathedral, scholastica]),
                        [GameMatchup.tone(0xFEE291, lightness: GameMatchup.splitDepth), 0x004070], "a light yellow goes deep")
+        let gustavus = try team(##"{"name":"Gustavus Adolphus","color":"#000000","colors":["#F6C904"]}"##)
+        XCTAssertEqual(GameMatchup.splitColors([sju, gustavus]), [0xC20430, 0xBF9C03], "a bright gold goes to old gold")
+        let delano = try team(##"{"name":"Delano","color":"#FE8301"}"##)
+        let zimmerman = try team(##"{"name":"Zimmerman","color":"#77ADD3"}"##)
+        XCTAssertEqual(GameMatchup.splitColors([delano, zimmerman]),
+                       [0xFE8301, GameMatchup.tone(0x77ADD3, lightness: GameMatchup.splitDepth)], "orange keeps its own; a light blue goes deep")
         XCTAssertEqual(GameMatchup.splitColors([sju, try team(##"{"name":"Somebody"}"##)]), [0xC20430, nil], "none known stays none")
     }
 

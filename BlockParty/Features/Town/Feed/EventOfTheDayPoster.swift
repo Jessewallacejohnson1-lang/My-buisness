@@ -206,12 +206,16 @@ struct EventOfTheDayPoster: View {
         return VStack(alignment: .leading, spacing: 0) {
             // A stack, not a Group: measured as a Group, its lines would land on top of each other.
             VStack(alignment: .leading, spacing: 0) {
-                Text(item.title)
-                    .font(.eventDisplay(28))
-                    .lineLimit(3)
-                    .fixedSize(horizontal: false, vertical: true)
+                // A flyer that says it sets no title of ours (town-feed 82); the link's VoiceOver line still reads it.
+                let flyerSaysIt = item.flyerSaysIt && !photoFailed
+                if !flyerSaysIt {
+                    Text(item.title)
+                        .font(.eventDisplay(28))
+                        .lineLimit(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 when
-                    .padding(.top, Metric.whenTop)
+                    .padding(.top, flyerSaysIt ? 0 : Metric.whenTop)
                 // What it is and a short place in one line, a photo card's own (`smallLines`).
                 let lines = item.smallLines
                 if !lines.isEmpty {

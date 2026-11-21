@@ -28,6 +28,27 @@ nonisolated struct TapArea: Shape {
     }
 }
 
+/// What it holds, made a moment after it comes on: a push or a cover starts moving on the page's bar and ground
+/// alone, and the rest arrives a frame into the slide, while Core Animation carries the slide on its own. Making
+/// it all first held the tap for 60 to 90 ms on the iPhone (BP app tab-lag 02).
+struct MadeAfterOpen<Content: View>: View {
+    var ground: Color = .clear
+    @ViewBuilder let content: () -> Content
+    @State private var made = false
+
+    var body: some View {
+        if made {
+            content()
+        } else {
+            // A timer's moment, so the first frame has gone without it.
+            ground.ignoresSafeArea().task {
+                try? await Task.sleep(for: .milliseconds(1))
+                made = true
+            }
+        }
+    }
+}
+
 /// A pushed page's top: the back chevron at the left, the title in the middle, on paper the list
 /// passes under.
 struct PageBar: View {

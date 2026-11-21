@@ -50,6 +50,8 @@ struct NotificationsPage: View {
     private let inbox = HelloInbox.shared
     /// The large title has gone under the bar: the bar shows the small one.
     @State private var titleUnder = false
+    /// A person opened it, not DEBUG `-open-cycle`, which leaves the dot and the hello pill as they were.
+    private let looking = !LaunchFlags.has(.openCycle)
 
     /// The read answered with nothing, and the phone kept nothing either.
     private var isEmpty: Bool {
@@ -132,14 +134,14 @@ struct NotificationsPage: View {
         // Read on every visit; once drawn, the bell's dot goes. What the phone kept is drawn at
         // once, so the pill never says it after this, even offline.
         .task {
-            inbox.toldAll()
+            if looking { inbox.toldAll() }
             await notices.refresh()
-            notices.opened()
+            if looking { notices.opened() }
         }
         // Your own Events' cards, read again on every visit, so their rows open with today's hearts.
         .task { await inbox.freshen() }
         // One found while the page was up was shown on it too.
-        .onDisappear { inbox.toldAll() }
+        .onDisappear { if looking { inbox.toldAll() } }
     }
 }
 

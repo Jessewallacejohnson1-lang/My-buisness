@@ -448,6 +448,14 @@ final class FrameGapLog {
     private var tapName = "touch"
     private var tapWorstMs = 0.0
     private var tapStallMs = 0.0
+    /// The screen the last tap opened (`timesOpen`), and the tap's own clock for its `OPEN` line, kept past the
+    /// TAP line's 0.6 s: a cold map can take longer.
+    private var openFrom: TimeInterval?
+    private var openName: String?
+    /// The screen on top at the tap, and the tap's clock for its `MOVE` line: the first frame where another screen's
+    /// layer, as Core Animation draws it, is on the glass. A cover's onAppear can come later than that, or sooner.
+    private var moveFrom: TimeInterval?
+    private var topAtTap: ObjectIdentifier?
 
     func start() {
         guard link == nil else { return }
@@ -470,6 +478,56 @@ final class FrameGapLog {
         tapName = name
         tapWorstMs = 0
         tapStallMs = 0
+        openFrom = up
+        openName = nil
+        moveFrom = up
+        topAtTap = Self.top().map(ObjectIdentifier.init)
+    }
+
+    /// The screen on top: the last one presented, and down any stack in it to the page on top.
+    private static func top() -> UIViewController? {
+        var vc = UIApplication.shared.connectedScenes.compactMap { ($0 as? UIWindowScene)?.keyWindow }.first?.rootViewController
+        while let here = vc {
+            if let next = here.presentedViewController ?? (here as? UINavigationController)?.topViewController
+                ?? firstStack(in: here) {
+                vc = next
+            } else {
+                return here
+            }
+        }
+        return nil
+    }
+
+    /// The earliest start of a move (position, transform, frame) on this view or any layer above it, since the tap.
+    private static func slideBegan(_ view: UIView, after from: TimeInterval) -> TimeInterval? {
+        var layer: CALayer? = view.layer, best: TimeInterval?
+        while let here = layer {
+            for key in here.animationKeys() ?? [] {
+                guard let a = here.animation(forKey: key), a.beginTime > from else { continue }
+                let path = key + " " + ((a as? CAPropertyAnimation)?.keyPath ?? "")
+                guard ["position", "transform", "bounds", "frame"].contains(where: path.contains) else { continue }
+                best = min(best ?? a.beginTime, a.beginTime)
+            }
+            layer = here.superlayer
+        }
+        return best
+    }
+
+    private static func firstStack(in vc: UIViewController) -> UINavigationController? {
+        var queue = vc.children
+        while !queue.isEmpty {
+            let c = queue.removeFirst()
+            if let n = c as? UINavigationController { return n }
+            queue += c.children
+        }
+        return nil
+    }
+
+    /// A screen came on (`timesOpen`): with a tap waiting, the next frame prints `OPEN <name> +N ms`, from the
+    /// tap to the frame that shows it. Once per tap: going back brings on the screen under it with no tap.
+    func opened(_ name: String) {
+        guard openFrom != nil, openName == nil else { return }
+        openName = name
     }
 
     @objc private func tick(_ l: CADisplayLink) {
@@ -493,8 +551,37 @@ final class FrameGapLog {
             tapWorstMs = max(tapWorstMs, gapMs)
             if gapMs > budgetMs { tapStallMs += gapMs - l.duration * 1000 }
             if now - up > 0.6 {
-                print("FrameGapLog: TAP \(tapName) worst=\(Int(tapWorstMs))ms stall=\(Int(tapStallMs))ms")
+                // A finger's tap is named by the screen it opened.
+                let name = tapName == "touch" ? openName.map { "touch-\($0)" } ?? tapName : tapName
+                print("FrameGapLog: TAP \(name) worst=\(Int(tapWorstMs))ms stall=\(Int(tapStallMs))ms")
                 tapUp = nil
+            }
+        }
+        // The first frame drawn after the screen came on: the one that shows it (plus the frame or two the
+        // system takes to put it on the glass, which this can't see).
+        if let from = moveFrom {
+            if let vc = Self.top(), ObjectIdentifier(vc) != topAtTap, let w = vc.viewIfLoaded?.window {
+                // The slide's own start, as Core Animation keeps it: a frame this tick comes late to (the main
+                // thread busy after the commit) still moved on the glass from then.
+                let began = Self.slideBegan(vc.view, after: from)
+                let pl = vc.view.layer.presentation(), wl = w.layer.presentation()
+                let onGlass = pl.flatMap { p in wl.map { p.convert(p.bounds, to: $0) } }?
+                    .intersects(w.bounds.insetBy(dx: 0.5, dy: 0.5)) ?? false
+                if began != nil || onGlass {
+                    let name = tapName == "touch" ? openName ?? "screen" : tapName
+                    let at = began ?? l.targetTimestamp
+                    print("FrameGapLog: MOVE \(name) +\(Int((at - from) * 1000))ms\(began == nil ? "" : " (slide)") tick +\(Int((l.targetTimestamp - from) * 1000))ms")
+                    moveFrom = nil
+                }
+            }
+            if moveFrom != nil, l.timestamp - from > 3 { moveFrom = nil }
+        }
+        if let from = openFrom {
+            if let name = openName {
+                print("FrameGapLog: OPEN \(name) +\(Int((l.targetTimestamp - from) * 1000))ms")
+                openFrom = nil
+            } else if l.timestamp - from > 3 {
+                openFrom = nil
             }
         }
     }
@@ -577,6 +664,16 @@ enum ReadAheadLog {
 #endif
 
 extension View {
+    /// DEBUG `-frame-gap-log`: this screen's first frame after a tap, as an `OPEN` line (`FrameGapLog.opened`,
+    /// BP app tab-lag 02); nothing otherwise, and nothing in a release build.
+    func timesOpen(_ name: String) -> some View {
+        #if DEBUG
+        onAppear { if FrameGapLog.enabled { FrameGapLog.shared.opened(name) } }
+        #else
+        self
+        #endif
+    }
+
     /// DEBUG `-feed-scroll-run` on this scroll view (`ScrollRun`); nothing otherwise, and nothing in a release build.
     @ViewBuilder
     func scrollRun() -> some View {
