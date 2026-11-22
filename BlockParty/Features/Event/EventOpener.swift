@@ -66,19 +66,19 @@ final class EventOpener {
         shown = true
         counted(item.id)
         progress.animate(to: 1, response: SearchMetric.openResponse, damping: SearchMetric.openDamping, instant: reduceMotion,
-                         completion: mostlyOpen)
+                         completion: restsOpen)
     }
 
     /// Home, from wherever it is. `velocity` is the finger's, in progress per second.
     func close(velocity: CGFloat? = nil) {
         guard item != nil else { return }
         isOpen = false
-        AppearanceStore.shared.eventOver = false
         progress.animate(to: 0, response: SearchMetric.closeResponse, damping: 1, velocity: velocity,
                          instant: reduceMotion) { [weak self] in
             guard let self, !self.isOpen else { return }
             item = nil
             shown = false
+            AppearanceStore.shared.eventOver = false
         }
     }
 
@@ -103,12 +103,13 @@ final class EventOpener {
     func settleOpen(velocity: CGFloat) {
         isOpen = true
         progress.animate(to: 1, response: SearchMetric.settleResponse, damping: SearchMetric.settleDamping,
-                         velocity: velocity, instant: reduceMotion, completion: mostlyOpen)
+                         velocity: velocity, instant: reduceMotion, completion: restsOpen)
     }
 
-    /// Most of the way open, the page's clock is its own: white over its picture, as a pushed page's turned during its
-    /// slide. Not at the tap: the whole app redraws for a new scheme.
-    func mostlyOpen() {
+    /// At rest open, the page's clock is its own: white over its picture. Only when nothing moves: a new scheme
+    /// redraws the whole app, a 20 to 50 ms freeze measured on the iPhone mid-open (tab-lag 02 round 5). A close gives
+    /// the clock back to Town once home, for the same reason.
+    func restsOpen() {
         if isOpen { AppearanceStore.shared.eventOver = true }
     }
 
@@ -132,9 +133,6 @@ final class EventOpener {
 
     /// How far from home a close is done.
     static let homeAt: CGFloat = 0.02
-
-    /// How far open the page takes the clock from Town.
-    static let clockTurns: CGFloat = 0.6
 
     /// The page under the flying photo, from a third of the way in, whole at 85%.
     static func pageOpacity(_ p: CGFloat) -> Double {
@@ -261,7 +259,6 @@ private struct EventFlight: View {
             if moved, FrameGapLog.enabled { FrameGapLog.shared.moved("event") }
             #endif
         }
-        .onChange(of: p > EventOpener.clockTurns) { _, past in if past { opener.mostlyOpen() } }
         .onChange(of: p < EventOpener.homeAt) { _, home in if home { opener.almostHome() } }
     }
 
