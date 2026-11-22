@@ -12,9 +12,9 @@ check never waits on the Claude plan: saved tasks hold each list's pages, and sc
 The busy list (`bp-busy-<kind>`) is read once a day at 7pm Chicago (Jesse, 2026-11-15, BP app watch-every-place
 26: 69% of twice-a-day reads found nothing new; 9:30am and 7pm from 2026-11-10, noon and 9pm before). Every other page is read once a week, a seventh of them each day at
 3pm (`bp-weekly-<day>-<kind>`, with the Facebook Events tabs that list events and Facebook's own events page for the
-town on Mondays and Saturdays: page_lists; Monday's and Saturday's search tasks also read again every upcoming Event
-linked to a Facebook event, so a new date, time, place, About or cover, or a cancelling, reaches it: rereads, BP app
-watch-every-place 24). A page's day is its `day` in the list,
+town on Mondays and Saturdays: page_lists; Saturday's search task also reads again every Event linked to a Facebook
+event that starts after it, so a new date, time, place, About or cover, or a cancelling, reaches it: rereads, BP app
+watch-every-place 24 and 41). A page's day is its `day` in the list,
 set so each day reads a mix of kinds (Jesse, 2026-11-11: "divide the type of events up so a reading
 can get a variety"; until then every page was read on Thursdays, one big drop a week). Each read
 reaches back to an hour before its task's last good read (since), so a run that the monthly cap or
@@ -114,7 +114,10 @@ ACTORS = {  # (actor, spending cap in USD per run) for each kind of read; a week
     ("busy", "stories"): ("datavoyantlab~advanced-instagram-stories-scraper", 0.20),  # $0.099 a run and $0.0028 an account (Nov 2026)
 }
 FB_EVENT = re.compile(r"facebook\.com/events/(\d+)")
-REREAD_DAYS = ("mon", "sat")  # the town search's days: every upcoming Event linked to a Facebook event is read again
+SEARCH_DAYS = ("mon", "sat")  # the town search's days (BP app watch-every-place 26)
+# Every upcoming Event linked to a Facebook event is read again in this day's search task: 2 reads on Mon and Sat found
+# 1 real change for 85 cents a week (Jesse, 2026-11-22: "yes", BP app watch-every-place 41)
+REREAD_DAY = "sat"
 QUARTER = (1, 4, 7, 10)  # months whose first week reads every Facebook page's Events tab (watch-every-place 26)
 SEARCH_EVENTS = 50  # most events each search page reads (maxEvents is per start URL); Apify bills each one, a cent apiece
 NEAR_KM = 10  # a found event farther than this from the town, by its map position, is someone else's
@@ -191,32 +194,41 @@ def search_pages():
     queries = town.get("facebook_events_search") or []
     for q in ([queries] if isinstance(queries, str) else queries):
         pages.append({"entry_id": "", "name": f"Facebook events search: {q}", "kind": "search", "busy": False,
-                      "url": "https://www.facebook.com/events/search/?q=" + quote(q), "day": REREAD_DAYS[0]})
+                      "url": "https://www.facebook.com/events/search/?q=" + quote(q), "day": SEARCH_DAYS[0]})
     if town.get("facebook_events_explore"):
         pages += [{"entry_id": "", "name": "Facebook events page for the town", "kind": "search", "busy": False,
-                   "url": town["facebook_events_explore"], "day": d} for d in REREAD_DAYS]
+                   "url": town["facebook_events_explore"], "day": d} for d in SEARCH_DAYS]
     return pages
 
 
-def rereads(db, today):
-    """Every upcoming Event linked to a Facebook event (its own listing or a mention), as pages the town search's tasks
-    read again on REREAD_DAYS (BP app watch-every-place 24; Jesse, 2026-11-14: "check for updates on events and changes
-    in description or new images"): a cent each read. A page is named for the host that listed the Event, its own source
-    first, so the read keys to the same Event (write_judged's fb: id) and takes its new date, time, place, About and
-    cover, or its cancelling. A past or cancelled Event isn't read. With no `db`, the database keys in the environment."""
+def rereads(db, now):
+    """Every Event linked to a Facebook event (its own listing or a mention) that starts after the next REREAD_DAY read,
+    as pages that day's search task reads again (BP app watch-every-place 24; Jesse, 2026-11-14: "check for updates on
+    events and changes in description or new images"): a cent each read. A page is named for the host that listed the
+    Event, its own source first, so the read keys to the same Event (write_judged's fb: id) and takes its new date, time,
+    place, About and cover, or its cancelling. A cancelled Event isn't read, nor one started before the read: the list
+    is made at the check before it, and Apify bills a past event too (Nov 21: 8 of 43; watch-every-place 41). One with
+    no time on the read's day is read. With no `db`, the database keys in the environment."""
+    from write_judged import parse_clock
     if db is None:
         from run import Supabase
         db = Supabase()
-    rows = db.rest("GET", "event_mentions?select=source_name,source_url,club_events!inner(source_name,place_entry_id)"
-                          f"&source_url=like.{quote('*facebook.com/events/*')}&club_events.status=eq.approved"
-                          f"&club_events.kind=eq.event&club_events.cancelled_at=is.null&club_events.event_date=gte.{today}")
+    at = next_read(now, REREAD_DAY)
+    rows = db.rest("GET", "event_mentions?select=source_name,source_url,club_events!inner(source_name,place_entry_id,"
+                          f"event_date,start_time)&source_url=like.{quote('*facebook.com/events/*')}"
+                          "&club_events.status=eq.approved&club_events.kind=eq.event&club_events.cancelled_at=is.null"
+                          f"&club_events.event_date=gte.{at.date()}")
     out = {}
     for r in rows:
         number, e = FB_EVENT.search(r.get("source_url") or ""), r.get("club_events") or {}
+        starts = parse_clock(e.get("start_time"))
+        if str(e.get("event_date")) == str(at.date()) and starts and starts < at.time():
+            continue
         if number and (number[1] not in out or r["source_name"] == e.get("source_name")):
             out[number[1]] = {"entry_id": e.get("place_entry_id") or "", "name": r["source_name"], "kind": "search",
-                              "busy": False, "reread": True, "url": f"https://www.facebook.com/events/{number[1]}/"}
-    return [dict(p, day=d) for _, p in sorted(out.items()) for d in REREAD_DAYS]
+                              "busy": False, "reread": True, "url": f"https://www.facebook.com/events/{number[1]}/",
+                              "day": REREAD_DAY}
+    return [p for _, p in sorted(out.items())]
 
 
 def listing(row):
@@ -446,7 +458,7 @@ def since(task, began, now):
 def sync_tasks(root, missed=None, now=None, again=()):
     """Each task's pages as the lists now have them (page_lists), each weekly page in its day's task
     (`bp-weekly-<day>-<kind>`), and how far back each posts task reads (since); makes a task that is
-    missing. Returns {task name: id} of the tasks with pages. Every Event in `again` is read on both its days: Apify
+    missing. Returns {task name: id} of the tasks with pages. Every Event in `again` is read on its day: Apify
     bills an event once a run however many of the run's pages return it, so one the town's events page returns too
     costs nothing more (2026-11-16: 103 rows, 103 events), and skipping it saves only when the page stops returning it,
     the read that matters (BP app watch-every-place 26, 2026-11-17)."""
@@ -481,7 +493,7 @@ def setup():
         api("PUT", f"/key-value-stores/{_store_id()}/records/days-began", {"at": began.isoformat()})
         print(f"[social] the weekly days begin where the last weekly check left off: {began.astimezone(LOCAL):%a %b %-d %-I:%M %p}")
     try:
-        again = rereads(None, now.astimezone(LOCAL).date())
+        again = rereads(None, now)
     except (Exception, SystemExit) as e:  # no database keys here (Supabase() exits): the next check's prepare adds them
         again = []
         print(f"[social] the Events to read again are unread ({e}); the next check's prepare adds them to the search tasks")
@@ -823,7 +835,7 @@ def post_pages(kind, rows, by_url):
             continue
         if kind in ("events", "search"):
             text = r.get("description") or ""
-            words = text.strip()[:WORDS_MAX]  # the host's About, read again Mondays and Saturdays (rereads)
+            words = text.strip()[:WORDS_MAX]  # the host's About, read again Saturdays (rereads)
             loc = r.get("location") if isinstance(r.get("location"), dict) else {}
             where = loc.get("name") if loc else r.get("location")
             # An Event read again (rereads) is its host's listing, as a tab's is; one found by the search is named for
@@ -943,7 +955,7 @@ def prepare(run, now):
         except Exception as e:  # every page read this time, and none counted
             saved["missed"], _ = None, saved["failed"].append(f"set-aside pages unreadable: {e}")
         try:
-            saved["again"] = rereads(run.db, today)
+            saved["again"] = rereads(run.db, now)
         except (Exception, SystemExit) as e:  # no database keys (a dry run on a Mac): the next check's prepare adds them
             saved["again"], _ = [], saved["failed"].append(f"Events to read again unread: {e}")
         try:
@@ -1048,8 +1060,7 @@ def say_prepared(s, out):
     if s.get("cancelled"):
         print(f"[social] {s['cancelled']} Facebook events cancelled by their hosts: save marks their Events cancelled")
     if s.get("again"):
-        print(f"[social] {s['again']} upcoming Events linked to a Facebook event are read again on "
-              f"{' and '.join(d.title() for d in REREAD_DAYS)}")
+        print(f"[social] {s['again']} upcoming Events linked to a Facebook event are read again on {REREAD_DAY.title()}")
     if s.get("stories"):  # watch-every-place 25: the judge's answer says what each story became
         st = s["stories"]
         print(f"[social] stories: {st['read']} read, Apify ${st['usd']:.2f}" if st["usd"] is not None
@@ -1302,21 +1313,33 @@ def selftest():
     class Mentions:
         def rest(self, method, path, body=None, prefer=None):
             asked.append(path)
+            later = {"event_date": "2026-11-28", "start_time": "10 AM"}
             return [{"source_name": "Visit Joetown", "source_url": "https://www.facebook.com/events/1596047658468573/",
-                     "club_events": {"source_name": "JoeTown", "place_entry_id": "joetown"}},
+                     "club_events": {"source_name": "JoeTown", "place_entry_id": "joetown", **later}},
                     {"source_name": "JoeTown", "source_url": "https://www.facebook.com/events/1596047658468573/?ref=1",
-                     "club_events": {"source_name": "JoeTown", "place_entry_id": "joetown"}},
+                     "club_events": {"source_name": "JoeTown", "place_entry_id": "joetown", **later}},
                     {"source_name": "Sunny Mary Meadow", "source_url": "https://www.facebook.com/events/1107906461871802",
-                     "club_events": {"source_name": "Sunny Mary Meadow", "place_entry_id": None}}]
-    again = rereads(Mentions(), date(2026, 11, 14))
+                     "club_events": {"source_name": "Sunny Mary Meadow", "place_entry_id": None,
+                                     "event_date": "2026-11-21", "start_time": "7 PM"}},
+                    {"source_name": "RLC", "source_url": "https://www.facebook.com/events/1382973853614119/",  # 9-2 craft fair
+                     "club_events": {"source_name": "RLC", "place_entry_id": "rlc", "event_date": "2026-11-21",
+                                     "start_time": "9 AM"}},
+                    {"source_name": "Sal's", "source_url": "https://www.facebook.com/events/1595756672032370/",
+                     "club_events": {"source_name": "Sal's", "place_entry_id": "sals", "event_date": "2026-11-21",
+                                     "start_time": None}}]
+    friday_check = datetime(2026, 11, 20, 19, 30, tzinfo=LOCAL)  # Nov 21's read is Saturday 3 PM
+    again = rereads(Mentions(), friday_check)
     check([(p["url"], p["name"], p["day"]) for p in again] == [
-              ("https://www.facebook.com/events/1107906461871802/", "Sunny Mary Meadow", "mon"),
               ("https://www.facebook.com/events/1107906461871802/", "Sunny Mary Meadow", "sat"),
-              ("https://www.facebook.com/events/1596047658468573/", "JoeTown", "mon"),
+              ("https://www.facebook.com/events/1595756672032370/", "Sal's", "sat"),
               ("https://www.facebook.com/events/1596047658468573/", "JoeTown", "sat")]
           and again[2]["entry_id"] == "joetown" and all(p["reread"] and p["kind"] == "search" for p in again)
-          and "club_events.event_date=gte.2026-11-14" in asked[0] and "club_events.cancelled_at=is.null" in asked[0],
-          "each upcoming Event's Facebook event is read again Monday and Saturday, named for the Event's own host")
+          and "club_events.event_date=gte.2026-11-21" in asked[0] and "club_events.cancelled_at=is.null" in asked[0],
+          "each Event's Facebook event is read again on Saturday, named for the Event's own host; one that starts before "
+          "the 3 PM read is not (Nov 21: 8 of 43 read were past), one with no time is")
+    asked.clear()
+    rereads(Mentions(), datetime(2026, 11, 21, 15, 45, tzinfo=LOCAL))
+    check("event_date=gte.2026-11-28" in asked[0], "a check after Saturday's read lists Events for next Saturday's")
     tabbed = {canon(p["url"]): p for p in again}
     reread = lambda **kw: {"inputUrl": "https://www.facebook.com/events/1107906461871802/", "id": "1107906461871802",
                            "url": "https://www.facebook.com/events/1107906461871802/", "name": "Winter Wreath Workshop",
@@ -1346,7 +1369,7 @@ def selftest():
     finally:
         g.update(saved)
     check(kept == [again] and asked == [],
-          "every Event is read again on both its days, with no look at the last search: Apify bills an event once a run "
+          "every Event is read again on its day, with no look at the last search: Apify bills an event once a run "
           "(watch-every-place 26, 2026-11-17)")
     # watch-every-place 36: the store is found with a read, so an account Apify turned off keeps its marks; made once
     stores, posted = {"data": {"items": [{"name": STORE, "id": "s1"}, {"name": "other", "id": "o"}]}}, []
@@ -1625,7 +1648,7 @@ def set_aside_reads():
             events_lists = [ev(4, 21, 30), ev(10, 21, 30),
                             sorted(p["entry_id"] for p in page_lists(root, {}, datetime(2026, 12, 31, 21, 30, tzinfo=LOCAL))[("weekly", "events")])]
             twice = [{"entry_id": "x", "name": "X", "kind": "search", "busy": False, "reread": True,
-                      "url": "https://www.facebook.com/events/1/", "day": d} for d in REREAD_DAYS]
+                      "url": "https://www.facebook.com/events/1/", "day": REREAD_DAY}]
             searched = page_lists(root, {}, None, twice)[("weekly", "search")]
             search_days = sorted(day_of(p) for p in searched if p.get("reread"))
     finally:
@@ -1638,7 +1661,7 @@ def set_aside_reads():
     twenty_four = [f"https://www.facebook.com/p{i}" for i in range(24)]
     blocked = tally([(f"2026-10-2{i}", twenty_four, [], f"facebook run {i}") for i in range(3)], {}, date(2026, 10, 28))
     return [
-        (search_days == ["mon", "sat"], "an Event read again sits in the Monday and the Saturday search tasks"),
+        (search_days == ["sat"], "an Event read again sits in the Saturday search task only (watch-every-place 41)"),
         (sals not in inputs[3]["bp-busy-facebook"] and sals in inputs[3]["bp-weekly-thu-facebook"]
          and sals in inputs[2]["bp-busy-facebook"] and on_lists == ["bp-busy-facebook"]
          and all(krewe in inputs[i]["bp-busy-facebook"] for i in inputs) and counts == ["3 pages"] * 3 + ["2 pages"],
