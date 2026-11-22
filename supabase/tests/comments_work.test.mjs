@@ -48,7 +48,7 @@ async function comment(who, postId, body, { names = null, verdict = 'shown' } = 
                  [cid, postId, who, body, names && JSON.stringify(names)]);
   await asAdmin();
   const claimed = (await db.query(`select public.claim_comment($1, $2) as ok`, [cid, who])).rows[0].ok;
-  if (claimed && verdict) await db.query(`update public.event_comments set status = $2 where id = $1`, [cid, verdict]);
+  if (claimed === 'claimed' && verdict) await db.query(`update public.event_comments set status = $2 where id = $1`, [cid, verdict]);
   return { cid, claimed };
 }
 const read = async (who, postId) => { await as(who);
@@ -132,9 +132,9 @@ test('the claim is once per comment and 50 a day', async () => {
   const p = await post(POSTER);
   const { cid } = await comment(BUSY, p, 'first');
   await asAdmin();
-  assert.equal((await db.query(`select public.claim_comment($1, $2) as ok`, [cid, BUSY])).rows[0].ok, false);
+  assert.equal((await db.query(`select public.claim_comment($1, $2) as ok`, [cid, BUSY])).rows[0].ok, 'no');
   await db.query(`insert into private.comment_checks (user_id) select $1 from generate_series(1, 49)`, [BUSY]);
-  assert.equal((await comment(BUSY, p, 'fifty-first')).claimed, false);
+  assert.equal((await comment(BUSY, p, 'fifty-first')).claimed, 'limit');
 });
 
 test('the check keeps an @ for someone in the thread or a friend, never a blocked one', async () => {
@@ -188,12 +188,12 @@ test('deleting a comment never gives back a check, and the claim sets the time',
   await db.query(`insert into public.event_comments (id, event_id, user_id, body, created_at)
                   values ($1, $2, $3, 'pinned?', '2030-01-01')`, [cid, p, LOOP]);
   await asAdmin();
-  assert.equal((await db.query(`select public.claim_comment($1, $2) as ok`, [cid, LOOP])).rows[0].ok, true);
+  assert.equal((await db.query(`select public.claim_comment($1, $2) as ok`, [cid, LOOP])).rows[0].ok, 'claimed');
   const at = (await db.query(`select created_at from public.event_comments where id = $1`, [cid])).rows[0].created_at;
   assert.ok(at < new Date('2029-01-01'), 'the claim stamps now');
   await as(LOOP);
   await db.query(`delete from public.event_comments where id = $1`, [cid]);
-  assert.equal((await comment(LOOP, p, 'again')).claimed, false, 'the 50th check was used though its comment is gone');
+  assert.equal((await comment(LOOP, p, 'again')).claimed, 'limit', 'the 50th check was used though its comment is gone');
 });
 
 test('the bell skips someone you muted', async () => {

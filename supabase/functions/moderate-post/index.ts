@@ -34,7 +34,7 @@ const COMMENT_RULE = `You read comments neighbors leave on each other's posts on
 
 Approve a comment that is a plausible reply between neighbors, even when it is short, blunt, joking, only emoji, misspelled or off topic. Reject a comment that is abusive, hateful, harassing, bullying, threatening, sexual, spam, advertising or a scam, or that gives a person's private details (a phone number, a home address, an email).
 
-Reject only with a clear, kind, specific reason the writer can act on, in one short sentence.
+Reject only with a clear, kind, specific reason the writer can act on, in one short sentence of 12 words or fewer.
 
 Respond with ONLY a JSON object: {"ok": true|false, "reason": "<short reason; empty when ok>"}`
 
@@ -194,12 +194,14 @@ Deno.serve(async (req) => {
   // A neighbour's new comment on a post (BP app backlog 38). claim_comment lets it through once, only while it's the
   // caller's, pending, on a post they may still see, and one of their 50 that day. Yes shows it; no declines it (it
   // stays out of every read, still counted in the day's 50) and gives the reason; no answer leaves it pending, which no
-  // read shows, and the app takes it back. Nothing claimed is a 429 the app reads as not posted.
+  // read shows, and the app takes it back. The day's 50 used is a 429 ("You've hit today's limit."); anything else
+  // unclaimed (sent twice, the post gone, a block) is a 409 the app reads as not posted.
   if (body?.comment) {
     const id = String(body.comment)
     const { data: claimed, error } = await admin.rpc('claim_comment', { p_comment: id, p_user: caller })
     if (error) return json({ ok: false, reason: 'Could not auto-check.' }, 502)
-    if (!claimed) return json({ ok: false, reason: 'Not checked.' }, 429)
+    if (claimed === 'limit') return json({ ok: false, reason: 'Not checked.' }, 429)
+    if (claimed !== 'claimed') return json({ ok: false, reason: 'Not checked.' }, 409)
     const { data: c } = await admin.from('event_comments').select('body, event_id').eq('id', id).single()
     const { data: e } = c ? await admin.from('club_events').select('title').eq('id', c.event_id).single() : { data: null }
     const said = c ? await verdict(e ?? {}, undefined, String(c.body)) : null
