@@ -534,6 +534,39 @@ test("a team's games on two days lift its next game in that sport and name it; n
   assert.equal(rows['Augsburg Soccer vs Bethel'].score.tapped, 0, 'Augsburg and Bethel were in one tapped game each');
 });
 
+test("a Sports pick follows the town's own teams' games and says its interest; away and followers-only stay as they were (onboarding 48)", async () => {
+  await reset();
+  await teams(['saint-johns', "Saint John's"], ['augsburg', 'Augsburg'], ['bethel', 'Bethel']);
+  const sports = { source_name: SJU, category: 'watch_sports' };
+  await game('SJU Soccer vs Augsburg', '2026-10-10', 'Soccer', ['saint-johns', 'augsburg'], sports);
+  await game('Augsburg Soccer vs Bethel', '2026-10-10', 'Soccer', ['augsburg', 'bethel'],
+             { ...sports, source_name: 'Augsburg Athletics' });
+  await game('SJU JV Soccer at Bethel', '2026-10-10', 'Soccer', ['saint-johns', 'bethel'], { ...sports, followersOnly: true });
+  const read = async (interests) => {
+    await signIn(YOU, interests);
+    await db.exec(`set request.jwt.claims = '${ADMIN}'`);
+    return Object.fromEntries((await feed('2026-10-08 12:00')).map((r) => [r.title, r]));
+  };
+  // No Sports pick: an own team's game has no follow points.
+  const without = await read(['live_music']);
+  assert.equal(without['SJU Soccer vs Augsburg'].score.yours, 0);
+  // Sports: the interest's 3 and the follow's 3 on an own team's game; its card says the interest.
+  const withSports = await read(['watch_sports']);
+  const own = withSports['SJU Soccer vs Augsburg'];
+  assert.deepEqual([own.score.interest, own.score.yours, own.reason, own.reason_name], [3, 3, 'interest', 'watch_sports']);
+  assert.deepEqual([own.score.follow, own.score.tapped], [3, 0], 'the Score line counts it as a follow, not tapped');
+  // Two teams from away: the interest alone.
+  assert.equal(withSports['Augsburg Soccer vs Bethel'].score.yours, 0);
+  // A followers-only game stays for its followers.
+  assert.equal(withSports['SJU JV Soccer at Bethel'], undefined);
+  // Routine business (draw 1) gets no follow points, own team or not: it shows here only through your own Heart.
+  await db.exec('reset role');
+  const routine = await game('SJU Soccer scrimmage', '2026-10-10', 'Soccer', ['saint-johns', 'augsburg'], sports);
+  await set(routine, { draw: 1 });
+  await db.query(`insert into public.event_likes (event_id, user_id) values ($1, $2)`, [routine, YOU]);
+  assert.equal((await read(['watch_sports']))['SJU Soccer scrimmage'].score.follow, 0);
+});
+
 test('one tapped game lifts nothing, and two rows of one day are one game day', async () => {
   await reset();
   await teams(['saint-johns', "Saint John's"], ['augsburg', 'Augsburg'], ['st-olaf', 'St. Olaf']);
@@ -1214,6 +1247,28 @@ test("an event card shows its place's photo of what the event is, in season, tak
   await db.exec('reset role');
   assert.ok(['https://x/hockey-a.webp', 'https://x/hockey-b.webp'].includes(rows[0].place_picture.url),
             'the Town feed card carries the scene, signed out too');
+  await db.exec('delete from public.place_photos; delete from public.places;');
+});
+
+test("an exhibit whose title names nothing never shows another show's scene (event-photos 26)", async () => {
+  await reset();
+  await db.exec(`delete from public.place_photos; delete from public.places;
+    insert into public.place_photos (id, entry_id, url, source_url, position, kind, status, width, height, subjects, seasons, description)
+    overriding system value values
+      (801, 'campus', 'https://x/campus.webp', 'https://campus.edu/', 0, 'photo', 'live', 1600, 1067, '{}', '{}', null),
+      (802, 'campus', 'https://x/play.webp', 'https://campus.edu/t', 1, 'scene', 'live', 1600, 1067, '{theater}', '{}', 'A play on stage');`);
+  const subject = async (...a) => (await db.query('select private.event_subject($1, $2, $3, $4, $5) as s', a)).rows[0].s;
+  assert.equal(await subject('Bréagán', null, 'art_theater', null, 'Alice R. Rogers and Target Galleries'), 'art-gallery', 'its place says gallery');
+  assert.equal(await subject('Reflection', null, 'art_theater', 'The senior art show opens', null), 'art-gallery', 'its About says art show');
+  assert.equal(await subject('Artist Talk', null, 'art_theater', null, 'Gorecki Gallery'), 'talk', "the title's own subject wins");
+  assert.equal(await subject('Bréagán', null, 'art_theater', null, null), 'theater', 'nothing says exhibit: its category');
+  const add = async (title, location) => (await db.query(
+    `insert into public.club_events (status, title, event_date, category, location, source_name, place_entry_id)
+     values ('approved', $1, '2026-12-01', 'art_theater', $2, 'Campus', 'campus') returning id`, [title, location])).rows[0].id;
+  const pic = async (id) => (await db.query('select public.event_picture($1) as p', [id])).rows[0].p;
+  assert.equal((await pic(await add('Bréagán', 'Alice R. Rogers and Target Galleries'))).url, 'https://x/campus.webp',
+               "an exhibit falls through to its place's picture, never the play");
+  assert.equal((await pic(await add('Winter Showcase', 'Escher Auditorium'))).url, 'https://x/play.webp', 'a show still gets the play');
   await db.exec('delete from public.place_photos; delete from public.places;');
 });
 
