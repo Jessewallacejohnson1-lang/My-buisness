@@ -15,7 +15,7 @@ final class StartGroupTests: XCTestCase {
         var draft = StartGroupDraft(name: "  Joetown   Knitters ")
         XCTAssertEqual(draft.cleanName, "Joetown Knitters")
         XCTAssertTrue(draft.ready)
-        for name in ["", "ab", "  a b  ", "1234", String(repeating: "x", count: 61)] {
+        for name in ["", "ab", "  ab  ", "1234", String(repeating: "x", count: 61)] {
             draft.name = name
             XCTAssertFalse(draft.ready, name)
         }

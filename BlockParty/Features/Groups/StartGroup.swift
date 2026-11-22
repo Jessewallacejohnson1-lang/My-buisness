@@ -24,9 +24,10 @@ nonisolated struct StartGroupDraft: Equatable {
     /// 3 to 60 characters with a letter among them: `start_group`'s rule.
     var ready: Bool { (3...60).contains(cleanName.count) && cleanName.contains(where: \.isLetter) }
 
-    /// Words that say nothing about what a Group does.
-    private static let plain: Set<String> = ["club", "clubs", "group", "groups", "the", "and", "for", "saint", "joseph",
-                                             "joetown", "town", "society", "team", "circle", "night"]
+    /// Words that say nothing about what a Group does: the town's own names among them.
+    private static let plain: Set<String> = Set(["club", "clubs", "group", "groups", "the", "and", "for", "saint", "town",
+                                                 "society", "team", "circle", "night"])
+        .union([Town.everyday, Town.nickname, Town.townPage].flatMap { $0.lowercased().split { !$0.isLetter }.map(String.init) })
 
     /// Up to 3 live Groups whose name shares a word with this one, the most shared first: "Joetown Knitters" finds
     /// the Spinning and Knitting Bee ("knit" both). A word counts from 4 letters, matched on its first 4.
