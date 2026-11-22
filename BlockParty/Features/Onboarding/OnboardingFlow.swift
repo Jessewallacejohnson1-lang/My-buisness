@@ -375,7 +375,6 @@ struct OnboardingFlow: View {
     @AccessibilityFocusState private var questionFocused: Bool
     @State private var keyboardUp = false
     @State private var screenHeight: CGFloat = 874
-    @State private var homeBar: CGFloat = 34
     /// Schools' tiles and Follow 3's Places, schools and pages: nil while reading, empty if it failed.
     @State private var suggestions: [FollowSuggestion]?
     /// Next on Interests: its circles burst, then the step moves on (onboarding 48).
@@ -411,7 +410,7 @@ struct OnboardingFlow: View {
 
     /// The Next pill's lift over the birthday wheel, above the home indicator's 34: 12 pt over the
     /// wheel's top, as over a keyboard (mock v8).
-    private static let overWheel: CGFloat = OnboardingBirthdayWheel.height - 34 + 12
+    private static let overWheel: CGFloat = OnboardingBirthdayWheel.height + 12 - 34
     /// What the Birthday step's column keeps clear above the safe area: that lift, the pill, and 16.
     private static let birthdayClear: CGFloat = overWheel + OnboardingNextBar.height + 16
     /// What any other step keeps clear: the pill and its slot, or the pill over the keyboard, and 16.
@@ -420,7 +419,6 @@ struct OnboardingFlow: View {
 
     private var bottomClear: CGFloat {
         if onWheel { return Self.birthdayClear }
-        if store.tooYoung { return Self.slotClear }
         return keyboardUp ? Self.keyboardClear : Self.slotClear
     }
 
@@ -440,11 +438,10 @@ struct OnboardingFlow: View {
                     .transition(.opacity)
             }
         }
-        // The screen's height and home bar, for the iPhone SE's Birthday (onboarding 47).
+        // The whole screen's height, keyboard or not, for the iPhone SE's Birthday (onboarding 47).
         .onGeometryChange(for: CGFloat.self) { $0.size.height + $0.safeAreaInsets.top + $0.safeAreaInsets.bottom } action: {
             screenHeight = $0
         }
-        .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.bottom } action: { homeBar = $0 }
         // One read for Schools and for Follow 3, while the earlier steps are up.
         .task { await readSuggestions() }
         // Reached Follow 3 with nothing read (no signal back then): read again.
@@ -521,7 +518,7 @@ struct OnboardingFlow: View {
         }
         .overlay(alignment: .bottom) {
             if onWheel {
-                OnboardingBirthdayWheel(date: birthday, now: .now, canvas: Hue.bigArtCanvas, homeBar: homeBar)
+                OnboardingBirthdayWheel(date: birthday, now: .now, canvas: Hue.bigArtCanvas, homeBar: short ? 0 : 34)
                     .ignoresSafeArea(.container, edges: .bottom)
                     .transition(.move(edge: .bottom))
             }
@@ -542,6 +539,9 @@ struct OnboardingFlow: View {
         guard store.account == nil else { return nil }
         return store.tooYoung ? Hue.bigArtTooYoung : store.step.tint
     }
+
+    /// A phone under 700 pt tall (the iPhone SE): no home bar, a smaller cake.
+    private var short: Bool { screenHeight < BigArt.shortScreen }
 
     /// Birthday's wheel is up: the step, with Under 13 not over it.
     private var onWheel: Bool { on(.birthday) && !store.tooYoung }
@@ -640,7 +640,7 @@ struct OnboardingFlow: View {
 
     /// Birthday's Big art (onboarding 43): Jesse's cake, 124 pt tall, over the question.
     private var cake: some View {
-        let art = screenHeight < BigArt.shortScreen ? BigArt.shortArt : BigArt.art
+        let art = short ? BigArt.shortArt : BigArt.art
         return OnboardingBigArt(question: store.step.question, row: art + 4, focused: $questionFocused) {
             Image(decorative: OnboardingBirthdayField.cakeImage)
                 .resizable()
