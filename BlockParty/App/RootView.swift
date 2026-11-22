@@ -938,14 +938,19 @@ struct MainTabsView: View {
             // 3 s after the last step: Town reads its feed again on each return, and that read lands about 1.4 s
             // later with a freeze of its own, which fell on the next open at 1.5 s.
             // `prepare` runs at the finger's lift, the double-tap window before the open, as on a card's photo.
-            @MainActor func step(_ name: String, prepare: () -> Void = {}, open: () -> Void, back: () -> Void) async {
-                try? await Task.sleep(for: .seconds(3 - PhotoDoubleTap.window))
-                // The clock starts when the window was due to close, as a finger's would: a build that holds the main
-                // thread past it shows in the time, not in a late start.
-                let due = CACurrentMediaTime() + PhotoDoubleTap.window
-                prepare()
-                try? await Task.sleep(for: .seconds(max(0, due - CACurrentMediaTime())))
-                FrameGapLog.shared.tapped(name, at: due)
+            @MainActor func step(_ name: String, prepare: (() -> Void)? = nil, open: () -> Void, back: () -> Void) async {
+                if let prepare {
+                    try? await Task.sleep(for: .seconds(3 - PhotoDoubleTap.window))
+                    // The clock starts when the window was due to close, as a finger's would: a build that holds the
+                    // main thread past it shows in the time, not in a late start.
+                    let due = CACurrentMediaTime() + PhotoDoubleTap.window
+                    prepare()
+                    try? await Task.sleep(for: .seconds(max(0, due - CACurrentMediaTime())))
+                    FrameGapLog.shared.tapped(name, at: due)
+                } else {
+                    try? await Task.sleep(for: .seconds(3))
+                    FrameGapLog.shared.tapped(name)
+                }
                 open()
                 try? await Task.sleep(for: .seconds(1.5))
                 back()
