@@ -171,7 +171,8 @@ Deno.serve(async (req) => {
   // goes; a split or no answer leaves it pending for Jesse's morning report and the Review queue.
   // An Admin's edit (start-a-group 04): edit_group left a new name, kind, About or photo waiting on the Group;
   // claim_group_edit hands it over once (10 a day), and only both yeses put it live (apply_group_edit). Anything less
-  // keeps the Group as it was and takes the new photo down.
+  // keeps the Group as it was and takes the new photo down. A waiting photo a newer edit replaced comes in `drop`
+  // and comes down too; an edit that is only that (taken back to the Group as it is) has nothing to check.
   if (body?.group) {
     const id = String(body.group)
     const { data: claimed, error } = await admin.rpc('claim_group_check', { p_club: id, p_user: caller })
@@ -180,6 +181,10 @@ Deno.serve(async (req) => {
       const { data: edit, error: taken } = await admin.rpc('claim_group_edit', { p_club: id, p_user: caller })
       if (taken) return json({ ok: false, reason: 'Could not auto-check.' }, 502)
       if (!edit || edit.limit) return json({ ok: false, reason: 'Not checked.' }, 429)
+      const fileOf = (url: unknown) => typeof url === 'string' ? url.split('/event-images/')[1] : undefined
+      const dropped = (Array.isArray(edit.drop) ? edit.drop as unknown[] : []).map(fileOf).filter((f): f is string => !!f)
+      if (dropped.length) await admin.storage.from('event-images').remove(dropped)
+      if (!edit.name) return json({ ok: true, reason: '' })
       const g = { kind: 'group', title: edit.name, group_kind: edit.kind, description: edit.about, image_url: edit.photo }
       const [first, second] = await Promise.all([verdict(g, undefined, undefined, GROUP_RULE), verdict(g, undefined, undefined, GROUP_SECOND)])
       if (first?.ok && second?.ok) {
@@ -187,7 +192,7 @@ Deno.serve(async (req) => {
         if (up) return json({ ok: false, reason: 'Could not auto-check.' }, 502)
         if (applied) return json({ ok: true, reason: '' })
       }
-      const file = typeof edit.photo === 'string' ? edit.photo.split('/event-images/')[1] : undefined
+      const file = fileOf(edit.photo)
       if (file) await admin.storage.from('event-images').remove([file])
       if (first && second) return json({ ok: false, reason: (first.ok ? second : first).reason })
       return json({ ok: false, reason: 'Could not auto-check.' }, 502)

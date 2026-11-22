@@ -33,9 +33,40 @@ enum GroupCalendar {
     /// The day picked first: the next with a plan, today included; nil with nothing ahead.
     static func first(_ plans: [DailyEvent], today: Date) -> Date? { PlaceEvents.next(plans, today: today) }
 
+    /// `get_group_calendar`: the get-togethers, whether you may add, the Group's rule (Edit when you meet opens on it),
+    /// and its own Events its Admin may take off (SPEC decision 8).
+    nonisolated struct Read: Decodable, Equatable {
+        var meetings: [TownGroup.Meeting] = []
+        var adds = false
+        var rule: GroupMeetsDraft.Rule?
+        var takesOff: Set<String> = []
+
+        private struct Lenient<T: Decodable>: Decodable {
+            let value: T?
+            init(from decoder: Decoder) { value = try? T(from: decoder) }
+        }
+        private enum Keys: String, CodingKey { case meetings, adds, meets, takesOff }
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: Keys.self)
+            meetings = (try? c.decodeIfPresent([Lenient<TownGroup.Meeting>].self, forKey: .meetings))?.compactMap(\.value) ?? []
+            adds = (try? c.decodeIfPresent(Bool.self, forKey: .adds)) ?? false
+            // The first rule with days: a found Group's may hold several, and the sheet edits one.
+            rule = (try? c.decodeIfPresent([Lenient<GroupMeetsDraft.Rule>].self, forKey: .meets))?
+                .compactMap(\.value).first { !$0.days.isEmpty }
+            takesOff = Set((try? c.decodeIfPresent([String].self, forKey: .takesOff)) ?? [])
+        }
+
+        init() {}
+
+        /// As the app reads it: `Supabase.decode`, snake_case keys to camelCase.
+        /// A closed Group answers null: nothing.
+        static func from(_ data: Data) throws -> Read { try Supabase.decode(data, as: Read?.self) ?? Read() }
+    }
+
     #if DEBUG
     /// INVENTED, for `-group-admin`'s sample Group: Tuesday get-togethers at 6:30 for 4 months, and two made-up Events.
-    static func sample(now: Date) -> (meetings: [TownGroup.Meeting], events: [FeedCardItem]) {
+    static func sample(now: Date) -> (meetings: [TownGroup.Meeting], events: [FeedCardItem], rule: GroupMeetsDraft.Rule) {
         let calendar = YouCalendar.calendar
         let today = calendar.startOfDay(for: now)
         let days = (0..<120).compactMap { calendar.date(byAdding: .day, value: $0, to: today) }
@@ -51,7 +82,7 @@ enum GroupCalendar {
                                        startTime: row.2, location: "Resurrection Lutheran", goingCount: 0, createdAt: "",
                                        imageUrl: Bundle.main.url(forResource: row.3, withExtension: "jpg")?.absoluteString))
         }
-        return (meetings, events)
+        return (meetings, events, GroupMeetsDraft.Rule(days: ["tue"], weeks: nil, time: "18:30"))
     }
     #endif
 }
@@ -83,13 +114,18 @@ struct GroupCalendarView: View {
     let admin: Bool
     /// The Group already says when it meets: the row reads Edit.
     let meets: Bool
+    /// The Group's own Events its Admin may take off: a long press on one offers it (SPEC decision 8).
+    let takesOff: Set<String>
     let add: () -> Void
     let setMeets: () -> Void
     let open: (FeedCardItem) -> Void
+    let takeOff: (FeedCardItem) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var shown: Date?
     @State private var picked: Date?
+    /// The Event a long press asked to take off, waiting on the confirmation.
+    @State private var removing: FeedCardItem?
     @Namespace private var ring
 
     private typealias Size = GroupCalendarMetric
@@ -112,13 +148,20 @@ struct GroupCalendarView: View {
                     .padding(.top, Size.gridTop)
                 if let day, let list = byDay[day], !list.isEmpty {
                     dayHead(day)
-                    AgendaCards(events: list, now: context.date, open: open)
+                    AgendaCards(events: list, now: context.date, open: open,
+                                takeOff: takesOff.isEmpty ? nil : .init(ids: takesOff) { removing = $0 })
                         .id(day)
                         .transition(.opacity)
                 }
                 if admin { meetsRow }
             }
             .animation(reduceMotion ? nil : Motion.smooth, value: day)
+        }
+        .confirmationDialog("Remove this event?", isPresented: Binding { removing != nil } set: { if !$0 { removing = nil } },
+                            titleVisibility: .visible, presenting: removing) { event in
+            Button("Remove event", role: .destructive) { takeOff(event) }
+        } message: { _ in
+            Text("It comes off the group's calendar and the Town feed.")
         }
     }
 
@@ -280,6 +323,13 @@ nonisolated struct GroupMeetsDraft: Equatable {
     /// Postgres's day names, the week from Sunday (`clubs.meets`).
     static let weekdays = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"]
 
+    /// One rule of `clubs.meets` as the server keeps it.
+    struct Rule: Decodable, Equatable {
+        var days: [String]
+        var weeks: [Int]?
+        var time: String?
+    }
+
     var days: Set<String> = []
     var often = Often.weekly
     /// Once a month: which week of the month, 1st to 4th.
@@ -287,8 +337,31 @@ nonisolated struct GroupMeetsDraft: Equatable {
     /// 6 PM, a picked start: most groups here meet in the evening.
     var time: Date = Town.gregorian.date(bySettingHour: 18, minute: 0, second: 0, of: Date()) ?? Date()
     var place = ""
+    /// The Group already said when it meets: Save with no days clears that.
+    var had = false
 
-    var ready: Bool { !days.isEmpty }
+    init() {}
+
+    /// Edit when you meet: the Group's rule and Place. A rule the sheet can't show (the 2nd and 4th) opens as every week.
+    init(_ rule: Rule?, place: String?) {
+        guard let rule, !rule.days.isEmpty else { return }
+        had = true
+        days = Set(rule.days.filter(Self.weekdays.contains))
+        switch rule.weeks {
+        case [1, 3]: often = .firstAndThird
+        case let weeks? where weeks.count == 1 && (1...4).contains(weeks[0]):
+            often = .monthly
+            week = weeks[0]
+        default: often = .weekly
+        }
+        if let minutes = EventWhen.minutes(rule.time),
+           let at = Town.gregorian.date(bySettingHour: minutes / 60, minute: minutes % 60, second: 0, of: Date()) {
+            time = at
+        }
+        self.place = place ?? ""
+    }
+
+    var ready: Bool { !days.isEmpty || had }
     var sentDays: [String] { Self.weekdays.filter(days.contains) }
     var weeks: [Int]? {
         switch often {
@@ -312,8 +385,17 @@ struct GroupMeetsSheet: View {
     /// Saved: the when line the server wrote, and the Place.
     let saved: (String?, String?) -> Void
 
+    /// `rule`: what the Group already says, so the sheet opens on it.
+    init(group: TownGroup, rule: GroupMeetsDraft.Rule?, places: [SearchItem], saved: @escaping (String?, String?) -> Void) {
+        self.group = group
+        self.places = places
+        self.saved = saved
+        _draft = State(initialValue: GroupMeetsDraft(rule, place: group.location))
+    }
+
     @Environment(\.dismiss) private var dismiss
-    @State private var draft = GroupMeetsDraft()
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var draft: GroupMeetsDraft
     @State private var saving = false
     @State private var failures = 0
     @State private var problem: String?
@@ -370,14 +452,14 @@ struct GroupMeetsSheet: View {
                     } else {
                         Button("Save") { Task { await save() } }
                             .disabled(!draft.ready)
-                            .turnBackShake(failures: failures, shakes: true)
+                            .turnBackShake(failures: failures, shakes: !reduceMotion)
                     }
                 }
             }
         }
         .tint(Hue.ink)
         .interactiveDismissDisabled(saving)
-        .animation(Motion.smooth, value: draft.often)
+        .animation(reduceMotion ? nil : Motion.smooth, value: draft.often)
     }
 
     private func save() async {

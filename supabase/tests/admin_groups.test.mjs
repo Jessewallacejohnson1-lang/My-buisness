@@ -156,6 +156,61 @@ test('only the Admin closes; a closed Group leaves every list and can\'t be join
   await reset();
 });
 
+test('a new edit over one still waiting hands its photo to the check to take down', async () => {
+  const club = group(10);
+  await live(club, 'Joetown Sewing Circle');
+  await edit(SAM, club, { name: 'Joetown Quilters', photo: PHOTO(SAM, club, 'a1') });
+  await edit(SAM, club, { name: 'Joetown Quilters', photo: PHOTO(SAM, club, 'b2') });
+  const e = await claim(club, SAM);
+  assert.equal(e.photo, PHOTO(SAM, club, 'b2'));
+  assert.deepEqual(e.drop, [PHOTO(SAM, club, 'a1')], 'the first upload, which nothing shows now');
+  // Taken back to the Group as it is: nothing to check but the waiting photo to take down.
+  await edit(SAM, club, { name: 'Joetown Quilters', photo: PHOTO(SAM, club, 'c3') });
+  const [{ checks }] = await edit(SAM, club, { name: 'Joetown Sewing Circle' });
+  assert.equal(checks, true, 'the app asks the check, which takes the photo down');
+  assert.deepEqual(await claim(club, SAM), { drop: [PHOTO(SAM, club, 'c3')] });
+  assert.equal(await apply(club, SAM, { drop: [PHOTO(SAM, club, 'c3')] }), false, 'and changes nothing');
+  assert.equal((await seen(ANA, club)).name, 'Joetown Sewing Circle');
+  await db.exec('delete from private.group_edit_checks');
+  await reset();
+});
+
+test('a Group started under 18 stays private when an adult runs it', async () => {
+  const [club, adults] = [group(11), group(12)];
+  await db.query(`update public.town_profiles set birthday = (now() - interval '15 years')::date where user_id = $1`, [BO]);
+  await as(BO, 'select public.start_group($1, $2)', [club, 'Teen Chess Club']);
+  await db.query(`update public.clubs set status = 'approved' where id = $1`, [club]);
+  await db.query('insert into public.club_members (club_id, user_id) values ($1, $2)', [club, ANA]);
+  assert.equal((await seen(BO, club)).always_private, true);
+  await as(BO, 'select public.hand_over_group($1, $2)', [club, ANA]);
+  await edit(ANA, club, { name: 'Teen Chess Club', about: null, private: false });
+  const row = await seen(ANA, club);
+  assert.deepEqual([row.private, row.always_private], [true, true], 'Private stays on');
+  await live(adults, 'Joetown Sewing Circle');
+  assert.equal((await seen(SAM, adults)).always_private, false, 'an adult\'s Group turns Private off');
+  await db.query(`update public.town_profiles set birthday = '1980-01-01' where user_id = $1`, [BO]);
+  await reset();
+});
+
+test('a deleted Admin\'s Group skips a member nobody can find', async () => {
+  const club = group(13);
+  await live(club, 'Joetown Sewing Circle', [BO, ANA]);
+  await db.query(`update auth.users set banned_until = now() + interval '1 year' where id = $1`, [BO]);
+  await as(SAM, 'select public.delete_my_account()');
+  assert.equal((await seen(ANA, club)).requests, 0, 'Bo joined first but is banned: Ana runs it');
+  await db.query(`update auth.users set banned_until = null where id = $1`, [BO]);
+  await db.query('insert into auth.users (id) values ($1)', [SAM]);
+  await db.query('insert into public.town_profiles (user_id, display_name, birthday) values ($1, $2, $3)',
+                 [SAM, 'Sam Rivera', '1980-01-01']);
+  await reset();
+});
+
+test('private.runs_group is not for anyone signed out', async () => {
+  const [{ ok }] = (await db.query(
+    `select has_function_privilege('anon', 'private.runs_group(uuid, uuid)', 'execute') as ok`)).rows;
+  assert.equal(ok, false);
+});
+
 test('a deleted Admin\'s Group goes to the member who joined longest ago; with none left, it closes', async () => {
   const [club, alone] = [group(8), group(9)];
   await live(club, 'Joetown Sewing Circle', [BO, ANA]);

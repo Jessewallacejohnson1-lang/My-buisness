@@ -84,6 +84,7 @@ nonisolated enum NewEventCheck: Equatable {
 }
 
 enum NewEventCopy {
+    static let title = "New event"
     static let when = "Day and time"
     static let place = "Place"
     static let addPlace = "Add"
@@ -808,7 +809,7 @@ struct NewPostSheet: View {
                 }
             }
             .background(Hue.paper)
-            .navigationTitle(model.editing == nil ? NewPostCopy.title : PostEditCopy.title)
+            .navigationTitle(NewPostCopy.title(editing: model.editing != nil, group: group != nil))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -945,14 +946,7 @@ struct NewPostSheet: View {
                     .opacity(audienceLocked ? 0 : 1)
                     .accessibilityHidden(true)
             }
-            .foregroundStyle(Hue.ink)
-            .padding(.leading, 9)
-            .padding(.trailing, 8)
-            .frame(height: NewPostMetric.pill)
-            .background(Hue.fill, in: Capsule())
-            // 26 pt drawn, 44 pt to tap.
-            .padding(.vertical, (NewPostMetric.tap - NewPostMetric.pill) / 2)
-            .contentShape(Rectangle())
+            .modifier(PillFace(trailing: 8))
         }
         .padding(.vertical, -(NewPostMetric.tap - NewPostMetric.pill) / 2)
         .disabled(audienceLocked)
@@ -969,12 +963,28 @@ struct NewPostSheet: View {
             Image(systemName: group.isPrivate ? "lock.fill" : "person.3.fill").font(.glyph(12, weight: .semibold))
             Text(group.name).font(.apple(13, weight: .semibold)).lineLimit(1)
         }
-        .foregroundStyle(Hue.ink)
-        .padding(.horizontal, 9)
-        .frame(height: NewPostMetric.pill)
-        .background(Hue.fill, in: Capsule())
+        .modifier(PillFace(trailing: 9))
+        .padding(.vertical, -(NewPostMetric.tap - NewPostMetric.pill) / 2)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Host, \(group.name)")
+    }
+
+    /// The pill's face under the words: 26 pt drawn on the fill, 44 pt to touch (the Who can see this pill's, and the
+    /// Group's host pill in its place).
+    private struct PillFace: ViewModifier {
+        let trailing: CGFloat
+
+        func body(content: Content) -> some View {
+            content
+                .foregroundStyle(Hue.ink)
+                .padding(.leading, 9)
+                .padding(.trailing, trailing)
+                .frame(height: NewPostMetric.pill)
+                .background(Hue.fill, in: Capsule())
+                // 26 pt drawn, 44 pt to tap.
+                .padding(.vertical, (NewPostMetric.tap - NewPostMetric.pill) / 2)
+                .contentShape(Rectangle())
+        }
     }
 
     // MARK: Chips
@@ -1365,6 +1375,11 @@ struct NewPostSheet: View {
 
 enum NewPostCopy {
     static let title = "New post"
+
+    /// New post; Edit post; New event when a Group page's Calendar opened it (start-a-group 05).
+    static func title(editing: Bool, group: Bool) -> String {
+        editing ? PostEditCopy.title : group ? NewEventCopy.title : title
+    }
     static let placeholder = "What's on your mind?"
     static let about = "Say something about it…"
     static let eventName = "Name your event"

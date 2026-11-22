@@ -2,16 +2,21 @@
 -- The Admin is the account in `clubs.submitted_by`, as in ticket 03 (its starter at first; a hand-over moves it). The
 -- Admin edits the Group, says who adds Events, hands it to a member and closes it; to leave, they hand it over or close
 -- it first. A deleted account's Groups go to their longest member, or close with none left.
---   1. clubs.events_by, clubs.edit, status 'closed'; private.club_editors (Members I pick); private.group_edit_checks.
+--   1. clubs.events_by, clubs.edit, status 'closed'; private.club_editors (Members I pick); private.group_edit_checks;
+--      clubs.always_private: started by someone under 18 (SPEC decision 5), set as it is made and kept through a
+--      hand-over, so an adult who runs it later can't turn Private off. Groups started before: a private one whose
+--      starter (still clubs.submitted_by, as nothing handed a Group on before this) is under 18.
 --   2. edit_group: Private, Who adds Events and the picked members land at once. A changed name, kind, About or photo
 --      waits in clubs.edit for moderate-post's `group` check (claim_group_edit, then apply_group_edit on two yeses), so
 --      an edit can't skip the checks. A new photo goes up under a new name, so the live one never changes under it.
+--      A waiting photo a newer edit replaces goes in its `drop`, which moderate-post takes out of Storage.
 --   3. get_group_members: the Admin's list of the members, for Admin and Members I pick.
 --   4. hand_over_group, close_group.
 --   5. "leave club": the Admin of a Group that isn't closed can't leave it.
---   6. delete_my_account from 20261102212013_delete_my_account.sql, now handing the Groups on first.
---   7. get_groups from 20261122031709_private_groups.sql, line for line but a closed Group leaves every list, and one
---      more column: events_by.
+--   6. delete_my_account from 20261102212013_delete_my_account.sql, now handing the Groups on first, to a member
+--      someone can find (private.findable, as hand_over_group).
+--   7. get_groups from 20261122031709_private_groups.sql, line for line but a closed Group leaves every list, and two
+--      more columns: events_by, always_private.
 
 -- 1.
 alter table public.clubs add column if not exists events_by text not null default 'admin'
@@ -40,6 +45,23 @@ create table private.group_edit_checks (
 create index group_edit_checks_user_at on private.group_edit_checks (user_id, at);
 revoke all on private.group_edit_checks from public, anon, authenticated;
 
+alter table public.clubs add column if not exists always_private boolean not null default false;
+create function private.club_always_private()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  new.always_private := coalesce(new.submitted_by = auth.uid() and private.chat_minor(new.submitted_by), false);
+  return new;
+end;
+$$;
+create trigger club_always_private before insert on public.clubs
+  for each row execute function private.club_always_private();
+update public.clubs set always_private = true
+where private and submitted_by is not null and private.chat_minor(submitted_by);
+
 -- The caller runs this Group: its Admin, and it isn't closed or turned down.
 create function private.runs_group(p_club uuid, p_user uuid)
 returns boolean
@@ -51,6 +73,8 @@ as $$
   select exists (select 1 from public.clubs c
                  where c.id = p_club and c.submitted_by = p_user and c.status in ('approved', 'pending'))
 $$;
+revoke execute on function private.runs_group(uuid, uuid) from public;
+grant execute on function private.runs_group(uuid, uuid) to authenticated, service_role;
 
 -- 2. True when a name, kind, About or photo waits on the check: the app then asks moderate-post's `group` mode.
 create function public.edit_group(p_club uuid, p_name text, p_kind text, p_about text, p_photo text,
@@ -68,6 +92,7 @@ declare
   v_kind text := nullif(btrim(coalesce(p_kind, '')), '');
   v_about text := nullif(btrim(coalesce(p_about, '')), '');
   v_edit jsonb;
+  v_drop jsonb;
 begin
   if not private.runs_group(p_club, me) then
     raise exception 'only the Admin edits' using errcode = '42501';
@@ -95,8 +120,15 @@ begin
                  then jsonb_build_object('name', v_name, 'kind', v_kind, 'about', v_about)
                       || case when p_photo is distinct from c.image_url and p_photo is not null
                               then jsonb_build_object('photo', p_photo) else '{}' end end;
+  -- The photo of an edit still waiting, which this one replaces: nothing will show it.
+  v_drop := coalesce(c.edit->'drop', '[]'::jsonb)
+            || case when c.edit->>'photo' is distinct from v_edit->>'photo' and c.edit->>'photo' is not null
+                    then jsonb_build_array(c.edit->>'photo') else '[]'::jsonb end;
+  if v_drop <> '[]'::jsonb then
+    v_edit := coalesce(v_edit, '{}'::jsonb) || jsonb_build_object('drop', v_drop);
+  end if;
   update public.clubs
-  set private = coalesce(p_private, false) or private.chat_minor(me),
+  set private = coalesce(p_private, false) or private.chat_minor(me) or c.always_private,
       events_by = p_events_by,
       edit = v_edit
   where id = p_club;
@@ -130,6 +162,11 @@ begin
   where c.id = p_club and c.edit is not null and private.runs_group(p_club, p_user) for update;
   if v_edit is null then
     return null;
+  end if;
+  -- Only a photo to take down: nothing to check, so it costs none of the day's 10.
+  if not v_edit ? 'name' then
+    update public.clubs set edit = null where id = p_club;
+    return v_edit;
   end if;
   if (select count(*) from private.group_edit_checks where user_id = p_user and at > now() - interval '24 hours') >= 10 then
     return jsonb_build_object('limit', true);
@@ -248,7 +285,8 @@ begin
   for g in
     select c.id,
            (select m.user_id from public.club_members m
-            where m.club_id = c.id and m.user_id <> me order by m.created_at, m.user_id limit 1) as heir
+            where m.club_id = c.id and m.user_id <> me and private.findable(m.user_id)
+            order by m.created_at, m.user_id limit 1) as heir
     from public.clubs c
     where c.submitted_by = me and c.status in ('approved', 'pending')
   loop
@@ -287,7 +325,8 @@ returns table (
   private boolean,
   asked boolean,
   requests int,
-  events_by text
+  events_by text,
+  always_private boolean
 )
 language sql
 stable
@@ -298,7 +337,8 @@ as $$
          case when g.open then g.schedule end, case when g.open then g.location end,
          g.description, g.page_url, g.photos, g.logo,
          case when g.open then g.meetings else '[]'::jsonb end,
-         g.member_count, g.joined, g.status, g.invited_by, g.image_url, g.private, g.asked, g.requests, g.events_by
+         g.member_count, g.joined, g.status, g.invited_by, g.image_url, g.private, g.asked, g.requests, g.events_by,
+         g.always_private
   from (
     select c.id, c.name, c.kind, c.schedule, c.location, c.description, c.page_url, c.private,
            not c.private or private.inside_group(c.id) as open,
@@ -330,7 +370,7 @@ as $$
            case when c.submitted_by = auth.uid() then
              (select count(*)::int from private.club_requests q
                where q.club_id = c.id and q.answer is null and private.findable(q.user_id)) end as requests,
-           c.events_by
+           c.events_by, c.always_private
     from public.clubs c
     cross join (select (now() at time zone 'America/Chicago')::date as d) today
     left join lateral (select public.place_picture(c.place_entry_id) as pic) place on true

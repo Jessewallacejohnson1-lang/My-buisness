@@ -34,14 +34,14 @@ struct GroupPage: View {
     @State private var shownPhotos: Set<URL> = []
     /// Photos that could not be loaded leave the pager, so a failure never holds a skeleton.
     @State private var failedPhotos: Set<URL> = []
-    /// The Calendar (start-a-group 05): the Group's Events (`get_group_events`), its get-togethers 4 months ahead and
-    /// whether you may add (`get_group_calendar`).
+    /// The Calendar (start-a-group 05): the Group's Events (`get_group_events`), its get-togethers 4 months ahead,
+    /// whether you may add, its rule and the Events its Admin may take off (`get_group_calendar`).
     @State private var events: [FeedCardItem] = []
-    @State private var meetings: [TownGroup.Meeting] = []
-    @State private var adds = false
+    @State private var calendar = GroupCalendar.Read()
     @State private var newEvent = false
     @State private var settingMeets = false
-    @State private var pushedEvent: FeedCardItem?
+    /// An Event opens on the shell's stack, as every page pushed there (architecture.md, The shell).
+    @Environment(\.hostOpener) private var opener
     @Environment(SearchModel.self) private var search: SearchModel?
     @Environment(ProfileModel.self) private var profile: ProfileModel?
     /// Private Groups (start-a-group 03): who asked, shared with Groups to join; the Admin's waiting asks.
@@ -131,7 +131,6 @@ struct GroupPage: View {
                 dismiss()
             }
         }
-        .navigationDestination(item: $pushedEvent) { EventPage(item: $0) }
         .sheet(isPresented: $newEvent) {
             if let profile {
                 NewPostSheet(places: places, me: profile, onShared: {
@@ -142,7 +141,7 @@ struct GroupPage: View {
             }
         }
         .sheet(isPresented: $settingMeets) {
-            GroupMeetsSheet(group: group, places: places) { schedule, place in
+            GroupMeetsSheet(group: group, rule: calendar.rule, places: places) { schedule, place in
                 group.schedule = schedule
                 if schedule != nil { group.location = place }
                 Task { await loadCalendar() }
@@ -176,8 +175,12 @@ struct GroupPage: View {
     private func loadCalendar() async {
         #if DEBUG
         if group.id == "sample-group" {
-            (meetings, events) = GroupCalendar.sample(now: .now)
-            adds = group.isAdmin
+            let sample = GroupCalendar.sample(now: .now)
+            events = sample.events
+            calendar.meetings = sample.meetings
+            calendar.adds = group.isAdmin
+            calendar.rule = group.isAdmin ? sample.rule : nil
+            calendar.takesOff = group.isAdmin ? Set(sample.events.map(\.id)) : []
             return
         }
         #endif
@@ -185,7 +188,25 @@ struct GroupPage: View {
         async let found = api.groupEvents(group.id)
         async let read = api.groupCalendar(group.id)
         if let found = try? await found { events = found }
-        if let read = try? await read { (meetings, adds) = read }
+        if let read = try? await read { calendar = read }
+    }
+
+    /// The Admin's take-off (SPEC decision 8): it leaves the Calendar at once; a refused or lost write puts it back.
+    private func takeOff(_ event: FeedCardItem) {
+        let kept = events
+        events.removeAll { $0.id == event.id }
+        #if DEBUG
+        if group.id == "sample-group" { return }
+        #endif
+        Task {
+            do {
+                try await CommunityAPI(auth: AuthStore.shared).takeOffGroupEvent(event.id)
+                calendar.takesOff.remove(event.id)
+            } catch {
+                Haptics.error()
+                events = kept
+            }
+        }
     }
 
     /// Every list that shows the Group reads it again.
@@ -364,10 +385,12 @@ struct GroupPage: View {
             }
 
             // The Calendar, in Coming up's place (start-a-group 05): with something on it, or for whoever adds to it.
-            let plans = locked ? [] : GroupCalendar.plans(group, meetings: meetings, events: events)
-            if !locked, !plans.isEmpty || adds || group.isAdmin {
-                GroupCalendarView(plans: plans, adds: adds, admin: group.isAdmin, meets: group.schedule != nil,
-                                  add: { newEvent = true }, setMeets: { settingMeets = true }, open: { pushedEvent = $0 })
+            let plans = locked ? [] : GroupCalendar.plans(group, meetings: calendar.meetings, events: events)
+            if !locked, !plans.isEmpty || calendar.adds || group.isAdmin {
+                GroupCalendarView(plans: plans, adds: calendar.adds, admin: group.isAdmin,
+                                  meets: group.schedule != nil || calendar.rule != nil, takesOff: calendar.takesOff,
+                                  add: { newEvent = true }, setMeets: { settingMeets = true },
+                                  open: { opener?.push($0) }, takeOff: takeOff)
             }
 
             if let page = group.pageUrl, let row = BusinessPage.rows([PlaceLink(kind: "website", url: page)]).first {

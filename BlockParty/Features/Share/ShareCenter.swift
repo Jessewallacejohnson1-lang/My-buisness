@@ -263,7 +263,7 @@ extension SharePayload {
         let link = GroupLink.link(for: group.id)
         var text = "Come to \(group.name) with me"
         if let detail { text += ": \(detail)" }
-        text += ". \(link.absoluteString)"
+        if let link { text += ". \(link.absoluteString)" }
         let line = detail ?? GroupPage.kindLine(group)
         var payload = SharePayload(story: ShareStory(title: group.name, line: line,
                                                      photo: group.photos.first { $0.kind == .photo }?.url),

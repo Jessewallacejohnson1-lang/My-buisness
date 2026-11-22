@@ -216,16 +216,16 @@ struct CommunityAPI {
         try Self.myGoingRows(from: await db.rpc("get_group_events", ["p_group": groupID], anon: true)).map { FeedCardItem($0) }
     }
 
-    /// The Group page's Calendar (`get_group_calendar`, start-a-group 05): its get-togethers 4 months ahead, and
-    /// whether you may add an Event. A meeting that doesn't decode is left out.
-    func groupCalendar(_ groupID: String) async throws -> (meetings: [TownGroup.Meeting], adds: Bool) {
-        struct Lenient: Decodable {
-            let value: TownGroup.Meeting?
-            init(from decoder: Decoder) { value = try? TownGroup.Meeting(from: decoder) }
-        }
-        struct Read: Decodable { let meetings: [Lenient]?; let adds: Bool? }
-        let read: Read? = try Supabase.decode(await db.rpc("get_group_calendar", ["p_group": groupID], anon: true))
-        return (read?.meetings?.compactMap(\.value) ?? [], read?.adds ?? false)
+    /// The Group page's Calendar (`get_group_calendar`, start-a-group 05): its get-togethers 4 months ahead, whether
+    /// you may add an Event, its rule for Edit when you meet, and the Events its Admin may take off.
+    func groupCalendar(_ groupID: String) async throws -> GroupCalendar.Read {
+        try GroupCalendar.Read.from(await db.rpc("get_group_calendar", ["p_group": groupID], anon: true))
+    }
+
+    /// The Admin takes one of the Group's own Events off (`take_off_group_event`, SPEC decision 8): it leaves the
+    /// Calendar and the Town feed, as a take-out does.
+    func takeOffGroupEvent(_ eventID: String) async throws {
+        _ = try await db.rpc("take_off_group_event", ["p_event": eventID])
     }
 
     /// Add when you meet (`set_group_meets`, the Admin's): the when line it wrote, nil with no days.

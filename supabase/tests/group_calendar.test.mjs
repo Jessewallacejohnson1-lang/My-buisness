@@ -67,13 +67,13 @@ test('the Admin adds an Event to the Group; a member only when Who can add event
   await reset();
 });
 
-test('nobody outside it adds to a Group, nor to one still waiting on its checks', async () => {
+test('nobody outside it adds to a Group, nor to one turned down', async () => {
   const club = group(2);
   await live(club, { eventsBy: 'members' });
   await assert.rejects(added(STAN, club), /row-level security/, 'a stranger can\'t even save one');
-  const waiting = group(3);
-  await live(waiting, { status: 'pending' });
-  await assert.rejects(added(SAM, waiting), /row-level security/, 'a Group not yet live');
+  const turnedDown = group(3);
+  await live(turnedDown, { status: 'rejected' });
+  await assert.rejects(added(SAM, turnedDown), /row-level security/, 'a Group its checks said no to');
   // One saved before the rules said no (an older build, a Group closed meanwhile) never passes the check.
   const old = await added(SAM, club);
   await db.query(`update public.clubs set status = 'closed' where id = $1`, [club]);
@@ -165,7 +165,72 @@ test('a private Group\'s Calendar stays inside it', async () => {
   await meets(SAM, club, ['tue'], null, '18:30', null);
   assert.ok((await calendar(ANA, club)).meetings.length > 0);
   assert.equal((await calendar(ANA, club)).adds, true, 'All members');
-  assert.deepEqual(await calendar(STAN, club), { meetings: [], adds: false }, 'a stranger: none');
-  assert.deepEqual(await calendar(null, club), { meetings: [], adds: false }, 'signed out: none');
+  assert.deepEqual(await calendar(STAN, club), { meetings: [], adds: false, meets: null }, 'a stranger: none');
+  assert.deepEqual(await calendar(null, club), { meetings: [], adds: false, meets: null }, 'signed out: none');
   await reset();
 });
+
+test('a Group waiting on its checks still works for its members: their Events reach only them', async () => {
+  const club = group(10);
+  await live(club, { members: [ANA, BO], status: 'pending', eventsBy: 'picked', picked: [ANA] });
+  assert.equal((await calendar(SAM, club)).adds, true, 'the Admin sees the +');
+  assert.equal((await calendar(ANA, club)).adds, true, 'and a member it picked');
+  assert.equal((await calendar(BO, club)).adds, false);
+  const swap = await added(ANA, club, 'Holiday quilt swap');
+  assert.equal(await claim(swap, ANA), true);
+  await approve(swap);
+  const events = async (who) => (await as(who, 'select card->>\'id\' as id from public.get_group_events($1)', [club])).map((r) => r.id);
+  const feed = async (who) => (await as(who, 'select id from public.get_town_feed(now(), false)')).map((r) => r.id);
+  assert.deepEqual(await events(BO), [swap], 'a member sees it on the Calendar');
+  assert.ok((await feed(BO)).includes(swap), 'and in their Town feed, as a private Group\'s');
+  for (const who of [STAN, null]) {
+    assert.deepEqual(await events(who), [], 'not a stranger, nor signed out');
+    assert.ok(!(await feed(who)).includes(swap), 'nor the Town feed');
+  }
+  await db.query(`update public.clubs set status = 'approved' where id = $1`, [club]);
+  assert.ok((await feed(STAN)).includes(swap), 'live: the Town sees it');
+  await reset();
+});
+
+test('a public Group still waiting, or turned down, keeps its get-togethers to those in it', async () => {
+  const club = group(11);
+  await live(club, { members: [ANA], status: 'pending' });
+  await meets(SAM, club, ['tue'], null, '18:30', null);
+  assert.ok((await calendar(ANA, club)).meetings.length > 0, 'a member still sees them');
+  assert.ok((await calendar(SAM, club)).meetings.length > 0, 'and its Admin');
+  for (const who of [STAN, null]) assert.deepEqual((await calendar(who, club)).meetings, [], 'not anyone with its id');
+  await db.query(`update public.clubs set status = 'rejected' where id = $1`, [club]);
+  assert.deepEqual((await calendar(STAN, club)).meetings, [], 'nor once turned down');
+  await reset();
+});
+
+test('Edit when you meet reads the rule the Group has', async () => {
+  const club = group(12);
+  await live(club, { members: [ANA] });
+  await meets(SAM, club, ['thu', 'tue'], [1, 3], '18:30', 'Resurrection Lutheran');
+  assert.deepEqual((await calendar(SAM, club)).meets,
+                   [{ what: 'Get-together', days: ['tue', 'thu'], weeks: [1, 3], time: '18:30' }]);
+  await reset();
+});
+
+test('the Admin takes any of the Group\'s own Events off; nobody else does', async () => {
+  const club = group(13);
+  await live(club, { members: [ANA], eventsBy: 'members' });
+  const [mine, hers] = [await added(SAM, club, 'Mending clinic'), await added(ANA, club, 'Holiday quilt swap')];
+  for (const [e, who] of [[mine, SAM], [hers, ANA]]) { assert.equal(await claim(e, who), true); await approve(e); }
+  const found = id(901);
+  await db.query(`insert into public.club_events (id, title, event_date, start_time, location, source_name, status)
+                  values ($1, 'Town quilt show', $2, '10:00', 'City Hall', 'City of St. Joseph', 'approved')`, [found, tomorrow]);
+  assert.deepEqual((await calendar(SAM, club)).takes_off.sort(), [mine, hers].sort(), 'the Admin may take off its own');
+  assert.equal((await calendar(ANA, club)).takes_off, undefined, 'a member, none');
+
+  const off = (who, e) => as(who, 'select public.take_off_group_event($1)', [e]);
+  await assert.rejects(off(ANA, hers), /only the Admin/, 'not even its poster, a member');
+  await assert.rejects(off(SAM, found), /only the Admin/, 'nor an Event the Group didn\'t put on');
+  await off(SAM, hers);
+  const events = async (who) => (await as(who, 'select card->>\'id\' as id from public.get_group_events($1)', [club])).map((r) => r.id);
+  assert.deepEqual(await events(STAN), [mine], 'off its Calendar');
+  assert.ok(!(await as(STAN, 'select id from public.get_town_feed(now(), false)')).some((r) => r.id === hers), 'and the Town feed');
+  await reset();
+});
+

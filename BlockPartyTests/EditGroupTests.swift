@@ -68,6 +68,13 @@ final class EditGroupTests: XCTestCase {
         XCTAssertEqual(groups.map { EditGroupDraft($0, editors: []).eventsBy }, [.picked, .admin, .admin])
     }
 
+    /// A Group started under 18 stays private after a hand-over to an adult (SPEC decision 5): Private is fixed on.
+    func testAGroupStartedUnder18ReadsAlwaysPrivate() throws {
+        let json = #"[{"id": "a", "name": "A", "private": true, "always_private": true}, {"id": "b", "name": "B"}]"#
+        let groups: [TownGroup] = try Supabase.decode(Data(json.utf8))
+        XCTAssertEqual(groups.map(\.alwaysPrivate), [true, false])
+    }
+
     func testTheAdminRunsIt() {
         var g = group()
         XCTAssertFalse(g.isAdmin, "requests come only to the Admin")

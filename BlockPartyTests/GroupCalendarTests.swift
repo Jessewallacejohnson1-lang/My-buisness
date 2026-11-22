@@ -98,4 +98,53 @@ final class GroupCalendarTests: XCTestCase {
         draft.place = "  Resurrection Lutheran "
         XCTAssertEqual(draft.sentPlace, "Resurrection Lutheran")
     }
+
+    /// Edit when you meet opens on what the Group already says, and Save with no days clears it.
+    func testMeetsDraftOpensOnTheGroupsTimes() {
+        let rule = GroupMeetsDraft.Rule(days: ["thu", "tue"], weeks: [1, 3], time: "18:30")
+        var draft = GroupMeetsDraft(rule, place: "Resurrection Lutheran")
+        XCTAssertEqual(draft.sentDays, ["tue", "thu"])
+        XCTAssertEqual(draft.often, .firstAndThird)
+        XCTAssertEqual(draft.clock, "18:30")
+        XCTAssertEqual(draft.sentPlace, "Resurrection Lutheran")
+        XCTAssertTrue(draft.ready)
+        draft.days = []
+        XCTAssertTrue(draft.ready, "no days clears the times it had")
+        XCTAssertEqual(draft.sentDays, [], "and sends no days")
+
+        let monthly = GroupMeetsDraft(.init(days: ["mon"], weeks: [2], time: nil), place: nil)
+        XCTAssertEqual(monthly.often, .monthly)
+        XCTAssertEqual(monthly.week, 2)
+        XCTAssertEqual(GroupMeetsDraft(.init(days: ["sat"], weeks: nil, time: "09:05"), place: nil).often, .weekly)
+        XCTAssertEqual(GroupMeetsDraft(.init(days: ["sat"], weeks: nil, time: "09:05"), place: nil).clock, "09:05")
+
+        let none = GroupMeetsDraft(nil, place: nil)
+        XCTAssertFalse(none.ready, "nothing to clear: a day first")
+    }
+
+    /// `get_group_calendar` as the page reads it: the get-togethers, whether you add, the Group's rule for Edit when you
+    /// meet, and the Events its Admin may take off.
+    func testCalendarRead() throws {
+        let json = """
+        {"meetings": [{"what": "Get-together", "day": "2026-11-24", "time": "18:30"}, {"day": 5}],
+         "adds": true, "meets": [{"what": "Get-together", "days": ["tue"], "weeks": [1, 3], "time": "18:30"}],
+         "takes_off": ["e1", "e2"]}
+        """
+        let read = try GroupCalendar.Read.from(Data(json.utf8))
+        XCTAssertEqual(read.meetings.map(\.day), ["2026-11-24"], "a meeting that doesn't decode is left out")
+        XCTAssertTrue(read.adds)
+        XCTAssertEqual(read.rule, GroupMeetsDraft.Rule(days: ["tue"], weeks: [1, 3], time: "18:30"))
+        XCTAssertEqual(read.takesOff, ["e1", "e2"])
+
+        let member = try GroupCalendar.Read.from(Data(#"{"meetings": [], "adds": false, "meets": null}"#.utf8))
+        XCTAssertNil(member.rule)
+        XCTAssertEqual(member.takesOff, [], "only the Admin takes Events off")
+    }
+
+    /// New event from a Group page says so, not New post.
+    func testNewEventFromAGroupIsTitledNewEvent() {
+        XCTAssertEqual(NewPostCopy.title(editing: false, group: true), "New event")
+        XCTAssertEqual(NewPostCopy.title(editing: false, group: false), "New post")
+        XCTAssertEqual(NewPostCopy.title(editing: true, group: false), PostEditCopy.title)
+    }
 }

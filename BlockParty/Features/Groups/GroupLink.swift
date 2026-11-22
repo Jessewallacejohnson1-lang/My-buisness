@@ -16,8 +16,12 @@ nonisolated enum GroupLink {
     static let webPath = "g"
 
     /// The Group's link: the website's page for it.
-    static func link(for groupID: String) -> URL {
-        URL(string: "https://blockpartymn.com/\(webPath)/\(groupID.lowercased())")!
+    static func link(for groupID: String) -> URL? {
+        var parts = URLComponents()
+        parts.scheme = "https"
+        parts.host = YourCode.webHost
+        parts.path = "/\(webPath)/\(groupID.lowercased())"
+        return parts.url
     }
 
     /// The Group a link names, as a lowercase id: the website's `/g/<id>` or the app link. Anything else is nil.

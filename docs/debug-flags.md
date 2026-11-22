@@ -91,7 +91,8 @@ a flag the app reads isn't here, or one here is read by nothing (move it to the 
   no read: yours to run (the ••• beside Share), a member's (none), or Edit group open over it, on the Admin row's
   hand-over question, or on Close group's question; the sample neighbours are its members, two picked. Its Calendar
   (start-a-group 05) has invented Tuesday get-togethers and two Events; `event` opens its + (New event with the
-  Group as host) and `meets` Add when you meet. It
+  Group as host) and `meets` Edit when you meet, open on its Tuesdays at 6:30 PM; as `admin`, a long press on an Event
+  in the picked day's list offers Remove event, which takes it off the page only. It
   finds neighbours on the live database for a real account; `-town-samples` gives it sample
   neighbours on town photos instead (two asking you, three friends, one you asked, and a
   BP-yellow dot on the Friends tab), and `-town-offline` makes every search and friends read

@@ -54,7 +54,8 @@ nonisolated enum YourCode {
     static let scheme = "blockparty"
     static let host = "neighbor"
     /// The website's form, once app links are on (BP app backlog 10).
-    static let webHosts: Set<String> = ["blockpartymn.com", "www.blockpartymn.com"]
+    static let webHost = "blockpartymn.com"
+    static let webHosts: Set<String> = [webHost, "www.\(webHost)"]
     static let webPath = "n"
 
     /// Your link, the code's words.
@@ -98,6 +99,23 @@ nonisolated enum YourCode {
             .transformed(by: CGAffineTransform(translationX: margin, y: margin).scaledBy(x: scale, y: scale))
         guard let cg = CIContext().createCGImage(framed, from: framed.extent) else { return nil }
         return UIImage(cgImage: cg)
+    }
+}
+
+/// What Scan a code read: a neighbour's code, or a Group's (its link, start-a-group 07). Anything else is nil.
+nonisolated enum ScannedCode: Equatable {
+    case neighbor(String)
+    case group(String)
+
+    init?(_ words: String) {
+        guard let url = URL(string: words.trimmingCharacters(in: .whitespacesAndNewlines)) else { return nil }
+        if let id = GroupLink.groupID(from: url) {
+            self = .group(id)
+        } else if let id = YourCode.userID(from: url) {
+            self = .neighbor(id)
+        } else {
+            return nil
+        }
     }
 }
 
@@ -169,10 +187,10 @@ struct CodeOwner: Equatable {
     #endif
 }
 
-/// Your code in Apple's sheet (`CodeSheet`). Scan a code opens the scanner over it; a neighbour found there
-/// closes both and `open` pushes their page.
+/// Your code in Apple's sheet (`CodeSheet`). Scan a code opens the scanner over it; a neighbour or a Group found
+/// there closes both and `open` pushes their page.
 struct YourCodeSheet: View {
-    let open: (Neighbor) -> Void
+    let open: (any Hashable) -> Void
     @Environment(ProfileModel.self) private var model
     @ObservedObject private var auth = AuthStore.shared
     @Environment(\.dismiss) private var dismiss
@@ -205,10 +223,10 @@ struct YourCodeSheet: View {
         }
         .task { if !model.loaded { await model.read() } }
         .fullScreenCover(isPresented: $scanning) {
-            CodeScanner(me: owner?.id) { neighbor in
+            CodeScanner(me: owner?.id) { found in
                 scanning = false
                 dismiss()
-                open(neighbor)
+                open(found)
             }
         }
     }
@@ -316,12 +334,14 @@ struct CodeAction: View {
 }
 
 /// Scan a code: Apple's scanner over the whole screen, our white round X over it. A Block Party
-/// code is read (`get_neighbor`) and hands back that neighbour; any other code, or one naming
-/// nobody you can find, shows the pill for a moment and the scanner keeps looking.
+/// code is read (`get_neighbor`) and hands back that neighbour; a Group's code hands back the Group from the Groups
+/// you can see (`get_groups`); any other code, or one naming nobody you can find, shows the pill for a moment and
+/// the scanner keeps looking.
 struct CodeScanner: View {
     /// Your own id: your own code finds nothing.
     let me: String?
-    let found: (Neighbor) -> Void
+    /// A `Neighbor` or a `TownGroup`, for the shell's stack.
+    let found: (any Hashable) -> Void
 
     enum Camera { case asking, ready, off, missing }
     private typealias Round = EventPage.Metric
@@ -389,9 +409,16 @@ struct CodeScanner: View {
 
     private func seen(_ words: String) {
         guard !reading else { return }
-        guard let id = YourCode.userID(from: words) else {
+        guard let code = ScannedCode(words) else {
             say("Not a Block Party code")
             return
+        }
+        let id: String
+        switch code {
+        case .group(let group):
+            return seenGroup(group)
+        case .neighbor(let neighbor):
+            id = neighbor
         }
         guard id != me?.lowercased() else {
             say("That's your code")
@@ -406,6 +433,24 @@ struct CodeScanner: View {
                     found(neighbor)
                 } else {
                     say("Not a Block Party code")
+                }
+            } catch {
+                say("Check your connection and try again.")
+            }
+        }
+    }
+
+    /// A Group's code: its page, read fresh; one you can't see yet (pending, and you weren't invited) says so.
+    private func seenGroup(_ id: String) {
+        reading = true
+        Task {
+            defer { reading = false }
+            do {
+                if let group = try await CommunityAPI(auth: AuthStore.shared).getGroups().first(where: { $0.id.lowercased() == id }) {
+                    Haptics.success()
+                    found(group)
+                } else {
+                    say("This group isn't ready yet")
                 }
             } catch {
                 say("Check your connection and try again.")

@@ -265,7 +265,7 @@ struct EditGroupSheet: View {
                 Spacer(minLength: 0)
                 Text(picked.isEmpty ? "Pick" : "Edit").foregroundStyle(Hue.inkSecondary)
             }
-            .font(.subheadline)
+            .font(.sans(15))
         }
         .padding(.leading, Metric.subIndent)
         .disabled(members == nil)
@@ -308,7 +308,9 @@ struct EditGroupSheet: View {
         }
         #endif
         let api = CommunityAPI(auth: AuthStore.shared)
-        alwaysPrivate = await api.groupsAlwaysPrivate()
+        // Under 18 now, or the Group was started by someone under 18 (SPEC decision 5).
+        alwaysPrivate = group.alwaysPrivate
+        if !alwaysPrivate { alwaysPrivate = await api.groupsAlwaysPrivate() }
         guard let read = try? await api.groupMembers(group.id) else { return }
         members = read.map { GroupMember(person: $0.person) }
         let picked = Set(read.filter(\.editor).map(\.person.id))
@@ -412,7 +414,7 @@ private struct PickMembersPage: View {
                     Text(member.person.displayName).foregroundStyle(Hue.ink).lineLimit(1)
                     Spacer(minLength: 0)
                     Image(systemName: on ? "checkmark.circle.fill" : "circle")
-                        .font(.title2.weight(.light))
+                        .font(.glyph(22, weight: .light))
                         .foregroundStyle(on ? Hue.ink : Hue.inkSecondary)
                         .contentTransition(.symbolEffect(.replace))
                 }

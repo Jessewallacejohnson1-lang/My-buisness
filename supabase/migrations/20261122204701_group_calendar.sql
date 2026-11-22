@@ -1,8 +1,12 @@
 -- A Group's Calendar (BP app docs/plans/start-a-group, ticket 05; SPEC decisions 10 and 11, Figma frame 6). The Group
 -- page's month Calendar shows the Group's Events as far ahead as they go and its repeating get-togethers 4 months ahead;
 -- its + opens New post's New event with the Group as host, and "Add when you meet" sets the repeats.
---   1. private.adds_to_group: who may add an Event to a live Group: its Admin (clubs.submitted_by), and the members
---      Edit group's Who can add events lets in (clubs.events_by, private.club_editors; ticket 04).
+--   1. private.adds_to_group: who may add an Event to a live Group, or one still waiting on its checks (SPEC decision
+--      2: it works for its members): its Admin (clubs.submitted_by), and the members Edit group's Who can add events
+--      lets in (clubs.events_by, private.club_editors; ticket 04).
+--      private.sees_members from 20261122031709_private_groups.sql, now also keeping a Group that waits on its checks
+--      or was turned down to those get_groups shows it to (its starter; while it waits, its members and invited), so
+--      its Events, get-togethers and members read like a private Group's until it is live.
 --   2. "submit events": a row naming a Group only from someone who may add to it.
 --   3. claim_submit from 20261114153201_several_photos.sql, line for line but an Event may carry the Group of
 --      someone who may add to it. The check and the Town feed then treat it as any New event.
@@ -12,7 +16,10 @@
 --      Join, off a stranger's card (a story checks).
 --   5. get_group_events from 20261120193226_group_events.sql: the Group's own Events too, every one still to come
 --      (up to 200), not the next three, and none of a private Group's to anyone outside it.
---   6. get_group_calendar: the get-togethers 120 days ahead (group_meetings' reach) and whether the caller may add.
+--   6. get_group_calendar: the get-togethers 120 days ahead (group_meetings' reach), whether the caller may add, the
+--      Group's rule (clubs.meets, which Edit when you meet opens on) and, for its Admin, its own Events still to come.
+--   8. take_off_group_event: the Admin takes one of the Group's own Events off (SPEC decision 8), as a take-out does
+--      (status 'rejected', review_reason 'other'): it leaves the Calendar and the Town feed.
 --   7. set_group_meets: Add when you meet, the Admin's; it writes clubs.meets in 20261018150000_groups.sql's format,
 --      and the when line (schedule, location) from the same picks.
 
@@ -26,7 +33,7 @@ set search_path = ''
 as $$
   select p_user is not null and exists (
     select 1 from public.clubs c
-    where c.id = p_club and c.status = 'approved'
+    where c.id = p_club and c.status in ('approved', 'pending')
       and (c.submitted_by = p_user
            or (c.events_by = 'members'
                and exists (select 1 from public.club_members m where m.club_id = c.id and m.user_id = p_user))
@@ -36,6 +43,21 @@ as $$
 $$;
 revoke execute on function private.adds_to_group(uuid, uuid) from public;
 grant execute on function private.adds_to_group(uuid, uuid) to authenticated, service_role;
+
+create or replace function private.sees_members(p_club uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1 from public.clubs c
+    where c.id = p_club
+      and case when c.status in ('pending', 'rejected')
+               then c.submitted_by = auth.uid() or (c.status = 'pending' and private.sees_group(c.id))
+               else not c.private or private.inside_group(c.id) end)
+$$;
 
 -- 2.
 alter policy "submit events" on public.club_events
@@ -155,7 +177,12 @@ as $$
                                       then public.group_meetings(c.meets, today.d, 1000) else c.calendar end) m
        where jsonb_typeof(m) = 'object' and m->>'day' >= today.d::text)
       else '[]'::jsonb end,
-    'adds', private.adds_to_group(c.id, auth.uid()))
+    'adds', private.adds_to_group(c.id, auth.uid()),
+    'meets', case when private.sees_members(c.id) then c.meets end)
+    || case when private.runs_group(c.id, auth.uid()) then jsonb_build_object('takes_off',
+         (select coalesce(jsonb_agg(e.id order by e.event_date, e.id), '[]'::jsonb) from public.club_events e
+          where e.club_id = c.id and e.status = 'approved' and e.event_date >= today.d))
+       else '{}'::jsonb end
   from public.clubs c
   cross join (select (now() at time zone 'America/Chicago')::date as d) today
   where c.id = p_group and c.status <> 'closed'
@@ -220,3 +247,24 @@ end;
 $$;
 revoke execute on function public.set_group_meets(uuid, text[], int[], text, text) from public, anon;
 grant execute on function public.set_group_meets(uuid, text[], int[], text, text) to authenticated;
+
+-- 8.
+create function public.take_off_group_event(p_event uuid)
+returns void
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+declare
+  me uuid := private.need_real();
+begin
+  update public.club_events e set status = 'rejected', review_reason = 'other'
+  where e.id = p_event and e.club_id is not null and e.status <> 'rejected' and private.runs_group(e.club_id, me);
+  if not found then
+    raise exception 'only the Admin takes off the group''s own events' using errcode = '42501';
+  end if;
+end;
+$$;
+revoke execute on function public.take_off_group_event(uuid) from public, anon;
+grant execute on function public.take_off_group_event(uuid) to authenticated;
