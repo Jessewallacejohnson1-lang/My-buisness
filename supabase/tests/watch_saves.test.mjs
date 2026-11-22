@@ -178,7 +178,7 @@ test('photos, map spots and hours: the photo, social and accounts routines and t
   await db.query('delete from public.place_photos where id = any($1)', [[ours, kept]]);
   // The photo judge (BP app event-photos 30): the picks no judge has seen, and a verdict saved. Down retires the step's
   // or the dig's own pick, never a person's.
-  await asJob('photos: picks to judge', `select p.id, p.url, p.kind, e.title, e.event_date, e.location, e.description, e.status
+  await asJob('photos: picks to judge', `select p.id, p.url, p.kind, p.source_url, e.title, e.event_date, e.location, e.description, e.status
     from public.place_photos p join public.club_events e on e.id = p.event_id
     where p.status = 'live' and p.judged is null and p.proposed_by in ('event photos', 'the dig') and p.position = 0`);
   const judge = async (row, verdict) => (await asJob('photos: a verdict saved',

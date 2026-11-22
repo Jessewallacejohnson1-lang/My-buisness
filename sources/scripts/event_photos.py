@@ -1153,34 +1153,36 @@ def to_judge(db, now, most=JUDGE_MOST):
     (soonest first) before a News of the last 30 days (newest first)."""
     today = now.astimezone(LOCAL).date()
     mine = f"&status=eq.live&judged=is.null&proposed_by=in.{in_list({OWN, DIG})}&position=eq.0"
-    rows = db.rest("GET", "place_photos?select=id,url,kind,club_events!inner(title,event_date,location,description,status)"
+    rows = db.rest("GET", "place_photos?select=id,url,kind,source_url,club_events!inner(title,event_date,location,description,status)"
                           f"{mine}&kind=in.(event,flyer)&club_events.status=eq.approved"
                           f"&club_events.or={quote(f'(event_date.gte.{today},end_at.gte.{today})')}") or []
-    news = db.rest("GET", "place_photos?select=id,url,kind,board_items!inner(title,blurb,source_name,status,created_at)"
+    news = db.rest("GET", "place_photos?select=id,url,kind,source_url,board_items!inner(title,blurb,source_name,status,created_at)"
                           f"{mine}&kind=eq.news&board_items.status=eq.published"
                           f"&board_items.created_at=gte.{quote((now - timedelta(days=30)).isoformat())}") or []
     blocks = {}
     for r in rows:
-        b = blocks.setdefault(r["url"], {"url": r["url"], "ids": [], "events": [], "flyer": r["kind"] == "flyer"})
+        b = blocks.setdefault(r["url"], {"url": r["url"], "ids": [], "events": [], "flyer": r["kind"] == "flyer",
+                                         "found_on": r.get("source_url") or ""})
         b["ids"].append(r["id"])
         b["events"].append(r["club_events"])
     for r in news:
-        blocks.setdefault(r["url"], {"url": r["url"], "ids": [], "news": r["board_items"]})["ids"].append(r["id"])
+        blocks.setdefault(r["url"], {"url": r["url"], "ids": [], "news": r["board_items"],
+                                     "found_on": r.get("source_url") or ""})["ids"].append(r["id"])
     out = sorted((b for b in blocks.values() if "events" in b), key=lambda b: min(e["event_date"] for e in b["events"]))
     out += sorted((b for b in blocks.values() if "news" in b), key=lambda b: b["news"]["created_at"], reverse=True)
     return out[:most]
 
 
 def judge_line(key, b, image):
-    """A judge's line for one picture: what it runs on, nothing of why it was picked."""
+    """A judge's line for one picture: what it runs on and the page it was found on, nothing of why it was picked."""
     if "news" in b:
         n = b["news"]
         return {"photo": key, "image": image, "title": n["title"], "place": n.get("source_name") or "",
-                "about": " ".join((n.get("blurb") or "").split())[:800], "news": True}
+                "about": " ".join((n.get("blurb") or "").split())[:800], "found_on": b["found_on"], "news": True}
     e = b["events"][0]
     return {"photo": key, "image": image, "title": " / ".join(sorted({x["title"] for x in b["events"]})),
             "dates": sorted({x["event_date"] for x in b["events"]}), "place": e.get("location") or "",
-            "about": " ".join((e.get("description") or "").split())[:800],
+            "about": " ".join((e.get("description") or "").split())[:800], "found_on": b["found_on"],
             **({"flyer": True} if b["flyer"] else {}), **({"exhibit": True} if is_exhibit(e) else {})}
 
 
@@ -2093,7 +2095,8 @@ def selftest():
             ev = lambda t, d, where, about: {"title": t, "event_date": d, "location": where, "description": about,
                                              "status": "approved"}
             if "club_events" in path:
-                return [{"id": 1, "url": "u1", "kind": "event", "club_events": ev("Fish Fry", "2026-12-04", "Parish hall", "Lent")},
+                return [{"id": 1, "url": "u1", "kind": "event", "source_url": "https://facebook.com/parish/posts/1",
+                         "club_events": ev("Fish Fry", "2026-12-04", "Parish hall", "Lent")},
                         {"id": 2, "url": "u1", "kind": "event", "club_events": ev("Fish Fry", "2026-12-11", "Parish hall", "Lent")},
                         {"id": 3, "url": "u2", "kind": "flyer", "club_events": ev("Senior Art Show", "2026-11-30", "Arts center", "")}]
             return [{"id": 4, "url": "u3", "kind": "news", "board_items": {"title": "New winter menu", "blurb": "Soups",
@@ -2106,7 +2109,8 @@ def selftest():
         lines = [json.loads(x) for x in (out / "judge" / "batch-1.txt").read_text().splitlines()]
         check([x["title"] for x in lines] == ["Senior Art Show", "Fish Fry", "New winter menu"]
               and lines[0].get("flyer") and lines[0].get("exhibit") and lines[1]["dates"] == ["2026-12-04", "2026-12-11"]
-              and lines[2].get("news") and laid["p2"]["ids"] == [1, 2] and not any("why" in x or "shows" in x for x in lines),
+              and lines[2].get("news") and laid["p2"]["ids"] == [1, 2] and not any("why" in x or "shows" in x for x in lines)
+              and lines[1]["found_on"] == "https://facebook.com/parish/posts/1",
               "judge: one line per picture with what it runs on and none of the picker's reasons, the soonest Event first, "
               f"one picture's dates together, a flyer and an exhibit marked, then the News ({lines})")
         check(all("judged=is.null" in p and "position=eq.0" in p and "status=eq.live" in p for m, p, b in db.calls),
