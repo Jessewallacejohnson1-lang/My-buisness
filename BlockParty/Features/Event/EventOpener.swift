@@ -90,14 +90,20 @@ final class EventOpener {
                          velocity: velocity, instant: reduceMotion, completion: landed)
     }
 
-    /// At rest open, the page's clock is its own: white over its picture, as a pushed page's was. Not at the tap: the
-    /// whole app redraws for a new scheme, and the pushed page's Town let go of it at the slide's end too.
-    private func landed() {
+    /// Most of the way open, the page's clock is its own: white over its picture, as a pushed page's turned during its
+    /// slide. Not at the tap: the whole app redraws for a new scheme.
+    func mostlyOpen() {
         if isOpen { AppearanceStore.shared.eventOver = true }
     }
 
-    /// The card it came from hides while its page is away, so there is only ever one photo.
+    private func landed() { mostlyOpen() }
+
+    /// Its page is open, or on its way in or home: the card is covered, as by a pushed page.
     func isAway(_ id: String) -> Bool { item?.id == id }
+
+    /// The card's photo is the one flying, so the card's own hides: only ever one photo. A card that grows its box
+    /// stays, so the page fades into it and out of it with no empty slot.
+    func hidesCard(_ id: String) -> Bool { isAway(id) && source.photo != nil }
 
     /// Where the flying picture is at `progress`: from the card's box to the page's top picture, scrolled up by
     /// `scrollY`. Not clamped, so the open's overshoot grows it a touch past its spot and back.
@@ -106,6 +112,9 @@ final class EventOpener {
         return CGRect(x: box.minX + (to.minX - box.minX) * p, y: box.minY + (to.minY - box.minY) * p,
                       width: box.width + (to.width - box.width) * p, height: box.height + (to.height - box.height) * p)
     }
+
+    /// How far open the page takes the clock from Town.
+    static let clockTurns: CGFloat = 0.6
 
     /// The page under the flying photo, from a third of the way in, whole at 85%.
     static func pageOpacity(_ p: CGFloat) -> Double {
@@ -128,14 +137,28 @@ extension EnvironmentValues {
     @Entry var eventPageShown = true
 }
 
-/// The open Event over the shell. Draws nothing while nothing is open.
+/// The open Event over the shell. Draws nothing while nothing is open. The page lays out as a pushed page did, in the
+/// safe area with its picture running up under the clock, so its buttons and bar sit where they always have; the
+/// flight works in the window's points.
 struct EventOverlay: View {
     let opener: EventOpener
+    /// The whole screen, and the safe area the page lays out in, in the window's points.
+    @State private var screen = CGRect.zero
+    @State private var safe = CGRect.zero
 
     var body: some View {
-        if let item = opener.item {
-            EventOverlayBody(item: item, source: opener.source, opener: opener)
-                .id(item.id)
+        ZStack(alignment: .topLeading) {
+            if let item = opener.item {
+                EventOverlayBody(item: item, source: opener.source, opener: opener, screen: screen, safe: safe)
+                    .id(item.id)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { safe = $0 }
+        .background {
+            Color.clear
+                .ignoresSafeArea()
+                .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { screen = $0 }
         }
     }
 }
@@ -144,78 +167,80 @@ private struct EventOverlayBody: View {
     let item: FeedCardItem
     let source: EventOpener.Source
     let opener: EventOpener
+    let screen: CGRect
+    let safe: CGRect
 
     var body: some View {
-        GeometryReader { geo in
-            let insets = geo.safeAreaInsets
-            let full = CGSize(width: geo.size.width + insets.leading + insets.trailing,
-                              height: geo.size.height + insets.top + insets.bottom)
-            let frame = geo.frame(in: .global)
-            let box = source.box.offsetBy(dx: -(frame.minX - insets.leading), dy: -(frame.minY - insets.top))
-            let hero = CGRect(x: 0, y: 0, width: full.width, height: EventLook.photoHeight * full.width / EventLook.mockWidth)
-            ZStack(alignment: .topLeading) {
-                EventFlight(item: item, box: box, hero: hero, full: full, photo: source.photo, progress: opener.progress)
-            }
-            .frame(width: full.width, height: full.height, alignment: .topLeading)
-            .offset(x: -insets.leading, y: -insets.top)
-            .gesture(EventClosePan(opener: opener, item: item.id, band: insets.top + SearchMetric.bizBand))
-            .gesture(EventEdgePan(opener: opener, width: full.width))
-        }
-        .ignoresSafeArea(.keyboard)
-        .allowsHitTesting(opener.isOpen)
-        // VoiceOver stays on the Event, not Town under it; its two-finger scrub sends the page home.
-        .accessibilityAddTraits(opener.isOpen ? .isModal : [])
-        .accessibilityHidden(!opener.isOpen)
-        .environment(\.eventPageShown, opener.isOpen)
-        .accessibilityAction(.escape) { opener.close() }
+        EventFlight(item: item, box: source.box, screen: screen, safe: safe, photo: source.photo, opener: opener)
+            .gesture(EventClosePan(opener: opener, item: item.id, band: safe.minY + SearchMetric.bizBand))
+            .gesture(EventEdgePan(opener: opener, width: screen.width))
+            .ignoresSafeArea(.keyboard)
+            .allowsHitTesting(opener.isOpen)
+            // VoiceOver stays on the Event, not Town under it; its two-finger scrub sends the page home.
+            .accessibilityAddTraits(opener.isOpen ? .isModal : [])
+            .accessibilityHidden(!opener.isOpen)
+            .environment(\.eventPageShown, opener.isOpen)
+            .accessibilityAction(.escape) { opener.close() }
     }
 }
 
-/// The page and the picture flying into it. Only this view reads the spring, so its frames redraw the frame and
-/// the transform, never the page's own body.
+/// The page and the picture flying into it, in the window's points. Only this view reads the spring, so its frames
+/// redraw the frame and the transform, never the page's own body.
 private struct EventFlight: View {
     let item: FeedCardItem
     let box: CGRect
-    let hero: CGRect
-    let full: CGSize
+    let screen: CGRect
+    let safe: CGRect
     let photo: URL?
-    let progress: LiveSpring
+    let opener: EventOpener
 
     var body: some View {
-        let p = progress.value
+        let p = opener.progress.value
         let c = min(max(p, 0), 1)
         let flying = p != 1
-        let scrollY = LeftOff.pageY[item.id] ?? 0
+        let scrollY = max(0, LeftOff.pageY[item.id] ?? 0)
+        // An Event's page draws from the screen's top (its picture under the clock); a game's from the safe area's.
+        let origin = item.game == nil ? screen.origin : safe.origin
+        let hero = CGRect(x: screen.minX, y: screen.minY, width: screen.width,
+                          height: EventLook.photoHeight * screen.width / EventLook.mockWidth)
         let f = EventOpener.flight(from: box, to: hero, scrollY: scrollY, progress: p)
-        let k = flying ? f.width / max(full.width, 1) : 1
-        ZStack(alignment: .topLeading) {
+        let k = flying ? f.width / max(screen.width, 1) : 1
+        Group {
             if let photo {
-                // The page rides the photo's foot, shrunk to its width.
+                // The page rides the photo's foot, shrunk to its width; the photo flies over it.
                 page
                     .scaleEffect(k, anchor: .topLeading)
-                    .offset(x: flying ? f.minX : 0, y: flying ? f.maxY - k * (hero.height - max(0, scrollY)) : 0)
+                    .offset(x: flying ? f.minX - origin.x : 0,
+                            y: flying ? f.maxY - origin.y - k * (hero.maxY - scrollY - origin.y) : 0)
                     .opacity(EventOpener.pageOpacity(p))
-                if flying { FlyingPhoto(url: photo, frame: f, radius: mix(Radius.card, 0, c), opacity: EventOpener.photoOpacity(p)) }
+                    .overlay(alignment: .topLeading) {
+                        if flying {
+                            Color.clear
+                                .ignoresSafeArea()
+                                .overlay(alignment: .topLeading) {
+                                    FlyingPhoto(url: photo, frame: f.offsetBy(dx: -screen.minX, dy: -screen.minY),
+                                                radius: mix(Radius.card, 0, c), opacity: EventOpener.photoOpacity(p))
+                                }
+                        }
+                    }
             } else {
                 // No photo to grow: the card's box grows into the screen, the page inside it.
-                let screen = CGRect(origin: .zero, size: full)
                 page
-                    .clipShape(RoundedClip(rect: mix(box, screen, c), radius: mix(Radius.card, 0, c)))
+                    .clipShape(RoundedClip(rect: mix(box, screen, c).offsetBy(dx: -origin.x, dy: -origin.y),
+                                           radius: mix(Radius.card, 0, c)))
                     .opacity(min(1, Double(c) * 4))
             }
         }
-        .frame(width: full.width, height: full.height, alignment: .topLeading)
         .onChange(of: p > 0) { _, moved in
             #if DEBUG
             if moved, FrameGapLog.enabled { FrameGapLog.shared.moved("event") }
             #endif
         }
+        .onChange(of: p > EventOpener.clockTurns) { _, past in if past { opener.mostlyOpen() } }
     }
 
     private var page: some View {
-        EventPageHost(item: item)
-            .equatable()
-            .frame(width: full.width, height: full.height)
+        EventPageHost(item: item).equatable()
     }
 }
 

@@ -89,7 +89,7 @@ struct FeedEventCard: View {
                     face
                         .trackFrame(faceFrame)
                         // Its page has it: one photo on screen, never two (as Search's tile, place-photos 10).
-                        .opacity(away ? 0 : 1)
+                        .opacity(eventOpener?.hidesCard(item.id) == true ? 0 : 1)
                         // Two fingers lift the photo where it sits; its words and buttons step aside (BP app photo-zoom).
                         .pinchToZoom(corner: Radius.card, slot: Hue.paper, lifted: $faceLifted)
                         .onGeometryChange(for: CGSize.self) { $0.size } action: { photoSize = $0 }
