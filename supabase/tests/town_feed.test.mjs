@@ -534,6 +534,39 @@ test("a team's games on two days lift its next game in that sport and name it; n
   assert.equal(rows['Augsburg Soccer vs Bethel'].score.tapped, 0, 'Augsburg and Bethel were in one tapped game each');
 });
 
+test("a Sports pick follows the town's own teams' games and says its interest; away and followers-only stay as they were (onboarding 48)", async () => {
+  await reset();
+  await teams(['saint-johns', "Saint John's"], ['augsburg', 'Augsburg'], ['bethel', 'Bethel']);
+  const sports = { source_name: SJU, category: 'watch_sports' };
+  await game('SJU Soccer vs Augsburg', '2026-10-10', 'Soccer', ['saint-johns', 'augsburg'], sports);
+  await game('Augsburg Soccer vs Bethel', '2026-10-10', 'Soccer', ['augsburg', 'bethel'],
+             { ...sports, source_name: 'Augsburg Athletics' });
+  await game('SJU JV Soccer at Bethel', '2026-10-10', 'Soccer', ['saint-johns', 'bethel'], { ...sports, followersOnly: true });
+  const read = async (interests) => {
+    await signIn(YOU, interests);
+    await db.exec(`set request.jwt.claims = '${ADMIN}'`);
+    return Object.fromEntries((await feed('2026-10-08 12:00')).map((r) => [r.title, r]));
+  };
+  // No Sports pick: an own team's game has no follow points.
+  const without = await read(['live_music']);
+  assert.equal(without['SJU Soccer vs Augsburg'].score.yours, 0);
+  // Sports: the interest's 3 and the follow's 3 on an own team's game; its card says the interest.
+  const withSports = await read(['watch_sports']);
+  const own = withSports['SJU Soccer vs Augsburg'];
+  assert.deepEqual([own.score.interest, own.score.yours, own.reason, own.reason_name], [3, 3, 'interest', 'watch_sports']);
+  assert.deepEqual([own.score.follow, own.score.tapped], [3, 0], 'the Score line counts it as a follow, not tapped');
+  // Two teams from away: the interest alone.
+  assert.equal(withSports['Augsburg Soccer vs Bethel'].score.yours, 0);
+  // A followers-only game stays for its followers.
+  assert.equal(withSports['SJU JV Soccer at Bethel'], undefined);
+  // Routine business (draw 1) gets no follow points, own team or not: it shows here only through your own Heart.
+  await db.exec('reset role');
+  const routine = await game('SJU Soccer scrimmage', '2026-10-10', 'Soccer', ['saint-johns', 'augsburg'], sports);
+  await set(routine, { draw: 1 });
+  await db.query(`insert into public.event_likes (event_id, user_id) values ($1, $2)`, [routine, YOU]);
+  assert.equal((await read(['watch_sports']))['SJU Soccer scrimmage'].score.follow, 0);
+});
+
 test('one tapped game lifts nothing, and two rows of one day are one game day', async () => {
   await reset();
   await teams(['saint-johns', "Saint John's"], ['augsburg', 'Augsburg'], ['st-olaf', 'St. Olaf']);
