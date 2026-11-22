@@ -851,8 +851,10 @@ struct OnboardingWelcome: View {
         }
     }
 
+    /// Picked once a launch: Back from Create account or Log in makes a new Welcome, and it keeps the photo.
+    private static let photoName = pickPhoto(flag: LaunchFlags.value(.welcomePhoto), coin: .random())
+
     @State private var shown = false
-    @State private var photoName = OnboardingWelcome.pickPhoto(flag: LaunchFlags.value(.welcomePhoto), coin: .random())
     /// A first open's launch zooms through to here; the logo and headline rise once it's half done.
     private let launch = LaunchStage.shared
 
@@ -944,7 +946,7 @@ struct OnboardingWelcome: View {
         ZStack {
             Hue.welcomeScrim
                 .overlay {
-                    if let image = UIImage(named: photoName) {
+                    if let image = UIImage(named: Self.photoName) {
                         Image(uiImage: image).resizable().scaledToFill()
                     }
                 }
