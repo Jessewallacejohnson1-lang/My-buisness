@@ -38,10 +38,11 @@ command's output and your answer.
   at most, keeping what happened ("Pumpkin Cold Brew at Caribou"). Write them all to
   `.runs/morning/titles.json` as `{"the long title": "the short one"}`.
 - `titles` also lays out `.runs/morning/repeats/`: each new News the word rules didn't settle, beside
-  what its place already has. For each `.runs/morning/repeats/batch-N.txt`, start one helper on your own
+  what its place already has, and each new Event beside the Events that day it may be (BP app watch-every-place 42). For each `.runs/morning/repeats/batch-N.txt`, start one helper on your own
   model (Haiku read too unevenly: BP app smooth-mornings 16) with: "Read `sources/models/repeat.md` and follow it for
   `.runs/morning/repeats/batch-N.txt`. Answer with the JSON lines only." Write their lines to
-  `.runs/morning/repeats.jsonl`. Save holds back each News they call a repeat.
+  `.runs/morning/repeats.jsonl`. Save holds back each News they call a repeat, and makes each new Event they call one
+  already listed that one's Mention.
 
 **Save.** Run `python3 sources/scripts/morning.py save`. It writes the items and lays out the
 helpers' batches in `.runs/morning/tag/` and `.runs/morning/describe/`. A `save stopped` line
