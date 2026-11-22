@@ -181,7 +181,7 @@ struct FeedCommentSheet: View {
         .padding(.bottom, Metric.rowBottom)
         .opacity(comment.posting ? 0.5 : 1)
         .background(Hue.surface)
-        .contentShape(.contextMenuPreview, Rectangle())
+        .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: 12, style: .continuous))
         .contextMenu { if !comment.posting { menu(comment) } }
         .accessibilityElement(children: .combine)
         .accessibilityActions {
@@ -194,7 +194,7 @@ struct FeedCommentSheet: View {
             Button(CommentCopy.reply, systemImage: "arrowshape.turn.up.left") { reply(comment) }
         }
         if canComment && !comment.mine {
-            Button(CommentCopy.report, systemImage: "flag") { reporting = comment }
+            Button(CommentCopy.report, systemImage: "exclamationmark.circle") { reporting = comment }
         }
         if comment.canDelete {
             Button(CommentCopy.delete, systemImage: "trash", role: .destructive) { delete(comment) }

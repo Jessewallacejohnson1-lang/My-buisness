@@ -173,7 +173,7 @@ final class CommentsTests: XCTestCase {
         await thread.load()
         XCTAssertEqual(thread.people(me: "me").map(\.name.name), ["Ana Nguyen", "Dale Brunner", "Marlene Ostendorf"])
         XCTAssertEqual(CommentCopy.placeholder(poster: "Marlene Ostendorf"), "Add a comment for Marlene")
-        XCTAssertEqual(CommentCopy.placeholder(poster: nil), "Add a comment")
+        XCTAssertEqual(CommentCopy.placeholder(poster: nil), "Add a comment…")
     }
 
     func testTheFeedCarriesEachPostsCount() throws {

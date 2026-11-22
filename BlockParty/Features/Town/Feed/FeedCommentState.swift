@@ -141,9 +141,9 @@ enum CommentCopy {
     static let reported = "Reported. Thanks for telling us."
     static let reportFailed = "Couldn't send that report. Try again."
 
-    /// "Add a comment for Marlene", or "Add a comment" on your own post.
+    /// "Add a comment for Marlene", or "Add a comment…" on your own post (the mock's two).
     static func placeholder(poster: String?) -> String {
-        guard let first = poster?.split(separator: " ").first else { return "Add a comment" }
+        guard let first = poster?.split(separator: " ").first else { return "Add a comment…" }
         return "Add a comment for \(first)"
     }
 
