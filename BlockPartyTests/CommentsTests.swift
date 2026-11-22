@@ -129,13 +129,21 @@ final class CommentsTests: XCTestCase {
         XCTAssertEqual(thread.count, 1)
     }
 
+    /// A card laid out again, or a second card of the same post, finds the thread the first one left.
+    func testEachPostKeepsOneThread() {
+        let server = FakeServer()
+        let first = CommentThread.of(post(), api: api(server))
+        XCTAssertTrue(CommentThread.of(post(comments: 9), api: api(server)) === first)
+        XCTAssertTrue(CommentThread.existing(post().id) === first)
+    }
+
     func testATurnedDownCommentLeavesTheListAndTheCount() async {
         let server = FakeServer()
         server.answers["moderate-post"] = .init(body: #"{"ok":false,"reason":"Please keep it kind."}"#)
         let thread = CommentThread(post: post(), api: api(server))
         await thread.load()
         let refused = await thread.send("idiot", names: [], me: .init(id: "me", name: "Jesse"), photo: nil)
-        XCTAssertEqual(refused, CommentRefusal(words: "Please keep it kind.", red: true))
+        XCTAssertEqual(refused, CommentRefusal(words: "Not posted. Please keep it kind.", red: true))
         XCTAssertTrue(thread.comments.isEmpty)
         XCTAssertEqual(thread.count, 0)
     }
@@ -164,8 +172,8 @@ final class CommentsTests: XCTestCase {
         let thread = CommentThread(post: post(), api: api(server))
         await thread.load()
         XCTAssertEqual(thread.people(me: "me").map(\.name.name), ["Ana Nguyen", "Dale Brunner", "Marlene Ostendorf"])
-        XCTAssertEqual(CommentCopy.placeholder(poster: "Marlene Ostendorf"), "Add a comment for Marlene…")
-        XCTAssertEqual(CommentCopy.placeholder(poster: nil), "Add a comment…")
+        XCTAssertEqual(CommentCopy.placeholder(poster: "Marlene Ostendorf"), "Add a comment for Marlene")
+        XCTAssertEqual(CommentCopy.placeholder(poster: nil), "Add a comment")
     }
 
     func testTheFeedCarriesEachPostsCount() throws {

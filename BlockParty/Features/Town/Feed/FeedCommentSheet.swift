@@ -164,13 +164,13 @@ struct FeedCommentSheet: View {
                         Text(CommentCopy.reply)
                             .font(.sansSemibold(13))
                             .foregroundStyle(Hue.inkSecondary)
-                            .padding(.vertical, 13)
+                            .padding(.vertical, 14)
                             .padding(.trailing, 16)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .padding(.top, -9)
-                    .padding(.bottom, -13)
+                    .padding(.top, -10)
+                    .padding(.bottom, -14)
                     .accessibilityHidden(true)
                 }
             }
@@ -194,7 +194,7 @@ struct FeedCommentSheet: View {
             Button(CommentCopy.reply, systemImage: "arrowshape.turn.up.left") { reply(comment) }
         }
         if canComment && !comment.mine {
-            Button(CommentCopy.report, systemImage: "flag", role: .destructive) { reporting = comment }
+            Button(CommentCopy.report, systemImage: "flag") { reporting = comment }
         }
         if comment.canDelete {
             Button(CommentCopy.delete, systemImage: "trash", role: .destructive) { delete(comment) }
@@ -262,7 +262,8 @@ struct FeedCommentSheet: View {
                         .frame(width: Metric.send.width, height: Metric.send.height)
                         .background(Hue.ink, in: Capsule())
                         .padding(.vertical, (Metric.field - Metric.send.height) / 2)
-                        .contentShape(Rectangle())
+                        // 44 pt to the finger: a point past the field's edge above and below.
+                        .contentShape(Rectangle().inset(by: -1))
                 }
                 .buttonStyle(.press(.squish))
                 .accessibilityLabel("Post")
@@ -358,7 +359,12 @@ struct FeedCommentSheet: View {
         reporting = nil
         Task {
             let sent = await thread.report(comment, reason)
-            refusal = CommentRefusal(words: sent ? CommentCopy.reported : CommentCopy.reportFailed)
+            let said = CommentRefusal(words: sent ? CommentCopy.reported : CommentCopy.reportFailed)
+            refusal = said
+            guard sent else { return }
+            // The thanks goes by itself, as the mock's toast did.
+            try? await Task.sleep(for: .seconds(1.8))
+            if refusal == said { refusal = nil }
         }
     }
 

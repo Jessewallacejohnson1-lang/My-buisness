@@ -30,6 +30,19 @@ final class CommentThread {
         self.api = api
     }
 
+    /// One per post while the app runs, so a card the feed lays out again, or a second card of the same post, keeps
+    /// the count the sheet left.
+    private static var kept: [String: CommentThread] = [:]
+
+    static func existing(_ post: String) -> CommentThread? { kept[post] }
+
+    static func of(_ post: TownPost, api: @autoclosure () -> CommunityAPI) -> CommentThread {
+        if let thread = kept[post.id] { return thread }
+        let thread = CommentThread(post: post, api: api())
+        kept[post.id] = thread
+        return thread
+    }
+
     /// The pill's number: the shown ones, the feed's count until the sheet has read them.
     var count: Int { loaded ? comments.filter { !$0.posting }.count : post.comments }
 
@@ -64,7 +77,7 @@ final class CommentThread {
             return nil
         case .declined(let why):
             comments.removeAll { $0.id == id }
-            return CommentRefusal(words: why, red: true)
+            return CommentRefusal(words: CommentCopy.declined(why), red: true)
         case .busy:
             comments.removeAll { $0.id == id }
             return CommentRefusal(words: CommentCopy.busy)
@@ -122,15 +135,18 @@ enum CommentCopy {
     static let report = "Report"
     static let delete = "Delete"
     static let noAnswer = "Couldn't post that. Try again."
-    static let busy = "You've posted a lot of comments today. Try again tomorrow."
+    static let busy = "You've hit today's limit."
     static let loadFailed = "Couldn't load comments. Tap to try again."
     static let deleteFailed = "Couldn't delete that. Try again."
-    static let reported = "Thanks for telling us."
+    static let reported = "Reported. Thanks for telling us."
     static let reportFailed = "Couldn't send that report. Try again."
 
-    /// "Add a comment for Marlene…", or "Add a comment…" on your own post.
+    /// "Add a comment for Marlene", or "Add a comment" on your own post.
     static func placeholder(poster: String?) -> String {
-        guard let first = poster?.split(separator: " ").first else { return "Add a comment…" }
-        return "Add a comment for \(first)…"
+        guard let first = poster?.split(separator: " ").first else { return "Add a comment" }
+        return "Add a comment for \(first)"
     }
+
+    /// The check's one reason, after "Not posted." (the mock's "Not posted. Keep it kind: …").
+    static func declined(_ why: String) -> String { "Not posted. \(why)" }
 }

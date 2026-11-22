@@ -46,8 +46,8 @@ struct FeedPostCard: View {
     @State private var heartTappedAt = 0
     /// The photo on show of several (town-feed 46).
     @State private var photoPage: Int?
-    /// Its comments (backlog 38), read the first time the sheet opens and kept, so the pill follows the sheet.
-    @State private var thread: CommentThread?
+    /// Its comments (backlog 38), read the first time the sheet opens and kept per post, so the pill follows the sheet.
+    private var thread: CommentThread? { CommentThread.existing(post.id) }
     @State private var commentsOpen = false
     @State private var openedComments = false
 
@@ -110,7 +110,7 @@ struct FeedPostCard: View {
     }
 
     private func openComments() {
-        if thread == nil { thread = CommentThread(post: post, api: CommunityAPI(auth: AuthStore.shared)) }
+        _ = CommentThread.of(post, api: CommunityAPI(auth: AuthStore.shared))
         commentsOpen = true
     }
 
