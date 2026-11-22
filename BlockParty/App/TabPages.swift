@@ -40,6 +40,9 @@ extension View {
         let shift: CGFloat = reduceMotion || shown ? 0 : page.rawValue < current.rawValue ? -1 : 1
         let visible = shown || page == leaving
         return self
+            // The screen's width, whatever the page would like: Search's first layout asks for 1094 pt (its
+            // rows' full length), and the whole shell, tab bar too, was laid out that wide for a frame.
+            .containerRelativeFrame(.horizontal)
             .environment(\.tabOnScreen, shown)
             // A pure slide, as before: only Reduce Motion's crossfade animates the fade.
             .opacity(visible ? 1 : 0)
