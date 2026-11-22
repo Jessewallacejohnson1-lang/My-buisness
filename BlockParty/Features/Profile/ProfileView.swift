@@ -44,6 +44,8 @@ struct ProfileView: View {
     @State private var showingCode = false
     @State private var pushedEvent: FeedCardItem?
     @State private var pushedGroup: TownGroup?
+    /// Start a group's sheet, from the last row of your Groups (BP app start-a-group 02).
+    @State private var startingGroup = false
     @State private var showingFollowing = false
 
     /// DEBUG-only: force the edit sheet open on launch so it can be screenshotted
@@ -87,6 +89,7 @@ struct ProfileView: View {
         } openEvent: { pushedEvent = $0 } openGroup: { pushedGroup = $0 }
         openFriends: { opener?.push(FriendsRoute.allFriends) } openFollowing: { showingFollowing = true }
         openFollowers: { opener?.push(FriendsRoute.followers) }
+        startGroup: friendsBook.hasAccount() ? { startingGroup = true } : nil
         // On every visit, and for another account while You is open (`AppSession` has cleared the last one's).
         .task(id: auth.accountKey) { await model.load() }
         .navigationDestination(isPresented: $settings) { settingsPage.timesOpen("settings") }
@@ -99,6 +102,9 @@ struct ProfileView: View {
         // shell's stack, so a name in them opens its page (a list pushed from here held that push under it).
         .navigationDestination(isPresented: $showingFollowing) { FollowingPage().environment(searchModel) }
         .sheet(isPresented: $editing) { EditProfileView(model: model) }
+        .sheet(isPresented: $startingGroup) {
+            StartGroupSheet(groups: you.groups ?? []) { pushedGroup = $0 }
+        }
         // As the Friends tab's Your code opens it (`FriendsWaysCard`).
         .sheet(isPresented: $showingCode) { YourCodeSheet { opener?.push($0) } }
     }

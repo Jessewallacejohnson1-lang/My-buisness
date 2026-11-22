@@ -198,6 +198,14 @@ struct GroupPage: View {
                 .foregroundStyle(Hue.inkSecondary)
                 .padding(.top, Metric.kindTop)
 
+            // Both checks said no (start-a-group 02): only its starter sees it, and this.
+            if group.status == "rejected" {
+                Label("Couldn't start this group", systemImage: "exclamationmark.circle")
+                    .font(.sansSemibold(15))
+                    .foregroundStyle(Hue.ink)
+                    .padding(.top, Metric.whenTop)
+            }
+
             if let when = Self.whenLine(group) {
                 Text(when)
                     .font(.sans(15))

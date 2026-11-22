@@ -91,6 +91,10 @@ struct FriendsHomePage: View {
     @State private var titleUnder = false
     /// Groups just joined, still in Groups to join showing Joined until `joinedHold` is up.
     @State private var holding: Set<String> = []
+    /// Start a group's sheet (BP app start-a-group 02).
+    @State private var starting = false
+    /// Opens the new Group's page on the shell's stack once the sheet is down.
+    @Environment(\.hostOpener) private var opener
 
     private var typing: Bool { !words.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     /// What the search found, less anyone you just blocked.
@@ -144,6 +148,9 @@ struct FriendsHomePage: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
+        .sheet(isPresented: $starting) {
+            StartGroupSheet(groups: you.groups ?? []) { group in opener?.push(group) }
+        }
         .onChange(of: words, initial: true) { search.search(words) }
         // Another account asks again, as itself.
         .onChange(of: auth.accountKey) {
@@ -239,7 +246,7 @@ struct FriendsHomePage: View {
         case .groups:
             let shown = groups.mine + groups.open.prefix(FriendsMetric.groupsShown)
             return FeedPictures(logos: shown.compactMap { $0.logo.flatMap { FeedCardImageSource($0).logo }?.url },
-                                height: CGFloat(shown.count) * FriendsMetric.row)
+                                height: CGFloat(shown.count + 1) * FriendsMetric.row)
         case .suggested:
             return faces(Array(book.suggested.prefix(3)), side: DailyPeopleMetric.face, height: DailyPeopleMetric.card.height)
         }
@@ -267,7 +274,8 @@ struct FriendsHomePage: View {
 
     /// Your groups' row and the first Groups to join, a join holding its Joined first.
     private func groupsBlock(_ groups: (mine: [TownGroup], open: [TownGroup])) -> some View {
-        FriendsGroups(mine: groups.mine, open: Array(groups.open.prefix(FriendsMetric.groupsShown)), joined: hold)
+        FriendsGroups(mine: groups.mine, open: Array(groups.open.prefix(FriendsMetric.groupsShown)), joined: hold,
+                      start: book.hasAccount() ? { starting = true } : nil)
     }
 
     /// Joined shows on its row, then the group moves up into yours.
@@ -289,9 +297,8 @@ struct FriendsHomePage: View {
         let requests = book.requests, friends = book.friends
         if !requests.isEmpty { rows += [.title("Requests", more: nil)] + requests.map { .person($0, waiting: true) } }
         if !going.isEmpty { rows += [.title("Friends are going", more: nil), .going] }
-        if !groups.mine.isEmpty || !groups.open.isEmpty {
-            rows += [.title("Groups", more: groups.open.count > FriendsMetric.groupsShown ? .groups : nil), .groups]
-        }
+        // Always, for its Start a group row (start-a-group 02).
+        rows += [.title("Groups", more: groups.open.count > FriendsMetric.groupsShown ? .groups : nil), .groups]
         // `suggest-header`
         if !book.suggested.isEmpty { rows += [.title("Suggested for you", more: nil), .suggested] }
         if !friends.isEmpty {
@@ -320,7 +327,7 @@ struct FriendsHomePage: View {
         return DailyEvent.friendsGoing(from: cards, days: days, now: now, without: [], soonestFirst: true)
     }
 
-    /// Your groups, in Search's order, and the rest, soonest get-together first; one just joined
+    /// Your groups, in Search's order, and the rest, invited first, then soonest get-together; one just joined
     /// stays with the rest while it shows Joined.
     private var groups: (mine: [TownGroup], open: [TownGroup]) {
         Self.groups(you.groups ?? [], member: { actions.member($0).isMember && !holding.contains($0.id) }, now: Date())
@@ -335,7 +342,11 @@ struct FriendsHomePage: View {
         // Each group's next get-together worked out once, not on every comparison of the sort.
         let keyed: [(at: Int, next: String, group: TownGroup)] =
             all.filter { !member($0) }.enumerated().map { (at: $0.offset, next: next($0.element), group: $0.element) }
-        let open = keyed.sorted { a, b in a.next != b.next ? a.next < b.next : a.at < b.at }.map(\.group)
+        // A Group you were invited to comes first (start-a-group 02).
+        let open = keyed.sorted { a, b in
+            let (ai, bi) = (a.group.invitedBy != nil, b.group.invitedBy != nil)
+            return ai != bi ? ai : a.next != b.next ? a.next < b.next : a.at < b.at
+        }.map(\.group)
         return (all.filter(member), open)
     }
 
