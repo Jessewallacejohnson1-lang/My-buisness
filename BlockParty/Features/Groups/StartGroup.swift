@@ -37,11 +37,12 @@ nonisolated struct StartGroupDraft: Equatable {
         }
         let typed = stems(name)
         guard !typed.isEmpty else { return [] }
-        return groups.filter { $0.status == "approved" }
-            .map { ($0, stems($0.name).intersection(typed).count) }
-            .filter { $0.1 > 0 }
-            .enumerated().sorted { a, b in a.element.1 != b.element.1 ? a.element.1 > b.element.1 : a.offset < b.offset }
-            .prefix(3).map(\.element.0)
+        let live = groups.filter { $0.status == "approved" }
+        let shared: [Int] = live.map { stems($0.name).intersection(typed).count }
+        // The Town's order breaks a tie: a stable sort over the indexes.
+        let order: [Int] = live.indices.filter { shared[$0] > 0 }
+            .sorted { a, b in shared[a] != shared[b] ? shared[a] > shared[b] : a < b }
+        return order.prefix(3).map { live[$0] }
     }
 }
 
