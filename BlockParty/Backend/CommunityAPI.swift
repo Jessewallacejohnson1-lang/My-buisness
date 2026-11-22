@@ -225,6 +225,30 @@ struct CommunityAPI {
                           prefer: "resolution=ignore-duplicates,return=minimal")
     }
 
+    /// A new Group (`start_group`, BP app start-a-group 02): pending, with you in it, until its checks say yes.
+    /// `id` is made here so its photo, sent first by `uploadGroupPhoto`, can carry it.
+    func startGroup(id: String, name: String, kind: String?, photo: URL?) async throws {
+        _ = try await db.rpc("start_group", ["p_id": id, "p_name": name, "p_kind": kind ?? NSNull(),
+                                             "p_photo": photo?.absoluteString ?? NSNull()])
+    }
+
+    /// A new Group's photo: `group-<id>.jpg` in your own folder of `event-images`, the one name `start_group` takes.
+    func uploadGroupPhoto(_ jpeg: Data, id: String) async throws -> URL {
+        let uid = try db.userID.lowercased()
+        return try await db.upload(bucket: "event-images", path: "\(uid)/group-\(id).jpg", jpeg, type: "image/jpeg")
+    }
+
+    /// The two checks on your new Group (`moderate-post` `group`), sent without waiting on them: the answer
+    /// lands on the Group's status, read with the Groups.
+    func checkNewGroup(_ id: String) async {
+        _ = try? await db.invoke("moderate-post", ["group": id])
+    }
+
+    /// Invites friends to a Group you're in (`invite_to_group`): it shows first in their Groups to join.
+    func inviteToGroup(_ id: String, friends: [String]) async throws {
+        _ = try await db.rpc("invite_to_group", ["p_club": id, "p_users": friends])
+    }
+
     func leaveClub(_ clubId: String) async throws {
         let uid = try db.userID
         try await db.rest("club_members", method: "DELETE", [("club_id", "eq.\(clubId)"), ("user_id", "eq.\(uid)")])

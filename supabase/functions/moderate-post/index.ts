@@ -1,7 +1,8 @@
 import { createClient } from "npm:@supabase/supabase-js@2"
 // Supabase Edge Function: Claude's instant check (text + image) on a neighbour's new Event from
 // New event (`submit`, BP app references/town-plus), on an edit of a live post (`edit`, BP app town-feed 44), on a reported posting read again
-// (`recheck`, BP app town-feed 22), and on a new comment on a post (`comment`, BP app backlog 38).
+// (`recheck`, BP app town-feed 22), on a new comment on a post (`comment`, BP app backlog 38), and on a neighbour's new
+// Group (`group`, BP app start-a-group 02).
 // Deploy: supabase functions deploy moderate-post
 // Secret: supabase secrets set ANTHROPIC_API_KEY=...
 //
@@ -38,6 +39,23 @@ Reject only with a clear, kind, specific reason the writer can act on, in one sh
 
 Respond with ONLY a JSON object: {"ok": true|false, "reason": "<short reason; empty when ok>"}`
 
+// A new Group (BP app start-a-group 02) gets two readings with different eyes, and goes live only when both say yes.
+const GROUP_RULE = `You check new groups that neighbors start on Block Party, a warm, calm, hyper-local community app for the real town of St. Joseph, Minnesota: book clubs, running groups, crafts, faith, service, games, music and any other shared interest. You see the group's name, maybe what kind of group it is, and maybe its photo.
+
+Approve when it is a plausible group of neighbors with a shared interest, and its name and photo are appropriate. Reject spam, advertising or a scam, anything abusive, hateful, harassing or threatening, anything sexual or violent, and a group that targets or mocks a person. A photo needn't show the group itself. Informal, playful or very niche groups are fine.
+
+Reject only with a clear, kind, specific reason the starter can act on, in one short sentence.
+
+Respond with ONLY a JSON object: {"ok": true|false, "reason": "<short reason; empty when ok>"}`
+
+const GROUP_SECOND = `You are a second, independent reviewer for a small-town community app that people of every age use, children included. A neighbor wants to start a group, and everyone in town will see its name and photo. Decide whether they are safe to show to the whole town.
+
+Say no to: sexual or suggestive content, drugs, weapons shown as threats, gore or violence, slurs or hate, bullying or naming a private person to mock them, scams, selling or advertising, and anything that tries to slip such content past a filter (odd spelling, hidden words in the photo). Say yes to everything else, however silly, small or unusual.
+
+When you say no, give the reason in one short, kind sentence.
+
+Respond with ONLY a JSON object: {"ok": true|false, "reason": "<short reason; empty when ok>"}`
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS })
   const json = (body: unknown, status = 200) =>
@@ -70,9 +88,10 @@ Deno.serve(async (req) => {
 
   // The model's yes or no on one posting, or on a report's note about it, read here and never taken from
   // the caller; null when it gave no answer.
-  const verdict = async (e: any, note?: string, comment?: string): Promise<{ ok: boolean, reason: string } | null> => {
+  const verdict = async (e: any, note?: string, comment?: string, system = SYSTEM): Promise<{ ok: boolean, reason: string } | null> => {
     const facts = comment !== undefined ? `Post: ${e.title || '(just a photo)'}\nComment: ${comment}`
-      : note !== undefined ? `Event: ${e.title}\nNote: ${note}` : [
+      : note !== undefined ? `Event: ${e.title}\nNote: ${note}` : e.kind === 'group'
+      ? [`Group name: ${e.title}`, e.group_kind ? `Kind of group: ${e.group_kind}` : null].filter(Boolean).join('\n') : [
       `Kind: ${e.kind}`,
       e.kind === 'post' ? `Words: ${e.title || '(none, just the photo)'}` : `Title: ${e.title}`,
       e.event_date ? `When: ${e.event_date}${e.start_time ? ` ${e.start_time}` : ''}` : null,
@@ -96,7 +115,7 @@ Deno.serve(async (req) => {
           model: 'claude-haiku-5-5',
           max_tokens: 1024,
           output_config: { effort: 'low' },
-          system: comment !== undefined ? COMMENT_RULE : note === undefined ? SYSTEM : NOTE_RULE,
+          system: comment !== undefined ? COMMENT_RULE : note === undefined ? system : NOTE_RULE,
           messages: [{ role: 'user', content }],
         }),
       })
@@ -143,6 +162,33 @@ Deno.serve(async (req) => {
       .map((u) => typeof u === 'string' ? u.split('/event-images/')[1] : undefined).filter((f): f is string => !!f)
     if (files.length) await admin.storage.from('event-images').remove(files)
     return json({ ok: false, reason: said.reason })
+  }
+
+  // A neighbour's new Group (BP app start-a-group 02): start_group made it pending, and the app asks right after
+  // without waiting. claim_group_check lets each through once, only the caller's own and still pending (start_group
+  // allows 3 a day). Two readings with different rules: both yes, it's live; both no, it's rejected and its photo
+  // goes; a split or no answer leaves it pending for Jesse's morning report and the Review queue.
+  if (body?.group) {
+    const id = String(body.group)
+    const { data: claimed, error } = await admin.rpc('claim_group_check', { p_club: id, p_user: caller })
+    if (error) return json({ ok: false, reason: 'Could not auto-check.' }, 502)
+    if (!claimed) return json({ ok: false, reason: 'Not checked.' }, 429)
+    const { data: c } = await admin.from('clubs').select('name, kind, image_url').eq('id', id).single()
+    if (!c) return json({ ok: false, reason: 'Could not auto-check.' }, 502)
+    const g = { kind: 'group', title: c.name, group_kind: c.kind, image_url: c.image_url }
+    const [first, second] = await Promise.all([verdict(g, undefined, undefined, GROUP_RULE), verdict(g, undefined, undefined, GROUP_SECOND)])
+    if (first?.ok && second?.ok) {
+      const { error: up } = await admin.from('clubs').update({ status: 'approved' }).eq('id', id).eq('status', 'pending')
+      return up ? json({ ok: false, reason: 'Could not auto-check.' }, 502) : json({ ok: true, reason: '' })
+    }
+    if (first && second && !first.ok && !second.ok) {
+      await admin.from('clubs').update({ status: 'rejected', image_url: null }).eq('id', id).eq('status', 'pending')
+      const file = typeof c.image_url === 'string' ? c.image_url.split('/event-images/')[1] : undefined
+      if (file) await admin.storage.from('event-images').remove([file])
+      return json({ ok: false, reason: first.reason })
+    }
+    console.log('moderate-post: group left for review', id, JSON.stringify([first, second]))
+    return json({ ok: false, reason: 'Waiting.' }, 202)
   }
 
   // A neighbour's edit of their own live post (BP app town-feed 44): new words and Place, read with the post's own photos.

@@ -5,8 +5,8 @@
 //  six question steps on one fixed frame in Luma's look (onboarding 34, mock v8): the grey canvas,
 //  back and the dashes on top, an icon circle over each question, and the one
 //  Next pill 84 pt from the bottom with its slot under it. Only the question moves between
-//  steps. Profile, Birthday and Find your friends wear the Big art look (onboarding 43, 51); the other steps
-//  take it in tickets of their own.
+//  steps. Profile, Birthday and Find your friends wear the Big art look (onboarding 43, 51), and Interests its
+//  photo circles on the deep Dusk backdrop with white chrome (48); the other steps take theirs in tickets of their own.
 //
 
 import Contacts
@@ -56,6 +56,9 @@ enum OnboardingStep: Int, CaseIterable {
         }
     }
 
+    /// Interests sits on the deep Dusk backdrop with white words and chrome (onboarding 48); the others stay light.
+    var deep: Bool { self == .interests }
+
     /// The link in the slot under the Next bar, where the step has one.
     var slot: String? {
         self == .friends ? "Not now" : nil
@@ -103,8 +106,9 @@ final class OnboardingStore {
     /// then handed to Your profile (`ProfileModel.answered`), and reach the server with the name
     /// and photo.
     var interests: [String] { didSet { keep(interests, Self.interestsKey) } }
-    /// Opened Schools on Interests, so schools lead Follow 3 (onboarding 28).
-    var schoolsOpened: Bool { didSet { defaults.set(schoolsOpened, forKey: Self.schoolsOpenedKey) } }
+    /// Picked the Schools circle on Interests, so schools lead Follow 3 (onboarding 48; opened the Schools row
+    /// before it, onboarding 28, under the same key).
+    var schoolsPicked: Bool { didSet { defaults.set(schoolsPicked, forKey: Self.schoolsPickedKey) } }
     /// Follow 3's picks (ticket 22), in the order made. Kept on the phone: following needs a signed-up
     /// account, so the shell sends them once there is one (`takeFollows`).
     private(set) var follows: [FollowTarget] {
@@ -136,7 +140,7 @@ final class OnboardingStore {
     private static let followsKey = "onboarding.follows"
     private static let requestsKey = "onboarding.requests"
     static let interestsKey = "onboarding.interests"
-    private static let schoolsOpenedKey = "onboarding.schoolsOpened"
+    private static let schoolsPickedKey = "onboarding.schoolsOpened"
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -159,7 +163,7 @@ final class OnboardingStore {
         gender = defaults.string(forKey: Self.genderKey)
         // A flow begun before the picks had a key of their own kept them in the phone's copy.
         interests = defaults.stringArray(forKey: Self.interestsKey) ?? Interests.get(defaults)
-        schoolsOpened = defaults.bool(forKey: Self.schoolsOpenedKey)
+        schoolsPicked = defaults.bool(forKey: Self.schoolsPickedKey)
         follows = Self.savedFollows(defaults)
         requests = defaults.stringArray(forKey: Self.requestsKey) ?? []
         arrivedBefore = before
@@ -291,7 +295,7 @@ final class OnboardingStore {
         follows = []
         requests = []
         interests = []
-        schoolsOpened = false
+        schoolsPicked = false
         for key in defaults.dictionaryRepresentation().keys where key.hasPrefix("onboarding.") {
             defaults.removeObject(forKey: key)
         }
@@ -368,6 +372,8 @@ struct OnboardingFlow: View {
     @State private var keyboardUp = false
     /// Schools' tiles and Follow 3's Places, schools and pages: nil while reading, empty if it failed.
     @State private var suggestions: [FollowSuggestion]?
+    /// Next on Interests: its circles burst, then the step moves on (onboarding 48).
+    @State private var bursting = false
     /// Contacts' check, held here so back to Find your friends and on again spends no second one of
     /// the day's five. A quiet account can't ask (`match_contacts` wants a real one), so until phone
     /// sign-in makes one at step 2 (onboarding 17) it finds nobody.
@@ -442,6 +448,7 @@ struct OnboardingFlow: View {
         // Reached Follow 3 with nothing read (no signal back then): read again.
         .onChange(of: store.step) { _, step in
             if step == .follow { readAgain() }
+            bursting = false
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
             withAnimation(Motion.sheet) { keyboardUp = true }
@@ -463,13 +470,12 @@ struct OnboardingFlow: View {
         Task { await readSuggestions() }
     }
 
-    /// A follow on Schools or Follow 3. One under the college picks its interests, and taking the
-    /// last one off takes them.
+    /// A follow on Follow 3. One under the college picks its interests (Campus life).
     private func toggleFollow(_ target: FollowTarget) {
         store.toggleFollow(target)
         let college = FollowSuggestions.collegeTargets(in: suggestions ?? [])
-        guard college.contains(target) else { return }
-        store.interests = Interests.withCollege(store.interests, following: store.follows.contains(where: college.contains))
+        guard college.contains(target), store.follows.contains(target) else { return }
+        store.interests = Interests.withCollege(store.interests)
     }
 
     /// Every question step: the backdrop, the fixed top row and Next bar, and the one part
@@ -477,8 +483,9 @@ struct OnboardingFlow: View {
     private var questions: some View {
         ZStack(alignment: .top) {
             // The step's colour glides to the next one's (mock v2); Reduce Motion changes it at once.
-            OnboardingBackdrop(tint: tint)
+            OnboardingBackdrop(tint: tint, deep: deep)
                 .animation(reduceMotion ? nil : BigArt.glide, value: tint)
+                .animation(reduceMotion ? nil : BigArt.glide, value: deep)
 
             if !onWelcome {
                 question
@@ -490,7 +497,7 @@ struct OnboardingFlow: View {
 
             HStack(spacing: 4) {
                 // None on the first question: the account is made, there's no going back to make another.
-                OnboardingBackChevron(action: go { [store] in
+                OnboardingBackChevron(color: deep ? .white : Hue.ink, action: go { [store] in
                     // The code signed the phone in for its new password: back out of it is a sign-out.
                     if store.account == .newPassword { Task { await AuthStore.shared.signOut() } }
                     if store.account != nil { store.accountBack() } else { store.back() }
@@ -498,7 +505,7 @@ struct OnboardingFlow: View {
                     .opacity(noBack ? 0 : 1)
                     // Nor while Log in or Create account waits on the server: its answer moves on.
                     .disabled(noBack || form.busy)
-                OnboardingProgressBar(index: store.barIndex, total: OnboardingStep.barTotal)
+                OnboardingProgressBar(index: store.barIndex, total: OnboardingStep.barTotal, deep: deep)
                     .opacity(store.account == nil ? 1 : 0)
             }
             // Mock v8's top row: 44 pt tall from 54 pt down, the chevron at 6, the line 20 from the right.
@@ -508,7 +515,7 @@ struct OnboardingFlow: View {
             .padding(.top, 54)
             .ignoresSafeArea(.container)
 
-            if [.interests, .follow, .contacts].contains(store.step) { foot.transition(.opacity) }
+            if [.follow, .contacts].contains(store.step) { foot.transition(.opacity) }
         }
         .overlay(alignment: .bottom) {
             if store.step == .birthday {
@@ -525,6 +532,9 @@ struct OnboardingFlow: View {
     private var birthday: Binding<Date> {
         Binding(get: { [store] in store.birthday ?? .now }, set: { [store] in store.birthday = $0 })
     }
+
+    /// Interests' deep backdrop is up; Log in and Create account have none.
+    private var deep: Bool { store.account == nil && store.step.deep }
 
     /// The colour at the top of the step that is up, on a Big art step; Log in and Create account have none.
     private var tint: Color? { store.account == nil ? store.step.tint : nil }
@@ -558,7 +568,7 @@ struct OnboardingFlow: View {
             } else if store.step == .follow {
                 // Follow 3's question scrolls away with its grid (onboarding 26).
                 OnboardingFollowGrid(suggestions: suggestions, interests: store.interests,
-                                     schoolsFirst: store.schoolsOpened, follows: store.follows,
+                                     schoolsFirst: store.schoolsPicked, follows: store.follows,
                                      toggle: { toggleFollow($0) }) {
                     VStack(alignment: .leading, spacing: 0) {
                         heading
@@ -566,23 +576,14 @@ struct OnboardingFlow: View {
                         OnboardingSubline("Picked from what you love. Their events show up first.")
                     }
                 }
-            } else if store.step == .interests {
-                // Interests' question scrolls away with its rows, as Follow 3's does (onboarding 28).
-                InterestRows(picked: Binding(get: { store.interests }, set: { store.interests = $0 }),
-                             schools: suggestions,
-                             isFollowing: { [store] in store.follows.contains($0) },
-                             toggleFollow: { toggleFollow($0) },
-                             schoolsOpened: { store.schoolsOpened = true; readAgain() },
-                             topInset: FollowGridMetric.headingTop - FollowGridMetric.scrollTop) {
-                    VStack(alignment: .leading, spacing: 0) {
-                        heading
-                        OnboardingSubline("We'll show events, groups and places that match.")
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .padding(.top, FollowGridMetric.scrollTop)
-                .overlay(alignment: .top) { scrollEdge }
-                .ignoresSafeArea(.container)
+            } else if on(.interests) {
+                // 12 photo circles on the deep backdrop (onboarding 48).
+                InterestCircles(picked: Binding(get: { store.interests }, set: { store.interests = $0 }),
+                                schools: Binding(get: { store.schoolsPicked }, set: { store.schoolsPicked = $0 }),
+                                bursting: bursting,
+                                done: go { [store] in if store.step == .interests { store.next() } },
+                                bottomClear: bottomClear,
+                                focused: $questionFocused)
             } else if on(.friends) {
                 // Jesse's market drawing over the ask (onboarding 51), no icon circle.
                 OnboardingFriendsAsk(focused: $questionFocused)
@@ -693,7 +694,7 @@ struct OnboardingFlow: View {
     private var bottom: some View {
         VStack(spacing: 6) {
             OnboardingNextBar(title: nextTitle, count: stillToPick, allowed: nextAllowed,
-                              busy: form.busy, refused: form.refusals, action: nextAction)
+                              busy: form.busy, refused: form.refusals, deep: deep, action: nextAction)
             if !keyboardUp && store.step != .birthday { slot.frame(height: 44) }
         }
         .padding(.horizontal, FollowGridMetric.gutter)
@@ -735,12 +736,9 @@ struct OnboardingFlow: View {
         }
     }
 
-    /// What Pick 3 counts: everything picked or followed on Interests. Until the tiles are read, a
-    /// relaunch's follows all count, so nobody is held back by a read still out or failed.
+    /// What Pick 3 counts: the circles picked on Interests, each 1 (onboarding 48).
     private var picksMade: Int {
-        guard let suggestions, !suggestions.isEmpty else { return Interests.count(store.interests) + store.follows.count }
-        let schools = FollowSuggestions.schoolTargets(in: suggestions)
-        return Interests.count(store.interests) + store.follows.filter(schools.contains).count
+        Interests.circlesPicked(store.interests) + (store.schoolsPicked ? 1 : 0)
     }
 
     /// Follows still to make on Follow 3; none while the read is out, when it failed or when it found
@@ -775,7 +773,10 @@ struct OnboardingFlow: View {
 
     private var nextAction: () -> Void {
         if store.account != nil { return submitAccount }
-        return store.step == .friends ? askContacts : go { [store] in store.next() }
+        if store.step == .friends { return askContacts }
+        // Interests' circles burst first, and move on when it's done; Reduce Motion goes at once.
+        if store.step == .interests, !reduceMotion { return { bursting = true } }
+        return go { [store] in store.next() }
     }
 
     /// Log in or Create account's Next, or a Forgot password step's. A new account goes on to the

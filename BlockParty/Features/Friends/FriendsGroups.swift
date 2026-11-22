@@ -15,11 +15,13 @@ struct FriendsGroups: View {
     let open: [TownGroup]
     /// A Join that took: the page holds the row's Joined before moving it up.
     var joined: (TownGroup) -> Void = { _ in }
+    /// Start a group, the first row of Groups to join (BP app start-a-group 02); nil with no real account.
+    var start: (() -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if !mine.isEmpty { GroupCircles(groups: mine) }
-            if !mine.isEmpty, !open.isEmpty {
+            if !mine.isEmpty, !open.isEmpty || start != nil {
                 Text("Groups to join")
                     .font(.displaySemi(13))
                     .foregroundStyle(Hue.inkSecondary)
@@ -27,6 +29,11 @@ struct FriendsGroups: View {
                     .padding(.top, FriendsMetric.subTop)
                     .padding(.bottom, FriendsMetric.subBottom)
                     .accessibilityAddTraits(.isHeader)
+            }
+            if let start {
+                StartGroupRow(action: start)
+                    .padding(.horizontal, FriendsMetric.side)
+                    .frame(height: FriendsMetric.row)
             }
             ForEach(open) { GroupJoinRow(group: $0, joined: joined) }
         }
@@ -121,10 +128,11 @@ struct GroupJoinRow: View {
         group.meetings.first { YouCalendar.stillToCome($0, now: now) }
     }
 
-    /// "Meets tomorrow 6 PM · 12 members": its next get-together in the bell's short words
+    /// "Sam invited you" while an invite waits (start-a-group 02). Else "Meets tomorrow 6 PM · 12 members": its next get-together in the bell's short words
     /// (`EventWhen.short`), then the members once someone has joined (the Group page's rule:
     /// never a zero count). nil with neither.
     static func line(_ group: TownGroup, members: Int, now: Date) -> String? {
+        if let who = group.invitedBy, !group.joined { return "\(who) invited you" }
         let meets = next(group, now: now)
             .flatMap { EventWhen.short(date: $0.day, time: $0.time, now: now) }
             .map { when in

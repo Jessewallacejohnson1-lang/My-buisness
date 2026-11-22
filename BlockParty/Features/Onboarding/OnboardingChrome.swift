@@ -28,6 +28,8 @@ enum BigArt {
 /// passes its colour: solid for the top 150 pt, then fading into the near-white canvas by 440 pt.
 struct OnboardingBackdrop: View {
     var tint: Color? = nil
+    /// Interests' Dusk over everything (onboarding 48): fades in and out as the step comes and goes.
+    var deep = false
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -41,6 +43,11 @@ struct OnboardingBackdrop: View {
                                            .init(color: .clear, location: 1)],
                                    startPoint: .top, endPoint: .bottom)
                 }
+            // Mock v5: the top colour to 32% down, then into the bottom one.
+            LinearGradient(stops: [.init(color: Hue.deepTop, location: 0), .init(color: Hue.deepTop, location: 0.32),
+                                   .init(color: Hue.deepBottom, location: 1)],
+                           startPoint: .top, endPoint: .bottom)
+                .opacity(deep ? 1 : 0)
         }
         .ignoresSafeArea()
         .accessibilityHidden(true)
@@ -61,12 +68,14 @@ struct OnboardingScrollEdge: View {
 /// The back chevron at the top left of every question step: Luma's thin ink chevron, 44 pt to tap,
 /// sinking under the finger.
 struct OnboardingBackChevron: View {
+    /// White on Interests' deep backdrop (onboarding 48).
+    var color = Hue.ink
     let action: () -> Void
     var body: some View {
         Button(action: { Haptics.selection(); action() }) {
             Image(systemName: "chevron.left")
                 .font(.glyph(20, weight: .medium))
-                .foregroundStyle(Hue.ink)
+                .foregroundStyle(color)
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
         }
@@ -82,6 +91,8 @@ struct OnboardingProgressBar: View {
     /// 1 to `total`.
     let index: Int
     let total: Int
+    /// White on a white track at 28%, over Interests' deep backdrop (onboarding 48, mock v5 `.dash`).
+    var deep = false
 
     static let height: CGFloat = 4
     static let gap: CGFloat = 4
@@ -92,9 +103,9 @@ struct OnboardingProgressBar: View {
         HStack(spacing: Self.gap) {
             ForEach(1...max(total, 1), id: \.self) { dash in
                 Capsule()
-                    .fill(Hue.ink.opacity(0.14))
+                    .fill(deep ? Hue.deepTrack : Hue.ink.opacity(0.14))
                     .overlay {
-                        Capsule().fill(Hue.ink)
+                        Capsule().fill(deep ? Color.white : Hue.ink)
                             .scaleEffect(x: dash <= index ? 1 : 0, anchor: .leading)
                     }
                     .clipShape(Capsule())
@@ -102,6 +113,7 @@ struct OnboardingProgressBar: View {
         }
         .frame(height: Self.height)
         .animation(reduceMotion ? nil : BigArt.glide, value: index)
+        .animation(reduceMotion ? nil : BigArt.glide, value: deep)
         .accessibilityElement()
         .accessibilityLabel("Step \(index) of \(total)")
     }
@@ -241,6 +253,8 @@ struct OnboardingNextBar: View {
     var busy = false
     /// Bumped when the server said no (a wrong password): the bar shakes as on a tap too early.
     var refused = 0
+    /// White with ink words on Interests' deep backdrop, white at 26% while not allowed (onboarding 48, mock v5 `.btn`).
+    var deep = false
     let action: () -> Void
 
     static let height: CGFloat = 48
@@ -265,7 +279,7 @@ struct OnboardingNextBar: View {
                     .animation(.snappy, value: title)
             }
         }
-        .buttonStyle(NextBarStyle(allowed: allowed))
+        .buttonStyle(NextBarStyle(allowed: allowed, deep: deep))
         .keyframeAnimator(initialValue: CGFloat(0), trigger: shakes) { bar, x in
             bar.offset(x: x)
         } keyframes: { _ in
@@ -284,22 +298,34 @@ struct OnboardingNextBar: View {
 
 private struct NextBarStyle: ButtonStyle {
     let allowed: Bool
+    let deep: Bool
 
     func makeBody(configuration: Configuration) -> some View {
         let down = configuration.isPressed && allowed
         return configuration.label
-            .foregroundStyle(allowed ? Color.white : Hue.nextOffWords)
+            .foregroundStyle(words)
             .frame(maxWidth: .infinity)
             .frame(height: OnboardingNextBar.height)
             .background {
                 Capsule()
-                    .fill(allowed ? (down ? Hue.nextPressed : Hue.ink) : Hue.nextOff)
+                    .fill(fill(down: down))
                     .animation(.easeOut(duration: Press.inSeconds), value: down)
             }
             .contentShape(Capsule())
             .press(.squish, down: down)
             .animation(.easeOut(duration: 0.2), value: allowed)
             .onChange(of: down) { _, pressed in if pressed { Haptics.light() } }
+            .animation(.easeOut(duration: 0.2), value: deep)
+    }
+
+    private var words: Color {
+        if deep { return allowed ? Hue.deepPillWords : Hue.deepOffWords }
+        return allowed ? Color.white : Hue.nextOffWords
+    }
+
+    private func fill(down: Bool) -> Color {
+        if deep { return allowed ? (down ? Hue.deepPressed : Color.white) : Hue.deepOff }
+        return allowed ? (down ? Hue.nextPressed : Hue.ink) : Hue.nextOff
     }
 }
 

@@ -81,7 +81,8 @@ struct GroupPage: View {
         // for someone who may act, as the Event page's RSVP bar: it comes up when the quiet
         // account arrives.
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            if actions.canAct {
+            // A turned-down Group has nothing to join or invite to (start-a-group 02).
+            if actions.canAct, group.status != "rejected" {
                 joinBar
                     .transition(reduceMotion ? .opacity : .move(edge: .bottom))
             }
@@ -198,6 +199,14 @@ struct GroupPage: View {
                 .foregroundStyle(Hue.inkSecondary)
                 .padding(.top, Metric.kindTop)
 
+            // Both checks said no (start-a-group 02): only its starter sees it, and this.
+            if group.status == "rejected" {
+                Label("Couldn't start this group", systemImage: "exclamationmark.circle")
+                    .font(.sansSemibold(15))
+                    .foregroundStyle(Hue.ink)
+                    .padding(.top, Metric.whenTop)
+            }
+
             if let when = Self.whenLine(group) {
                 Text(when)
                     .font(.sans(15))
@@ -218,7 +227,7 @@ struct GroupPage: View {
             }
 
             // Once you're in. The count is right above, so with nothing said it has no second line.
-            ChatRoomRow(title: "Group chat", isIn: actions.member(group).isMember,
+            ChatRoomRow(title: "Group chat", isIn: actions.member(group).isMember && group.status != "rejected",
                         listed: { [id = group.id] in $0.chat(forGroup: id) },
                         ruled: false, access: { [id = group.id] in try await $0.groupAccess(id) },
                         route: { [group] _ in .groupChat(group) })

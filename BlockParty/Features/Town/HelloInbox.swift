@@ -179,7 +179,8 @@ struct HelloItem: Codable, Hashable, Identifiable {
         case .joined(let person): HelloDrop.joined(person)
         case .accepted(let person): HelloDrop.accepted(person)
         case .final(let final):
-            HelloDrop.Message(text: final.text, target: .town, logo: final.logo, tint: final.tint,
+            // Its game's page while the Town feed has it, else Town (hello-drop 10).
+            HelloDrop.Message(text: final.text, target: .eventID(final.eventId), logo: final.logo, tint: final.tint,
                               confetti: final.confetti)
         case .moment: nil
         case .added(let added):
