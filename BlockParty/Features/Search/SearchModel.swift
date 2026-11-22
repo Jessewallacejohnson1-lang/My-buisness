@@ -832,13 +832,17 @@ final class SearchModel {
             let kind: SearchItem.Kind = poi.family == .business ? .business
                 : coffeeTypes.contains(type) ? .coffee : .restaurant
             let saved = poi.entryId.flatMap { photos[$0] } ?? []
-            return SearchItem(id: "p:\(key)", kind: kind, name: shown(poi.name), sub: label(type), logo: logo,
+            // The place's own word, else Google's type in a neighbour's words, which still finds it (search-helpful 09).
+            let typeWord = label(type)
+            return SearchItem(id: "p:\(key)", kind: kind, name: shown(poi.name), sub: poi.category ?? typeWord,
+                              logo: logo,
                               photo: kind == .business ? nil : saved.first.map { .saved($0) },
                               // Someone looking for a brewery wants a cidery too.
                               // What people type for what it is ("gas" for a fuel station, search-helpful 04).
                               keywords: [type.replacingOccurrences(of: "_", with: " ")] + (type == "cidery" ? ["brewery"] : [])
                                   + NeedWords.typed([type]),
-                              alsoFinds: NeedWords.typed(poi.types.filter { $0 != type }) + NeedWords.named(poi.name),
+                              alsoFinds: NeedWords.typed(poi.types.filter { $0 != type }) + NeedWords.named(poi.name)
+                                  + [typeWord].compactMap { $0 },
                               rank: logo?.rank ?? .max, photos: saved, street: street(poi.address),
                               about: nonempty(poi.about), links: poi.links ?? [],
                               hours: poi.hours.flatMap { $0.days.allSatisfy(\.isEmpty) ? nil : $0 }, placeID: poi.id,
@@ -866,9 +870,10 @@ final class SearchModel {
         }
     }
 
-    /// The line under a name, from Google's place type, in the words a neighbour would say: every type a live place
-    /// had on 2026-11-18 (backlog 20). Google's catch-alls name nothing ("Point of interest", "Professional service"),
-    /// so they get no line. A type new since then reads as itself ("print_shop" is "Print shop").
+    /// The line under a place's name when it has no word of its own (`POI.category`, search-helpful 09): Google's
+    /// place type in the words a neighbour would say, every type a live place had on 2026-11-18 (backlog 20).
+    /// Google's catch-alls name nothing ("Point of interest", "Professional service"), so they get no line. A type
+    /// new since then reads as itself ("print_shop" is "Print shop").
     static func label(_ type: String) -> String? {
         if let hit = kindWords[type] { return hit.isEmpty ? nil : hit }
         guard let first = type.first else { return nil }

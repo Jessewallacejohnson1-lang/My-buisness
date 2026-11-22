@@ -52,7 +52,9 @@ struct TodayPlaces {
     /// no spot count too, so a day whose bubbles are all missing spots never says it's done. The
     /// asked-for Event isn't today's.
     func dayIsOver(now: Date) -> Bool {
-        TodayBubbleRules.order(events, now: now).isEmpty
+        // Each event's phase once, not a sort that read every start again per comparison: the map's pill
+        // asks this as it opens (tab-lag 02).
+        events.allSatisfy { TodayBubbleRules.phase($0, now: now) == .ended }
     }
 
     /// Bubbles whose centres sit closer than `within` points on screen become one, at the

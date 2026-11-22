@@ -32,6 +32,9 @@ struct POI: Identifiable, Decodable, Hashable {
     var links: [PlaceLink]? = nil
     /// Its weekly hours (`places.hours`), read from its own website or Facebook.
     var hours: PlaceHours? = nil
+    /// The word it uses for itself (`places.category`): the category its owner picked on Google Maps ("Nutrition
+    /// club"), live once a second check against its own site agreed (BP app search-helpful 09). nil until then.
+    var category: String? = nil
 
     var coordinate: CLLocationCoordinate2D { .init(latitude: lat, longitude: lon) }
 

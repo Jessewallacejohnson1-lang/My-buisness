@@ -131,8 +131,10 @@ or its `docs/rules/` file and leaves here.
   "the kitchen inside The House" and came back. Before a place is called a double, gone or not a place, read
   its registry entry's `Notes:`: Jesse's word there outranks Google Maps and web research. A hidden page
   (`places.closed_at`) is not proof a place closed: read why it was hidden.
-- 2026-10-26 — From Google, store only the place id, a place's weekly hours and whether it is
-  still open (Jesse: "its a fact were not copying", "lets do ur rec"; ADR-016). Hours go in
+- 2026-11-20 — From Google, store only the place id, a place's weekly hours, whether it is
+  still open (Jesse: "its a fact were not copying", "lets do ur rec"; ADR-016) and the category its owner
+  picked, Search's word for it, once its own site agrees (`places.category`; Jesse 2026-11-19: "use the
+  terminology the place uses", yes to the fill; BP app search-helpful 09). Hours go in
   `places.hours` via the map search (`sources/scripts/maps.py`), else the place's own site or Facebook, which
   wins when newer (`hours_from: website`). Names, addresses, phones, photos, ratings and
   reviews never come from Google; the monthly accounts check reads a missing registry address
