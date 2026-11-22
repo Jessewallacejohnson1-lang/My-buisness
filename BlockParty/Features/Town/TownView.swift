@@ -473,9 +473,9 @@ final class FrameGapLog {
     }
 
     /// A tap made by code (`-pill-cycle`), timed as a finger's lift is.
-    func tapped(_ name: String) {
+    func tapped(_ name: String, at time: TimeInterval? = nil) {
         start()
-        timeTap(name, from: CACurrentMediaTime())
+        timeTap(name, from: time ?? CACurrentMediaTime())
     }
 
     private func timeTap(_ name: String, from up: TimeInterval) {

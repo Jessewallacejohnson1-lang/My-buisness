@@ -938,9 +938,12 @@ struct MainTabsView: View {
             // `prepare` runs at the finger's lift, the double-tap window before the open, as on a card's photo.
             @MainActor func step(_ name: String, prepare: () -> Void = {}, open: () -> Void, back: () -> Void) async {
                 try? await Task.sleep(for: .seconds(3 - PhotoDoubleTap.window))
+                // The clock starts when the window was due to close, as a finger's would: a build that holds the main
+                // thread past it shows in the time, not in a late start.
+                let due = CACurrentMediaTime() + PhotoDoubleTap.window
                 prepare()
-                try? await Task.sleep(for: .seconds(PhotoDoubleTap.window))
-                FrameGapLog.shared.tapped(name)
+                try? await Task.sleep(for: .seconds(max(0, due - CACurrentMediaTime())))
+                FrameGapLog.shared.tapped(name, at: due)
                 open()
                 try? await Task.sleep(for: .seconds(1.5))
                 back()
