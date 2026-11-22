@@ -112,8 +112,12 @@ final class AppearanceStore: ObservableObject {
     /// stays black). An event page's hero photo still gets the white clock it had.
     /// A set, not a Bool: a tab switch can run the new tab's appear before the old tab's
     /// disappear (2026-10-01), and the old tab's release must not drop the new tab's hold.
-    @Published private(set) var clockHolders: Set<String> = []
-    var holdsClock: Bool { !clockHolders.isEmpty }
+    /// Only `holdsClock` is published, and only when it flips: a tab switch moves the hold from
+    /// one page to the other, which redrew the root twice for no change on screen.
+    private var clockHolders: Set<String> = [] {
+        didSet { if holdsClock == clockHolders.isEmpty { holdsClock = !clockHolders.isEmpty } }
+    }
+    @Published private(set) var holdsClock = false
 
     func holdClock(_ holder: String, _ hold: Bool) {
         if hold { clockHolders.insert(holder) } else { clockHolders.remove(holder) }

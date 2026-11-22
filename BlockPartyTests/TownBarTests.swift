@@ -448,9 +448,13 @@ final class AppearancePreferenceTests: XCTestCase {
         store.choice = .system
 
         store.holdClock("town", true)
+        var changes = 0
+        let watch = store.objectWillChange.sink { changes += 1 }
         store.holdClock("daily", true)
         store.holdClock("town", false)
+        watch.cancel()
         XCTAssertTrue(store.holdsClock, "Block Party tab still holds after Town lets go")
+        XCTAssertEqual(changes, 0, "the hold moving between tabs changes nothing on screen, so redraws nothing")
         XCTAssertEqual(store.requestedScheme, store.phoneScheme)
 
         store.releaseClock()
