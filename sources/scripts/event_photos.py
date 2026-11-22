@@ -707,15 +707,15 @@ NOT_OURS = re.compile(r"gettyimages|shutterstock|istockphoto|alamy|apimages|apne
                       r"depositphotos|123rf|unsplash|pexels|pixabay|stock\.adobe|wikimedia|wikipedia|pinterest|"
                       r"googleusercontent|maps\.googleapis|gstatic|google\.com/(?:maps|imgres|search)|facebook\.com|fbcdn|instagram",
                       re.I)
-# An exhibit shows work: its card runs a piece in the show, never a crowd or a room from another show (BP app
-# event-photos 24, Jesse, 2026-11-17: "for exhibits we need to be trying to find photos of work displayed").
-EXHIBIT = re.compile(r"\bexhibit|\bart show|\bgaller(?:y|ies)\b", re.I)
 ARTIST_IG = re.compile(r"^https?://(?:www\.)?instagram\.com/(?!p/|reel/|explore/|stories/)([\w.]+)/?$", re.I)
 
 
 def is_exhibit(e):
-    """An art show, gallery exhibit or museum show: its title or About says so, or it is held in a gallery."""
-    return bool(EXHIBIT.search(f"{e.get('title') or ''} {e.get('description') or ''} {e.get('location') or ''}"))
+    """An exhibit shows work: its card runs a piece in the show, never a crowd or a room from another show (BP app
+    event-photos 24, Jesse, 2026-11-17: "for exhibits we need to be trying to find photos of work displayed").
+    place_photos.is_exhibit, whose words also make the database's subject art-gallery (event-photos 26)."""
+    import place_photos
+    return place_photos.is_exhibit(e)
 
 
 def artist_pages(line):
