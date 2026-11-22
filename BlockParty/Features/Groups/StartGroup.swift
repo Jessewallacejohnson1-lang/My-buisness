@@ -254,7 +254,7 @@ struct StartGroupSheet: View {
             var photo: URL?
             if let image, let jpeg = ProfileModel.coverJPEG(image) { photo = try await api.uploadGroupPhoto(jpeg, id: id) }
             try await api.startGroup(id: id, name: draft.cleanName, kind: draft.kind, photo: photo)
-            Task.detached { await api.checkNewGroup(id) }
+            Task { await api.checkNewGroup(id) }
             var group = TownGroup(id: id, name: draft.cleanName, kind: draft.kind,
                                   photos: photo.map { [PlacePicture(url: $0, kind: .photo)] } ?? [], memberCount: 1)
             group.joined = true

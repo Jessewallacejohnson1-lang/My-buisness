@@ -89,7 +89,7 @@ struct ProfileView: View {
         } openEvent: { pushedEvent = $0 } openGroup: { pushedGroup = $0 }
         openFriends: { opener?.push(FriendsRoute.allFriends) } openFollowing: { showingFollowing = true }
         openFollowers: { opener?.push(FriendsRoute.followers) }
-        startGroup: friendsBook.hasAccount() ? { startingGroup = true } : nil
+        startGroup: { startingGroup = true }
         // On every visit, and for another account while You is open (`AppSession` has cleared the last one's).
         .task(id: auth.accountKey) { await model.load() }
         .navigationDestination(isPresented: $settings) { settingsPage.timesOpen("settings") }
