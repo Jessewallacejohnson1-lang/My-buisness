@@ -513,6 +513,9 @@ nonisolated struct Game: Decodable, Hashable, Sendable {
         var colors: [UInt32] = []
         /// What neighbours call it ("Johnnies"); nil when it has none.
         var nickname: String? = nil
+        /// A town or junior team opened from Search (school-search 12): one sport, so its page skips the activities
+        /// skeleton while it loads. Never read from a game.
+        var oneSport = false
 
         /// The name the pill says: its nickname, else its short name.
         var called: String { nickname ?? short }
@@ -595,5 +598,6 @@ extension Game.Team {
         local = true
         colors = (school.colors ?? []).compactMap(Self.rgb(hex:))
         nickname = school.nickname
+        oneSport = school.town != nil
     }
 }

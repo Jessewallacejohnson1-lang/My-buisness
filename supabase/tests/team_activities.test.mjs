@@ -197,7 +197,13 @@ test('anyone can read the approved list, nobody can change it, and Kennedy has a
   assert.deepEqual(Object.fromEntries(rows.map((r) => [r.team_id, r.n])), {
     apollo: 67, 'apollo-cathedral': 1, cathedral: 50, kennedy: 43, rocori: 49, 'saint-benedict': 46,
     'saint-johns': 43, sartell: 76, 'sauk-rapids-rice': 49, tech: 65,
+    // The town and junior teams (school-search 12): one sport each.
+    'cold-spring-springers': 1, 'granite-city-lumberjacks': 1, 'sartell-muskies': 1, 'sartell-stone-poneys': 1,
+    'sauk-rapids-cyclones': 1, 'st-cloud-norsemen': 1, 'st-joseph-joes': 1,
   });
+  const towns = (await db.query(`select id, town from public.teams where town is not null order by id`)).rows;
+  assert.equal(towns.length, 7, 'seven town teams, each with its town');
+  assert.equal(towns.find((t) => t.id === 'st-joseph-joes').town, 'St. Joseph');
   await assert.rejects(db.exec(`insert into public.team_activities (team_id, name, kind, sort) values ('apollo', 'Fake', 'club', 99)`));
   assert.equal((await db.query(`select local from public.teams where id = 'kennedy'`)).rows[0].local, true);
   await db.exec('reset role');

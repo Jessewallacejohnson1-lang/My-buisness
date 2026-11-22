@@ -7,7 +7,7 @@
 
 import Foundation
 
-/// One sport on the Sports pill: its name, Apple's symbol for it, and its teams, colleges first.
+/// One sport on the Sports pill: its name, Apple's symbol for it, and its teams A to Z.
 struct SportShelf: Hashable, Identifiable {
     let name: String
     let symbol: String
@@ -17,11 +17,13 @@ struct SportShelf: Hashable, Identifiable {
 }
 
 /// A team on a sport's page: its activity's row (opens the school's page, its star follows the activity) and what tells
-/// it from the school's other teams of the sport ("Boys", "Girls", "Adapted"), empty when the school has one.
+/// it from the school's other teams of the sport ("Boys", "Girls", "Adapted"), empty when the school has one; a town
+/// team's town in its place ("St. Joseph" under the Joes, school-search 12).
 struct SportTeam: Hashable, Identifiable {
     let item: SearchItem
     let school: String
     let variant: String
+    var town: String? = nil
 
     var id: String { item.id }
 }
@@ -105,27 +107,30 @@ enum LocalSports {
         return (gender + kept.filter { !gender.contains($0) }).joined(separator: " ")
     }
 
-    /// Each sport with a team, this season's first; its teams are the activities of schools from high school up,
-    /// colleges first, then A to Z by the school's short name, then by what tells them apart.
+    /// Each sport with a team, this season's first; its teams are the activities of schools from high school up and of
+    /// town teams, A to Z by the name under the disc, then by what tells them apart (Jesse, 2026-11-21: "I would just
+    /// put all the teams in alphabetical order").
     /// - Parameters:
-    ///   - activities: the schools' activity rows (`SearchModel.schools`), each with its team.
-    ///   - level: each school's level by its team's id, nil for a school that is neither college nor high school.
-    static func shelves(_ activities: [SearchItem], level: (String) -> SearchModel.DiscLevel?, now: Date) -> [SportShelf] {
-        var teams: [String: [(level: SearchModel.DiscLevel, team: SportTeam)]] = [:]
+    ///   - activities: the schools' and town teams' activity rows (`SearchModel.schools`), each with its team.
+    ///   - level: each school's level by its team's id; a school below high school (`.other`) is left out.
+    ///   - town: a town team's town by its team's id, shown where a school's Boys or Girls go.
+    static func shelves(_ activities: [SearchItem], level: (String) -> SearchModel.DiscLevel?,
+                        town: (String) -> String? = { _ in nil }, now: Date) -> [SportShelf] {
+        var teams: [String: [SportTeam]] = [:]
         for item in activities where item.activity != nil {
             guard let team = item.team, let id = team.id, let at = level(id), at != .other, let sport = sport(of: item.name) else { continue }
-            teams[sport.name, default: []].append((at, SportTeam(item: item, school: team.short,
-                                                                  variant: variant(of: item.name, sport: sport))))
+            let from = town(id)
+            teams[sport.name, default: []].append(SportTeam(item: item, school: team.short,
+                                                            variant: from ?? variant(of: item.name, sport: sport), town: from))
         }
         return ordered(now: now).compactMap { sport in
             guard let found = teams[sport.name], !found.isEmpty else { return nil }
             let sorted = found.sorted { a, b in
-                if a.level != b.level { return a.level < b.level }
-                let school = a.team.school.localizedStandardCompare(b.team.school)
+                let school = a.school.localizedStandardCompare(b.school)
                 if school != .orderedSame { return school == .orderedAscending }
-                return a.team.variant.localizedStandardCompare(b.team.variant) == .orderedAscending
+                return a.variant.localizedStandardCompare(b.variant) == .orderedAscending
             }
-            return SportShelf(name: sport.name, symbol: sport.symbol, teams: sorted.map(\.team))
+            return SportShelf(name: sport.name, symbol: sport.symbol, teams: sorted)
         }
     }
 }
