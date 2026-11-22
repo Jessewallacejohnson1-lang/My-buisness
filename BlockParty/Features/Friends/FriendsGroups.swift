@@ -95,6 +95,9 @@ struct GroupJoinRow: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.press(.dim))
+            if GroupAsks.locked(group, member: member.isMember) {
+                askButton
+            } else {
             Button(action: toggle) {
                 ZStack {
                     Text("Join").opacity(member.isMember ? 0 : 1)
@@ -107,9 +110,29 @@ struct GroupJoinRow: View {
             .turnBackShake(failures: actions.memberFailureCount(group.id), shakes: !reduceMotion)
             .animation(.easeInOut(duration: reduceMotion ? 0.15 : RealLifeActions.flip), value: member.isMember)
             .accessibilityLabel(member.isMember ? "Joined, \(group.name)" : "Join \(group.name)")
+            }
         }
         .padding(.horizontal, FriendsMetric.side)
         .frame(height: FriendsMetric.row)
+    }
+
+    /// A private Group you aren't in (start-a-group 03): Ask, then Asked in the light face.
+    private var askButton: some View {
+        let asks = GroupAsks.shared, asked = asks.isAsked(group)
+        return Button {
+            Task { await asks.toggle(group) }
+        } label: {
+            ZStack {
+                Text("Ask").opacity(asked ? 0 : 1)
+                Text("Asked").opacity(asked ? 1 : 0)
+            }
+            .font(.displaySemi(15))
+        }
+        .buttonStyle(MeetupPillStyle(height: FriendsMetric.joinPill, minWidth: 0, light: asked,
+                                     sidePadding: FriendsMetric.joinSide))
+        .turnBackShake(failures: asks.failures[group.id] ?? 0, shakes: !reduceMotion)
+        .animation(.easeInOut(duration: reduceMotion ? 0.15 : RealLifeActions.flip), value: asked)
+        .accessibilityLabel(asked ? "Asked to join \(group.name)" : "Ask to join \(group.name)")
     }
 
     private func toggle() {
@@ -141,7 +164,8 @@ struct GroupJoinRow: View {
                 return "Meets " + (word ? when.prefix(1).lowercased() + when.dropFirst() : when)
             }
         let count = members > 0 ? "\(members) \(members == 1 ? "member" : "members")" : nil
-        let parts = [meets, count].compactMap { $0 }
+        // "Private · 12 members": a private Group says so, its meetings being its members' (start-a-group 03).
+        let parts = [group.isPrivate ? "Private" : nil, meets, count].compactMap { $0 }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 }

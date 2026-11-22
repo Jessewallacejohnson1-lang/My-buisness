@@ -526,6 +526,10 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
                 .overlay { YouGroupPicture(group: group) }
                 .frame(width: Sizes.tile, height: Sizes.tile)
                 .clipShape(RoundedRectangle(cornerRadius: Sizes.tileCorner, style: .continuous))
+                // Asks to join waiting on a Group you run (start-a-group 03): the quiet yellow dot.
+                .overlay(alignment: .topTrailing) {
+                    if (group.requests ?? 0) > 0 { UnreadDot(ring: Hue.surface, inkRight: 4, inkTop: 4) }
+                }
                 .accessibilityHidden(true)
             rowWords(group.name) {
                 if let members = GroupPage.membersText(group.memberCount) { Text(members) }

@@ -373,7 +373,7 @@ struct FriendsHomePage: View {
 }
 
 /// The Town feed's words for a read that failed.
-private struct FailedLine: View {
+struct FailedLine: View {
     var body: some View {
         Text("Check your connection and try again.")
             .font(.sans(15))
@@ -384,7 +384,7 @@ private struct FailedLine: View {
 }
 
 /// Nothing read yet: the rows' own shape, shimmering.
-private struct LoadingRows: View {
+struct LoadingRows: View {
     var body: some View {
         ForEach(0..<FriendsMetric.loadingRows, id: \.self) { _ in
             HStack(spacing: FriendsMetric.avatarGap) {

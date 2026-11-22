@@ -101,6 +101,9 @@ struct StartGroupSheet: View {
     @State private var failures = 0
     /// The day's 3 already started: said once, under the name.
     @State private var limited: String?
+    /// Private (start-a-group 03); fixed on for an account under 18 or with no birthday.
+    @State private var isPrivate = false
+    @State private var alwaysPrivate = false
     /// Made: the sheet turns to Invite friends.
     @State private var made: TownGroup?
     @FocusState private var naming: Bool
@@ -181,6 +184,7 @@ struct StartGroupSheet: View {
                         ForEach(StartGroupDraft.kinds, id: \.self) { kind in chip(kind) }
                     }
                 }
+                privateRow
             }
             .padding(.horizontal, Metric.side)
             .padding(.vertical, 12)
@@ -215,6 +219,25 @@ struct StartGroupSheet: View {
             }
             #endif
         }
+    }
+
+    /// Mock frame 4's row: a lock, "Private", Apple's switch, in a white card; fixed on, the plan's one line under it.
+    private var privateRow: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Toggle(isOn: Binding { isPrivate || alwaysPrivate } set: { isPrivate = $0 }) {
+                Label("Private", systemImage: "lock")
+                    .font(.sans(17))
+                    .foregroundStyle(Hue.ink)
+            }
+            .tint(Hue.ink)
+            .disabled(alwaysPrivate)
+            .padding(.horizontal, Metric.fieldPad)
+            .frame(minHeight: 52)
+            .background(Hue.surface, in: RoundedRectangle(cornerRadius: Metric.fieldCorner, style: .continuous))
+            .overlay { RoundedRectangle(cornerRadius: Metric.fieldCorner, style: .continuous).strokeBorder(Hue.hairline) }
+            if alwaysPrivate { caption("Groups started by teens are private.") }
+        }
+        .task { alwaysPrivate = await CommunityAPI(auth: AuthStore.shared).groupsAlwaysPrivate() }
     }
 
     private var well: some View {
@@ -283,13 +306,16 @@ struct StartGroupSheet: View {
         do {
             var photo: URL?
             if let image, let jpeg = ProfileModel.coverJPEG(image) { photo = try await api.uploadGroupPhoto(jpeg, id: id) }
-            try await api.startGroup(id: id, name: draft.cleanName, kind: draft.kind, photo: photo)
+            try await api.startGroup(id: id, name: draft.cleanName, kind: draft.kind, photo: photo,
+                                     isPrivate: isPrivate || alwaysPrivate)
             Task { await api.checkNewGroup(id) }
             var group = TownGroup(id: id, name: draft.cleanName, kind: draft.kind,
                                   photos: photo.map { [PlacePicture(url: $0, kind: .photo)] } ?? [], memberCount: 1)
             group.joined = true
             group.status = "pending"
             group.imageUrl = photo
+            group.isPrivate = isPrivate || alwaysPrivate
+            group.requests = group.isPrivate ? 0 : nil
             actions.read([group])
             Haptics.success()
             withAnimation(reduceMotion ? nil : Motion.smooth) { made = group }

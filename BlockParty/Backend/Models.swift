@@ -69,10 +69,17 @@ nonisolated struct TownGroup: Decodable, Hashable, Identifiable, Sendable {
     var invitedBy: String? = nil
     /// The photo its starter picked; a Group from the town's list has none.
     var imageUrl: URL? = nil
+    /// Private (start-a-group 03): to anyone not in it, no time, place, meetings or members; Ask to join.
+    var isPrivate = false
+    /// You asked to join this private Group (and kept "Asked" after a no).
+    var asked = false
+    /// Join requests waiting: the Admin's (its starter's) alone; nil for anyone else.
+    var requests: Int? = nil
 
     private enum CodingKeys: String, CodingKey {
         case id, name, kind, schedule, location, about, pageUrl, photos, logo, meetings, memberCount, joined,
-             status, invitedBy, imageUrl
+             status, invitedBy, imageUrl, asked, requests
+        case isPrivate = "private"
     }
 
     init(id: String, name: String, kind: String? = nil, photos: [PlacePicture] = [], logo: PlacePicture? = nil,
@@ -108,6 +115,9 @@ nonisolated struct TownGroup: Decodable, Hashable, Identifiable, Sendable {
         status = (try? c.decodeIfPresent(String.self, forKey: .status)) ?? "approved"
         invitedBy = try? c.decodeIfPresent(String.self, forKey: .invitedBy)
         imageUrl = (try? c.decodeIfPresent(String.self, forKey: .imageUrl)).flatMap { $0.flatMap(URL.init(string:)) }
+        isPrivate = (try? c.decodeIfPresent(Bool.self, forKey: .isPrivate)) ?? false
+        asked = (try? c.decodeIfPresent(Bool.self, forKey: .asked)) ?? false
+        requests = try? c.decodeIfPresent(Int.self, forKey: .requests)
     }
 }
 

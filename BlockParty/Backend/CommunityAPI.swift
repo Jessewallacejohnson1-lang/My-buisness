@@ -227,9 +227,30 @@ struct CommunityAPI {
 
     /// A new Group (`start_group`, BP app start-a-group 02): pending, with you in it, until its checks say yes.
     /// `id` is made here so its photo, sent first by `uploadGroupPhoto`, can carry it.
-    func startGroup(id: String, name: String, kind: String?, photo: URL?) async throws {
+    func startGroup(id: String, name: String, kind: String?, photo: URL?, isPrivate: Bool = false) async throws {
         _ = try await db.rpc("start_group", ["p_id": id, "p_name": name, "p_kind": kind ?? NSNull(),
-                                             "p_photo": photo?.absoluteString ?? NSNull()])
+                                             "p_photo": photo?.absoluteString ?? NSNull(), "p_private": isPrivate])
+    }
+
+    /// New group's Private switch is fixed on (`groups_always_private`, start-a-group 03): under 18, or no birthday.
+    func groupsAlwaysPrivate() async -> Bool {
+        guard let data = try? await db.rpc("groups_always_private") else { return false }
+        return (try? JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed) as? Bool) ?? false
+    }
+
+    /// Ask to join a private Group, or take the ask back (`ask_to_join`).
+    func askToJoin(_ id: String, on: Bool) async throws {
+        _ = try await db.rpc("ask_to_join", ["p_club": id, "p_on": on])
+    }
+
+    /// The asks waiting on a Group you run, oldest first (`get_join_requests`).
+    func joinRequests(_ id: String) async throws -> [Neighbor] {
+        try Supabase.decode(await db.rpc("get_join_requests", ["p_club": id]))
+    }
+
+    /// Your yes puts them in; your no is kept (`answer_join`).
+    func answerJoin(_ id: String, user: String, yes: Bool) async throws {
+        _ = try await db.rpc("answer_join", ["p_club": id, "p_user": user, "p_yes": yes])
     }
 
     /// A new Group's photo: `group-<id>.jpg` in your own folder of `event-images`, the one name `start_group` takes.
