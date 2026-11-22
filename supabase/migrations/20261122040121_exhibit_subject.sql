@@ -2,57 +2,61 @@
 -- (art-gallery), not its category's theater (BP app event-photos 26): "Bréagán", in the Alice R. Rogers and Target
 -- Galleries, was theater, so with no photo of its own it could show another show's scene. The words are
 -- place_photos.EXHIBIT, the dig's is_exhibit too. The subject function is `place_photos.py sql` (its self-test reads
--- this file); it takes two more arguments, so the three-argument one goes first. event_picture is
--- 20261117204715_exhibit_pieces.sql (event-photos 25, live) line for line but for passing the About and the place.
+-- this file), on 20261121153915_orchestra_is_concert.sql; it takes two more arguments, so the three-argument one goes
+-- first. event_picture is 20261121032236_calendar_photos_once.sql line for line but for passing the About and the place.
 
 drop function private.event_subject(text, text, text);
 
 create or replace function private.event_subject(p_title text, p_sport text, p_category text,
                                                  p_about text default null, p_place text default null)
 returns text
-language sql
+language plpgsql
 immutable
 set search_path = public
 as $$
+begin
+  return (
   select case
-    when t.x ~ 'hockey' then 'hockey'
-    when t.x ~ 'basketball' then 'basketball'
-    when t.x ~ 'wrestl|matness' then 'wrestling'
-    when t.x ~ 'swim|diving' then 'swimming'
-    when t.x ~ 'gymnast' then 'gymnastics'
-    when t.x ~ 'volleyball' then 'volleyball'
-    when t.x ~ 'football' then 'football'
-    when t.x ~ 'cross country' then 'cross-country'
-    when t.x ~ 'track and field|track & field' then 'track'
+    when t.x like any (array['%hockey%']) then 'hockey'
+    when t.x like any (array['%basketball%']) then 'basketball'
+    when t.x like any (array['%wrestl%', '%matness%']) then 'wrestling'
+    when t.x like any (array['%swim%', '%diving%']) then 'swimming'
+    when t.x like any (array['%gymnast%']) then 'gymnastics'
+    when t.x like any (array['%volleyball%']) then 'volleyball'
+    when t.x like any (array['%football%']) then 'football'
+    when t.x like any (array['%cross country%']) then 'cross-country'
+    when t.x like any (array['%track and field%', '%track & field%']) then 'track'
     when t.x ~ '\y5k\y|\y10k\y|fun run|marathon|turkey trot|\yshuffle\y' then 'running'
-    when t.x ~ 'soccer' then 'soccer'
-    when t.x ~ 'sauna|ice bath|plunge' then 'sauna'
-    when t.x ~ 'yoga|pilates|chi kung|qigong|tai chi' then 'yoga'
+    when t.x like any (array['%soccer%']) then 'soccer'
+    when t.x like any (array['%sauna%', '%ice bath%', '%plunge%']) then 'sauna'
+    when t.x like any (array['%yoga%', '%pilates%', '%chi kung%', '%qigong%', '%tai chi%']) then 'yoga'
     when t.x ~ '\ydance|high kick|\ykick\y|varsity jazz|jazz (?:and|&) kick' then 'dance'
-    when t.x ~ 'choir|vocal|chorale|singers' then 'choir'
-    when t.x ~ '\yband\y|jazz|orchestra|ensemble|\yorgan\y|symphony|informance|drumming' then 'band'
-    when t.x ~ 'concert' then 'concert'
-    when t.x ~ 'knowledge bowl|math league|robotics' then 'academic'
+    when t.x like any (array['%choir%', '%vocal%', '%chorale%', '%singers%']) then 'choir'
+    when t.x ~ '\yband\y|jazz|ensemble|\yorgan\y|informance|drumming' then 'band'
+    when t.x like any (array['%concert%', '%orchestra%', '%symphony%']) then 'concert'
+    when t.x like any (array['%knowledge bowl%', '%math league%', '%robotics%']) then 'academic'
     when t.x ~ '\yfilm' then 'film'
-    when t.x ~ 'powwow|festival|fashion show' then 'festival'
+    when t.x like any (array['%powwow%', '%festival%', '%fashion show%']) then 'festival'
     when t.x ~ 'theat|\yplay\y|musical|mamma mia|mermaid|fall show' then 'theater'
-    when t.x ~ 'gallery|exhibit|reception|selected works|bible prints' then 'art-gallery'
+    when t.x like any (array['%gallery%', '%exhibit%', '%reception%', '%selected works%', '%bible prints%']) then 'art-gallery'
     when t.x ~ '\ymass\y|prayer|retreat|adoration|sacred|pilgrimage|contemplative|vespers|spirituality' then 'worship'
-    when t.x ~ 'council|board meeting|commission|planning board|authority|monthly meeting|work session' then 'meeting'
+    when t.x like any (array['%council%', '%board meeting%', '%commission%', '%planning board%', '%authority%', '%monthly meeting%', '%work session%']) then 'meeting'
     when t.x ~ 'lecture|\ytalk|webinar|speaker|poet|keynote|panel|workshop|training|certificate|class\y' then 'talk'
     when t.x ~ '\ymarkets?\y|fare for all' then 'market'
-    when t.x ~ 'paint|stitch|craft|arrangement|porch pot|art club|wreath' then 'crafts'
-    when t.x ~ 'trivia|bingo|raffle|puzzle|board game|game night|game competition|keys for cash' then 'games'
-    when t.x ~ 'blood drive' then 'blood-drive'
-    when t.x ~ 'hike|tracking|arboretum|conservation|luminary' then 'outdoors'
-    when t.x ~ 'black friday|pink friday|days of giving|holiday launch|holiday collection|open house|boo-tique|twinkle' then 'shopping'
-    when t.x ~ 'learning commons|popcorn|paws for' then 'library'
-    when t.x ~ 'gala|dinner|banquet' then 'dinner'
-    when t.x ~ 'party|haunted' then 'party'
+    when t.x like any (array['%paint%', '%stitch%', '%craft%', '%arrangement%', '%porch pot%', '%art club%', '%wreath%']) then 'crafts'
+    when t.x like any (array['%trivia%', '%bingo%', '%raffle%', '%puzzle%', '%board game%', '%game night%', '%game competition%', '%keys for cash%']) then 'games'
+    when t.x like any (array['%blood drive%']) then 'blood-drive'
+    when t.x like any (array['%hike%', '%tracking%', '%arboretum%', '%conservation%', '%luminary%']) then 'outdoors'
+    when t.x like any (array['%black friday%', '%pink friday%', '%days of giving%', '%holiday launch%', '%holiday collection%', '%open house%', '%boo-tique%', '%twinkle%']) then 'shopping'
+    when t.x like any (array['%learning commons%', '%popcorn%', '%paws for%']) then 'library'
+    when t.x like any (array['%gala%', '%dinner%', '%banquet%']) then 'dinner'
+    when t.x like any (array['%party%', '%haunted%']) then 'party'
     when lower(coalesce(p_about, '') || ' ' || coalesce(p_place, '')) ~ '\yexhibit|\yart show|\ygaller(?:y|ies)\y' then 'art-gallery'
     else coalesce(jsonb_build_object('watch_sports', 'sports', 'play_sports', 'sports', 'live_music', 'concert', 'art_theater', 'theater', 'faith', 'worship', 'books', 'library', 'health', 'health', 'festivals', 'festival', 'markets', 'market', 'families_kids', 'kids', 'outdoors', 'outdoors', 'dining', 'dinner', 'crafts', 'crafts', 'games', 'games', 'town_meetings', 'meeting', 'campus', 'campus', 'bars', 'bar', 'volunteering', 'volunteer') ->> p_category, 'place')
   end
   from (select lower(coalesce(p_sport, '') || ' ' || coalesce(p_title, '')) as x) t
+  );
+end
 $$;
 
 create or replace function public.event_picture(p_event uuid)
@@ -155,6 +159,9 @@ as $$
         (select case when c.picture->>'kind' = 'photo' then c.picture || '{"cover": true}'::jsonb else c.picture end
            from (select public.place_picture(e.place_entry_id) as picture
                    from public.club_events e where e.id = p_event offset 0) c))
+  -- Pick the picture once (BP app town-feed 80): without offset 0 Postgres pasted the whole pick into each of the
+  -- four places below that read it, so every card picked its picture four times.
+  offset 0
   ) x(pic)
   left join lateral (select fl.url, fl.credit, fl.source_url, fl.width, fl.height, e.title
                        from public.place_photos fl
@@ -162,4 +169,3 @@ as $$
                       where fl.event_id = p_event and fl.status = 'live' and fl.kind = 'flyer'
                       limit 1) f on true
 $$;
-
