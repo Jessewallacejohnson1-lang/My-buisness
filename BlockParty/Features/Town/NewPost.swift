@@ -134,6 +134,8 @@ final class NewEventModel {
     private(set) var id = UUID().uuidString.lowercased()
     /// Where its photo went, once sent.
     private(set) var photoURL: String?
+    /// The Group putting it on (start-a-group 05): New event from a Group page's Calendar.
+    var clubId: String?
     private var posted = false
 
     /// Posts it once, then asks the check. nil while it couldn't send at all.
@@ -149,7 +151,7 @@ final class NewEventModel {
                     photoURL = try await Self.once { try await api.uploadEventPhoto(data, id: id) }?.absoluteString
                         ?? api.eventPhotoURL(id: id)?.absoluteString
                 }
-                try await Self.once { try await api.addEvent(draft.input(id: id, imageURL: photoURL)) }
+                try await Self.once { try await api.addEvent(draft.input(id: id, imageURL: photoURL), clubId: clubId) }
                 posted = true
             }
         } catch {
@@ -735,6 +737,8 @@ struct NewPostSheet: View {
     var editing: TownPost? = nil
     /// An edit the check let up: every list shows it at once.
     var onEdited: (PostEditInput) -> Void = { _ in }
+    /// New event from a Group page's Calendar (start-a-group 05): the Group is its host, and Event stays on.
+    var group: TownGroup? = nil
 
     @State private var model = NewPostModel()
     /// The photo on show of several, which the trash takes out (town-feed 46).
@@ -857,6 +861,9 @@ struct NewPostSheet: View {
                     try? await Task.sleep(for: .milliseconds(400))
                     selection = TextSelection(insertionPoint: model.draft.words.endIndex)
                 }
+            } else if let group {
+                model.setEvent(true)
+                model.eventModel.clubId = group.id
             } else if let back = PostOutbox.shared.back {
                 model.restore(back)
                 PostOutbox.shared.back = nil
@@ -901,7 +908,7 @@ struct NewPostSheet: View {
                     .foregroundStyle(Hue.ink)
                     .fixedSize(horizontal: false, vertical: true)
                     .animation(nil, value: model.draft.tagged)
-                audience
+                if let group { hostPill(group) } else { audience }
             }
         }
     }
@@ -956,6 +963,20 @@ struct NewPostSheet: View {
     /// An Event is the Town's; an edited post keeps who could see it (town-feed 44).
     private var audienceLocked: Bool { model.event || model.editing != nil }
 
+    /// A Group's Event: its pill names the Group, which hosts it and, when private, is all who see it.
+    private func hostPill(_ group: TownGroup) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: group.isPrivate ? "lock.fill" : "person.3.fill").font(.glyph(12, weight: .semibold))
+            Text(group.name).font(.apple(13, weight: .semibold)).lineLimit(1)
+        }
+        .foregroundStyle(Hue.ink)
+        .padding(.horizontal, 9)
+        .frame(height: NewPostMetric.pill)
+        .background(Hue.fill, in: Capsule())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Host, \(group.name)")
+    }
+
     // MARK: Chips
 
     private var chips: some View {
@@ -978,7 +999,8 @@ struct NewPostSheet: View {
                 chip(on: model.draft.location != nil, label: model.draft.location ?? NewEventCopy.place) {
                     MapPinGlyph(size: NewPostMetric.chipIcon)
                 } action: { focus = nil; path.append(.place) }
-                if model.editing == nil {
+                // A Group's New event is an Event: no chip to turn it off.
+                if model.editing == nil && group == nil {
                     chip(on: model.event, label: NewPostCopy.event) {
                         Image(systemName: "calendar").font(.glyph(15))
                     } action: {
@@ -1520,7 +1542,7 @@ private nonisolated enum NewPostMetric {
     static let pickedFace: CGFloat = 56
 }
 
-private struct NewEventPlace: View {
+struct NewEventPlace: View {
     let places: [SearchItem]
     @Binding var place: String
     @State private var words = ""

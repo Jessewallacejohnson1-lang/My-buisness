@@ -216,6 +216,27 @@ struct CommunityAPI {
         try Self.myGoingRows(from: await db.rpc("get_group_events", ["p_group": groupID], anon: true)).map { FeedCardItem($0) }
     }
 
+    /// The Group page's Calendar (`get_group_calendar`, start-a-group 05): its get-togethers 4 months ahead, and
+    /// whether you may add an Event. A meeting that doesn't decode is left out.
+    func groupCalendar(_ groupID: String) async throws -> (meetings: [TownGroup.Meeting], adds: Bool) {
+        struct Lenient: Decodable {
+            let value: TownGroup.Meeting?
+            init(from decoder: Decoder) { value = try? TownGroup.Meeting(from: decoder) }
+        }
+        struct Read: Decodable { let meetings: [Lenient]?; let adds: Bool? }
+        let read: Read? = try Supabase.decode(await db.rpc("get_group_calendar", ["p_group": groupID], anon: true))
+        return (read?.meetings?.compactMap(\.value) ?? [], read?.adds ?? false)
+    }
+
+    /// Add when you meet (`set_group_meets`, the Admin's): the when line it wrote, nil with no days.
+    func setGroupMeets(_ groupID: String, _ draft: GroupMeetsDraft) async throws -> String? {
+        let data = try await db.rpc("set_group_meets", [
+            "p_club": groupID, "p_days": draft.sentDays, "p_weeks": draft.weeks ?? NSNull(),
+            "p_time": draft.clock, "p_where": draft.sentPlace ?? NSNull(),
+        ])
+        return try JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed) as? String
+    }
+
     func joinClub(_ clubId: String) async throws {
         let uid = try db.userID
         // ignore-duplicates: membership is presence-only and club_members has no

@@ -32,6 +32,7 @@ final class LoadingGuardTests: XCTestCase {
         "Features/Town/NewPost.swift",            // Post, mid-post; a post on its way (as AddFormView's was)
         "Features/Groups/StartGroup.swift",       // Create, mid-create, in its own toolbar spot
         "Features/Groups/EditGroup.swift",        // Save, mid-save, in its own toolbar spot
+        "Features/Groups/GroupCalendar.swift",    // Add when you meet's Save, mid-save, in its own toolbar spot
     ]
 
     func testNoSpinnersOutsideTappedControls() throws {

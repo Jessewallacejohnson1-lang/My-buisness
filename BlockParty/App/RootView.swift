@@ -490,7 +490,10 @@ struct MainTabsView: View {
                 // A local team's page, from its picture on a game card (hello-drop 03).
                 .navigationDestination(for: Game.Team.self) { TeamPage(team: $0).timesOpen("team") }
                 // A group's page, from Search's Groups shelf (rsvp-and-groups 05).
-                .navigationDestination(for: TownGroup.self) { GroupPage(group: $0).timesOpen("group") }
+                .navigationDestination(for: TownGroup.self) {
+                    // Search's places, for its Calendar's New event and Add when you meet (start-a-group 05).
+                    GroupPage(group: $0).environment(searchModel).timesOpen("group")
+                }
                 // The Town's own page or its City's, from the Town bar's wordmark menu or Daily's
                 // Town logo, and a board's, from its row (follows 04).
                 .navigationDestination(for: TownPageKind.self) { TownPageView(shown: $0).timesOpen("town-page") }
