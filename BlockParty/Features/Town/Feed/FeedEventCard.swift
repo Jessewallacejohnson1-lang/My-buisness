@@ -293,8 +293,12 @@ struct FeedEventCard: View {
     /// A business the Event was made with: its page, as the host's opens; one Search can't open opens the Event.
     private func openCollab(_ collab: EventCollab) {
         guard let opener = hostOpener else { return }
-        taps?.tapped(item.id, .place)
-        if opener.opens(collab.row) { opener.open(collab.row, partnerFrame.rect) } else { opener.push(item) }
+        if opener.opens(collab.row) {
+            taps?.tapped(item.id, .place)
+            opener.open(collab.row, partnerFrame.rect)
+        } else {
+            opener.push(item)
+        }
     }
 
     @ViewBuilder
@@ -319,9 +323,13 @@ struct FeedEventCard: View {
     private func openHost() {
         guard let opener = hostOpener, Date().timeIntervalSince(hostTapped) > HostOpener.again else { return }
         hostTapped = Date()
-        taps?.tapped(item.id, .place)
         if let id = item.groupID {
-            if let group = opener.group(id) { opener.push(group) } else { opener.push(item) }
+            if let group = opener.group(id) {
+                taps?.tapped(item.id, .place)
+                opener.push(group)
+            } else {
+                opener.push(item)
+            }
             return
         }
         let picture = hostFrame.rect
@@ -336,6 +344,7 @@ struct FeedEventCard: View {
             timeout.cancel()
             guard !Task.isCancelled else { return }
             if let host, opener.opens(host) {
+                taps?.tapped(item.id, .place)
                 opener.open(host, picture)
             } else {
                 opener.push(item)

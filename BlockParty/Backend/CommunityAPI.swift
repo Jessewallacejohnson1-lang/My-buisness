@@ -518,9 +518,9 @@ struct CommunityAPI {
     func recordFeedActions(_ batch: [FeedAction]) async throws {
         guard !Self.isSimulator || Self.proofSends else { return }
         let split = Self.feedRows(batch)
-        // The views first, News seen and then the cards': a refused insert after them can't cost them.
-        if !split.seen.isEmpty { _ = try await db.rpc("see_news", ["p_items": split.seen]) }
         if !split.cards.isEmpty { try await db.rest("feed_actions", method: "POST", body: split.cards, prefer: "return=minimal") }
+        if !split.seen.isEmpty { _ = try await db.rpc("see_news", ["p_items": split.seen]) }
+        // Last, so a refused News tap can't cost the views before it.
         if !split.news.isEmpty { try await db.rest("news_actions", method: "POST", body: split.news, prefer: "return=minimal") }
     }
 
