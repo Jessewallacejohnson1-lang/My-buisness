@@ -30,15 +30,18 @@ picker found the photo on: most often the Event's own post or page, or its host'
    the person a talk or show is about, a piece of an exhibit's own show, or, for a News, what the post announces. A
    flyer or graphic made for this Event relates: its title card, its poster, a schedule that lists this date among
    others.
-4. **Stop.** Picture the photo at card size among a neighbour's posts. It stops them when it has life: people doing
-   the thing, faces close enough to read, the moment itself, a group before one child close up; or the thing people
-   come for (the art, the animals, the lit tree); sharp, well lit, in season (December to February is winter,
-   Christmas from November 1 to January 6).
+4. **The story itself.** Reason it out the way a photo editor would: set the caption beside the story and ask
+   whether the photo shows exactly what the Event or post is about, clear at card size. A portrait of the person a
+   talk or an honour is about is the story itself; so is the new flavour in its cup for a flavour of the week, the
+   product a shop's post announces, the team holding the plaque it won, a piece of an exhibit's show, the people
+   doing the thing at an Event (Jesse, 2026-11-22, of a scoop of the week's flavour: "an image of what the news is
+   directly about just like how protrait of person works"). A photo beside the story shows something near it
+   instead: the shop for its sale, the building for its class, an empty room, people too small or turned away to
+   make out, a scene out of season (December to February is winter, Christmas from November 1 to January 6).
 5. **Verdict.**
-   - `run`: it relates and a neighbour would stop for it. A flyer or title card made for this Event runs too.
-   - `weak`: it stays, and a better one is worth finding. It relates only loosely (out of season, the host's people at
-     something else), or it has little pull: no people where people are the point, people tiny or turned away, a dish
-     or goods on their own, a building or an empty room.
+   - `run`: it shows the story itself, clear enough to make out at card size. A flyer or title card made for this
+     Event runs too.
+   - `weak`: it stays, and a better one is worth finding: it relates, but shows something beside the story.
    - `down`: a neighbour would call it wrong at a glance, for one of these: it shows a different kind of event than
      the title says (a football game on a choir concert); it is another place's photo, with none of this Event's
      people or person; a flyer whose words name another show, performer, group or place, or dates that leave this one
@@ -48,7 +51,8 @@ picker found the photo on: most often the Event's own post or page, or its host'
 
    Between `weak` and `down`, it is `weak`.
 
-Done when every photo in the batch has its story, its caption and a verdict that follows from them.
+Done when every photo in the batch has its story, its caption and a verdict that follows from setting them side by
+side.
 
 ## Answer
 
