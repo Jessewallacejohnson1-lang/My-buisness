@@ -734,6 +734,8 @@ final class SearchModelTests: XCTestCase {
         XCTAssertEqual(baseball?.teams.first?.town, "St. Joseph")
         XCTAssertEqual(baseball?.teams.first?.item.team?.id, "u-st-joseph-joes", "it opens the team's own page")
         XCTAssertEqual(baseball?.teams.first?.item.team?.name, "St. Joseph Joes", "the page's title")
+        XCTAssertEqual(baseball?.teams.map { $0.item.team?.oneSport }, [true, true, false, false],
+                       "a town team's page opens with no activities skeleton")
         XCTAssertEqual(model.row(.school).map(\.name), ["Sartell High School", "Saint John's"], "no town team on the row")
         XCTAssertEqual(model.schoolDiscs.map { $0.team?.short }, ["Saint John's", "Sartell"], "nor on the Schools pill")
         let found = model.results(for: "joes", in: .all).first { $0.kind == .school }?.items ?? []

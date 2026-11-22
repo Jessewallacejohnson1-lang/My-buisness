@@ -76,7 +76,7 @@ struct TeamPage: View {
                 } else {
                     SchoolEventsCard(events: model.events)
                     // A town team plays one sport (school-search 12): its page is its events, with Follow up top.
-                    if profile.map({ $0.activities.count > 1 }) ?? true {
+                    if profile.map({ $0.activities.count > 1 }) ?? !team.oneSport {
                         search
                             .padding(.top, SchoolMetric.gap)
                     }
@@ -85,7 +85,7 @@ struct TeamPage: View {
                             lists(profile.activities)
                                 .transition(.opacity)
                         }
-                    } else {
+                    } else if !team.oneSport {
                         skeleton
                             .transition(.opacity)
                     }
