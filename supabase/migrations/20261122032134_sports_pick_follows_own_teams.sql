@@ -617,8 +617,10 @@ as $$
            -- Something you follow (school-activities 03, town-feed 37), or a host you've been into (ticket 30),
            -- never routine business (draw 1). A Sports pick follows the town's own teams' games (BP app onboarding
            -- 48, Jesse 2026-11-19: "yes add fix"); their followers-only games stay followers only.
-           case when c.followed is not null or (c.tapped_n > 0 and coalesce(c.draw, 2) <> 1)
-                     or ('watch_sports' = any(c.matched) and c.team_ids && (select t.own_teams from town t))
+           case when c.followed is not null
+                     or (coalesce(c.draw, 2) <> 1
+                         and (c.tapped_n > 0
+                              or ('watch_sports' = any(c.matched) and c.team_ids && (select t.own_teams from town t))))
                 then (w->>'follow')::float8 else 0 end as follow_pts,
            case when c.is_new then (w->>'new')::float8 else 0 end as new_pts,
            -- How much it draws a town out, the tagger's 1-3 (ticket 34): everyone's starting point,

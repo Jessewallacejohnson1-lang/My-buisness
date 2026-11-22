@@ -559,6 +559,12 @@ test("a Sports pick follows the town's own teams' games and says its interest; a
   assert.equal(withSports['Augsburg Soccer vs Bethel'].score.yours, 0);
   // A followers-only game stays for its followers.
   assert.equal(withSports['SJU JV Soccer at Bethel'], undefined);
+  // Routine business (draw 1) gets no follow points, own team or not: it shows here only through your own Heart.
+  await db.exec('reset role');
+  const routine = await game('SJU Soccer scrimmage', '2026-10-10', 'Soccer', ['saint-johns', 'augsburg'], sports);
+  await set(routine, { draw: 1 });
+  await db.query(`insert into public.event_likes (event_id, user_id) values ($1, $2)`, [routine, YOU]);
+  assert.equal((await read(['watch_sports']))['SJU Soccer scrimmage'].score.follow, 0);
 });
 
 test('one tapped game lifts nothing, and two rows of one day are one game day', async () => {
