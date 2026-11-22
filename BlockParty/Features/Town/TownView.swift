@@ -456,6 +456,8 @@ final class FrameGapLog {
     /// layer, as Core Animation draws it, is on the glass. A cover's onAppear can come later than that, or sooner.
     private var moveFrom: TimeInterval?
     private var topAtTap: ObjectIdentifier?
+    /// A screen drawn over the shell rather than pushed (`EventOverlay`) took its first step this frame.
+    private var movedOver: String?
 
     func start() {
         guard link == nil else { return }
@@ -484,6 +486,7 @@ final class FrameGapLog {
         openFrom = up
         openName = nil
         moveFrom = up
+        movedOver = nil
         topAtTap = Self.top().map(ObjectIdentifier.init)
     }
 
@@ -526,6 +529,13 @@ final class FrameGapLog {
         return nil
     }
 
+    /// A screen drawn over the shell, not pushed or presented, took its first step (`EventOverlay`, tab-lag 02 round
+    /// 5): the next frame prints its `MOVE` line, as a pushed screen's first frame on the glass does.
+    func moved(_ name: String) {
+        guard moveFrom != nil else { return }
+        movedOver = name
+    }
+
     /// A screen came on (`timesOpen`): with a tap waiting, the next frame prints `OPEN <name> +N ms`, from the
     /// tap to the frame that shows it. Once per tap: going back brings on the screen under it with no tap.
     func opened(_ name: String) {
@@ -562,6 +572,12 @@ final class FrameGapLog {
         }
         // The first frame drawn after the screen came on: the one that shows it (plus the frame or two the
         // system takes to put it on the glass, which this can't see).
+        if let from = moveFrom, let over = movedOver {
+            let name = tapName == "touch" ? over : tapName
+            print("FrameGapLog: MOVE \(name) +\(Int((l.targetTimestamp - from) * 1000))ms (over)")
+            moveFrom = nil
+            movedOver = nil
+        }
         if let from = moveFrom {
             if let vc = Self.top(), ObjectIdentifier(vc) != topAtTap, let w = vc.viewIfLoaded?.window {
                 // The slide's own start, as Core Animation keeps it: a frame this tick comes late to (the main
