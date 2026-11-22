@@ -97,7 +97,7 @@ together, at most 10 running at once:
   Events with the helpers' tags and Abouts), writing your lines to `.runs/morning/standouts.jsonl`.
 
 **Dig.** The Events keep left with no photo look further (BP app dig-deeper 22). Run
-`python3 sources/scripts/event_photos.py dig`; `no Event left bare` skips to Finish. On Sundays it is the weekly pass
+`python3 sources/scripts/event_photos.py dig`; `no Event left bare` skips to Judge. On Sundays it is the weekly pass
 (dig-deeper 24): every Event of the next four weeks still bare, however long ago it was found, so it may hand out more
 batches than a weekday. Helpers on your own
 model, at most 10 running at once:
@@ -114,18 +114,25 @@ model, at most 10 running at once:
   lines go to `.runs/morning/dig/posts/picks.jsonl`.
 - then run `python3 sources/scripts/event_photos.py dig-keep`.
 
+**Judge.** A second look at each photo the picks put live (BP app event-photos 30). Run
+`python3 sources/scripts/event_photos.py judge`; `nothing to judge` skips to Finish. For each
+`.runs/morning/judge/batch-N.txt`, one helper on your own model, at most 10 running at once, with: "Read
+`sources/models/photo-judge.md` and follow it for `.runs/morning/judge/batch-N.txt`. Answer with the JSON lines only."
+Their lines go to `.runs/morning/judge/verdicts.jsonl`; never answer for them yourself. Then run
+`python3 sources/scripts/event_photos.py judge-keep`.
+
 **Finish.** Run `python3 sources/scripts/morning.py finish` until it prints the report. It saves
 the tags, Abouts and standouts and prints the whole morning report; a save that failed is a line
 in it. On Sundays the report has a `[meets]` line per school club whose meeting time changed, or says none
 did (BP app nothing-scheduled 05), and ends with how many things with nothing scheduled are due for a walk (BP
 app nothing-scheduled 04): a chat walks them, never this run. Answer with that report as printed (its last line is Ready's), then keep's
-`[photos]` line, then dig-keep's `[dig]` lines, then your `[season]` lines, then one line per flag you
+`[photos]` line, then dig-keep's `[dig]` lines, then judge-keep's `[judge]` lines, then your `[season]` lines, then one line per flag you
 dropped that a neighbour might have wanted, and why. Nothing else.
 
 ## Rules
 
 - Pages are fetched only by `morning.py`, `event_photos.py`, `team_logos.py`, `place_logos.py` and `event_parts.py` (the registry's fetcher obeys robots
   rules and Crawl-delay). WebFetch, curl and the like stay unused: some sites refuse them.
-- The database is written only by `morning.py save` and `finish` (which includes `venue_spots.py keep`, `audience.py keep`, `event_parts.py keep` and `place_logos.py keep`, and on Sundays its `check`), and `event_photos.py keep` and `dig-keep`. SQL by
+- The database is written only by `morning.py save` and `finish` (which includes `venue_spots.py keep`, `audience.py keep`, `event_parts.py keep` and `place_logos.py keep`, and on Sundays its `check`), and `event_photos.py keep`, `dig-keep` and `judge-keep`. SQL by
   hand stays unused.
 - Nothing is committed or pushed; `.runs/` is scratch.
