@@ -25,11 +25,14 @@ const join_ = (club, user) => db.query('insert into public.club_members (club_id
 const meetings = async (meets, from) =>
   (await db.query('select public.group_meetings($1::jsonb, $2::date) as m', [JSON.stringify(meets), from])).rows[0].m;
 
-test('only approved groups come back', async () => {
+test('approved groups come back, and the caller\'s own others; nobody else\'s (start-a-group 02)', async () => {
   await db.query("insert into public.clubs (name, status, submitted_by) values ('Waiting', 'pending', $1), ('Turned down', 'rejected', $1)", [ME]);
-  const names = (await groups(ME)).map((g) => g.name);
+  const names = (await groups(NEIGHBOUR)).map((g) => g.name);
   assert.equal(names.length, GROUPS);
-  assert.ok(!names.includes('Waiting') && !names.includes('Turned down'), 'not even the caller\'s own pending one');
+  assert.ok(!names.includes('Waiting') && !names.includes('Turned down'), 'not another\'s pending or rejected one');
+  const mine = await groups(ME);
+  assert.deepEqual(mine.filter((g) => g.status !== 'approved').map((g) => [g.name, g.status]).sort(),
+    [['Turned down', 'rejected'], ['Waiting', 'pending']], 'the starter sees both, each with its status');
   await db.exec("delete from public.clubs where status <> 'approved'");
 });
 

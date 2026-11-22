@@ -11,7 +11,7 @@ const REAL_USER = '00000000-0000-0000-0000-0000000000b2';
 await people(db, ANON_USER, REAL_USER);
 await db.exec(`
   insert into public.club_events (id, title) values ('00000000-0000-0000-0000-00000000e001', 'Fair');
-  insert into public.clubs (id, name) values ('00000000-0000-0000-0000-00000000c001', 'Book Club');
+  insert into public.clubs (id, name, status) values ('00000000-0000-0000-0000-00000000c001', 'Book Club', 'approved');
 `);
 
 async function as(role, sub, anonymous) {
@@ -90,7 +90,8 @@ test('an anonymous account cannot post an Event, a club, a comment or a photo', 
 test('a real account still posts, comments and uploads as before', async () => {
   await as('authenticated', REAL_USER, false);
   await allowed(`insert into public.club_events (submitted_by, title) values ($1, 'Trivia')`, [REAL_USER]);
-  await allowed(`insert into public.clubs (submitted_by, name) values ($1, 'Book club')`, [REAL_USER]);
+  // A Group starts through start_group alone (BP app start-a-group 02).
+  await allowed(`select public.start_group('00000000-0000-0000-0000-00000000c002', 'Book club')`);
   await allowed(`insert into public.event_comments (event_id, user_id, body)
                  values ('00000000-0000-0000-0000-00000000e001', $1, 'See you there')`, [REAL_USER]);
   await allowed(`insert into storage.objects (bucket_id, name) values ('avatars', $1)`, [`${REAL_USER}/me.jpg`]);
