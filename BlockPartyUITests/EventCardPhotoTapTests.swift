@@ -182,6 +182,18 @@ final class EventCardPhotoTapTests: XCTestCase {
                                       timeout: 10), .completed, "a pull down under the clock did not send the page home")
     }
 
+    /// Back on the page opened over the shell sends it home (tab-lag 02, round 5).
+    func testBackSendsThePageHome() {
+        let link = firstCardLink()
+        photo(of: link).tap()
+        XCTAssertTrue(pageOpened(timeout: 15), "a tap on the photo did not open the page")
+
+        app.buttons["Back"].tap()
+        let gone = NSPredicate(format: "exists == false")
+        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: gone, object: app.buttons["Back"])],
+                                      timeout: 10), .completed, "Back did not send the page home")
+    }
+
     /// A finger from the screen's leading edge, most of the way across. 0.22 of the height
     /// is on the event page's hero (y 200 of 912 pt).
     private func edgeSwipe(atHeight y: CGFloat) {
