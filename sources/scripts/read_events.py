@@ -1532,8 +1532,14 @@ IGNITER_GAME = re.compile(r'<p class="event-date">([^<]*)</p>\s*<p class="event-
 
 def season_day(month, day, today):
     """A day the page writes with no year: this year's, or next year's once this year's is two months gone."""
-    d = date(today.year, month, day)
-    return d if d >= today - timedelta(60) else date(today.year + 1, month, day)
+    for year in (today.year, today.year + 1):
+        try:
+            d = date(year, month, day)
+        except ValueError:  # Feb 29 outside a leap year: it can only be next year's
+            continue
+        if d >= today - timedelta(60) or year > today.year:
+            return d
+    return None
 
 
 def rival(headline, me):
@@ -1550,7 +1556,7 @@ def igniter_items(page, entry, src, today):
         if not m or not other:
             continue  # season tickets, a voucher
         day = season_day(datetime.strptime(m[1], "%b").month, int(m[2]), today)
-        if not today <= day <= today + timedelta(DAYS_AHEAD):
+        if not day or not today <= day <= today + timedelta(DAYS_AHEAD):
             continue
         start = datetime.combine(day, datetime.strptime(m[3], "%I:%M %p").time(), LOCAL).isoformat()
         items.append(team_game(entry, src, f"igniter:{eid}", start, False, me, other, src["venue"], src["town"], "Hockey"))
@@ -2741,6 +2747,7 @@ def t_town_teams():
     assert len(n) == 14 and (n[0]["title"], n[0]["start"], n[0]["source_uid"]) == (
         "Norsemen Hockey vs Austin Bruins", "2026-11-28T18:30:00-06:00", "igniter:45052"), n[0]
     assert n[-1]["start"].startswith("2027-"), "a day the page writes with no year comes after New Year"
+    assert season_day(2, 29, date(2027, 11, 21)) == date(2028, 2, 29) and season_day(2, 29, date(2026, 3, 1)) is None, "Feb 29"
     lj = tix_items(json.loads(sample("lumberjacks-tix.json")), {"_name": "Granite City Lumberjacks"},
                    {"url": "https://t", "team": "Granite City Lumberjacks", "venue": "Sports Arena East",
                     "town": "Sauk Rapids"}, nov)
