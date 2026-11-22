@@ -107,7 +107,7 @@ struct RootView: View {
         // silently do nothing on exactly the screens used to verify it.
         //
         // `.system` resolves to no request, so the app keeps following the phone —
-        // except while the Town feed holds the clock (`AppearanceStore.holdsClock`),
+        // except while the Town feed or the Block Party tab holds the clock (`AppearanceStore.holdsClock`),
         // when it requests the phone's own scheme: with no request iOS 26 inks the
         // clock from whatever scrolls under it, white over every dark photo.
         // `.light` / `.dark` turn the hosting window's interface style over, which is

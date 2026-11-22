@@ -336,8 +336,8 @@ out in the row — an `HStack` would park it wherever the trailing button's widt
   timeout before every step: the UI tests launch with `-ui-tests`, which leaves the blur
   off (finishing the animator at its current point instead drops the blur to nothing).
   `ImageRenderer` draws the UIKit blur as a placeholder.
-- **The feed holds the clock black** `[test]` (`AppearanceStore.holdsClock`, set by `TownView`
-  on appear, cleared on disappear). With no colour scheme requested, iOS 26 inks the status
+- **The feed holds the clock black** `[test]` (`AppearanceStore.holdsClock`, held by `TownView`
+  and `DailyPage` while on screen, a set of holders so a tab switch can't drop the new tab's hold). With no colour scheme requested, iOS 26 inks the status
   bar from whatever scrolls under it and the clock went white over dark photos; while held,
   System requests the phone's own scheme, which pins it. Released under a pushed event page,
   whose hero photo keeps the white clock it had (2026-09-27).

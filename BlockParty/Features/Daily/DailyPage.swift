@@ -183,6 +183,13 @@ struct DailyPage: View {
             let days = DailyWeek.days(from: now)
             page(now: now, days: days, shown: DailyWeek.shown(picked: picked, today: days[0].id))
         }
+        // The clock stays black over the posters, as on the Town feed
+        // (taste.md: the status bar stays dark along with the bar; daily-tab 26).
+        .onScreen {
+            AppearanceStore.shared.holdClock("daily", true)
+        } disappear: {
+            AppearanceStore.shared.holdClock("daily", false)
+        }
     }
 
     private func page(now: Date, days: [DailyWeekDay], shown: String) -> some View {

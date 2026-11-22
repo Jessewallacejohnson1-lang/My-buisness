@@ -106,11 +106,26 @@ final class AppearanceStore: ObservableObject {
     @Published private(set) var phoneScheme: ColorScheme = AppearanceStore.scheme(of: UITraitCollection.current)
     private var phoneWatch: AnyCancellable?
 
-    /// True while the Town feed is on screen. Its photos scroll under the clock,
-    /// and with no scheme requested iOS 26 inks the clock to match them: white over
-    /// every dark photo (recorded 2026-09-27; Instagram's stays black). Only the
-    /// feed holds it — an event page's hero photo still gets the white clock it had.
-    @Published var holdsClock = false
+    /// The pages on screen holding the clock black: the Town feed and the Block Party tab.
+    /// Their photos scroll under the clock, and with no scheme requested iOS 26 inks the
+    /// clock to match them: white over every dark photo (recorded 2026-09-27; Instagram's
+    /// stays black). An event page's hero photo still gets the white clock it had.
+    /// A set, not a Bool: a tab switch can run the new tab's appear before the old tab's
+    /// disappear (2026-10-01), and the old tab's release must not drop the new tab's hold.
+    /// Only `holdsClock` is published, and only when it flips: a tab switch moves the hold from
+    /// one page to the other, which redrew the root twice for no change on screen.
+    private var clockHolders: Set<String> = [] {
+        didSet { if holdsClock == clockHolders.isEmpty { holdsClock = !clockHolders.isEmpty } }
+    }
+    @Published private(set) var holdsClock = false
+
+    func holdClock(_ holder: String, _ hold: Bool) {
+        if hold { clockHolders.insert(holder) } else { clockHolders.remove(holder) }
+    }
+
+    /// A school's page lets every hold go (its clock goes white over the school's colour);
+    /// the pages take it back when they show again.
+    func releaseClock() { clockHolders.removeAll() }
 
     /// An Event page is open over the feed (`EventOpener`, tab-lag 02 round 5): the feed is still under it, but its
     /// hero photo gets the white clock a pushed page's had.
