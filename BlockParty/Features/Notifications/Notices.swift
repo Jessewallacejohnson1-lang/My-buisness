@@ -105,16 +105,47 @@ nonisolated struct Notice: Identifiable, Hashable {
 }
 
 /// A post that names you with `@` or tags you (BP app town-feed 60): "**Marlene Ostendorf** mentioned you in a post."
-/// It opens the post. Read from the server on every visit, so a post deleted since is gone from the bell too.
+/// Or comments (backlog 38): "**Ana** and **3 others** commented on your post.", "**Ana** replied to you.", one row per
+/// post per kind, its newest comment's time moving it to the top. It opens the post, a comment row with its sheet up.
+/// Read from the server on every visit, so a post deleted since is gone from the bell too.
 nonisolated struct NamedNotice: Identifiable, Hashable {
-    let post: TownPost
-    /// Tagged with Tag friends, not named with `@`.
-    let tagged: Bool
+    enum How: Hashable { case mentioned, tagged, commented, replied }
 
-    var id: String { "named:\(post.id)" }
+    let post: TownPost
+    var how: How = .mentioned
+    /// A comment row's newest writer; the poster on the others.
+    var who: TownPost.Person? = nil
+    var whoPhoto: URL? = nil
+    /// Others who wrote besides `who`.
+    var others = 0
+    /// A comment row's newest comment.
+    var at: Date? = nil
+
+    /// A comment row is a new one with each new comment, so it lights the dot again.
+    var id: String {
+        switch how {
+        case .mentioned, .tagged: "named:\(post.id)"
+        case .commented, .replied: "\(how):\(post.id):\(Int((at ?? post.posted).timeIntervalSince1970))"
+        }
+    }
+
+    var name: String { who?.name ?? post.poster.name }
+    var photo: URL? { who == nil ? post.posterPhoto : whoPhoto }
+    var when: Date { at ?? post.posted }
+    var opensComments: Bool { how == .commented || how == .replied }
+
+    /// "2 others" after "and", in semibold as the name; nil for one writer.
+    var othersLabel: String? { others == 0 ? nil : others == 1 ? "1 other" : "\(others) others" }
 
     /// Instagram's words.
-    var words: String { tagged ? "tagged you in a post." : "mentioned you in a post." }
+    var words: String {
+        switch how {
+        case .mentioned: "mentioned you in a post."
+        case .tagged: "tagged you in a post."
+        case .commented: "commented on your post."
+        case .replied: "replied to you."
+        }
+    }
 }
 
 /// One row on the bell's page: an Event that changed, a post that names you, or something the hello pill said
@@ -135,7 +166,7 @@ enum BellRow: Identifiable {
     var at: Date {
         switch self {
         case .change(let notice): notice.changedAt
-        case .named(let named): named.post.posted
+        case .named(let named): named.when
         case .item(let item): item.at
         }
     }
@@ -208,7 +239,7 @@ final class Notices {
         }
         #endif
         self.init(read: { try await CommunityAPI(supabase).getMyChanges() },
-                  named: { try await CommunityAPI(supabase).getMyMentions() }, keep: keep,
+                  named: { try await CommunityAPI(supabase).getMyPostNotices() }, keep: keep,
                   account: { supabase.auth.userId })
     }
 
@@ -270,7 +301,7 @@ final class Notices {
     /// INVENTED: Marlene's sample post naming you with `@`, 5 minutes old (town-feed 60's mock).
     static func namedSamples(now: Date) -> [NamedNotice] {
         guard case .post(let post)? = TownFixtures.postSamples(now: now, posted: 5 * 60).first?.item else { return [] }
-        return [NamedNotice(post: post, tagged: false)]
+        return [NamedNotice(post: post)]
     }
 
     /// INVENTED: the mock's changes (BP app references/moved-alert), with Kennedy's and Apollo's real

@@ -337,9 +337,23 @@ BY_CATEGORY = {'watch_sports': 'sports', 'play_sports': 'sports', 'live_music': 
 MIGRATIONS = Path(__file__).resolve().parents[2] / 'supabase' / 'migrations'
 
 
-def subject(title, sport=None, category=None):
+# An exhibit: an art show, gallery exhibit or museum show (BP app event-photos 24). When the title names no subject,
+# an About or a place in these words makes it art-gallery, not its category's theater (BP app event-photos 26: "Bréagán"
+# in the Alice R. Rogers and Target Galleries), so it never shows another show's scene. The dig's is_exhibit reads the
+# same words, title included.
+EXHIBIT = r'\bexhibit|\bart show|\bgaller(?:y|ies)\b'
+
+
+def subject(title, sport=None, category=None, about=None, place=None):
     text = f'{sport or ""} {title or ""}'.lower()
-    return next((s for s, pat in SUBJECTS if re.search(pat, text)), BY_CATEGORY.get(category or '', 'place'))
+    return next((s for s, pat in SUBJECTS if re.search(pat, text)),
+                'art-gallery' if re.search(EXHIBIT, f'{about or ""} {place or ""}'.lower())
+                else BY_CATEGORY.get(category or '', 'place'))
+
+
+def is_exhibit(e):
+    """An art show, gallery exhibit or museum show: its title or About says so, or it is held in a gallery."""
+    return re.search(EXHIBIT, f"{e.get('title') or ''} {e.get('description') or ''} {e.get('location') or ''}".lower()) is not None
 
 
 def season(d):
@@ -378,7 +392,8 @@ def is_special(e):
 def is_sport(e):
     """No photo of its own: the morning's photo step (event_photos.py) and the skill's review page (check.py). A game
     card never; a sport without logos unless it's special."""
-    return game_card(e) or (subject(e.get('title'), e.get('sport'), e.get('category')) in SPORTS and not is_special(e))
+    return game_card(e) or (subject(e.get('title'), e.get('sport'), e.get('category'), e.get('description'),
+                                      e.get('location')) in SPORTS and not is_special(e))
 
 
 def _q(s):
@@ -398,7 +413,9 @@ def subject_sql():
         return f"    when t.x like any (array[{', '.join(_q('%' + w + '%') for w in pat.split('|'))}]) then {_q(s)}"
     whens = '\n'.join(when(s, pat) for s, pat in SUBJECTS)
     cats = ', '.join(f'{_q(k)}, {_q(v)}' for k, v in BY_CATEGORY.items())
-    return f"""create or replace function private.event_subject(p_title text, p_sport text, p_category text)
+    exhibit = _q(EXHIBIT.replace(chr(92) + 'b', chr(92) + 'y'))
+    return f"""create or replace function private.event_subject(p_title text, p_sport text, p_category text,
+                                                 p_about text default null, p_place text default null)
 returns text
 language plpgsql
 immutable
@@ -408,6 +425,7 @@ begin
   return (
   select case
 {whens}
+    when lower(coalesce(p_about, '') || ' ' || coalesce(p_place, '')) ~ {exhibit} then 'art-gallery'
     else coalesce(jsonb_build_object({cats}) ->> p_category, 'place')
   end
   from (select lower(coalesce(p_sport, '') || ' ' || coalesce(p_title, '')) as x) t
@@ -1082,6 +1100,15 @@ def selftest():
         ('an orchestra or symphony is concert, never band (event-photos 27)', subject('Orchestra Concert') == 'concert'
          and subject('Orchestra MMEA Preview') == 'concert' and subject('Band Choir Orchestra Concert') == 'choir'
          and subject('Middle School Band') == 'band'),
+        ("an About or a place that says exhibit, art show or gallery is art-gallery when the title names nothing; a "
+         "title's own subject still wins", subject('Bréagán', None, 'art_theater', 'Irish toys', 'Alice R. Rogers and '
+                                                     'Target Galleries, Collegeville') == 'art-gallery'
+         and subject('Reflection', None, 'art_theater', 'The senior art show opens') == 'art-gallery'
+         and subject('Artist Talk', None, 'art_theater', None, 'Gorecki Gallery') == 'talk'
+         and subject('Bréagán', None, 'art_theater') == 'theater'
+         and subject('Gingerbread Architecture', None, 'families_kids', 'An optional museum tour follows') == 'kids'
+         and is_exhibit({'title': 'Bréagán', 'location': 'Alice R. Rogers and Target Galleries, Collegeville'})
+         and not is_exhibit({'title': 'Escape Room: History Heist', 'location': 'Stearns History Museum'})),
         ('nothing matched falls to the category, then the place', subject('7th Grade', None, 'watch_sports') == 'sports'
          and subject('Fall Picture Retakes') == 'place'),
         ('December to February is winter, November fall', season('2026-12-01') == 'winter'

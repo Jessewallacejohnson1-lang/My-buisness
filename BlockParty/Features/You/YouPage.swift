@@ -430,6 +430,9 @@ struct YouGroupPicture: View {
                 SearchFloor()
                 CastLogo(logo: logo, side: logoSide)
             }
+        } else if let photo = group?.imageUrl {
+            // A Group a neighbour started: the photo they picked, theirs to show (start-a-group 02).
+            FeedCardURLPhoto(url: photo, loadingFill: Hue.fill)
         } else {
             Image(systemName: "person.2")
                 .font(.glyph(glyph))

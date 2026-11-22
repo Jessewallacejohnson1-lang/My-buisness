@@ -733,6 +733,30 @@ final class HelloDropTests: XCTestCase {
                        "1 event this week")
     }
 
+    /// A count opens down into exactly the Events it counts, soonest first, each with its when and where;
+    /// a count of one opens that Event (hello-drop 10).
+    func testACountOpensItsEvents() {
+        let today = [event("b", "2026-10-21", "7 PM"), event("a", "2026-10-21", "6 PM")]
+        let said = HelloDrop.message(now: town("2026-10-21 09:00"), lastSeen: nil, going: [], groups: [], town: today)
+        guard case .events(let rows)? = said?.target else { return XCTFail("a count of two opens its list") }
+        XCTAssertEqual(rows.map(\.id), ["a", "b"])
+        XCTAssertEqual(rows.map(\.line), ["6 PM", "7 PM"])
+        // Thursday's weekend: another day's row names its day.
+        let weekend = HelloDrop.message(now: town("2026-10-22 09:00"), lastSeen: nil, going: [], groups: [],
+                                        town: [event("c", "2026-10-24", "6 PM"), event("d", "2026-10-25", nil)])
+        guard case .events(let days)? = weekend?.target else { return XCTFail("the weekend opens its list") }
+        XCTAssertEqual(days.map(\.line), ["Sat 6 PM", "Sunday"])
+        let one = event("j", "2026-10-31", "6 PM")
+        let single = HelloDrop.message(now: town("2026-10-25 09:00"), lastSeen: nil, going: [], groups: [], town: [one])
+        XCTAssertEqual(single?.text, "1 event this week")
+        XCTAssertEqual(single?.target, .event(one.item), "one Event opens straight to it")
+    }
+
+    func testAFinalOpensItsGame() {
+        let score = HelloItem(what: .final(HelloItem.Final(TeamFinal.sample(won: true))!), at: Date())
+        XCTAssertEqual(score.message?.target, .eventID("debug"))
+    }
+
     // MARK: The pill's model (`HelloPill`, codebase-health-2 14)
 
     /// The reads' answers and the clock, which a test moves; a pause moves the clock too.

@@ -288,7 +288,7 @@ struct TownView: View {
         // minutes it lands where it was, which a tab switch used to lose, since the
         // tab's view was rebuilt. The tab now stays built (TabPages.swift), so these mark the visit.
         .onScreen {
-            AppearanceStore.shared.holdsClock = true
+            AppearanceStore.shared.holdClock("town", true)
             townFeed.cameBack()
             // Back partway down: land there at once, and a turn later leave the bar
             // as a scroll there would, gone and floating once it comes back. The
@@ -313,7 +313,7 @@ struct TownView: View {
             }
             resumed = false
         } disappear: {
-            AppearanceStore.shared.holdsClock = false
+            AppearanceStore.shared.holdClock("town", false)
             townFeed.left(viewGone: true)
         }
         // How far the feed is pulled past its top, for the refresh loop alone. Read off where the content

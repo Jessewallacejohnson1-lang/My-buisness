@@ -213,11 +213,13 @@ final class AppSessionTests: XCTestCase {
         session.townFeed.views.opened("e1")
 
         let launch = Task { await session.launched(sendEvery: .milliseconds(10)) }
-        // The bell's read brings the posts that name you with its changes (BP app town-feed 60); Search reads its
+        // The bell's read brings the posts that name you with its changes (BP app town-feed 60), and the comments on
+        // yours or naming you (backlog 38); Search reads its
         // activities' next days beside its schools (school-search 06), and what only typing finds: the Event calendar and the
         // Town's two pages (search-helpful 07).
         let jobs = ["places", "place_photos", "place_names", "get_groups", "teams", "team_activities", "activities_next",
-                    "friends_dot", "get_my_changes", "get_my_mentions", "get_town_calendar", "town_page", "town_page"]
+                    "friends_dot", "get_my_changes", "get_my_mentions", "get_my_comment_notices", "get_town_calendar", "town_page",
+                    "town_page"]
         try await waitWhile(!Set(self.functions(from: 0)).isSuperset(of: jobs) || !session.townFeed.views.unsent.isEmpty)
 
         XCTAssertEqual(functions(from: 0).sorted(), jobs.sorted(), "each read once, and nothing else")
@@ -231,10 +233,11 @@ final class AppSessionTests: XCTestCase {
         // Back up with the places in: Search doesn't read them again.
         let sent = server.requests.count
         let again = Task { await session.launched(sendEvery: .seconds(60)) }
-        try await waitWhile(self.server.requests.count < sent + 3)
+        try await waitWhile(self.server.requests.count < sent + 4)
         again.cancel()
         await again.value
-        XCTAssertEqual(functions(from: sent).sorted(), ["friends_dot", "get_my_changes", "get_my_mentions"])
+        XCTAssertEqual(functions(from: sent).sorted(), ["friends_dot", "get_my_changes", "get_my_comment_notices",
+                                                                  "get_my_mentions"])
     }
 
     /// Onboarding's follows wait through the quiet account and go up once, when a real one arrives.

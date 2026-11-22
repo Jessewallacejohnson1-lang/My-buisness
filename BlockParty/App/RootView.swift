@@ -107,7 +107,7 @@ struct RootView: View {
         // silently do nothing on exactly the screens used to verify it.
         //
         // `.system` resolves to no request, so the app keeps following the phone —
-        // except while the Town feed holds the clock (`AppearanceStore.holdsClock`),
+        // except while the Town feed or the Block Party tab holds the clock (`AppearanceStore.holdsClock`),
         // when it requests the phone's own scheme: with no request iOS 26 inks the
         // clock from whatever scrolls under it, white over every dark photo.
         // `.light` / `.dark` turn the hosting window's interface style over, which is
@@ -268,6 +268,8 @@ struct MainTabsView: View {
         case .group(let group): path.append(group)
         case .person(let person): path.append(person)
         case .town: if tab != .town { select(.town) }
+        // A count's list opens on the pill itself, and each row comes back here as its Event (hello-drop 10).
+        case .events: break
         // An Event from something you follow (hello-drop 07): its page while the feed has it, else Town.
         case .eventID(let id):
             if let card = townFeed.cards.first(where: { $0.id == id }) {
@@ -501,7 +503,7 @@ struct MainTabsView: View {
                     EventPage(item: route.item).environment(townFeed)
                 }
                 // A post that names you, from the bell (town-feed 60).
-                .navigationDestination(for: PostRoute.self) { PostPage(post: $0.post).environment(townFeed) }
+                .navigationDestination(for: PostRoute.self) { PostPage(post: $0.post, comments: $0.comments).environment(townFeed) }
                 .navigationDestination(for: TagRoute.self) { TagPage(tag: $0.tag).environment(townFeed) }
                 // A News with its post's own words, from its card or the hello pill (town-feed 65).
                 .navigationDestination(for: NewsRoute.self) { NewsPage(news: $0.news).timesOpen("news") }
