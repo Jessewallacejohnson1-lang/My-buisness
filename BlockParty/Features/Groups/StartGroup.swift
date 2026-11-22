@@ -15,7 +15,7 @@ nonisolated struct StartGroupDraft: Equatable {
     var name = ""
     var kind: String?
 
-    /// The chips under Kind, in the mock's order. PICKED from the Town's own Groups' kinds.
+    /// The chips under Kind: the plan's eight (Check-in 1), from the Town's own Groups' kinds.
     static let kinds = ["Book club", "Running", "Faith", "Service", "Crafts", "Outdoors", "Games", "Music"]
 
     /// The name as it is sent: runs of spaces as one, none at either end (`start_group` does the same).
@@ -69,10 +69,16 @@ struct StartGroupRow: View {
                     .font(font)
                     .foregroundStyle(Hue.ink)
                 Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(.glyph(15, weight: .semibold))
+                    .foregroundStyle(Hue.inkSecondary)
             }
             .contentShape(Rectangle())
         }
         .buttonStyle(.press(.dim))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Start a group")
+        .accessibilityAddTraits(.isButton)
     }
 }
 
@@ -93,15 +99,17 @@ struct StartGroupSheet: View {
     @State private var adjusting: UIImage?
     @State private var saving = false
     @State private var failures = 0
+    /// The day's 3 already started: said once, under the name.
+    @State private var limited: String?
     /// Made: the sheet turns to Invite friends.
     @State private var made: TownGroup?
     @FocusState private var naming: Bool
 
     enum Metric {
         /// The photo well: a rounded square in the middle, the camera badge on its corner (mock frame 4).
-        static let well: CGFloat = 88
-        static let wellCorner: CGFloat = 20
-        static let badge: CGFloat = 30
+        static let well: CGFloat = 112
+        static let wellCorner: CGFloat = 26
+        static let badge: CGFloat = 34
         static let fieldCorner: CGFloat = 14
         static let fieldPad: CGFloat = 16
         static let chip: CGFloat = 36
@@ -121,6 +129,9 @@ struct StartGroupSheet: View {
             .navigationDestination(for: TownGroup.self) { GroupPage(group: $0) }
         }
         .interactiveDismissDisabled(saving)
+        .presentationDragIndicator(made == nil ? .hidden : .visible)
+        // Swiped down from Invite friends: the new Group still joins your lists.
+        .onDisappear { if made != nil { refresh() } }
         .onChange(of: pick) { _, item in
             guard let item else { return }
             Task {
@@ -138,6 +149,7 @@ struct StartGroupSheet: View {
 
     private var form: some View {
         ScrollView(showsIndicators: false) {
+            let alike = StartGroupDraft.similar(to: draft.name, in: groups)
             VStack(alignment: .leading, spacing: Metric.gap) {
                 PhotosPicker(selection: $pick, matching: .images, photoLibrary: .shared()) { well }
                     .buttonStyle(.press(.squish))
@@ -154,13 +166,15 @@ struct StartGroupSheet: View {
                         .background(Hue.surface, in: RoundedRectangle(cornerRadius: Metric.fieldCorner, style: .continuous))
                         .overlay { RoundedRectangle(cornerRadius: Metric.fieldCorner, style: .continuous).strokeBorder(Hue.hairline) }
                         .onChange(of: draft.name) { _, name in if name.count > 60 { draft.name = String(name.prefix(60)) } }
-                    let alike = StartGroupDraft.similar(to: draft.name, in: groups)
+                    if let limited {
+                        caption(limited)
+                    }
                     if !alike.isEmpty {
                         caption("Already in \(Town.everyday)")
                         ForEach(alike) { GroupJoinRow(group: $0).padding(.horizontal, -FriendsMetric.side) }
                     }
                 }
-                .animation(reduceMotion ? nil : Motion.smooth, value: StartGroupDraft.similar(to: draft.name, in: groups).map(\.id))
+                .animation(reduceMotion ? nil : Motion.smooth, value: alike.map(\.id))
                 VStack(alignment: .leading, spacing: 8) {
                     caption("Kind")
                     FlowLayout(spacing: 8) {
@@ -222,7 +236,7 @@ struct StartGroupSheet: View {
                 .foregroundStyle(Hue.surface)
                 .frame(width: Metric.badge, height: Metric.badge)
                 .background(Hue.ink, in: Circle())
-                .overlay { Circle().strokeBorder(Hue.paper, lineWidth: 2) }
+                .overlay { Circle().strokeBorder(Hue.paper, lineWidth: 3) }
                 .offset(x: 6, y: 6)
         }
     }
@@ -247,6 +261,10 @@ struct StartGroupSheet: View {
                 .padding(.horizontal, 14)
                 .frame(height: Metric.chip)
                 .background(on ? Hue.ink : Hue.fill, in: Capsule())
+                // 44 pt to the finger: 4 pt above and below, within the 8 pt between rows.
+                .padding(.vertical, 4)
+                .contentShape(Rectangle())
+                .padding(.vertical, -4)
         }
         .buttonStyle(.press(.squish))
         .accessibilityAddTraits(on ? .isSelected : [])
@@ -279,16 +297,25 @@ struct StartGroupSheet: View {
             Log.network("StartGroupSheet: couldn't start \(id): \(error)")
             Haptics.error()
             failures += 1
+            // ponytail: the photo sent before a refused start stays in Storage, one small file a refusal.
+            if "\(error)".contains("3 new groups a day") { limited = "You can start 3 groups a day." }
         }
     }
 
     private func finish(_ group: TownGroup) {
         dismiss()
-        Task {
-            if let groups = await you.refreshGroups() { actions.read(groups) }
-        }
         started(group)
     }
+
+    private func refresh() {
+        Task { if let groups = await you.refreshGroups() { actions.read(groups) } }
+    }
+}
+
+/// The mock's friend rows (frame 5): a 48 pt face, 17 pt name, 66 pt apart.
+enum InviteMetric {
+    static let face: CGFloat = 48
+    static let row: CGFloat = 66
 }
 
 /// Invite friends, right after Create: Share link, then your friends with checks, and one pill that sends the
@@ -310,11 +337,7 @@ struct InviteFriendsView: View {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     shareRow
                     if !book.friends.isEmpty {
-                        TextField("Search friends", text: $words)
-                            .font(.sans(16))
-                            .padding(.horizontal, 12)
-                            .frame(height: 36)
-                            .background(Hue.fill, in: RoundedRectangle(cornerRadius: Radius.searchField, style: .continuous))
+                        FriendsSearchField(words: $words)
                             .padding(.horizontal, FriendsMetric.side)
                             .padding(.vertical, 8)
                         ForEach(shown) { friendRow($0) }
@@ -336,7 +359,6 @@ struct InviteFriendsView: View {
         .background(Hue.paper.ignoresSafeArea())
         .navigationTitle("Invite friends")
         .navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonHidden()
         .task { if !book.loaded { await book.refresh() } }
     }
 
@@ -353,13 +375,13 @@ struct InviteFriendsView: View {
                 Image(systemName: "square.and.arrow.up")
                     .font(.glyph(20, weight: .medium))
                     .foregroundStyle(Hue.ink)
-                    .frame(width: FriendsMetric.neighborFace, height: FriendsMetric.neighborFace)
+                    .frame(width: InviteMetric.face, height: InviteMetric.face)
                     .background(Hue.fill, in: Circle())
-                Text("Share link").font(.sansSemibold(16)).foregroundStyle(Hue.ink)
+                Text("Share link").font(.sansSemibold(17)).foregroundStyle(Hue.ink)
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, FriendsMetric.side)
-            .frame(height: FriendsMetric.row)
+            .frame(height: InviteMetric.row)
             .contentShape(Rectangle())
         }
         .buttonStyle(.press(.dim))
@@ -372,16 +394,16 @@ struct InviteFriendsView: View {
             if on { picked.remove(person.id) } else { picked.insert(person.id) }
         } label: {
             HStack(spacing: FriendsMetric.avatarGap) {
-                Avatar(avatarUrl: person.avatarUrl, size: FriendsMetric.neighborFace, outlined: true)
-                Text(person.displayName).font(.sansSemibold(16)).foregroundStyle(Hue.ink).lineLimit(1)
+                Avatar(avatarUrl: person.avatarUrl, size: InviteMetric.face, outlined: true)
+                Text(person.displayName).font(.sansSemibold(17)).foregroundStyle(Hue.ink).lineLimit(1)
                 Spacer(minLength: 0)
                 Image(systemName: on ? "checkmark.circle.fill" : "circle")
-                    .font(.glyph(24, weight: .regular))
-                    .foregroundStyle(on ? Hue.ink : Hue.hairline)
+                    .font(.glyph(26, weight: .light))
+                    .foregroundStyle(on ? Hue.ink : Hue.inkSecondary)
                     .contentTransition(.symbolEffect(.replace))
             }
             .padding(.horizontal, FriendsMetric.side)
-            .frame(height: FriendsMetric.row)
+            .frame(height: InviteMetric.row)
             .contentShape(Rectangle())
         }
         .buttonStyle(.press(.dim))

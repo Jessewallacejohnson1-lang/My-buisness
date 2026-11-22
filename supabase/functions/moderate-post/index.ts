@@ -171,7 +171,7 @@ Deno.serve(async (req) => {
       return up ? json({ ok: false, reason: 'Could not auto-check.' }, 502) : json({ ok: true, reason: '' })
     }
     if (first && second && !first.ok && !second.ok) {
-      await admin.from('clubs').update({ status: 'rejected' }).eq('id', id).eq('status', 'pending')
+      await admin.from('clubs').update({ status: 'rejected', image_url: null }).eq('id', id).eq('status', 'pending')
       const file = typeof c.image_url === 'string' ? c.image_url.split('/event-images/')[1] : undefined
       if (file) await admin.storage.from('event-images').remove([file])
       return json({ ok: false, reason: first.reason })
