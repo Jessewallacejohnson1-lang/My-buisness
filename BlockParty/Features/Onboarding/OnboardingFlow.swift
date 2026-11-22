@@ -819,13 +819,40 @@ struct OnboardingFlow: View {
     }
 }
 
-/// Step 1, Nextdoor's welcome in BP's words (ticket 25 mock, Jesse 2026-10-24): the Millstream
-/// street fair photo full bleed, the white wordmark and headline top left, the Terms line and Log
-/// in. One white pill, Continue with email, where Nextdoor's last sits (onboarding 27): Apple,
-/// Google and phone come back above it as each can make an account (tickets 25, 17).
+/// Step 1, Nextdoor's welcome in BP's words (ticket 25 mock, Jesse 2026-10-24): a St. Joseph
+/// photo full bleed, the white wordmark and headline top left, the Terms line and Log in. One white
+/// pill, Continue with email, where Nextdoor's last sits (onboarding 27): Apple, Google and phone
+/// come back above it as each can make an account (tickets 25, 17).
 struct OnboardingWelcome: View {
     let create: () -> Void
     let logIn: () -> Void
+
+    /// Nextdoor's spacing, measured on its screen (BP app `references/welcome-dogs/SPEC.md`, onboarding 54):
+    /// the wordmark's letters end 30 pt over the headline's caps, as Nextdoor's house does, and the
+    /// headline is its size, 32 on a 37 pt line.
+    static let markTop: CGFloat = 98
+    static let headlineTop: CGFloat = 150
+    static let headlineSize: CGFloat = 32
+    static let headlineLine: CGFloat = 37
+    /// Inter Tight's own line at 32 pt (its ascent and descent, 1.21 em), which `headlineLine` spaces from.
+    static let headlineNatural: CGFloat = 38.72
+
+    /// The patio dogs at Bad Habit Brewing or the Millstream street fair, one at random for each new
+    /// person (Jesse, 2026-11-22, onboarding 54). Both © Rubinski Visual for joetown.org, used with
+    /// their OK (Millstream 2026-10-25, the dogs 2026-11-22).
+    static let photos = (dogs: "welcome-dogs.jpg", millstream: "welcome-millstream.jpg")
+
+    /// `-welcome-photo dogs|millstream` picks one for a screenshot; otherwise the coin does.
+    static func pickPhoto(flag: String?, coin: Bool) -> String {
+        switch flag {
+        case "dogs": photos.dogs
+        case "millstream": photos.millstream
+        default: coin ? photos.dogs : photos.millstream
+        }
+    }
+
+    /// Picked once a launch: Back from Create account or Log in makes a new Welcome, and it keeps the photo.
+    private static let photoName = pickPhoto(flag: LaunchFlags.value(.welcomePhoto), coin: .random())
 
     @State private var shown = false
     /// A first open's launch zooms through to here; the logo and headline rise once it's half done.
@@ -844,7 +871,7 @@ struct OnboardingWelcome: View {
         .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
     }
 
-    /// The white wordmark at 88 pt and the headline at 150 pt, 24 pt from the left.
+    /// The white wordmark at 98 pt and the headline at 150 pt, 24 pt from the left.
     private var header: some View {
         let mark = 180 / BlockPartyWordmark.aspect
         let up = shown && launch.headerUp
@@ -852,17 +879,28 @@ struct OnboardingWelcome: View {
             BlockPartyWordmark(height: mark)
                 .foregroundStyle(.white)
                 .rise(up, delay: 0)
-            Text(OnboardingStep.welcome.question)
-                .font(.display(36))   // Inter Tight Bold, the app's header face (Jesse, 2026-11-18, onboarding 38)
-                .tracking(-0.36)   // the mock's -1%
-                .lineSpacing(-4)   // Inter Tight's 44 pt line to the mock's 40
-                .foregroundStyle(.white)
-                .padding(.top, 150 - 88 - mark)
-                .accessibilityAddTraits(.isHeader)
+            headline
+                .padding(.top, Self.headlineTop - Self.markTop - mark)
                 .rise(up, delay: 0.06)
         }
         .padding(.horizontal, 24)
-        .padding(.top, 88)
+        .padding(.top, Self.markTop)
+    }
+
+    /// "Love where" / "you live." in Inter Tight Bold, the app's header face (Jesse, 2026-11-18,
+    /// onboarding 38), -1% tracking. One `Text` a line, so the lines sit 37 pt apart: a negative
+    /// `lineSpacing` does nothing, and the font's own line would stand.
+    private var headline: some View {
+        VStack(alignment: .leading, spacing: Self.headlineLine - Self.headlineNatural) {
+            ForEach(Array(OnboardingStep.welcome.question.split(separator: "\n").enumerated()), id: \.offset) { _, line in
+                Text(line)
+            }
+        }
+        .font(.display(Self.headlineSize))
+        .tracking(-Self.headlineSize / 100)
+        .foregroundStyle(.white)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
     }
 
     private var terms: Text {
@@ -902,14 +940,13 @@ struct OnboardingWelcome: View {
             .contentShape(Rectangle())
     }
 
-    /// The Millstream street fair, full bleed (Jesse, 2026-10-25; © Rubinski Visual, used with
-    /// their OK), under Nextdoor's fades: a light one at the top for the headline, and a dark
-    /// one from mid-screen down for the pills and small print.
+    /// This person's photo (`photos`), full bleed, under Nextdoor's fades: a light one at the top
+    /// for the headline, and a dark one from mid-screen down for the pills and small print.
     private var photo: some View {
         ZStack {
             Hue.welcomeScrim
                 .overlay {
-                    if let image = UIImage(named: "welcome-millstream.jpg") {
+                    if let image = UIImage(named: Self.photoName) {
                         Image(uiImage: image).resizable().scaledToFill()
                     }
                 }
