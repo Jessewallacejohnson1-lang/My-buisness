@@ -42,8 +42,9 @@ picker found the photo on: most often the Event's own post or page, or its host'
    - `down`: a neighbour would call it wrong at a glance, for one of these: it shows a different kind of event than
      the title says (a football game on a choir concert); it is another place's photo, with none of this Event's
      people or person; a flyer whose words name another show, performer, group or place, or dates that leave this one
-     out; an ad, a watermark or another company's name laid over a photograph; a stock photo or a screenshot standing
-     in for the Event; too dark or small to make anything out.
+     out, though it is the same host's (a "Band Concert" graphic on an Orchestra Concert); an ad, a watermark or
+     another company's name laid over a photograph; a stock photo or a screenshot standing in for the Event; too dark
+     or small to make anything out.
 
    Between `weak` and `down`, it is `weak`.
 
