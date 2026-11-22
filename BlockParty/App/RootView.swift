@@ -379,6 +379,8 @@ struct MainTabsView: View {
     /// A Place's business page from a host row (follows 08), over the whole shell as Search's is
     /// over its tab.
     @State private var placeOpener = BusinessOpener()
+    /// A Town card's Event page, over the shell rather than pushed (BP app tab-lag 02, round 5).
+    @State private var eventOpener = EventOpener()
     /// Made once, so the cards it reaches don't redraw each time the shell does.
     @State private var hostOpener: HostOpener?
     /// The map, presented full-screen from the map disc in the Town bar, an Event page's small map or a held
@@ -563,6 +565,15 @@ struct MainTabsView: View {
         }
         .onAppear {
             placeOpener.reduceMotion = reduceMotion
+            eventOpener.reduceMotion = reduceMotion
+            // An open, for popularity (ticket 20), as the pushed page's onAppear counts one from Town.
+            eventOpener.counted = { id in
+                #if DEBUG
+                // `-open-cycle` writes nothing.
+                if LaunchFlags.has(.openCycle) { return }
+                #endif
+                townFeed.views.opened(id)
+            }
             if hostOpener == nil { hostOpener = makeHostOpener() }
             if newsOpener == nil { newsOpener = NewsOpener { openHello(.news($0)) } }
             if mapOpener == nil {
@@ -715,6 +726,7 @@ struct MainTabsView: View {
     private func openCode(_ id: String, addFriend: Bool) {
         showMap = false
         if id == auth.userId?.lowercased() {
+            eventOpener.closeNow()
             path = NavigationPath()
             tab = .you
             return
@@ -780,6 +792,13 @@ struct MainTabsView: View {
                 .frame(maxHeight: .infinity, alignment: .bottom)
                 .ignoresSafeArea(edges: .bottom)
                 .zIndex(10)
+
+            // A Town card's Event page, over the tab bar as a pushed page was, and on the stack's root so its rows
+            // still push their pages over it (tab-lag 02, round 5).
+            EventOverlay(opener: eventOpener)
+                .environment(townFeed)
+                .environment(\.eventPageClose, eventOpener)
+                .zIndex(11)
             // THE `.environment(\.colorScheme, .light)` THAT USED TO BE HERE IS GONE.
             //
             // It existed because the app was light-only BY CONSTRUCTION — every `Hue`
@@ -841,6 +860,7 @@ struct MainTabsView: View {
                 places: searchModel.place,
                 tappedAgain: townTappedAgain
             )
+            .environment(\.eventOpener, eventOpener)
         // Daily shows paper while its first read is out, then its page: the week
         // on top, and under it the picked day, or the named, reserved slot on a
         // day with nothing in it.
@@ -917,9 +937,20 @@ struct MainTabsView: View {
             let box = CGRect(x: 160, y: 400, width: SearchMetric.logoOnTile, height: SearchMetric.logoOnTile)
             // 3 s after the last step: Town reads its feed again on each return, and that read lands about 1.4 s
             // later with a freeze of its own, which fell on the next open at 1.5 s.
-            @MainActor func step(_ name: String, open: () -> Void, back: () -> Void) async {
-                try? await Task.sleep(for: .seconds(3))
-                FrameGapLog.shared.tapped(name)
+            // `prepare` runs at the finger's lift, the double-tap window before the open, as on a card's photo.
+            @MainActor func step(_ name: String, prepare: (() -> Void)? = nil, open: () -> Void, back: () -> Void) async {
+                if let prepare {
+                    try? await Task.sleep(for: .seconds(3 - PhotoDoubleTap.window))
+                    // The clock starts when the window was due to close, as a finger's would: a build that holds the
+                    // main thread past it shows in the time, not in a late start.
+                    let due = CACurrentMediaTime() + PhotoDoubleTap.window
+                    prepare()
+                    try? await Task.sleep(for: .seconds(max(0, due - CACurrentMediaTime())))
+                    FrameGapLog.shared.tapped(name, at: due)
+                } else {
+                    try? await Task.sleep(for: .seconds(3))
+                    FrameGapLog.shared.tapped(name)
+                }
                 open()
                 try? await Task.sleep(for: .seconds(1.5))
                 back()
@@ -930,7 +961,12 @@ struct MainTabsView: View {
                 // A blank page, then another pushed from it: the push's own floor, from the shell and from a light page.
                 await step("blank", open: { path.append(BlankRoute()) }, back: {})
                 await step("blank2", open: { path.append(BlankRoute()) }, back: { path.removeLast(2) })
-                await step("event", open: { reopened = card.id; path.append(card) }, back: { path.removeLast() })
+                // Over the shell from Town's first card's spot, as a finger's tap on its photo opens it (round 5).
+                // Built during the wait unless `-open-cycle-cold`, which times the open alone.
+                let source = EventOpener.Source(box: CGRect(x: 16, y: 180, width: 370, height: 247),
+                                                photo: card.image.isPhoto ? card.image.url : nil)
+                await step("event", prepare: { if !LaunchFlags.has(.openCycleCold) { eventOpener.prepare(card, from: source) } },
+                           open: { eventOpener.open(card, from: source) }, back: { eventOpener.close() })
                 await step("bell", open: { path.append(NotificationsRoute()) }, back: { path.removeLast() })
                 await step("map", open: { showMap = true }, back: { showMap = false })
                 if let person = friendsBook.friends.first ?? friendsBook.suggested.first {
@@ -974,6 +1010,7 @@ struct MainTabsView: View {
     /// Shared, so a route-driven change feels exactly like a tapped one.
     private func switchTab(to newTab: Tab) {
         let old = tab
+        eventOpener.closeNow()
         tabs.visited.insert(old)
         // A tab's first visit is built off to its side first, so it slides in like the rest.
         let slide = {
