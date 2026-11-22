@@ -88,6 +88,19 @@ test('a no: they keep "asked", can\'t ask again, and aren\'t in', async () => {
   await reset();
 });
 
+test('let in, then left: they can ask again', async () => {
+  const club = group(12);
+  await start(SAM, club, 'Chess Club', true);
+  await live(club);
+  await ask(STAN, club);
+  await answer(SAM, club, STAN, true);
+  await as(STAN, 'delete from public.club_members where club_id = $1 and user_id = $2', [club, STAN]);
+  assert.equal((await seen(STAN, club)).asked, false, 'Ask, not Asked');
+  await ask(STAN, club);
+  assert.deepEqual(await requests(SAM, club), [{ display_name: 'Stan Ger' }]);
+  await reset();
+});
+
 test('taking an ask back before the answer', async () => {
   const club = group(4);
   await start(SAM, club, 'Knit Club', true);
