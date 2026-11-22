@@ -16,7 +16,8 @@ const photo = (who, club) =>
 for (const [who, name, anonymous] of [[SAM, 'Sam Rivera', false], [ANA, 'Ana Lee', false],
                                       [STRANGER, 'Stan Ger', false], [ANON, 'Anon Ymous', true]]) {
   await db.query('insert into auth.users (id, is_anonymous) values ($1, $2)', [who, anonymous]);
-  await db.query('insert into public.town_profiles (user_id, display_name) values ($1, $2)', [who, name]);
+  // Adults: an account with no birthday counts as under 18, whose Groups are private (start-a-group 03).
+  await db.query("insert into public.town_profiles (user_id, display_name, birthday) values ($1, $2, '1990-01-01')", [who, name]);
 }
 await db.query('insert into private.friendships (a, b, requested_by) values ($1, $2, $1)', [SAM, ANA].sort());
 
