@@ -77,6 +77,8 @@ struct JoinRequestsPage: View {
     @Binding var waiting: Int
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(YouModel.self) private var you: YouModel?
+    @Environment(RealLifeActions.self) private var actions
     @State private var people: [Neighbor]?
     @State private var failed = false
     @State private var failures: [String: Int] = [:]
@@ -108,6 +110,7 @@ struct JoinRequestsPage: View {
         }
         .toolbar(.hidden, for: .navigationBar)
         .task { await load() }
+        .refreshable { await load() }
     }
 
     private func load() async {
@@ -141,13 +144,7 @@ struct JoinRequestsPage: View {
     }
 
     private func button(_ title: String, ink: Bool, person: Neighbor, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title)
-                .font(.displaySemi(15))
-                .frame(maxWidth: .infinity)
-        }
-        .buttonStyle(MeetupPillStyle(height: FriendsMetric.button, minWidth: 0, light: !ink))
-        .accessibilityLabel("\(title), \(person.displayName)")
+        RelationButtons.rowButton(title, ink: ink, label: "\(title), \(person.displayName)", action: action)
     }
 
     private func answer(_ person: Neighbor, yes: Bool) {
@@ -159,6 +156,8 @@ struct JoinRequestsPage: View {
             do {
                 try await CommunityAPI(auth: AuthStore.shared).answerJoin(group.id, user: person.id, yes: yes)
                 if yes { Haptics.success() }
+                // The Group page's member count and You's dot read the Groups.
+                if let groups = await you?.refreshGroups() { actions.read(groups) }
             } catch {
                 Log.network("JoinRequestsPage: answer \(yes) for \(person.id) failed: \(error)")
                 people?.insert(person, at: min(at, people?.count ?? 0))
