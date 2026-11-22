@@ -162,7 +162,7 @@ struct RootView: View {
     /// The tabs come up only with an account and with onboarding done.
     nonisolated static func tabsUp(hasAccount: Bool, onboardingUp: Bool) -> Bool { hasAccount && !onboardingUp }
 
-    /// A neighbour's code from the iPhone camera (friends 07). The tabs open it (`MainTabsView.openCode`)
+    /// A neighbour's code from the iPhone camera (friends 07), or a Group's link (start-a-group 07). The tabs open it (`MainTabsView.openCode`)
     /// but it's caught here, above the gate, so it's known whether it came with no account and it's
     /// let go when an account ends. Left to SwiftUI, a link opened behind the Welcome waits for the
     /// next `onOpenURL` to appear, whoever's account that is.
@@ -370,8 +370,9 @@ struct MainTabsView: View {
     /// Your Going in your iPhone Calendar, kept up to date from here while its switch in
     /// Profile is on (BP app docs/plans/you-tab, ticket 05).
     @State private var calendarSync = CalendarSync()
-    /// The shell stack's path: the bell, a neighbour's code and a followed row push onto it.
+    /// The shell stack's path: the bell, a neighbour's code, a Group's link and a followed row push onto it.
     @State private var path = NavigationPath()
+    @State private var groupNotReady = false
     /// Counts taps on the Town tab while on Town (`TownView.tappedAgain`).
     @State private var townTappedAgain = 0
     /// The Event page back on top after a restart: it's the same open, so it isn't counted again.
@@ -538,7 +539,10 @@ struct MainTabsView: View {
         // A neighbour's code from the iPhone camera (friends 07): their page once the launch and the
         // Done island are over, so it opens where it can be seen (Jesse, 2026-11-06).
         .onChange(of: code.id, initial: true) { openWaitingCode() }
+        .onChange(of: code.group, initial: true) { openWaitingCode() }
         .onChange(of: codeReady) { openWaitingCode() }
+        // A Group's link the Town can't see yet (start-a-group 07).
+        .alert("This group isn't ready yet", isPresented: $groupNotReady) {}
         .sheet(isPresented: $creating) {
             NewPostSheet(places: NewEventPlaces.ordered(searchModel.items), me: profile, onShared: shared, onPosted: posted)
                 .presentationDragIndicator(.visible)
@@ -731,6 +735,22 @@ struct MainTabsView: View {
 
     private func openWaitingCode() {
         if let taken = code.take(ready: codeReady) { openCode(taken.id, addFriend: taken.addFriend) }
+        if let group = code.takeGroup(ready: codeReady) { openGroup(group) }
+    }
+
+    /// A Group's link (start-a-group 07): its page on the shell's stack, from a fresh read of the Groups you can
+    /// see. One you can't see yet (pending, and you weren't invited) says so; with no signal, nothing opens.
+    private func openGroup(_ id: String) {
+        showMap = false
+        Task {
+            guard let groups = await you.refreshGroups() else { return }
+            actions.read(groups)
+            if let group = groups.first(where: { $0.id.lowercased() == id }) {
+                path.append(group)
+            } else {
+                groupNotReady = true
+            }
+        }
     }
 
     /// A neighbour's code (friends 07): their page on the shell's stack, over the map, once

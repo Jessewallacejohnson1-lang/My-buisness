@@ -216,6 +216,13 @@ struct StartGroupSheet: View {
                 draft.name = name
                 image = UIImage(named: "interest-fun-games.jpg")
                 naming = false
+                // `-group-invite list|code`: past Create, on Invite friends (and its Code), with nothing written.
+                if LaunchFlags.value(.groupInvite) != nil {
+                    var group = TownGroup(id: "3c9a51d2-7e4b-4f60-9d1a-6b2c8e0f4a17", name: name, kind: "Games",
+                                          memberCount: 1)
+                    group.imageUrl = Bundle.main.url(forResource: "interest-fun-games", withExtension: "jpg")
+                    made = group
+                }
             }
             #endif
         }
@@ -344,7 +351,7 @@ enum InviteMetric {
     static let row: CGFloat = 66
 }
 
-/// Invite friends, right after Create: Share link, then your friends with checks, and one pill that sends the
+/// Invite friends, right after Create: Share link, Copy link and Code (07), then your friends with checks, and one pill that sends the
 /// invites (or closes when none are checked).
 struct InviteFriendsView: View {
     let group: TownGroup
@@ -361,7 +368,7 @@ struct InviteFriendsView: View {
         ZStack(alignment: .bottom) {
             ScrollView(showsIndicators: false) {
                 LazyVStack(alignment: .leading, spacing: 0) {
-                    shareRow
+                    GroupInviteWays(group: group)
                     if !book.friends.isEmpty {
                         FriendsSearchField(words: $words)
                             .padding(.horizontal, FriendsMetric.side)
@@ -391,26 +398,6 @@ struct InviteFriendsView: View {
     private var shown: [Neighbor] {
         let w = words.trimmingCharacters(in: .whitespaces)
         return w.isEmpty ? book.friends : book.friends.filter { $0.displayName.localizedCaseInsensitiveContains(w) }
-    }
-
-    private var shareRow: some View {
-        Button {
-            ShareCenter.shared.present(.group(group))
-        } label: {
-            HStack(spacing: FriendsMetric.avatarGap) {
-                Image(systemName: "square.and.arrow.up")
-                    .font(.glyph(20, weight: .medium))
-                    .foregroundStyle(Hue.ink)
-                    .frame(width: InviteMetric.face, height: InviteMetric.face)
-                    .background(Hue.fill, in: Circle())
-                Text("Share link").font(.sansSemibold(17)).foregroundStyle(Hue.ink)
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, FriendsMetric.side)
-            .frame(height: InviteMetric.row)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.press(.dim))
     }
 
     private func friendRow(_ person: Neighbor) -> some View {

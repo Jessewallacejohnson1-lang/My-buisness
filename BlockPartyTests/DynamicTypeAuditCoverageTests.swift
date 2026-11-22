@@ -43,6 +43,7 @@ final class DynamicTypeAuditCoverageTests: XCTestCase {
         // `DynamicTypeAuditTests.notDevelopedYet`, ready to move one line.
 
         "OnboardingProfile.swift:$camera": .notYetAudited(reason: "Apple's own camera (UIImagePickerController) for onboarding's photo: no text of ours to scale."),
+        "GroupLink.swift:$showingCode": .notYetAudited(reason: "A Group's code from Invite friends (start-a-group 07): Your code's sheet (CodeSheet) with the Group's picture, name, kind, the QR code and Share. Text-size checks wait for Jesse (MEMORY.md, 2026-09-24)."),
         "FriendsWaysIn.swift:$showingCode": .notYetAudited(reason: "Your code (friends 07): a photo, a name, a line, the QR code and two buttons in Apple's sheet, as tall as it measures. Text-size checks wait for Jesse (MEMORY.md, 2026-09-24)."),
         "FriendsHomePage.swift:$starting": .notYetAudited(reason: "New group, then Invite friends (start-a-group 02): a photo well, a name field, Kind's chips that wrap, and friend rows. Text-size checks wait for Jesse (MEMORY.md, 2026-09-24)."),
         "GroupPage.swift:$editing": .notYetAudited(reason: "Edit group (BP app start-a-group 04): Apple's grouped Form, whose rows grow and wrap by themselves; the picked members' row truncates its names. Text-size checks wait for Jesse (MEMORY.md, 2026-09-24)."),
