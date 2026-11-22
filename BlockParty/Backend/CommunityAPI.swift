@@ -513,16 +513,26 @@ struct CommunityAPI {
                           prefer: "resolution=ignore-duplicates,return=minimal")
     }
 
-    /// The Town feed's views and opens (ticket 20), in one insert, and which News went by (town-feed 41).
-    /// Who and when are set by the database; nobody reads them back. Ids that aren't real (samples) are
-    /// skipped.
+    /// The Town feed's views and opens (ticket 20) and the taps on cards and pages (feed-learns 02), and which
+    /// News went by (town-feed 41). Who and when are set by the database; nobody reads them back.
     func recordFeedActions(_ batch: [FeedAction]) async throws {
-        guard !Self.isSimulator else { return }
+        guard !Self.isSimulator || Self.proofSends else { return }
+        let split = Self.feedRows(batch)
+        // News seen first: it skips a story that has gone, so a refused insert after it can't cost the views.
+        if !split.seen.isEmpty { _ = try await db.rpc("see_news", ["p_items": split.seen]) }
+        if !split.news.isEmpty { try await db.rest("news_actions", method: "POST", body: split.news, prefer: "return=minimal") }
+        if !split.cards.isEmpty { try await db.rest("feed_actions", method: "POST", body: split.cards, prefer: "return=minimal") }
+    }
+
+    /// A batch split by where each goes: News seen (`see_news`), News opens and taps (`news_actions`), and the rest
+    /// (`feed_actions`: Events and posts). Ids that aren't real (samples) are skipped.
+    static func feedRows(_ batch: [FeedAction])
+        -> (seen: [String], news: [[String: String]], cards: [[String: String]]) {
         let real = batch.filter { UUID(uuidString: $0.itemID) != nil }
-        let news = real.filter { $0.kind == .news }.map(\.itemID)
-        let rows = real.filter { $0.kind != .news }.map { ["item_id": $0.itemID, "action": $0.kind.rawValue] }
-        if !rows.isEmpty { try await db.rest("feed_actions", method: "POST", body: rows, prefer: "return=minimal") }
-        if !news.isEmpty { _ = try await db.rpc("see_news", ["p_items": news]) }
+        let row = { (action: FeedAction) in ["item_id": action.itemID, "action": action.kind.rawValue] }
+        return (real.filter { $0.kind == .news }.map(\.itemID),
+                real.filter { $0.kind != .news && $0.onNews }.map(row),
+                real.filter { $0.kind != .news && !$0.onNews }.map(row))
     }
 
     /// A simulator's views, opens and shares stay off the server: each simulator is its own quiet
@@ -534,6 +544,10 @@ struct CommunityAPI {
         false
         #endif
     }
+
+    /// `-send-feed-actions` (DEBUG): this simulator's views, opens and taps go up after all, for a proof with a
+    /// throwaway account (feed-learns 02).
+    private static var proofSends: Bool { LaunchFlags.has(.sendFeedActions) }
 
     /// Today's first open of the app, for the weekly numbers' reach (town-feed 26). The database
     /// keeps one row per person per Town day, so calling it on every return is harmless.

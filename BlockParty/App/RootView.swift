@@ -232,11 +232,18 @@ struct MainTabsView: View {
     /// card, whatever its day (inside-cards 19); one with no spot known, Apple Maps at its place (`EventMapRoute`),
     /// both from its card, so the tap answers at once. With neither the menu has no row.
     private func viewOnMap(_ event: FeedCardItem) {
+        townFeed.views.tapped(event.id, .map)
         switch EventMapRoute.route(event) {
         case .ourMap(let spot): mapOpener?.show(.init(event: event, spot: spot, fromPage: false))
         case .appleMaps(let url): UIApplication.shared.open(url)
         case nil: break
         }
+    }
+
+    /// A News item's own post or story, a found-link tap for the Feed to learn from (feed-learns 02).
+    private func openNewsLink(_ news: TownNews) {
+        townFeed.views.tapped(news.id, .link, news: true)
+        openLink(news.post)
     }
 
     /// In its own app when that's on the phone, else in the in-app browser.
@@ -280,12 +287,12 @@ struct MainTabsView: View {
         // As the news card: its News page when its post's words are read (town-feed 65), else the post's own app when
         // it's on the phone, else the in-app browser.
         case .news(let post):
-            guard post.via != nil else { return openLink(post.post) }
+            guard post.via != nil else { return openNewsLink(post) }
             Task {
                 if await NewsPostWords.shared.caption(post.id) != nil {
                     path.append(NewsRoute(news: post))
                 } else {
-                    openLink(post.post)
+                    openNewsLink(post)
                 }
             }
         }
@@ -508,7 +515,7 @@ struct MainTabsView: View {
                 .navigationDestination(for: PostRoute.self) { PostPage(post: $0.post, comments: $0.comments).environment(townFeed) }
                 .navigationDestination(for: TagRoute.self) { TagPage(tag: $0.tag).environment(townFeed) }
                 // A News with its post's own words, from its card or the hello pill (town-feed 65).
-                .navigationDestination(for: NewsRoute.self) { NewsPage(news: $0.news).timesOpen("news") }
+                .navigationDestination(for: NewsRoute.self) { NewsPage(news: $0.news).environment(townFeed).timesOpen("news") }
                 #if DEBUG
                 // Apple's bar hidden, as every real page hides it: shown, it came in on a push from Town alone.
                 .navigationDestination(for: BlankRoute.self) { _ in

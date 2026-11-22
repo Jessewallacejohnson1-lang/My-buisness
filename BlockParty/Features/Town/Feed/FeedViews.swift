@@ -2,8 +2,8 @@
 //  FeedViews.swift
 //  Block Party — the Town feed's views and opens on their way to the server (ticket 20).
 //
-//  `TownFeed` counts a view (a card half on screen for a second, once per feed load) and the shell
-//  an open; both wait here and go up in one batch at most every 30 seconds, and when the app leaves
+//  `TownFeed` counts a view (a card half on screen for a second, once per feed load), the shell
+//  an open, and a card or its page a tap (feed-learns 02); all wait here and go up in one batch at most every 30 seconds, and when the app leaves
 //  the screen. The server turns views into popularity per view.
 //
 
@@ -35,6 +35,12 @@ final class FeedViews {
     /// An Event page opened from the Town feed.
     func opened(_ id: String) {
         unsent.append(FeedAction(itemID: id, kind: .open))
+    }
+
+    /// A tap on a card or its page, on any tab (BP app feed-learns 02): a photo swiped to the next, the place or host,
+    /// a map, the found link; and a News page's open. The server keeps one a day for each item and kind.
+    func tapped(_ id: String, _ kind: FeedAction.Kind, news: Bool = false) {
+        unsent.append(FeedAction(itemID: id, kind: kind, onNews: news))
     }
 
     /// Sends what is waiting, at most every 30 seconds, or now when the app leaves the
