@@ -19,6 +19,10 @@ enum BigArt {
     static let top: CGFloat = 104
     static let row: CGFloat = 128
     static let art: CGFloat = 124
+    /// On a phone under `shortScreen` tall (the iPhone SE's 667), Birthday's cake is 112 pt in a 116 pt
+    /// row, so the date clears Next (onboarding 47).
+    static let shortScreen: CGFloat = 700
+    static let shortArt: CGFloat = 112
     /// The colour glides to the next step's, and a dash fills, over the mock's 420 ms out-quint.
     static let glide: Animation = Motion.outQuint(0.42)
 }
@@ -148,6 +152,8 @@ struct OnboardingHeading: View {
 struct OnboardingBigArt<Art: View>: View {
     let question: String
     var line: String? = nil
+    /// The drawing's row: 4 pt taller than the drawing.
+    var row: CGFloat = BigArt.row
     @AccessibilityFocusState.Binding var focused: Bool
     @ViewBuilder let art: Art
 
@@ -157,7 +163,7 @@ struct OnboardingBigArt<Art: View>: View {
     var body: some View {
         VStack(spacing: 0) {
             art
-                .frame(height: BigArt.row)
+                .frame(height: row)
                 // The mock's pop, 480 ms out-quint after 60 ms: from 72%, 10 pt low and clear, to 105% and
                 // solid in the first 80 ms, then easing down to rest.
                 .keyframeAnimator(initialValue: BigArtPop(), trigger: arrived) { art, pop in

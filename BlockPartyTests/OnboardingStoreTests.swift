@@ -296,8 +296,11 @@ final class OnboardingStoreTests: XCTestCase {
         store.next(now: day("2026-10-25"))
         XCTAssertEqual(store.step, .birthday)
         XCTAssertTrue(store.tooYoung)
+        // It arrives as a step forward and Back leaves it as a step back (onboarding 47).
+        XCTAssertTrue(store.forward)
         store.notTooYoung()
         XCTAssertFalse(store.tooYoung)
+        XCTAssertFalse(store.forward)
     }
 
     func testThirteenTodayGoesOnToInterests() {

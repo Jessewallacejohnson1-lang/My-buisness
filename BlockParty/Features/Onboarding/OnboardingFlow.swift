@@ -241,6 +241,7 @@ final class OnboardingStore {
 
     func next(now: Date = .now) {
         if step == .birthday, let birthday, OnboardingAge.years(from: birthday, to: now) < 13 {
+            forward = true
             tooYoung = true
             return
         }
@@ -255,7 +256,10 @@ final class OnboardingStore {
     }
 
     /// Back from "Come back when you're 13" to the wheel.
-    func notTooYoung() { tooYoung = false }
+    func notTooYoung() {
+        forward = false
+        tooYoung = false
+    }
 
     /// The Welcome's Log in or Create account, or back to the Welcome (nil).
     func open(_ way: OnboardingAccount?) {
@@ -370,6 +374,8 @@ struct OnboardingFlow: View {
     @State private var form = AccountForm()
     @AccessibilityFocusState private var questionFocused: Bool
     @State private var keyboardUp = false
+    @State private var screenHeight: CGFloat = 874
+    @State private var homeBar: CGFloat = 34
     /// Schools' tiles and Follow 3's Places, schools and pages: nil while reading, empty if it failed.
     @State private var suggestions: [FollowSuggestion]?
     /// Next on Interests: its circles burst, then the step moves on (onboarding 48).
@@ -405,7 +411,7 @@ struct OnboardingFlow: View {
 
     /// The Next pill's lift over the birthday wheel, above the home indicator's 34: 12 pt over the
     /// wheel's top, as over a keyboard (mock v8).
-    private static let overWheel: CGFloat = OnboardingBirthdayWheel.height + 12 - 34
+    private static let overWheel: CGFloat = OnboardingBirthdayWheel.height - 34 + 12
     /// What the Birthday step's column keeps clear above the safe area: that lift, the pill, and 16.
     private static let birthdayClear: CGFloat = overWheel + OnboardingNextBar.height + 16
     /// What any other step keeps clear: the pill and its slot, or the pill over the keyboard, and 16.
@@ -413,7 +419,8 @@ struct OnboardingFlow: View {
     private static let keyboardClear: CGFloat = 12 + OnboardingNextBar.height + 16
 
     private var bottomClear: CGFloat {
-        if on(.birthday) { return Self.birthdayClear }
+        if onWheel { return Self.birthdayClear }
+        if store.tooYoung { return Self.slotClear }
         return keyboardUp ? Self.keyboardClear : Self.slotClear
     }
 
@@ -432,17 +439,12 @@ struct OnboardingFlow: View {
                     .zIndex(1)
                     .transition(.opacity)
             }
-            if store.tooYoung {
-                OnboardingTooYoung(back: go { [store] in store.notTooYoung() },
-                                   close: go { [store] in
-                                       store.reset()
-                                       // The account made before this step goes too: nothing stays.
-                                       if AuthStore.shared.hasAccount { Task { await AuthStore.shared.deleteAccount() } }
-                                   })
-                    .zIndex(2)
-                    .transition(reduceMotion ? .opacity : .move(edge: .trailing))
-            }
         }
+        // The screen's height and home bar, for the iPhone SE's Birthday (onboarding 47).
+        .onGeometryChange(for: CGFloat.self) { $0.size.height + $0.safeAreaInsets.top + $0.safeAreaInsets.bottom } action: {
+            screenHeight = $0
+        }
+        .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.bottom } action: { homeBar = $0 }
         // One read for Schools and for Follow 3, while the earlier steps are up.
         .task { await readSuggestions() }
         // Reached Follow 3 with nothing read (no signal back then): read again.
@@ -489,7 +491,7 @@ struct OnboardingFlow: View {
 
             if !onWelcome {
                 question
-                    .id(store.account.map { "\($0)" } ?? "\(store.step)")
+                    .id(store.account.map { "\($0)" } ?? (store.tooYoung ? "tooYoung" : "\(store.step)"))
                     .transition(reduceMotion ? .opacity : .asymmetric(
                         insertion: .offset(x: store.forward ? 36 : -36).combined(with: .opacity),
                         removal: .opacity.animation(.easeOut(duration: 0.12))))
@@ -500,13 +502,13 @@ struct OnboardingFlow: View {
                 OnboardingBackChevron(color: deep ? .white : Hue.ink, action: go { [store] in
                     // The code signed the phone in for its new password: back out of it is a sign-out.
                     if store.account == .newPassword { Task { await AuthStore.shared.signOut() } }
-                    if store.account != nil { store.accountBack() } else { store.back() }
+                    if store.account != nil { store.accountBack() } else if store.tooYoung { store.notTooYoung() } else { store.back() }
                 })
                     .opacity(noBack ? 0 : 1)
                     // Nor while Log in or Create account waits on the server: its answer moves on.
                     .disabled(noBack || form.busy)
                 OnboardingProgressBar(index: store.barIndex, total: OnboardingStep.barTotal, deep: deep)
-                    .opacity(store.account == nil ? 1 : 0)
+                    .opacity(store.account == nil && !store.tooYoung ? 1 : 0)
             }
             // Mock v8's top row: 44 pt tall from 54 pt down, the chevron at 6, the line 20 from the right.
             .frame(height: 44)
@@ -518,14 +520,13 @@ struct OnboardingFlow: View {
             if [.follow, .contacts].contains(store.step) { foot.transition(.opacity) }
         }
         .overlay(alignment: .bottom) {
-            if store.step == .birthday {
-                OnboardingBirthdayWheel(date: birthday, now: .now, canvas: Hue.bigArtCanvas)
+            if onWheel {
+                OnboardingBirthdayWheel(date: birthday, now: .now, canvas: Hue.bigArtCanvas, homeBar: homeBar)
                     .ignoresSafeArea(.container, edges: .bottom)
                     .transition(.move(edge: .bottom))
             }
         }
         .overlay(alignment: .bottom) { bottom }
-        .accessibilityHidden(store.tooYoung)
     }
 
     /// The wheel's date: today until it turns, as Instagram's starts.
@@ -537,7 +538,13 @@ struct OnboardingFlow: View {
     private var deep: Bool { store.account == nil && store.step.deep }
 
     /// The colour at the top of the step that is up, on a Big art step; Log in and Create account have none.
-    private var tint: Color? { store.account == nil ? store.step.tint : nil }
+    private var tint: Color? {
+        guard store.account == nil else { return nil }
+        return store.tooYoung ? Hue.bigArtTooYoung : store.step.tint
+    }
+
+    /// Birthday's wheel is up: the step, with Under 13 not over it.
+    private var onWheel: Bool { on(.birthday) && !store.tooYoung }
 
     /// Where a scrolling step meets the top row: what's behind it there fading out over 16 pt.
     private var scrollEdge: some View {
@@ -562,7 +569,9 @@ struct OnboardingFlow: View {
 
     private var question: some View {
         Group {
-            if on(.profile) {
+            if store.tooYoung && store.account == nil {
+                OnboardingTooYoung(focused: $questionFocused)
+            } else if on(.profile) {
                 // Its photo is its art (onboarding 43): it draws its own heading.
                 OnboardingProfile(store: store, headingFocused: $questionFocused, bottomClear: bottomClear)
             } else if store.step == .follow {
@@ -631,11 +640,12 @@ struct OnboardingFlow: View {
 
     /// Birthday's Big art (onboarding 43): Jesse's cake, 124 pt tall, over the question.
     private var cake: some View {
-        OnboardingBigArt(question: store.step.question, focused: $questionFocused) {
+        let art = screenHeight < BigArt.shortScreen ? BigArt.shortArt : BigArt.art
+        return OnboardingBigArt(question: store.step.question, row: art + 4, focused: $questionFocused) {
             Image(decorative: OnboardingBirthdayField.cakeImage)
                 .resizable()
                 .scaledToFit()
-                .frame(height: BigArt.art)
+                .frame(height: art)
         }
     }
 
@@ -695,11 +705,11 @@ struct OnboardingFlow: View {
         VStack(spacing: 6) {
             OnboardingNextBar(title: nextTitle, count: stillToPick, allowed: nextAllowed,
                               busy: form.busy, refused: form.refusals, deep: deep, action: nextAction)
-            if !keyboardUp && store.step != .birthday { slot.frame(height: 44) }
+            if !keyboardUp && !onWheel { slot.frame(height: 44) }
         }
         .padding(.horizontal, FollowGridMetric.gutter)
         // Over the birthday wheel as over a keyboard.
-        .padding(.bottom, store.step == .birthday ? Self.overWheel : 0)
+        .padding(.bottom, onWheel ? Self.overWheel : 0)
         // The home indicator's 34 pt safe area is the mock's 34 under the slot; the keyboard's
         // safe area carries the bar up with it.
         .padding(.bottom, keyboardUp ? 12 : 0)
@@ -719,6 +729,7 @@ struct OnboardingFlow: View {
     /// "Pick 2 more" until Interests has its 3, "Follow 2 more" until Follow 3 has.
     private var nextTitle: String {
         if let way = store.account { return way.button }
+        if store.tooYoung { return "Close" }
         if store.step == .profile { return "Save Profile" }
         if store.step == .interests, picksMade < 3 { return "Pick \(3 - picksMade) more" }
         if store.step == .follow, followsNeeded > 0 { return "Follow \(followsNeeded) more" }
@@ -773,6 +784,13 @@ struct OnboardingFlow: View {
 
     private var nextAction: () -> Void {
         if store.account != nil { return submitAccount }
+        if store.tooYoung {
+            return go { [store] in
+                store.reset()
+                // The account made before this step goes too: nothing stays.
+                if AuthStore.shared.hasAccount { Task { await AuthStore.shared.deleteAccount() } }
+            }
+        }
         if store.step == .friends { return askContacts }
         // Interests' circles burst first, and move on when it's done; Reduce Motion goes at once.
         if store.step == .interests, !reduceMotion { return { bursting = true } }

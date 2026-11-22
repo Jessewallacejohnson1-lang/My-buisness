@@ -217,6 +217,8 @@ nonisolated enum Hue {
     static let bigArtBirthday = Color(light: 0xE6D8FA, dark: 0x141412)
     /// Find your friends' white: Jesse's market drawing is on white paper (onboarding 51).
     static let bigArtFriends  = Color(light: 0xFFFFFF, dark: 0x141412)
+    /// Under 13's quiet grey (onboarding 47, mock v2 `young`).
+    static let bigArtTooYoung = Color(light: 0xE8E8ED, dark: 0x141412)
     /// The grey words on a Big art step: its line under the question, the labels over its boxes (mock v2
     /// `--ink2`). A step darker than `inkSecondary`, which fell to 4.4:1 on Birthday's lilac.
     static let bigArtWords    = Color(light: 0x63636A, dark: 0x9C9A93)
