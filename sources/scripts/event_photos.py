@@ -1143,14 +1143,14 @@ def dig_keep(out, dry_run=False, db=None, now=None):
 # photo and has to relate to event or post"). The picker picked it, so a judge's run or weak agrees and it stays; down
 # takes it off, the card falls back to its place's own picture, and the report names it. A person's keep was his look.
 
-JUDGE_MOST = 40   # photos judged in a morning, the soonest Events first: the first mornings clear the ones from before
 PER_JUDGE = 10    # photos in one judge's batch
 VERDICTS = ("run", "weak", "down")
 
 
-def to_judge(db, now, most=JUDGE_MOST):
-    """One block per picture file: the live picks no judge has seen that lead a card still showing, an upcoming Event's
-    (soonest first) before a News of the last 30 days (newest first)."""
+def to_judge(db, now):
+    """One block per picture file: every live pick no judge has seen that leads a card still showing (Jesse,
+    2026-11-22: "why not just look at every photo"), an upcoming Event's (soonest first) before a News of the last 30
+    days (newest first)."""
     today = now.astimezone(LOCAL).date()
     mine = f"&status=eq.live&judged=is.null&proposed_by=in.{in_list({OWN, DIG})}&position=eq.0"
     rows = db.rest("GET", "place_photos?select=id,url,kind,source_url,club_events!inner(title,event_date,location,description,status)"
@@ -1170,7 +1170,7 @@ def to_judge(db, now, most=JUDGE_MOST):
                                      "found_on": r.get("source_url") or ""})["ids"].append(r["id"])
     out = sorted((b for b in blocks.values() if "events" in b), key=lambda b: min(e["event_date"] for e in b["events"]))
     out += sorted((b for b in blocks.values() if "news" in b), key=lambda b: b["news"]["created_at"], reverse=True)
-    return out[:most]
+    return out
 
 
 def judge_line(key, b, image):
