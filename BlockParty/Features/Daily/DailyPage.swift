@@ -30,7 +30,7 @@ nonisolated enum DailyMetric {
     /// (guessed; no Reference recording).
     static let dayFadeOut: Double = 0.1
     static let dayFade: Double = 0.2
-    /// The reserved slot's height under the week on a day with nothing in it.
+    /// The plain paper's height under the week on a day with nothing in it, or one still being read.
     static let emptyHeight: CGFloat = 420
     /// The clock's frosted edge comes in over this much scroll, as the week slides under the
     /// clock. At rest and pulled down it is gone. Picked.
@@ -200,10 +200,11 @@ struct DailyPage: View {
         let topics = DailyTopic.topics(for: all.items, mine: interests)
         let topic = self.topic.flatMap { topics.contains($0) ? $0 : nil }
         let onPage = topic == nil ? all : lists(topic)
-        // A day whose pick is still being read shows paper, not the reserved slot.
-        let loading = !isToday && dayPicks.picks[day.id] == nil
-        let empty = !loading && onPage.items.isEmpty && onPage.following.isEmpty
-            && onPage.followingCards.isEmpty && onPage.forYou.isEmpty
+        // A day still being read, offline, or with nothing in it shows plain paper under the week, with
+        // no words; it fills in once a read answers (Jesse, BP app daily-tab 29).
+        let blank = (!isToday && dayPicks.picks[day.id] == nil)
+            || (onPage.items.isEmpty && onPage.following.isEmpty
+                && onPage.followingCards.isEmpty && onPage.forYou.isEmpty)
         return ZStack {
             Hue.paper.ignoresSafeArea()
             ScrollView(showsIndicators: false) {
@@ -229,7 +230,7 @@ struct DailyPage: View {
                     ZStack(alignment: .top) {
                         // The cards' chips count from now ("In 3 days"), though the day's are
                         // picked from its midnight.
-                        sections(lists: onPage, empty: empty, loading: loading, now: now)
+                        sections(lists: onPage, blank: blank, now: now)
                             .id("\(day.id) \(topic ?? "")")
                             .transition(reduceMotion ? .identity : .asymmetric(
                                 insertion: .opacity.animation(.easeOut(duration: DailyMetric.dayFade).delay(DailyMetric.dayFadeOut)),
@@ -259,13 +260,9 @@ struct DailyPage: View {
     }
 
     @ViewBuilder
-    private func sections(lists: DailyLists, empty: Bool, loading: Bool, now: Date) -> some View {
-        if loading {
+    private func sections(lists: DailyLists, blank: Bool, now: Date) -> some View {
+        if blank {
             Color.clear.frame(height: DailyMetric.emptyHeight)
-        } else if empty {
-            // Nothing that day: Daily's named, reserved slot, under the week.
-            BlankTab()
-                .frame(height: DailyMetric.emptyHeight)
         } else {
             VStack(spacing: DailyMetric.eventSectionTop) {
                 // Event of the day first (Jesse, daily-tab 18).
@@ -295,26 +292,5 @@ struct DailySectionLabel: View {
             .font(.monoMedium(11).monospaced()).tracking(1.5)
             .foregroundStyle(ink)
             .accessibilityAddTraits(.isHeader)
-    }
-}
-
-/// A day with nothing in it: the tab's name and one line on what lives here. Deliberately quiet: a named,
-/// empty room reads as reserved, where a bare screen reads as broken.
-private struct BlankTab: View {
-    var body: some View {
-        ZStack {
-            Hue.paper.ignoresSafeArea()
-            VStack(spacing: 8) {
-                Text(Tab.blockParty.title)
-                    .font(.display(22))
-                    .foregroundStyle(Hue.ink)
-                Text(verbatim: "Your paper — the town, filtered to what you follow.")
-                    .font(.sans(14))
-                    .foregroundStyle(Hue.inkSecondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 44)
-            }
-            .accessibilityElement(children: .combine)
-        }
     }
 }
