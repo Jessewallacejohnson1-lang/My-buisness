@@ -7,7 +7,7 @@
 //  the screen. The server turns views into popularity per view.
 //
 
-import Foundation
+import SwiftUI
 
 @MainActor
 final class FeedViews {
@@ -64,4 +64,10 @@ final class FeedViews {
     func reset() {
         unsent = []
     }
+}
+
+extension EnvironmentValues {
+    /// The Town feed's recorder, for a tap on any card or page in the shell (feed-learns 02); nil outside it (tests,
+    /// New post's preview), where a tap records nothing.
+    @Entry var feedViews: FeedViews? = nil
 }

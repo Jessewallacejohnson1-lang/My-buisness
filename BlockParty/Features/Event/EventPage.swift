@@ -114,7 +114,7 @@ struct EventPage: View {
     /// What raises Block Party's map on this Event: the shell's, or the map's own when the page is on it.
     @Environment(\.viewOnMap) private var viewOnMap
     /// Its taps go up with the Town feed's views (feed-learns 02).
-    @Environment(TownFeed.self) private var feed: TownFeed?
+    @Environment(\.feedViews) private var taps
 
     /// The Going chat's row: not on the map's own stack, which has no chat to push to.
     private let goingChat: Bool
@@ -878,7 +878,7 @@ struct EventPage: View {
 
     /// A tap on this page, for the Feed to learn from (feed-learns 02).
     private func tapped(_ kind: FeedAction.Kind) {
-        feed?.views.tapped(item.id, kind)
+        taps?.tapped(item.id, kind)
     }
 
     /// Opens or closes the small map in place; opening below the bar, the page scrolls on the same spring so it ends

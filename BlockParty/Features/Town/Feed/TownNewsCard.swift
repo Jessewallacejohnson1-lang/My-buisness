@@ -26,7 +26,7 @@ struct TownNewsCard: View {
 
     @Environment(RealLifeActions.self) private var actions
     /// A tap straight to its story goes up with the Town feed's views (feed-learns 02).
-    @Environment(TownFeed.self) private var feed: TownFeed?
+    @Environment(\.feedViews) private var taps
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// The shell's stack, where its News page goes; nil where nothing can push.
     @Environment(\.hostOpener) private var opener
@@ -125,7 +125,7 @@ struct TownNewsCard: View {
     }
 
     private func openPost() {
-        feed?.views.tapped(news.id, .link, news: true)
+        taps?.tapped(news.id, .link, news: true)
         let post = news.post
         Task {
             if await !UIApplication.shared.open(post, options: [.universalLinksOnly: true]) {

@@ -427,7 +427,7 @@ private struct EventHostLine: View {
     /// Its Event, whose host tap goes up with the Town feed's views (feed-learns 02).
     var eventID: String? = nil
     @Environment(RealLifeActions.self) private var actions
-    @Environment(TownFeed.self) private var feed: TownFeed?
+    @Environment(\.feedViews) private var taps
     @Environment(\.hostOpener) private var opener
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var picture = FrameBox()
@@ -564,7 +564,7 @@ private struct EventHostLine: View {
     private func open(_ host: FollowRow) {
         guard Date().timeIntervalSince(openedAt) > HostOpener.again else { return }
         openedAt = Date()
-        if let eventID { feed?.views.tapped(eventID, .place) }
+        if let eventID { taps?.tapped(eventID, .place) }
         opener?.open(host, picture.rect)
     }
 }

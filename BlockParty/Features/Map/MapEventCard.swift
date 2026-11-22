@@ -33,7 +33,7 @@ struct MapEventCard: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.openURL) private var openURL
     /// Directions' tap goes up with the Town feed's views (feed-learns 02).
-    @Environment(TownFeed.self) private var feed: TownFeed?
+    @Environment(\.feedViews) private var taps
 
     @State private var pressed = false
     @State private var drag: CGFloat = 0
@@ -203,7 +203,7 @@ struct MapEventCard: View {
                 if let url = directions(item) {
                     Button {
                         Haptics.light()
-                        feed?.views.tapped(item.id, .map)
+                        taps?.tapped(item.id, .map)
                         openURL(url)
                     } label: {
                         Text("Directions")

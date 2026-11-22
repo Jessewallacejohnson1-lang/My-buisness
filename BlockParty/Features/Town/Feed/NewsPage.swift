@@ -105,7 +105,7 @@ struct NewsPage: View {
 
     @Environment(RealLifeActions.self) private var actions: RealLifeActions?
     /// Its open and taps go up with the Town feed's views (feed-learns 02).
-    @Environment(TownFeed.self) private var feed: TownFeed?
+    @Environment(\.feedViews) private var taps
     @Environment(\.hostOpener) private var opener
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var markFrame = FrameBox()
@@ -169,7 +169,7 @@ struct NewsPage: View {
 
     /// An open or a tap here, for the Feed to learn from (feed-learns 02).
     private func tapped(_ kind: FeedAction.Kind) {
-        feed?.views.tapped(news.id, kind, news: true)
+        taps?.tapped(news.id, kind, news: true)
     }
 
     /// The post's own words; while they aren't read, the card's own, so the page is never empty.

@@ -515,7 +515,7 @@ struct MainTabsView: View {
                 .navigationDestination(for: PostRoute.self) { PostPage(post: $0.post, comments: $0.comments).environment(townFeed) }
                 .navigationDestination(for: TagRoute.self) { TagPage(tag: $0.tag).environment(townFeed) }
                 // A News with its post's own words, from its card or the hello pill (town-feed 65).
-                .navigationDestination(for: NewsRoute.self) { NewsPage(news: $0.news).environment(townFeed).timesOpen("news") }
+                .navigationDestination(for: NewsRoute.self) { NewsPage(news: $0.news).timesOpen("news") }
                 #if DEBUG
                 // Apple's bar hidden, as every real page hides it: shown, it came in on a push from Town alone.
                 .navigationDestination(for: BlankRoute.self) { _ in
@@ -601,6 +601,8 @@ struct MainTabsView: View {
         .background { CalendarFollower(sync: calendarSync) }
         // Outside the stack, so pushed pages and sheets read the same one.
         .environment(actions)
+        // Every tap on a card or page, whatever the tab (feed-learns 02).
+        .environment(\.feedViews, townFeed.views)
         // A game's newest score, on whichever page shows it (codebase-health-2 08).
         .environment(session.liveGames)
         // The bell's dot and its page.
