@@ -2,9 +2,10 @@
 //  OnboardingNextBarTests.swift
 //  Block Party — onboarding's locked rule (ONBOARDING.md): the Next bar never moves, except
 //  to ride with the keyboard. Walks every question step and reads the bar's frame on each,
-//  then steps back once. Profile needs a name to go on (ticket 35), and its Save Profile is every
-//  step's pill in every step's spot (onboarding 46); Birthday starts on a saved one, so
-//  Next is allowed (ticket 19); Interests takes 3 picks (20);
+//  then steps back once. The Name and Photo steps copy Clubhouse's (onboarding 55): no dashes, and
+//  Clubhouse's narrow pill, which rides the keyboard on Name and sits 55 pt up on Photo, where Skip goes on
+//  without a photo; from Birthday the pill is every step's in every step's spot. Birthday starts on a saved
+//  one, so Next is allowed (ticket 19); Interests takes 3 picks (20);
 //  Follow 3 takes 3 follows once its places are read (22); Find your friends' Next asks iPhone for
 //  contacts, which the test allows, from a fresh answer each run (23).
 //
@@ -21,7 +22,7 @@ final class OnboardingNextBarTests: XCTestCase {
 
     /// The progress bar, by what VoiceOver reads on it.
     private func bar(_ app: XCUIApplication, _ step: Int) -> XCUIElement {
-        app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Step \(step) of 6")).firstMatch
+        app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Step \(step) of 5")).firstMatch
     }
 
     /// The bar's frame once it has held still for 0.3 s (the keyboard leaving carries it down).
@@ -43,14 +44,14 @@ final class OnboardingNextBarTests: XCTestCase {
         return next.frame
     }
 
-    /// Taps iPhone's contacts prompt through to allowed until the bar reads step 6: SpringBoard's
+    /// Taps iPhone's contacts prompt through to allowed until the bar reads step 5: SpringBoard's
     /// Continue, then the Contacts sheet's "Share All 7 Contacts" (iOS 26), whichever comes up.
     private func allowContacts(_ app: XCUIApplication) {
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
         let sheet = XCUIApplication(bundleIdentifier: "com.apple.ContactsUI.LimitedAccessPromptView")
         let allow = NSPredicate(format: "label == 'Continue' OR label BEGINSWITH 'Share All' OR label == 'Allow Full Access'")
         let deadline = Date().addingTimeInterval(20)
-        while !bar(app, 6).exists, Date() < deadline {
+        while !bar(app, 5).exists, Date() < deadline {
             // One tap a round: the sheet's button tapped while SpringBoard's alert still leaves goes stale.
             for owner in [springboard, sheet] {
                 let button = owner.buttons.matching(allow).firstMatch
@@ -76,33 +77,40 @@ final class OnboardingNextBarTests: XCTestCase {
 
         let next = app.buttons["onboarding-next"]
         XCTAssertTrue(next.waitForExistence(timeout: 15), "no Next bar")
-        // Profile (step 1): Save Profile, grey until a name is in, is every step's pill (onboarding 46).
-        XCTAssertTrue(bar(app, 1).waitForExistence(timeout: 5), "not on Profile")
-        let save = resting(next)
-        XCTAssertEqual(save.height, 48, accuracy: 0.5)
+        // Name (onboarding 55): no dashes; Clubhouse's narrow pill, grey until a name is in, riding the
+        // keyboard that comes up with the step.
+        XCTAssertTrue(app.textFields["Name"].waitForExistence(timeout: 5), "not on the name step")
+        XCTAssertFalse(bar(app, 1).exists, "dashes on the name step")
         let name = app.textFields["Name"]
-        XCTAssertTrue(name.waitForExistence(timeout: 5), "no Name box")
         name.tap()
         name.typeText("Avery")
-        let riding = next.frame
-        XCTAssertLessThan(riding.maxY, save.maxY, "Save Profile didn't ride the keyboard")
-        XCTAssertEqual(riding.width, save.width, "Save Profile changed width over the keyboard")
+        let riding = resting(next)
+        XCTAssertEqual(riding.width, 199, accuracy: 0.5, "not Clubhouse's pill")
+        XCTAssertEqual(riding.height, 48, accuracy: 0.5)
+        XCTAssertEqual(riding.midX, app.frame.midX, accuracy: 0.5, "Clubhouse's pill isn't centred")
+        next.tap()
+        // Photo: the same pill 55 pt up, grey until a photo is in; Skip goes on without one.
+        XCTAssertTrue(app.buttons["Add a photo"].waitForExistence(timeout: 3), "never reached the photo step")
+        let photo = resting(next)
+        XCTAssertEqual(photo.width, 199, accuracy: 0.5)
+        XCTAssertEqual(app.frame.maxY - photo.maxY, 55, accuracy: 0.5, "not Clubhouse's spot")
+        XCTAssertGreaterThan(photo.maxY, riding.maxY, "the pill didn't ride the keyboard on the name step")
+        app.buttons["Skip"].tap()
+        XCTAssertTrue(bar(app, 1).waitForExistence(timeout: 3), "Skip never reached Birthday")
+        // Birthday opens its wheel (ticket 19): the bar rides above it.
+        let wheel = resting(next)
         next.tap()
         XCTAssertTrue(bar(app, 2).waitForExistence(timeout: 3), "never reached step 2")
-        // Birthday opens its wheel (ticket 19): the bar rides above it.
-        XCTAssertLessThan(resting(next).maxY, save.maxY, "Next bar dropped on the Birthday")
-        next.tap()
-        XCTAssertTrue(bar(app, 3).waitForExistence(timeout: 3), "never reached step 3")
         let home = resting(next)
         XCTAssertEqual(home.height, 48, accuracy: 0.5)   // Luma's flat pill (onboarding 34)
-        XCTAssertEqual(home.maxY, save.maxY, accuracy: 0.5, "Save Profile's bottom edge isn't the pill's spot")
-        XCTAssertEqual(home.width, save.width, accuracy: 0.5, "Save Profile isn't every step's pill")
-        XCTAssertEqual(home.midX, save.midX, accuracy: 0.5, "Save Profile isn't centred where the pill is")
+        XCTAssertEqual(home.width, app.frame.width - 40, accuracy: 0.5, "not every step's pill, 20 pt in from each side")
+        XCTAssertLessThan(wheel.maxY, home.maxY, "Next bar dropped on the Birthday")
+        XCTAssertEqual(wheel.width, home.width, accuracy: 0.5, "Birthday's pill isn't every step's")
 
-        // Interests (step 3) to Contacts (step 6): three moves, the frame read after each.
-        for step in 4...6 {
+        // Interests (step 2) to Contacts (step 5): three moves, the frame read after each.
+        for step in 3...5 {
             switch step {
-            case 4:
+            case 3:
                 // Interests asks for 3 before it lets you on (ticket 20).
                 // The title rolls its number (onboarding 26): read it once the roll has landed.
                 XCTAssertTrue(next.wait(for: \.label, toEqual: "Pick 3 more", timeout: 3), "Next bar says \(next.label)")
@@ -116,7 +124,7 @@ final class OnboardingNextBarTests: XCTestCase {
                 }
                 XCTAssertTrue(next.wait(for: \.label, toEqual: "Next", timeout: 3), "Next bar says \(next.label)")
                 next.tap()
-            case 5:
+            case 4:
                 // Follow 3 asks for 3 once its places are read (ticket 22, a grid since 26); a failed read
                 // lets Next on.
                 if app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Follow, '")).element(boundBy: 0)
@@ -132,7 +140,7 @@ final class OnboardingNextBarTests: XCTestCase {
                 }
                 XCTAssertTrue(next.wait(for: \.label, toEqual: "Next", timeout: 3), "Next bar says \(next.label)")
                 next.tap()
-            case 6:
+            case 5:
                 next.tap()
                 allowContacts(app)
             default:
@@ -143,7 +151,7 @@ final class OnboardingNextBarTests: XCTestCase {
         }
 
         app.buttons["Back"].tap()
-        XCTAssertTrue(bar(app, 5).waitForExistence(timeout: 3))
+        XCTAssertTrue(bar(app, 4).waitForExistence(timeout: 3))
         XCTAssertEqual(next.frame, home, "Next bar moved going back")
     }
 }

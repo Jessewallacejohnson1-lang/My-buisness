@@ -12,18 +12,27 @@
 import Contacts
 import SwiftUI
 
-/// The flow's steps in order. The bar counts the six after the Welcome. Phone and its texted code
-/// (SPEC steps 2 and 3) come back with phone sign-in (onboarding 17): empty, they stay out (Jesse, 24).
-/// Name and Photo became the one Profile step (onboarding 35, mock v8).
+/// The flow's steps in order. Phone and its texted code (SPEC steps 2 and 3) come back with phone sign-in
+/// (onboarding 17): empty, they stay out (Jesse, 24). Profile is Clubhouse's two steps again, the name
+/// (`profile`, which keeps its saved name) then the photo (onboarding 55; one step from 35 to 55).
 enum OnboardingStep: Int, CaseIterable {
-    case welcome, profile, birthday, interests, follow, friends, contacts
+    case welcome, profile, photo, birthday, interests, follow, friends, contacts
 
-    static let barTotal = allCases.count - 1
+    /// The dashes start at Birthday: the Name and Photo steps have none, as Clubhouse's (onboarding 55).
+    static let firstDashed: OnboardingStep = .birthday
+    static let barTotal = allCases.count - firstDashed.rawValue
+
+    /// The dashes show on this step.
+    var dashed: Bool { rawValue >= Self.firstDashed.rawValue }
+
+    /// Clubhouse's narrow "Next →" pill in Clubhouse's spots, on the Name and Photo steps (onboarding 55).
+    var clubhouse: Bool { self == .profile || self == .photo }
 
     var question: String {
         switch self {
         case .welcome:   "Love where\nyou live."
-        case .profile:   "Your Profile"
+        case .profile:   "What Mom calls you"
+        case .photo:     "Add a photo?"
         case .birthday:  "When's your birthday?"
         case .interests: "What do you love doing?"
         case .follow:    "Follow 3 places"
@@ -33,10 +42,10 @@ enum OnboardingStep: Int, CaseIterable {
     }
 
     /// The SF Symbol in the grey circle over the question, nearest mock v8's icons (onboarding 34). The
-    /// Welcome draws no circle, nor do the Big art steps: Profile's art is its photo, Birthday's the cake.
+    /// Welcome draws no circle, nor do the Name and Photo steps or Birthday (its art is the cake).
     var symbol: String {
         switch self {
-        case .welcome, .profile: "person"
+        case .welcome, .profile, .photo: "person"
         case .birthday:  "birthday.cake"
         case .interests: "heart"
         case .follow:    "mappin.and.ellipse"
@@ -49,9 +58,8 @@ enum OnboardingStep: Int, CaseIterable {
     /// step keeps Luma's grey.
     var tint: Color? {
         switch self {
-        case .profile:  Hue.bigArtProfile
+        case .profile, .photo, .friends: Hue.bigArtFriends
         case .birthday: Hue.bigArtBirthday
-        case .friends:  Hue.bigArtFriends
         default:        nil
         }
     }
@@ -145,8 +153,8 @@ final class OnboardingStore {
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         // Saved by name, so a step added or moved later still resumes on the right one. Someone
-        // saved on the old Name or Photo step comes back to Profile, which took both (onboarding 35).
-        let saved = defaults.string(forKey: Self.stepKey).map { ["name", "photo"].contains($0) ? "profile" : $0 }
+        // saved on the old Name step comes back to `profile`, the name step under its old key (onboarding 35, 55).
+        let saved = defaults.string(forKey: Self.stepKey).map { $0 == "name" ? "profile" : $0 }
         step = OnboardingStep.allCases.first { "\($0)" == saved } ?? .welcome
         // An install that opened the tabs before onboarding was switched on (the hello pill's last
         // look) is already in: it never gets the flow (onboarding 24). DEBUG `-onboarding` shows it anyway.
@@ -212,13 +220,14 @@ final class OnboardingStore {
         defaults.data(forKey: followsKey).flatMap { try? JSONDecoder().decode([FollowTarget].self, from: $0) } ?? []
     }
 
-    /// 1 to 6 on the question steps, 0 on the Welcome.
-    var barIndex: Int { step.rawValue }
+    /// 1 to `barTotal` from Birthday on; 0 before it, where no dashes show.
+    var barIndex: Int { max(0, step.rawValue - OnboardingStep.firstDashed.rawValue + 1) }
 
     /// The Name box as typed, trimmed; nil while it holds nothing but spaces.
     var displayName: String? { Self.trimmed(name) }
 
-    /// Profile may go on (Save Profile): it needs a name; the photo and bio are optional.
+    /// The name step may go on: it needs a name. The photo is optional (Skip), and the bio is no longer
+    /// asked (onboarding 55): one typed before then still saves.
     var profileDone: Bool { displayName != nil }
 
     private static func trimmed(_ text: String) -> String? {
@@ -506,7 +515,8 @@ struct OnboardingFlow: View {
                     // Nor while Log in or Create account waits on the server: its answer moves on.
                     .disabled(noBack || form.busy)
                 OnboardingProgressBar(index: store.barIndex, total: OnboardingStep.barTotal, deep: deep)
-                    .opacity(store.account == nil ? 1 : 0)
+                    .opacity(store.account == nil && store.step.dashed ? 1 : 0)
+                    .accessibilityHidden(!store.step.dashed)
             }
             // Mock v8's top row: 44 pt tall from 54 pt down, the chevron at 6, the line 20 from the right.
             .frame(height: 44)
@@ -516,6 +526,17 @@ struct OnboardingFlow: View {
             .ignoresSafeArea(.container)
 
             if [.follow, .contacts].contains(store.step) { foot.transition(.opacity) }
+
+            // Clubhouse's Skip at the top right of the photo step (onboarding 55): on without a photo.
+            if on(.photo) {
+                OnboardingSkip(action: go { [store] in store.next() })
+                    .frame(height: 44)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .padding(.trailing, 5)
+                    .padding(.top, 54)
+                    .ignoresSafeArea(.container)
+                    .transition(.opacity)
+            }
         }
         .overlay(alignment: .bottom) {
             if store.step == .birthday {
@@ -563,8 +584,11 @@ struct OnboardingFlow: View {
     private var question: some View {
         Group {
             if on(.profile) {
-                // Its photo is its art (onboarding 43): it draws its own heading.
-                OnboardingProfile(store: store, headingFocused: $questionFocused, bottomClear: bottomClear)
+                // Clubhouse's name step (onboarding 55): it draws its own question.
+                OnboardingNameStep(store: store, headingFocused: $questionFocused,
+                                   submit: go { [store] in if store.profileDone { store.next() } })
+            } else if on(.photo) {
+                OnboardingPhotoStep(store: store, headingFocused: $questionFocused, bottomClear: Self.clubhouseClear)
             } else if store.step == .follow {
                 // Follow 3's question scrolls away with its grid (onboarding 26).
                 OnboardingFollowGrid(suggestions: suggestions, interests: store.interests,
@@ -690,20 +714,34 @@ struct OnboardingFlow: View {
     }
 
     /// The Next pill, 84 pt from the bottom with a fixed 44 pt slot under it, or 12 pt above an
-    /// open keyboard or the wheel (the slot hides then), 20 pt in from each side (mock v8).
+    /// open keyboard or the wheel (the slot hides then), 20 pt in from each side (mock v8). On the Name and
+    /// Photo steps it is Clubhouse's: 199 pt wide and centred, "Next →", 55 pt from the bottom with no slot,
+    /// or 30.5 pt above the keyboard (onboarding 55).
     private var bottom: some View {
         VStack(spacing: 6) {
             OnboardingNextBar(title: nextTitle, count: stillToPick, allowed: nextAllowed,
-                              busy: form.busy, refused: form.refusals, deep: deep, action: nextAction)
-            if !keyboardUp && store.step != .birthday { slot.frame(height: 44) }
+                              busy: form.busy, refused: form.refusals, deep: deep,
+                              arrow: clubhouse, action: nextAction)
+                .frame(maxWidth: clubhouse ? OnboardingNextBar.narrow : .infinity)
+            if !keyboardUp && store.step != .birthday && !clubhouse { slot.frame(height: 44) }
         }
         .padding(.horizontal, FollowGridMetric.gutter)
         // Over the birthday wheel as over a keyboard.
         .padding(.bottom, store.step == .birthday ? Self.overWheel : 0)
         // The home indicator's 34 pt safe area is the mock's 34 under the slot; the keyboard's
         // safe area carries the bar up with it.
-        .padding(.bottom, keyboardUp ? 12 : 0)
+        .padding(.bottom, keyboardUp ? (clubhouse ? Self.clubhouseOverKeyboard : 12) : (clubhouse ? Self.clubhouseLift : 0))
     }
+
+    /// Clubhouse's pill is up: the Name or Photo step, with no Log in or Create account over it.
+    private var clubhouse: Bool { store.account == nil && store.step.clubhouse }
+
+    /// Clubhouse's pill spots (`references/profile-clubhouse/SPEC.md`): 55 pt over the screen's bottom (the
+    /// home indicator's 34 under it), or 30.6 over the keyboard.
+    private static let clubhouseLift: CGFloat = 55 - 34
+    private static let clubhouseOverKeyboard: CGFloat = 30.5
+    /// What the Photo step keeps clear over the safe area's bottom: the pill in its spot.
+    private static let clubhouseClear: CGFloat = OnboardingNextBar.height + clubhouseLift
 
     /// Not now on Find your friends (which skips Contacts too), else empty.
     @ViewBuilder private var slot: some View {
@@ -719,7 +757,6 @@ struct OnboardingFlow: View {
     /// "Pick 2 more" until Interests has its 3, "Follow 2 more" until Follow 3 has.
     private var nextTitle: String {
         if let way = store.account { return way.button }
-        if store.step == .profile { return "Save Profile" }
         if store.step == .interests, picksMade < 3 { return "Pick \(3 - picksMade) more" }
         if store.step == .follow, followsNeeded > 0 { return "Follow \(followsNeeded) more" }
         if store.step == .contacts { return store.contactsButton }
@@ -749,7 +786,7 @@ struct OnboardingFlow: View {
     }
 
     /// Placeholders always allow Next; a step that asks something says when it may (17 to 24).
-    /// Profile waits for a name; its photo and bio are optional (onboarding 35).
+    /// The name step waits for a name; the photo step's Next for a photo, Skip going on without one (55).
     /// DEBUG `-onboarding-not-yet` holds it grey, to show the shake.
     private var nextAllowed: Bool {
         #if DEBUG
@@ -758,6 +795,7 @@ struct OnboardingFlow: View {
         if let way = store.account { return form.canSubmit(way) }
         switch store.step {
         case .profile: return store.profileDone
+        case .photo: return store.photo != nil
         case .birthday: return store.birthday != nil
         case .interests: return picksMade >= 3
         case .follow: return followsNeeded == 0

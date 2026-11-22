@@ -1,176 +1,142 @@
 //
 //  OnboardingProfile.swift
-//  Block Party — onboarding's Profile step (BP app onboarding 35) in the Big art look (onboarding 43,
-//  mock v2 "Profile"): on its sand colour, the 124 pt photo with its glass badge is the step's art,
-//  "Your Profile" and its line centred under it, then the Name and Bio boxes, white with a soft edge.
-//  With the keyboard up the column rides up 120 pt and the photo fades (onboarding 46).
-//  It took the place of the Name and Photo steps. The answers live in `OnboardingStore`;
-//  `OnboardingFlow` owns the backdrop, the back arrow, the dashes and Save Profile.
+//  Block Party — onboarding's Profile as Clubhouse's two steps (BP app onboarding 55, Jesse 2026-11-22: "keep my
+//  words remove the people use real names on bp and and slice the where you type pill by 20 percent i agree").
+//  On white: "What Mom calls you" over one name box, then "Add a photo?" over a squircle to tap. Apple's font
+//  at Clubhouse's sizes and spots, measured in BP app `references/profile-clubhouse/SPEC.md`. The answers
+//  live in `OnboardingStore`; `OnboardingFlow` owns the backdrop, the back arrow, Skip and the Next pill.
+//  Bio left onboarding (it stays in Edit profile); one typed before then still saves.
 //
 
 import SwiftUI
 import PhotosUI
 
-struct OnboardingProfile: View {
-    @Bindable var store: OnboardingStore
-    @AccessibilityFocusState.Binding var headingFocused: Bool
-    /// What the column keeps clear at the bottom: Save Profile and its slot, or Save Profile over the keyboard.
-    let bottomClear: CGFloat
+/// Clubhouse's spots, in points from the screen's top (its question's ink starts 140 pt down).
+enum ClubhouseStep {
+    static let questionTop: CGFloat = 134
+    /// The name box: 20% narrower than the screen-wide box Clubhouse's two make (Jesse), Clubhouse's 40 pt tall.
+    static let nameBoxTop: CGFloat = 214
+    static let nameBoxWidth: CGFloat = 290
+    static let nameBoxHeight: CGFloat = 40
+}
 
-    /// How far the column rides up over the keyboard: the photo's row leaves under the top row, and the
-    /// question sits just under the dashes with both boxes clear of Save Profile.
-    static let lift: CGFloat = 120
-
-    private enum Field: Hashable { case name, bio }
-    @FocusState private var focus: Field?
-
-    /// A box is being typed in: the column rides up `lift` and the photo fades (mock v2 `.lifts.up`). Read
-    /// from the focus, not the keyboard, which iOS drops and raises again between Name and Bio (their
-    /// keyboards differ), so the column holds still through that.
-    private var typing: Bool { focus != nil }
+/// The question on Clubhouse's steps: Apple's font, 22 pt regular, centred.
+struct OnboardingClubhouseQuestion: View {
+    let words: String
+    @AccessibilityFocusState.Binding var focused: Bool
 
     var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    // The photo, the question and its line sit centred; the boxes stay full width.
-                    OnboardingBigArt(question: OnboardingStep.profile.question,
-                                     line: "So your neighbors know it's you.",
-                                     focused: $headingFocused) {
-                        OnboardingProfilePhoto(store: store, hidden: typing)
-                    }
-                    label("Name")
-                    nameBox.id(Field.name)
-                    label("Bio")
-                    bioBox.id(Field.bio)
-                }
-                .padding(.horizontal, FollowGridMetric.gutter)
-                // Less room at the top than the photo's row takes: the column sits that much higher, and
-                // the scroll measures what is left, so a box still scrolls clear on a small phone.
-                .padding(.top, BigArt.top - FollowGridMetric.scrollTop - (typing ? Self.lift : 0))
-                .frame(maxWidth: .infinity, alignment: .leading)
-                // On the keyboard's own spring (the Next pill's, `OnboardingFlow`).
-                .animation(Motion.sheet, value: typing)
-            }
-            .scrollBounceBehavior(.basedOnSize)
-            .scrollIndicators(.hidden)
-            .scrollDismissesKeyboard(.interactively)
-            .contentMargins(.bottom, bottomClear, for: .scrollContent)
-            // Under the top row it goes, as every step's column does, into the step's colour.
-            .padding(.top, FollowGridMetric.scrollTop)
-            .overlay(alignment: .top) { OnboardingScrollEdge(color: Hue.bigArtProfile) }
-            .ignoresSafeArea(.container, edges: .top)
-            // The box being typed in clears Save Profile over the keyboard: once the keyboard is up
-            // (the bottom it keeps clear changes then), and on a move from Name to Bio.
-            .onChange(of: bottomClear) { reveal(proxy) }
-            .onChange(of: focus) { reveal(proxy) }
+        Text(words)
+            .font(.apple(22))
+            .foregroundStyle(Hue.ink)
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, FollowGridMetric.gutter)
+            .accessibilityAddTraits(.isHeader)
+            .accessibilityFocused($focused)
+    }
+}
+
+/// "What Mom calls you" and one name box, the keyboard up as the step arrives (not under VoiceOver, so the
+/// question is heard first). Return goes on once there is a name.
+struct OnboardingNameStep: View {
+    @Bindable var store: OnboardingStore
+    @AccessibilityFocusState.Binding var headingFocused: Bool
+    let submit: () -> Void
+
+    @FocusState private var typing: Bool
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOver
+
+    var body: some View {
+        VStack(spacing: 0) {
+            OnboardingClubhouseQuestion(words: OnboardingStep.profile.question, focused: $headingFocused)
+            nameBox
+                .padding(.top, ClubhouseStep.nameBoxTop - ClubhouseStep.questionTop - Self.questionLine)
+            Spacer(minLength: 0)
         }
+        .padding(.top, ClubhouseStep.questionTop)
+        .ignoresSafeArea(.container, edges: .top)
+        .onAppear { if !voiceOver { typing = true } }
     }
 
-    private func reveal(_ proxy: ScrollViewProxy) {
-        guard let focus else { return }
-        withAnimation(Motion.sheet) { proxy.scrollTo(focus, anchor: .bottom) }
-    }
-
-    /// The small grey word over a box (mock v2 `.flabel`), 24 pt under what's above it and 6 pt above the
-    /// box. VoiceOver hears it as the box's name.
-    private func label(_ words: String) -> some View {
-        OnboardingFieldLabel(words, color: Hue.bigArtWords)
-            .padding(.top, 24)
-            .accessibilityHidden(true)
-    }
+    /// The question's one line at 22 pt (title2's 28).
+    private static let questionLine: CGFloat = 28
 
     private var nameBox: some View {
-        TextField("Name", text: $store.name, prompt: Text("What Mom calls you").foregroundStyle(Hue.bigArtHint))
+        TextField("Name", text: $store.name, prompt: Text("Your name").foregroundStyle(Hue.bigArtHint))
             .textContentType(.name)
             .textInputAutocapitalization(.words)
             .autocorrectionDisabled()
             .submitLabel(.next)
-            .onSubmit { focus = .bio }
-            .focused($focus, equals: .name)
-            .profileBox(size: 17, minHeight: OnboardingFieldBox.height, top: 12)
-            .onTapGesture { focus = .name }
-            .accessibilityLabel("Name")
-    }
-
-    /// Grows with what's typed; Return closes the keyboard rather than starting a new line. Nextdoor's
-    /// 150 letters, as Edit profile's bio, which this is.
-    private static let bioHint = "A little about you. Optional."
-
-    private var bioBox: some View {
-        // The hint drawn as words of its own, so it wraps at any text size (a prompt stops at the
-        // box's least lines) and holds the box's height while typing starts.
-        ZStack(alignment: .topLeading) {
-            Text(Self.bioHint)
-                .foregroundStyle(Hue.bigArtHint)
-                .fixedSize(horizontal: false, vertical: true)
-                .opacity(store.bio.isEmpty ? 1 : 0)
-                .accessibilityHidden(true)
-            // No title of its own: the words above stand in for the prompt.
-            TextField("", text: $store.bio, axis: .vertical)
-                .lineLimit(1...8)
-                .submitLabel(.done)
-                .focused($focus, equals: .bio)
-                .accessibilityLabel("Bio")
-                .accessibilityHint(Self.bioHint)
-        }
-        .profileBox(size: 15, minHeight: 58, top: 9)
-        .onTapGesture { focus = .bio }
-        .onChange(of: store.bio) { _, typed in
-            if typed.contains("\n") {
-                store.bio = typed.replacingOccurrences(of: "\n", with: "")
-                focus = nil
-            } else if ProfileModel.bioLength(typed) > ProfileModel.bioLimit {
-                store.bio = ProfileModel.clampBio(typed)
-            }
-        }
-    }
-}
-
-private extension View {
-    /// The Big art look's box (mock v2 `.field`, `.field.tall`): white with a soft edge, the words 16 pt
-    /// in, Name's at 17 pt and Bio's at 15. No line round it while typing. Grows with Dynamic Type.
-    func profileBox(size: CGFloat, minHeight: CGFloat, top: CGFloat) -> some View {
-        font(.apple(size))
+            .onSubmit(submit)
+            .focused($typing)
+            .appleFont(24)
             .foregroundStyle(Hue.ink)
             .tint(Hue.ink)
-            .padding(.horizontal, 16)
-            .padding(.vertical, top)
-            .frame(maxWidth: .infinity, minHeight: minHeight, alignment: .topLeading)
-            .bigArtBox()
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 4)
+            // 40 pt, growing with large text so its words aren't cut.
+            .frame(width: ClubhouseStep.nameBoxWidth)
+            .frame(minHeight: ClubhouseStep.nameBoxHeight)
+            .background(Hue.onboardingCream, in: RoundedRectangle(cornerRadius: Radius.nameBox, style: .continuous))
             // The whole box takes the tap.
             .contentShape(Rectangle())
+            .onTapGesture { typing = true }
+            .accessibilityLabel("Name")
     }
 }
 
-/// The 124 pt photo, the step's art (mock v2 `.pic .avatar`): empty, Instagram's blank picture (onboarding
-/// 46); picked, the photo. The 38 pt Liquid Glass badge (Luma's photo-plus icon) sits on its bottom right. A
-/// tap opens Apple's photo picker, or asks library or camera when the phone has one.
+/// "Add a photo?" over the squircle, which sits midway between the question and the Next pill.
+struct OnboardingPhotoStep: View {
+    @Bindable var store: OnboardingStore
+    @AccessibilityFocusState.Binding var headingFocused: Bool
+    /// What it keeps clear over the safe area's bottom: the Next pill in its spot (`OnboardingFlow`).
+    let bottomClear: CGFloat
+
+    var body: some View {
+        VStack(spacing: 0) {
+            OnboardingClubhouseQuestion(words: OnboardingStep.photo.question, focused: $headingFocused)
+            Spacer(minLength: 16)
+            OnboardingProfilePhoto(store: store)
+            Spacer(minLength: 16)
+        }
+        .padding(.top, ClubhouseStep.questionTop)
+        .padding(.bottom, bottomClear)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .ignoresSafeArea(.container, edges: .top)
+    }
+}
+
+/// Clubhouse's 158 pt squircle (measured, `references/profile-clubhouse/SPEC.md`): cream with a 1 pt ring and
+/// a photo glyph while empty, a spinner while a picked photo loads (an iCloud one can take a while), then the
+/// photo filling it. A tap opens Apple's photo picker, or asks library or camera when the phone has one, and
+/// the photo goes through Adjust's circle before it lands.
 struct OnboardingProfilePhoto: View {
     @Bindable var store: OnboardingStore
-    /// Faded out, its badge gone, while the keyboard is up (onboarding 46).
-    var hidden = false
 
     @State private var asking = false
     @State private var library = false
     @State private var camera = false
     @State private var pick: PhotosPickerItem?
+    /// A picked photo is on its way in, from the library's pick to Adjust.
+    @State private var loading = false
     /// A photo just picked or taken, in Adjust's circle before it lands (backlog 32).
     @State private var adjusting: UIImage?
     /// The camera's photo, held until the camera has gone so Adjust can come up.
     @State private var taken: UIImage?
 
-    static let side: CGFloat = BigArt.art
+    static let side: CGFloat = 158
+    private static let shape = RoundedRectangle(cornerRadius: Radius.photoSquircle, style: .continuous)
     private static var hasCamera: Bool { UIImagePickerController.isSourceTypeAvailable(.camera) }
 
     var body: some View {
         Button {
             Haptics.light()
             if Self.hasCamera { asking = true } else { library = true }
-        } label: { circle }
+        } label: { squircle }
         .buttonStyle(.press(.squish))
-        .allowsHitTesting(!hidden)
-        .accessibilityHidden(hidden)
         .accessibilityLabel(store.photo == nil ? "Add a photo" : "Change photo")
         .confirmationDialog("Add a profile picture", isPresented: $asking, titleVisibility: .hidden) {
             Button("Choose from library") { library = true }
@@ -187,11 +153,13 @@ struct OnboardingProfilePhoto: View {
         .photoAdjust($adjusting, shape: .circle) { use($0) }
         .onChange(of: pick) { _, item in
             guard let item else { return }
+            loading = true
             Task {
                 if let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) {
                     adjusting = await PhotoCrop.shrunk(image)
                 }
                 pick = nil
+                loading = false
             }
         }
     }
@@ -202,29 +170,27 @@ struct OnboardingProfilePhoto: View {
         withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { store.photo = jpeg }
     }
 
-    private var circle: some View {
-        // `Avatar` draws both: the picked photo, or the blank picture until there is one.
-        Avatar(nil, size: Self.side, picked: store.photo.flatMap(UIImage.init(data:)))
-            .shadow(color: Hue.ink.opacity(0.16), radius: 12, y: 10)
-            .opacity(hidden ? 0 : 1)
-            // Glass can't be dimmed, and glass put back draws late (docs/rules/swift-traps.md): the badge
-            // stays mounted and shrinks to nothing while the photo is faded.
-            .overlay(alignment: .bottomTrailing) { badge }
-            // The mock's 0.2 s fade, whatever moves the column.
-            .animation(.easeOut(duration: 0.2), value: hidden)
-            .contentShape(Circle())
-    }
-
-    /// Apple's Liquid Glass, as the tab bar's (Jesse, 2026-11-10). Light scheme so it doesn't follow dark
-    /// mode; over a dark photo the glass still takes the photo's tone.
-    private var badge: some View {
-        Image(systemName: "photo.badge.plus")
-            .font(.glyph(19, weight: .regular))
-            .foregroundStyle(Hue.ink)
-            .opacity(hidden ? 0 : 1)
-            .frame(width: hidden ? 0 : 38, height: hidden ? 0 : 38)
-            .glassEffect(.regular.interactive(), in: Circle())
-            .environment(\.colorScheme, .light)
+    private var squircle: some View {
+        ZStack {
+            Self.shape.fill(Hue.onboardingCream)
+            Self.shape.strokeBorder(Hue.onboardingCreamRing, lineWidth: 1)
+            if let picked = store.photo.flatMap(UIImage.init(data:)) {
+                Image(uiImage: picked)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: Self.side, height: Self.side)
+                    .clipShape(Self.shape)
+                    .transition(.opacity)
+            } else if loading {
+                ProgressView().tint(Hue.ink)
+            } else {
+                Image(systemName: "photo")
+                    .font(.glyph(50, weight: .semibold))
+                    .foregroundStyle(Hue.ink)
+            }
+        }
+        .frame(width: Self.side, height: Self.side)
+        .contentShape(Self.shape)
     }
 }
 

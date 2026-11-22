@@ -76,7 +76,9 @@ between a flow that feels premium and one that feels assembled.
 What may change per step: the button's **title** (`Continue`, `Continue · 3`, `Done`)
 and its **enabled state**. Nothing else, apart from one look Jesse approved in mock v8
 (2026-11-09): Find your friends' pill is white with ink words (onboarding 37), in the same frame.
-Profile's Save Profile is every step's pill since BP app onboarding 46 (2026-11-19). Specifically
+The second exception (Jesse's yes, 2026-11-22, BP app onboarding 55): the Name and Photo steps copy
+Clubhouse's, so their pill is Clubhouse's narrow "Next →", 199 pt wide and centred, 55 pt from the bottom
+or 30.5 pt over the keyboard; from Birthday on, the pill is every step's again. Specifically
 not allowed:
 
 - A centred button on one screen and a bottom-pinned one on the next.

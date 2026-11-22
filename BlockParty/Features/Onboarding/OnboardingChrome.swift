@@ -144,10 +144,10 @@ struct OnboardingHeading: View {
 
 /// What sits over a question in the Big art look (BP app onboarding 43, mock v2 `.pic`, `.q`, `.sub`):
 /// one drawing, centred in a 128 pt row, which pops in as the step arrives; 14 pt under it the question,
-/// centred, 26 pt bold on a 31 pt line; then its grey line, centred. Reduce Motion skips the pop.
+/// centred, 26 pt bold on a 31 pt line. Reduce Motion skips the pop. (Profile's grey line under it left with
+/// Profile's Big art, onboarding 55.)
 struct OnboardingBigArt<Art: View>: View {
     let question: String
-    var line: String? = nil
     @AccessibilityFocusState.Binding var focused: Bool
     @ViewBuilder let art: Art
 
@@ -189,16 +189,6 @@ struct OnboardingBigArt<Art: View>: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityFocused($focused)
-            if let line {
-                Text(line)
-                    .font(.apple(15))
-                    .lineSpacing(3)            // SF's 18 pt line at 15 pt, to the mock's 21
-                    .foregroundStyle(Hue.bigArtWords)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, 7.5)        // 6 pt under the question, and half that line's extra 3
-                    .padding(.bottom, 1.5)
-            }
         }
         .frame(maxWidth: .infinity)
         .onAppear { if !reduceMotion { arrived = true } }
@@ -255,9 +245,14 @@ struct OnboardingNextBar: View {
     var refused = 0
     /// White with ink words on Interests' deep backdrop, white at 26% while not allowed (onboarding 48, mock v5 `.btn`).
     var deep = false
+    /// Clubhouse's "Next →" on the Name and Photo steps (onboarding 55): 20 pt words and an arrow, on the
+    /// `narrow` pill. VoiceOver hears the title alone.
+    var arrow = false
     let action: () -> Void
 
     static let height: CGFloat = 48
+    /// Clubhouse's pill width (199.3 pt measured, `references/profile-clubhouse/SPEC.md`).
+    static let narrow: CGFloat = 199
 
     @State private var shakes = 0
 
@@ -268,6 +263,12 @@ struct OnboardingNextBar: View {
         } label: {
             if busy {
                 ProgressView().tint(.white)
+            } else if arrow {
+                HStack(spacing: 8) {
+                    Text(title)
+                    Image(systemName: "arrow.right")
+                }
+                .font(.apple(20, weight: .semibold))
             } else {
                 Text(title)
                     .font(.apple(17, weight: .semibold))
@@ -382,6 +383,23 @@ struct OnboardingLink: View {
             Text(title)
                 .font(.apple(15, weight: .semibold))
                 .foregroundStyle(Hue.ink)
+                .padding(.horizontal, 12)
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.press(.dim))
+    }
+}
+
+/// Clubhouse's Skip at the top right of the photo step (onboarding 55): grey 17 pt words with a 44 pt target,
+/// dimming under the finger. `inkSecondary`, not Clubhouse's lighter grey, which reads under 4.5:1 on white.
+struct OnboardingSkip: View {
+    let action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            Text("Skip")
+                .font(.apple(17))
+                .foregroundStyle(Hue.inkSecondary)
                 .padding(.horizontal, 12)
                 .frame(minHeight: 44)
                 .contentShape(Rectangle())
