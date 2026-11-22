@@ -40,15 +40,15 @@ Reject only with a clear, kind, specific reason the writer can act on, in one sh
 Respond with ONLY a JSON object: {"ok": true|false, "reason": "<short reason; empty when ok>"}`
 
 // A new Group (BP app start-a-group 02) gets two readings with different eyes, and goes live only when both say yes.
-const GROUP_RULE = `You check new groups that neighbors start on Block Party, a warm, calm, hyper-local community app for the real town of St. Joseph, Minnesota: book clubs, running groups, crafts, faith, service, games, music and any other shared interest. You see the group's name, maybe what kind of group it is, and maybe its photo.
+const GROUP_RULE = `You check new groups that neighbors start on Block Party, a warm, calm, hyper-local community app for the real town of St. Joseph, Minnesota: book clubs, running groups, crafts, faith, service, games, music and any other shared interest. You see the group's name, maybe what kind of group it is, maybe its About, and maybe its photo.
 
-Approve when it is a plausible group of neighbors with a shared interest, and its name and photo are appropriate. Reject spam, advertising or a scam, anything abusive, hateful, harassing or threatening, anything sexual or violent, and a group that targets or mocks a person. A photo needn't show the group itself. Informal, playful or very niche groups are fine.
+Approve when it is a plausible group of neighbors with a shared interest, and its name, About and photo are appropriate. Reject spam, advertising or a scam, anything abusive, hateful, harassing or threatening, anything sexual or violent, and a group that targets or mocks a person. A photo needn't show the group itself. Informal, playful or very niche groups are fine.
 
 Reject only with a clear, kind, specific reason the starter can act on, in one short sentence.
 
 Respond with ONLY a JSON object: {"ok": true|false, "reason": "<short reason; empty when ok>"}`
 
-const GROUP_SECOND = `You are a second, independent reviewer for a small-town community app that people of every age use, children included. A neighbor wants to start a group, and everyone in town will see its name and photo. Decide whether they are safe to show to the whole town.
+const GROUP_SECOND = `You are a second, independent reviewer for a small-town community app that people of every age use, children included. A neighbor wants to start a group, and everyone in town will see its name, About and photo. Decide whether they are safe to show to the whole town.
 
 Say no to: sexual or suggestive content, drugs, weapons shown as threats, gore or violence, slurs or hate, bullying or naming a private person to mock them, scams, selling or advertising, and anything that tries to slip such content past a filter (odd spelling, hidden words in the photo). Say yes to everything else, however silly, small or unusual.
 
@@ -91,7 +91,8 @@ Deno.serve(async (req) => {
   const verdict = async (e: any, note?: string, comment?: string, system = SYSTEM): Promise<{ ok: boolean, reason: string } | null> => {
     const facts = comment !== undefined ? `Post: ${e.title || '(just a photo)'}\nComment: ${comment}`
       : note !== undefined ? `Event: ${e.title}\nNote: ${note}` : e.kind === 'group'
-      ? [`Group name: ${e.title}`, e.group_kind ? `Kind of group: ${e.group_kind}` : null].filter(Boolean).join('\n') : [
+      ? [`Group name: ${e.title}`, e.group_kind ? `Kind of group: ${e.group_kind}` : null,
+         e.description ? `About: ${e.description}` : null].filter(Boolean).join('\n') : [
       `Kind: ${e.kind}`,
       e.kind === 'post' ? `Words: ${e.title || '(none, just the photo)'}` : `Title: ${e.title}`,
       e.event_date ? `When: ${e.event_date}${e.start_time ? ` ${e.start_time}` : ''}` : null,
@@ -168,11 +169,29 @@ Deno.serve(async (req) => {
   // without waiting. claim_group_check lets each through once, only the caller's own and still pending (start_group
   // allows 3 a day). Two readings with different rules: both yes, it's live; both no, it's rejected and its photo
   // goes; a split or no answer leaves it pending for Jesse's morning report and the Review queue.
+  // An Admin's edit (start-a-group 04): edit_group left a new name, kind, About or photo waiting on the Group;
+  // claim_group_edit hands it over once (10 a day), and only both yeses put it live (apply_group_edit). Anything less
+  // keeps the Group as it was and takes the new photo down.
   if (body?.group) {
     const id = String(body.group)
     const { data: claimed, error } = await admin.rpc('claim_group_check', { p_club: id, p_user: caller })
     if (error) return json({ ok: false, reason: 'Could not auto-check.' }, 502)
-    if (!claimed) return json({ ok: false, reason: 'Not checked.' }, 429)
+    if (!claimed) {
+      const { data: edit, error: taken } = await admin.rpc('claim_group_edit', { p_club: id, p_user: caller })
+      if (taken) return json({ ok: false, reason: 'Could not auto-check.' }, 502)
+      if (!edit || edit.limit) return json({ ok: false, reason: 'Not checked.' }, 429)
+      const g = { kind: 'group', title: edit.name, group_kind: edit.kind, description: edit.about, image_url: edit.photo }
+      const [first, second] = await Promise.all([verdict(g, undefined, undefined, GROUP_RULE), verdict(g, undefined, undefined, GROUP_SECOND)])
+      if (first?.ok && second?.ok) {
+        const { data: applied, error: up } = await admin.rpc('apply_group_edit', { p_club: id, p_user: caller, p_edit: edit })
+        if (up) return json({ ok: false, reason: 'Could not auto-check.' }, 502)
+        if (applied) return json({ ok: true, reason: '' })
+      }
+      const file = typeof edit.photo === 'string' ? edit.photo.split('/event-images/')[1] : undefined
+      if (file) await admin.storage.from('event-images').remove([file])
+      if (first && second) return json({ ok: false, reason: (first.ok ? second : first).reason })
+      return json({ ok: false, reason: 'Could not auto-check.' }, 502)
+    }
     const { data: c } = await admin.from('clubs').select('name, kind, image_url').eq('id', id).single()
     if (!c) return json({ ok: false, reason: 'Could not auto-check.' }, 502)
     const g = { kind: 'group', title: c.name, group_kind: c.kind, image_url: c.image_url }

@@ -85,7 +85,9 @@ a flag the app reads isn't here, or one here is read by nothing (move it to the 
   2026-11-01, BP app docs/plans/five-tabs; until then a page pushed from the Town bar's friends
   mark), and `-friends-words <text>` opens it with those words typed; `-start-group <name>` opens its
   New group sheet with that name typed and a bundled photo picked (BP app start-a-group 02), since nothing types
-  on the simulator. It
+  on the simulator. `-group-admin admin|member|edit|hand|close` opens a sample Group's page (start-a-group 04), with
+  no read: yours to run (the ••• beside Share), a member's (none), or Edit group open over it, on the Admin row's
+  hand-over question, or on Close group's question; the sample neighbours are its members, two picked. It
   finds neighbours on the live database for a real account; `-town-samples` gives it sample
   neighbours on town photos instead (two asking you, three friends, one you asked, and a
   BP-yellow dot on the Friends tab), and `-town-offline` makes every search and friends read

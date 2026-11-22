@@ -15,7 +15,12 @@
 import SwiftUI
 
 struct GroupPage: View {
-    let group: TownGroup
+    /// As opened, then as its Admin saves it (start-a-group 04).
+    @State private var group: TownGroup
+
+    init(group: TownGroup) {
+        _group = State(initialValue: group)
+    }
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -35,6 +40,11 @@ struct GroupPage: View {
     private var asks: GroupAsks { GroupAsks.shared }
     @State private var waiting: Int?
     @State private var showingRequests = false
+    /// Edit group, the Admin's, from the ••• (start-a-group 04).
+    @State private var editing = false
+    /// The Admin tapped Leave: hand over or close first.
+    @State private var adminLeaving = false
+    @Environment(YouModel.self) private var you: YouModel?
 
     /// A private Group you aren't in: Ask to join, and none of its time, place, members or chat.
     private var locked: Bool { GroupAsks.locked(group, member: actions.member(group).isMember) }
@@ -103,6 +113,30 @@ struct GroupPage: View {
         .navigationDestination(isPresented: $showingRequests) {
             JoinRequestsPage(group: group, waiting: Binding { waiting ?? 0 } set: { waiting = $0 })
         }
+        .sheet(isPresented: $editing) {
+            EditGroupSheet(group: group) { group = $0; refresh() } handedOver: {
+                group.requests = nil
+                refresh()
+            } closed: {
+                refresh()
+                dismiss()
+            }
+        }
+        .alert("You're the Admin", isPresented: $adminLeaving) {
+            Button("Edit group") { editing = true }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("To leave, hand the group to a member or close it.")
+        }
+        #if DEBUG
+        // `-group-admin edit|hand|close`: Edit group open at launch.
+        .task { if ["edit", "hand", "close"].contains(LaunchFlags.value(.groupAdmin) ?? "") { editing = true } }
+        #endif
+    }
+
+    /// Every list that shows the Group reads it again.
+    private func refresh() {
+        Task { if let groups = await you?.refreshGroups() { actions.read(groups) } }
     }
 
     // MARK: Pictures
@@ -182,6 +216,10 @@ struct GroupPage: View {
         HStack(spacing: 0) {
             EventPage.circleButton(glyph: Image(systemName: "arrow.left"), label: "Back") { dismiss() }
             Spacer(minLength: 0)
+            // The Admin's alone (start-a-group 04), beside Share as the Event page's heart is.
+            if group.isAdmin {
+                EventPage.circleButton(glyph: Image(systemName: "ellipsis"), label: "Edit group") { editing = true }
+            }
             EventPage.circleButton(
                 glyph: Image(systemName: "square.and.arrow.up").font(.sansSemibold(15)), label: "Share"
             ) {
@@ -465,6 +503,11 @@ struct GroupPage: View {
     /// Join group and "Leave group?" both flip being in it; a write the server refuses turns back
     /// and shakes the pill.
     private func toggle() {
+        // The Admin hands over or closes first (start-a-group 04); the server won't let them leave either.
+        if group.isAdmin, actions.member(group).isMember {
+            adminLeaving = true
+            return
+        }
         tappedAt = actions.memberFailureCount(group.id)
         let joining = !actions.member(group).isMember
         actions.toggleMember(group)

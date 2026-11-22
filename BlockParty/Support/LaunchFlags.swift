@@ -27,6 +27,7 @@ nonisolated enum LaunchFlags {
         case friendsWords = "-friends-words"
         /// `-start-group <name>`: the Friends tab opens New group with that name and a bundled photo (BP app start-a-group 02).
         case startGroup = "-start-group"
+        case groupAdmin = "-group-admin"
         case headerCollapsed = "-header-collapsed"
         case helloDrop = "-hello-drop"
         case helloDropHold = "-hello-drop-hold"

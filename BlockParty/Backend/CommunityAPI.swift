@@ -265,6 +265,52 @@ struct CommunityAPI {
         _ = try? await db.invoke("moderate-post", ["group": id])
     }
 
+    /// Edit group (`edit_group`, start-a-group 04): Private, Who can add events and the picked members land at once.
+    /// True when a new name, kind, About or photo waits on the check (`checkGroupEdit`).
+    /// `editors` nil keeps the picks as they were (the members weren't read).
+    func editGroup(_ id: String, _ draft: EditGroupDraft, editors: Set<String>?, photo: URL?) async throws -> Bool {
+        let data = try await db.rpc("edit_group", [
+            "p_club": id, "p_name": draft.cleanName, "p_kind": draft.kind ?? NSNull(), "p_about": draft.about,
+            "p_photo": photo?.absoluteString ?? NSNull(), "p_private": draft.isPrivate,
+            "p_events_by": draft.eventsBy.rawValue, "p_editors": editors.map { Array($0) } ?? NSNull(),
+        ])
+        return (try? JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed) as? Bool) ?? false
+    }
+
+    /// The two checks on an edit (`moderate-post` `group`): nil when both said yes and it's live, else why not.
+    func checkGroupEdit(_ id: String) async -> String? {
+        struct Answer: Decodable { let ok: Bool; let reason: String? }
+        guard let data = try? await db.invoke("moderate-post", ["group": id]),
+              let said = try? JSONDecoder().decode(Answer.self, from: data) else { return "" }
+        return said.ok ? nil : (said.reason ?? "")
+    }
+
+    /// An edit's new photo: `group-<id>-<n>.jpg`, a new name each time, so the live one never changes before the check.
+    func uploadGroupEditPhoto(_ jpeg: Data, id: String) async throws -> URL {
+        let uid = try db.userID.lowercased()
+        let n = UUID().uuidString.prefix(8).lowercased()
+        return try await db.upload(bucket: "event-images", path: "\(uid)/group-\(id)-\(n).jpg", jpeg, type: "image/jpeg")
+    }
+
+    /// A Group's members but you, longest in first, and whether you picked each to add Events (`get_group_members`).
+    func groupMembers(_ id: String) async throws -> [(person: Neighbor, editor: Bool)] {
+        struct Row: Decodable { let editor: Bool? }
+        let data = try await db.rpc("get_group_members", ["p_club": id])
+        let people: [Neighbor] = try Supabase.decode(data)
+        let rows: [Row] = try Supabase.decode(data)
+        return zip(people, rows).map { ($0, $1.editor ?? false) }
+    }
+
+    /// Makes a member the Admin (`hand_over_group`); you stay a member.
+    func handOverGroup(_ id: String, to user: String) async throws {
+        _ = try await db.rpc("hand_over_group", ["p_club": id, "p_user": user])
+    }
+
+    /// Closes a Group you run (`close_group`): it leaves every list.
+    func closeGroup(_ id: String) async throws {
+        _ = try await db.rpc("close_group", ["p_club": id])
+    }
+
     /// Invites friends to a Group you're in (`invite_to_group`): it shows first in their Groups to join.
     func inviteToGroup(_ id: String, friends: [String]) async throws {
         _ = try await db.rpc("invite_to_group", ["p_club": id, "p_users": friends])
