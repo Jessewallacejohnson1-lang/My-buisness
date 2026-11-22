@@ -92,5 +92,12 @@ final class TodayPlacesTests: XCTestCase {
         XCTAssertFalse(places.dayIsOver(now: at(20)), "the volleyball game has no spot but isn't over")
         XCTAssertTrue(places.dayIsOver(now: at(21)))
         XCTAssertTrue(TodayPlaces.none.dayIsOver(now: at(9)), "a day with nothing says so too")
+
+        // Called off before it started is over; an untimed one is never over by the clock.
+        var calledOff = event("concert", "9 PM")
+        calledOff.cancelled = true
+        XCTAssertTrue(TodayPlaces(events: [calledOff], spots: [:]).dayIsOver(now: at(18)), "called off is over")
+        XCTAssertFalse(TodayPlaces(events: [calledOff, event("sale", nil)], spots: [:]).dayIsOver(now: at(23)),
+                       "an untimed event keeps the day going")
     }
 }
