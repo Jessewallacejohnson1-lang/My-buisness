@@ -62,6 +62,19 @@ final class EventOpenerTests: XCTestCase {
         XCTAssertEqual(opener.progress.value, 0)
     }
 
+    func testACloseAlmostHomeIsDone() {
+        let opener = EventOpener()
+        opener.reduceMotion = true
+        opener.open(card("a"), from: source)
+        opener.almostHome()
+        XCTAssertNotNil(opener.item, "still open: nothing to finish")
+        opener.reduceMotion = false
+        opener.close()
+        opener.almostHome()
+        XCTAssertNil(opener.item, "on its way home and nearly there: the card takes over")
+        XCTAssertFalse(opener.shown)
+    }
+
     func testPrepareWaitsForAnOpenPage() {
         let opener = EventOpener()
         opener.reduceMotion = true

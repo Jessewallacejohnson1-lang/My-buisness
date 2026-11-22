@@ -82,6 +82,13 @@ final class EventOpener {
         }
     }
 
+    /// Almost home (`homeAt`): done. The spring creeps its last hundredth for about 80 ms, with the photo over the
+    /// card's words and the tab bar, both of which come back now.
+    func almostHome() {
+        guard !isOpen, item != nil else { return }
+        closeNow()
+    }
+
     /// Gone at once: the tab changed or the stack was reset under it.
     func closeNow() {
         guard item != nil else { return }
@@ -122,6 +129,9 @@ final class EventOpener {
         return CGRect(x: box.minX + (to.minX - box.minX) * p, y: box.minY + (to.minY - box.minY) * p,
                       width: box.width + (to.width - box.width) * p, height: box.height + (to.height - box.height) * p)
     }
+
+    /// How far from home a close is done.
+    static let homeAt: CGFloat = 0.02
 
     /// How far open the page takes the clock from Town.
     static let clockTurns: CGFloat = 0.6
@@ -252,6 +262,7 @@ private struct EventFlight: View {
             #endif
         }
         .onChange(of: p > EventOpener.clockTurns) { _, past in if past { opener.mostlyOpen() } }
+        .onChange(of: p < EventOpener.homeAt) { _, home in if home { opener.almostHome() } }
     }
 
     private var page: some View {
