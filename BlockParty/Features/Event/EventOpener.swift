@@ -222,7 +222,7 @@ private struct EventFlight: View {
 /// The page itself, its body built once per open: nothing here reads the spring.
 private struct EventPageHost: View, Equatable {
     let item: FeedCardItem
-    nonisolated static func == (a: Self, b: Self) -> Bool { a.item.id == b.item.id }
+    static func == (a: Self, b: Self) -> Bool { a.item.id == b.item.id }
 
     var body: some View {
         EventPage(item: item)
