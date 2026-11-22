@@ -63,6 +63,10 @@ skill covers the calls the code can't make.
   Benedict's Monastery"; "14215 Fruit Farm Road" is "Episcopal House of Prayer, Collegeville".
 - **No word twice in a row:** "ROCORI High School High School Gym" is "ROCORI High School Gym" (Bound
   joins a school and its room; the school reader writes them once, Jesse, 2026-11-04).
+- **A place named after a slash in the title is the place.** A shared calendar lists another
+  parish's event as "Advent Reconciliation Service/St. John the Baptist" (the Church of Saint
+  Joseph's Church Center, 2026-11-21): the place line is St. John the Baptist Church, and the
+  title ends at the slash. It beats the host's own church.
 - **"Online"** for a webinar or virtual event.
 - **City Council and EDA meetings with no room listed are at "City Hall"** (Jesse, 2026-10-20). The
   writer fills it in (`MEETS_AT`); the Park Board moves between City Hall and the parks, so it stays blank.
@@ -88,6 +92,7 @@ skill covers the calls the code can't make.
 | Festival of Cultures Student Showcase and Fashion Show | Festival of Cultures Fashion Show |
 | Nordic Ski Racing, Boys: Section Championship (Varsity) | Section Nordic Skiing Championship |
 | Dance: Edina Invite (Varsity) (Time TBA) | Edina Dance Invite |
+| Advent Reconciliation Service/St. John the Baptist (on the Church of Saint Joseph's calendar) | Advent Reconciliation Service · St. John the Baptist Church |
 | Drama: Apollo Theater Presents: The SpongeBob Musical (Varsity) | The SpongeBob Musical |
 | Theatre: vs St. Cloud Cathedral (Winter Show) | Winter Show |
 

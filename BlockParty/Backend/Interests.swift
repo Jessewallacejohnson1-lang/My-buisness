@@ -164,9 +164,12 @@ enum Interests {
         migrate(tags.map { legacy[$0]?.first ?? $0 })
     }
 
-    /// The interests step's 9 rows (Jesse, 2026-11-04).
+    /// Edit Profile's 12 rows (BP app onboarding 48, Jesse 2026-11-19): the Interests step's 12 circles, in its
+    /// order, each a row that picks at once or opens to the smaller picks. Schools opens to the kinds of school.
     static let rows = [
         InterestRow("schools", "🏫", "Schools", .schools),
+        InterestRow("sports", "🏈", "Sports", saves: ["watch_sports"]),
+        InterestRow("campus", "🎓", "Campus life", saves: collegeIds),
         InterestRow("families", "👨‍👩‍👧", "Families & kids", saves: ["families_kids"]),
         InterestRow("faith", "⛪️", "Faith & church", saves: ["faith"]),
         InterestRow("arts", "🎨", "Arts & music", .chips([
@@ -175,23 +178,45 @@ enum Interests {
             InterestPick(label: "Crafts & making", ids: ["crafts"]),
             InterestPick(label: "Books & talks", ids: ["books", "talks"]),
         ])),
-        InterestRow("food", "🍔", "Food & drink", .chips([
+        InterestRow("food", "🍕", "Food", .chips([
             InterestPick(label: "Coffee shops", ids: ["coffee"]),
             InterestPick(label: "Food & dining", ids: ["dining"]),
-            InterestPick(label: "Bars & breweries", ids: ["bars"]),
-            InterestPick(label: "Markets & shopping", ids: ["markets"]),
         ])),
-        InterestRow("fun", "🎲", "Fun", .chips([
+        InterestRow("shopping", "🛍️", "Shopping", saves: ["markets"]),
+        // Bars stay out of an under-18's feed, as they always have.
+        InterestRow("fun", "🎲", "Fun & games", .chips([
             InterestPick(label: "Games & trivia", ids: ["games"]),
             InterestPick(label: "Festivals & holidays", ids: ["festivals"]),
+            InterestPick(label: "Bars & breweries", ids: ["bars"]),
         ])),
         InterestRow("outdoors", "🌲", "Outdoors", saves: ["outdoors", "lakes_biking"]),
         InterestRow("health", "💪", "Health & fitness", saves: ["health", "play_sports"]),
-        InterestRow("town", "🏛️", "Town life", .chips([
+        InterestRow("city", "🏛️", "City updates", .chips([
             InterestPick(label: "Town meetings", ids: ["town_meetings"]),
             InterestPick(label: "Volunteering & giving", ids: ["volunteering"]),
         ])),
     ]
+
+    /// The Interests step's 12 photo circles (BP app onboarding 48): one for each row, picking all it holds in
+    /// one tap. Schools holds none: picking it makes Follow 3 lead with schools.
+    static let circles: [InterestPick] = rows.map { row in
+        switch row.kind {
+        case .pick(let pick): InterestPick(label: row.label, ids: pick.ids)
+        case .chips(let picks): InterestPick(label: row.label, ids: picks.flatMap(\.ids))
+        case .schools: InterestPick(label: row.label, ids: [])
+        }
+    }
+
+    /// A circle's photo in `Resources/Images`: "Families & kids" is `interest-families-kids.jpg`.
+    static func photo(_ circle: InterestPick) -> String {
+        let words = circle.label.lowercased().split { !$0.isLetter }
+        return "interest-" + words.joined(separator: "-") + ".jpg"
+    }
+
+    /// How many circles are picked, Schools aside (the onboarding store keeps that one).
+    static func circlesPicked(_ picked: [String]) -> Int {
+        circles.filter { !$0.ids.isEmpty && $0.isOn(in: picked) }.count
+    }
 
     /// Every pick the rows hold, top to bottom.
     static let picks: [InterestPick] = rows.flatMap { row -> [InterestPick] in
@@ -202,8 +227,8 @@ enum Interests {
         }
     }
 
-    /// A college's interests: following anything under its kind of school picks them (Jesse,
-    /// 2026-11-04), so its Events lift and the ones for its students reach you. On no chip.
+    /// A college's interests, which Campus life picks: following anything under its kind of school picks them too
+    /// (Jesse, 2026-11-04), so its Events lift and the ones for its students reach you.
     static let collegeIds = ["campus", "college"]
 
     /// The picks with this one turned over: on adds what it saves, off takes all of it.
@@ -218,16 +243,16 @@ enum Interests {
     /// Their names, for Edit Profile's summary: what the rows call them.
     static func names(_ picked: [String]) -> [String] { picks.filter { $0.isOn(in: picked) }.map(\.label) }
 
-    /// The picks with the college's in them, or out, by whether anything under it is followed.
-    static func withCollege(_ picked: [String], following: Bool) -> [String] {
-        let others = picked.filter { !collegeIds.contains($0) }
-        return following ? others + collegeIds : others
+    /// The picks with the college's added, for a follow of anything under it. Since Campus life shows them
+    /// (onboarding 48), an unfollow leaves them: they're a pick you can see and take off.
+    static func withCollege(_ picked: [String]) -> [String] {
+        picked + collegeIds.filter { !picked.contains($0) }
     }
 
-    /// The picks somebody can still see and take off: Watch sports and the others no longer on
-    /// the rows go, so nobody keeps a lift they can't see.
+    /// The picks somebody can still see and take off: those no longer on the rows go, so nobody keeps a
+    /// lift they can't see.
     static func onRows(_ picked: [String]) -> [String] {
-        let shown = picks.flatMap(\.ids) + collegeIds
+        let shown = picks.flatMap(\.ids)
         return picked.filter(shown.contains)
     }
 

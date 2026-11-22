@@ -1,9 +1,10 @@
 //
 //  InterestsTests.swift
-//  The 25 interests (BP app onboarding 20 and 21), the old-to-new map, and the 9 rows that pick them
-//  (onboarding 28).
+//  The 25 interests (BP app onboarding 20 and 21), the old-to-new map, and the 12 rows and circles that pick
+//  them (onboarding 48).
 //
 
+import UIKit
 import XCTest
 @testable import BlockParty
 
@@ -27,18 +28,44 @@ final class InterestsTests: XCTestCase {
         for (_, ids) in Interests.legacy { XCTAssertEqual(Interests.migrate(ids), ids) }
     }
 
-    func testTheNineRowsSaveOnlyRealInterests() {
+    func testTheTwelveRowsSaveOnlyRealInterests() {
         XCTAssertEqual(Interests.rows.map(\.label),
-                       ["Schools", "Families & kids", "Faith & church", "Arts & music", "Food & drink", "Fun",
-                        "Outdoors", "Health & fitness", "Town life"])
+                       ["Schools", "Sports", "Campus life", "Families & kids", "Faith & church", "Arts & music", "Food",
+                        "Shopping", "Fun & games", "Outdoors", "Health & fitness", "City updates"])
         let real = Set(Interests.all.map(\.id))
-        for id in Interests.picks.flatMap(\.ids) + Interests.collegeIds { XCTAssertTrue(real.contains(id), id) }
+        for id in Interests.picks.flatMap(\.ids) { XCTAssertTrue(real.contains(id), id) }
         // Nothing saves what another saves.
         let ids = Interests.picks.flatMap(\.ids)
         XCTAssertEqual(ids.count, Set(ids).count)
-        // Schools saves nothing: only what you follow lifts (Jesse, 2026-11-04).
-        for id in ["watch_sports", "high_school", "middle_school", "networking", "campus", "college"] {
-            XCTAssertFalse(ids.contains(id), id)
+        // Schools saves nothing: it leads Follow 3 with schools (onboarding 48).
+        for id in ["high_school", "middle_school", "networking"] { XCTAssertFalse(ids.contains(id), id) }
+    }
+
+    func testEachCirclePicksItsWholeRow() {
+        XCTAssertEqual(Interests.circles.map(\.label), Interests.rows.map(\.label))
+        let circle = { (label: String) in Interests.circles.first { $0.label == label }! }
+        XCTAssertEqual(circle("Schools").ids, [])
+        XCTAssertEqual(circle("Sports").ids, ["watch_sports"])
+        XCTAssertEqual(circle("Campus life").ids, ["campus", "college"])
+        XCTAssertEqual(circle("Arts & music").ids, ["live_music", "art_theater", "crafts", "books", "talks"])
+        XCTAssertEqual(circle("Food").ids, ["coffee", "dining"])
+        XCTAssertEqual(circle("Shopping").ids, ["markets"])
+        XCTAssertEqual(circle("Fun & games").ids, ["games", "festivals", "bars"])
+        XCTAssertEqual(circle("City updates").ids, ["town_meetings", "volunteering"])
+        // One tap picks the whole group and counts once; another takes it all off.
+        let picked = Interests.toggled(circle("Food"), in: ["faith"])
+        XCTAssertEqual(picked, ["faith", "coffee", "dining"])
+        XCTAssertEqual(Interests.circlesPicked(picked), 2)
+        XCTAssertEqual(Interests.toggled(circle("Food"), in: picked), ["faith"])
+        // A chip picked in Edit Profile shows its circle on.
+        XCTAssertEqual(Interests.circlesPicked(["bars"]), 1)
+        XCTAssertEqual(Interests.circlesPicked([]), 0)
+    }
+
+    func testEveryCircleHasItsPhoto() {
+        XCTAssertEqual(Interests.photo(Interests.circles[3]), "interest-families-kids.jpg")
+        for circle in Interests.circles {
+            XCTAssertNotNil(UIImage(named: Interests.photo(circle)), circle.label)
         }
     }
 
@@ -54,15 +81,15 @@ final class InterestsTests: XCTestCase {
         XCTAssertEqual(Interests.toggled(books, in: ["talks"]), [])
     }
 
-    func testTheCollegesInterestsFollowItsFollows() {
-        XCTAssertEqual(Interests.withCollege(["coffee"], following: true), ["coffee", "campus", "college"])
-        XCTAssertEqual(Interests.withCollege(["coffee", "campus", "college"], following: true), ["coffee", "campus", "college"])
-        XCTAssertEqual(Interests.withCollege(["campus", "coffee", "college"], following: false), ["coffee"])
-        XCTAssertEqual(Interests.count(["campus", "college"]), 0, "a follow is what's counted, never these")
+    func testFollowingTheCollegePicksCampusLife() {
+        XCTAssertEqual(Interests.withCollege(["coffee"]), ["coffee", "campus", "college"])
+        XCTAssertEqual(Interests.withCollege(["coffee", "campus", "college"]), ["coffee", "campus", "college"])
+        XCTAssertEqual(Interests.withCollege(["campus", "coffee"]), ["campus", "coffee", "college"])
+        XCTAssertEqual(Interests.count(["campus", "college"]), 1, "Campus life shows them since onboarding 48")
     }
 
     func testPicksNoLongerOnTheRowsGo() {
         XCTAssertEqual(Interests.onRows(["watch_sports", "coffee", "high_school", "networking", "campus", "college"]),
-                       ["coffee", "campus", "college"])
+                       ["watch_sports", "coffee", "campus", "college"])
     }
 }

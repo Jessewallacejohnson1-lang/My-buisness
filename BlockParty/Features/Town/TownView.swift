@@ -460,6 +460,9 @@ final class FrameGapLog {
     func start() {
         guard link == nil else { return }
         let l = CADisplayLink(target: self, selector: #selector(tick))
+        // 120 Hz, as a finger on the glass keeps it: with no touch (`-open-cycle`, `-pill-cycle`) the screen ran at
+        // 60, and every time read in whole 16 ms frames.
+        l.preferredFrameRateRange = CAFrameRateRange(minimum: 80, maximum: 120, preferred: 120)
         l.add(to: .main, forMode: .common)
         link = l
         let clock = TapClock { [weak self] up in self?.timeTap("touch", from: up) }

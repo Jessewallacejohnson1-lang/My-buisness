@@ -506,7 +506,10 @@ struct MainTabsView: View {
                 // A News with its post's own words, from its card or the hello pill (town-feed 65).
                 .navigationDestination(for: NewsRoute.self) { NewsPage(news: $0.news).timesOpen("news") }
                 #if DEBUG
-                .navigationDestination(for: BlankRoute.self) { _ in Color.red.ignoresSafeArea().timesOpen("blank") }
+                // Apple's bar hidden, as every real page hides it: shown, it came in on a push from Town alone.
+                .navigationDestination(for: BlankRoute.self) { _ in
+                    Color.red.ignoresSafeArea().toolbar(.hidden, for: .navigationBar).timesOpen("blank")
+                }
                 #endif
         }
         // A host's name on a card or an Event page opens its own page (follows 08).
@@ -898,8 +901,9 @@ struct MainTabsView: View {
     }
 
     /// `-open-cycle` (with `-frame-gap-log`, from Town): once the Town feed is in, each screen a tap opens, in
-    /// turn every 3 s, timed as a tap (`FrameGapLog.tapped`), and back 1.5 s later, so the phone can be timed with
-    /// no hand on it (BP app tab-lag 02). It writes nothing: an Event open isn't counted, Messages but no chat.
+    /// turn 3 s after the last step, timed as a tap (`FrameGapLog.tapped`), and back 1.5 s later, so the phone can
+    /// be timed with no hand on it (BP app tab-lag 02). It writes nothing: an Event open isn't counted, Messages but
+    /// no chat.
     struct BlankRoute: Hashable {}
     private static var cyclingOpens = false
     private func cycleOpens() {
@@ -909,8 +913,10 @@ struct MainTabsView: View {
             if friendsBook.friends.isEmpty { await friendsBook.refresh(); await friendsBook.refreshSuggestions() }
             if friendsBook.friends.isEmpty, friendsBook.suggested.isEmpty { print("FrameGapLog: open cycle has no person for a Profile") }
             let box = CGRect(x: 160, y: 400, width: SearchMetric.logoOnTile, height: SearchMetric.logoOnTile)
+            // 3 s after the last step: Town reads its feed again on each return, and that read lands about 1.4 s
+            // later with a freeze of its own, which fell on the next open at 1.5 s.
             @MainActor func step(_ name: String, open: () -> Void, back: () -> Void) async {
-                try? await Task.sleep(for: .seconds(1.5))
+                try? await Task.sleep(for: .seconds(3))
                 FrameGapLog.shared.tapped(name)
                 open()
                 try? await Task.sleep(for: .seconds(1.5))
