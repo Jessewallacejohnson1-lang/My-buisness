@@ -83,7 +83,9 @@ a flag the app reads isn't here, or one here is read by nothing (move it to the 
 - **Test runs:** `-ui-tests` marks a UI test run: the app makes no account and sends no tap kept from before (`AuthStore.isTestRun`), and the Town bar runs without its blur, whose paused animation would hold every XCUITest step to its 60 s idle timeout.
 - **Friends tab / notifications:** `-open-friends` opens the Friends tab (the middle tab since
   2026-11-01, BP app docs/plans/five-tabs; until then a page pushed from the Town bar's friends
-  mark), and `-friends-words <text>` opens it with those words typed. It
+  mark), and `-friends-words <text>` opens it with those words typed; `-start-group <name>` opens its
+  New group sheet with that name typed and a bundled photo picked (BP app start-a-group 02), since nothing types
+  on the simulator. It
   finds neighbours on the live database for a real account; `-town-samples` gives it sample
   neighbours on town photos instead (two asking you, three friends, one you asked, and a
   BP-yellow dot on the Friends tab), and `-town-offline` makes every search and friends read

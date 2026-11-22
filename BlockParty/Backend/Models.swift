@@ -62,9 +62,17 @@ nonisolated struct TownGroup: Decodable, Hashable, Identifiable, Sendable {
     var meetings: [Meeting] = []
     var memberCount = 0
     var joined = false
+    /// "approved", or, for a Group a neighbour started (BP app start-a-group 02), "pending" while its checks run
+    /// (only its starter, members and the invited see it) or "rejected" (only its starter).
+    var status = "approved"
+    /// "Sam": who invited you, while you aren't in it yet.
+    var invitedBy: String? = nil
+    /// The photo its starter picked; a Group from the town's list has none.
+    var imageUrl: URL? = nil
 
     private enum CodingKeys: String, CodingKey {
-        case id, name, kind, schedule, location, about, pageUrl, photos, logo, meetings, memberCount, joined
+        case id, name, kind, schedule, location, about, pageUrl, photos, logo, meetings, memberCount, joined,
+             status, invitedBy, imageUrl
     }
 
     init(id: String, name: String, kind: String? = nil, photos: [PlacePicture] = [], logo: PlacePicture? = nil,
@@ -97,6 +105,9 @@ nonisolated struct TownGroup: Decodable, Hashable, Identifiable, Sendable {
         meetings = ((try? c.decodeIfPresent([Lenient<Meeting>].self, forKey: .meetings)) ?? []).compactMap(\.value)
         memberCount = (try? c.decodeIfPresent(Int.self, forKey: .memberCount)) ?? 0
         joined = (try? c.decodeIfPresent(Bool.self, forKey: .joined)) ?? false
+        status = (try? c.decodeIfPresent(String.self, forKey: .status)) ?? "approved"
+        invitedBy = try? c.decodeIfPresent(String.self, forKey: .invitedBy)
+        imageUrl = (try? c.decodeIfPresent(String.self, forKey: .imageUrl)).flatMap { $0.flatMap(URL.init(string:)) }
     }
 }
 
@@ -439,6 +450,8 @@ nonisolated struct TownPost: Hashable, Identifiable, Sendable {
     let leavesAt: Date
     var heartCount = 0
     var hearted = false
+    /// The comments everyone sees on it (BP app backlog 38): what its pill says, the same rule its sheet lists by.
+    var comments = 0
     /// From you or someone you follow (friends follow each other), as the feed's row says: the Block
     /// Party tab's Following shows it (daily-tab 23).
     var followed = false
@@ -758,17 +771,6 @@ struct FollowRow: Decodable, Identifiable, Hashable {
 
     var id: String { targetId }
     var target: FollowTarget { FollowTarget(type: targetType, id: targetId) }
-}
-
-/// A flat comment ("note") on a posting (club_events row). No threading — see
-/// spec §3 ("No threaded/nested comments").
-struct EventComment: Identifiable {
-    let id: String
-    let body: String
-    let createdAt: Date
-    let authorId: String
-    let authorName: String
-    let authorAvatar: String?
 }
 
 // MARK: - Insert inputs

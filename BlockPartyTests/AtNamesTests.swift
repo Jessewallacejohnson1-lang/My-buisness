@@ -141,13 +141,13 @@ final class AtNamesTests: XCTestCase {
         keep.removePersistentDomain(forName: "AtNamesTests")
         let post = TownPost(id: "p1", poster: .init(id: "u1", name: "Marlene"), words: "Hi @Sam",
                             posted: Date(), leavesAt: Date().addingTimeInterval(86_400))
-        let notices = Notices(read: { [] }, named: { [NamedNotice(post: post, tagged: false)] }, keep: keep)
+        let notices = Notices(read: { [] }, named: { [NamedNotice(post: post)] }, keep: keep)
         await notices.refresh()
         XCTAssertTrue(notices.dot)
         XCTAssertEqual(BellRow.merged(notices.list ?? [], [], named: notices.named).map(\.id), ["named:p1"])
         notices.opened()
         XCTAssertFalse(notices.dot)
-        let failing = Notices(read: { throw URLError(.notConnectedToInternet) }, named: { [NamedNotice(post: post, tagged: true)] },
+        let failing = Notices(read: { throw URLError(.notConnectedToInternet) }, named: { [NamedNotice(post: post, how: .tagged)] },
                               keep: keep)
         await failing.refresh()
         XCTAssertTrue(failing.failed, "the changes' read failed with nothing read before")

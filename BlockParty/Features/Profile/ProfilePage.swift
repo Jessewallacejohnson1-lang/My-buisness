@@ -161,6 +161,8 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
     var openFriends: (() -> Void)? = nil
     var openFollowing: (() -> Void)? = nil
     var openFollowers: (() -> Void)? = nil
+    /// Your own page: Start a group, the last row of Groups (BP app start-a-group 02); nil on a neighbour's.
+    var startGroup: (() -> Void)? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Namespace private var zoom
@@ -271,12 +273,17 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
                 }
             }
 
-            if !face.groups.isEmpty {
+            if !face.groups.isEmpty || startGroup != nil {
                 section("Groups")
                 card {
                     ForEach(face.groups) { group in
                         Button { openGroup(group) } label: { groupRow(group) }
                             .buttonStyle(.press(.squish))
+                            .padding(.top, Sizes.rowTop)
+                    }
+                    if let startGroup {
+                        StartGroupRow(tile: Sizes.tile, corner: Sizes.tileCorner, font: .apple(16, weight: .semibold),
+                                      action: startGroup)
                             .padding(.top, Sizes.rowTop)
                     }
                 }

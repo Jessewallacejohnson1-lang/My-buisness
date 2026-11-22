@@ -30,6 +30,7 @@ final class LoadingGuardTests: XCTestCase {
         "Features/Profile/EditProfileView.swift", // save button, mid-save
         "Features/Components/InlineAction.swift", // the shared inline button itself
         "Features/Town/NewPost.swift",            // Post, mid-post; a post on its way (as AddFormView's was)
+        "Features/Groups/StartGroup.swift",       // Create, mid-create, in its own toolbar spot
     ]
 
     func testNoSpinnersOutsideTappedControls() throws {

@@ -152,6 +152,8 @@ final class ModerationModel: ObservableObject {
     @Published var reports: [ReportedEvent] = []
     /// Reported chat messages, as their reports kept them (BP app five-tabs 05). Nobody else's chats show here.
     @Published var messages: [ReportedMessage] = []
+    /// Reported comments on posts, as their reports kept them (BP app backlog 38).
+    @Published var comments: [ReportedComment] = []
     @Published var loading = true
     @Published var failed = false
     /// Bumped when a decision fails and its row comes back, so that row shakes.
@@ -165,18 +167,20 @@ final class ModerationModel: ObservableObject {
         #if DEBUG
         if preview { posts = Self.fixtures; reports = Self.reportFixtures; messages = Self.messageFixtures; loading = false; return }
         #endif
-        if posts.isEmpty && clubs.isEmpty && reports.isEmpty && messages.isEmpty { loading = true }
+        if posts.isEmpty && clubs.isEmpty && reports.isEmpty && messages.isEmpty && comments.isEmpty { loading = true }
         do {
             async let p = api.getPendingPosts()
             async let c = api.getPendingClubs()
             async let r = api.reportedEvents()
             async let m = ChatAPI(api.db).reportedMessages()
+            async let rc = api.reportedComments()
             // A row mid-decision stays gone even if this fetch raced its write.
             posts = try await p.filter { !acting.contains($0.id) }
             clubs = try await c.filter { !acting.contains($0.id) }
             // Reports never blank the rest of the queue.
             reports = ((try? await r) ?? []).filter { !acting.contains($0.id) }
             messages = ((try? await m) ?? []).filter { !acting.contains($0.id) }
+            comments = ((try? await rc) ?? []).filter { !acting.contains($0.id) }
             failed = false
         } catch {
             if posts.isEmpty && clubs.isEmpty && reports.isEmpty { failed = true }
@@ -241,6 +245,21 @@ final class ModerationModel: ObservableObject {
             withAnimation(Self.leave) { messages.insert(report, at: min(i, messages.count)) }
                 completion: { self.rollback(report.id) }
             Log.network("Moderation.decideMessage: \(error)")
+        }
+    }
+
+    /// A reported comment: keep it (the report goes) or hide it from every read. The row leaves at once; a failed write
+    /// brings it back.
+    func decideComment(_ api: CommunityAPI, _ report: ReportedComment, hide: Bool) async {
+        guard !acting.contains(report.id), let i = comments.firstIndex(of: report) else { return }
+        acting.insert(report.id); defer { acting.remove(report.id) }
+        withAnimation(Self.leave) { _ = comments.remove(at: i) }
+        do {
+            try await write { try await api.resolveCommentReport(report.id, hide: hide) }
+        } catch {
+            withAnimation(Self.leave) { comments.insert(report, at: min(i, comments.count)) }
+                completion: { self.rollback(report.id) }
+            Log.network("Moderation.decideComment: \(error)")
         }
     }
 
@@ -367,7 +386,8 @@ struct ModerationView: View {
     }
 
     private var api: CommunityAPI { CommunityAPI(auth: auth) }
-    private var pendingCount: Int { model.posts.count + model.clubs.count + model.reports.count + model.messages.count }
+    private var pendingCount: Int { model.posts.count + model.clubs.count + model.reports.count + model.messages.count
+        + model.comments.count }
 
     var body: some View {
         NavigationStack {
@@ -422,6 +442,26 @@ struct ModerationView: View {
                                     asksWhy: false,
                                     declineLabel: "Hide",
                                     onDecline: { _ in Task { await model.decideMessage(api, report, hide: true) } })
+                                .transition(Self.rowTransition)
+                            }
+                        }
+                        if !model.comments.isEmpty {
+                            ModerationSectionLabel(text: "Reported comments")
+                            ForEach(Array(model.comments.enumerated()), id: \.element.id) { i, report in
+                                ReviewQueueRow(
+                                    who: .init(face: .person(nil), name: report.writerName ?? "A neighbour"),
+                                    title: report.body, titleLines: nil,
+                                    when: report.postWords.map { "On the post \(ReviewRow.quoted($0))" },
+                                    tag: .init(symbol: "flag",
+                                               text: "Reported: \(ReportReason(rawValue: report.reason)?.label ?? report.reason)"),
+                                    line: i > 0,
+                                    shakes: model.rollbacks[report.id, default: 0],
+                                    onOpen: nil,
+                                    approveLabel: "Keep",
+                                    onApprove: { Task { await model.decideComment(api, report, hide: false) } },
+                                    asksWhy: false,
+                                    declineLabel: "Hide",
+                                    onDecline: { _ in Task { await model.decideComment(api, report, hide: true) } })
                                 .transition(Self.rowTransition)
                             }
                         }

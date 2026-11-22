@@ -26,6 +26,10 @@ enum Radius {
     /// event-card 03), tighter than a Town card's 20, as a printed poster's is.
     static let poster: CGFloat = 10
 
+    /// The hello pill open into a count's Events, and each row's photo: the approved Figma L2 (BP app hello-drop 10).
+    static let helloList: CGFloat = 28
+    static let helloRowPhoto: CGFloat = 10
+
     /// A school page's cards, Apple Sports' league page as the picked mock draws them (BP app
     /// school-search 05, version 2; measured off Apple's own frame they come out nearer 26).
     static let schoolCard: CGFloat = 30
