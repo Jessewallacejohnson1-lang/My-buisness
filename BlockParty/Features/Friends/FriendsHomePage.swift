@@ -92,7 +92,7 @@ struct FriendsHomePage: View {
     /// Groups just joined, still in Groups to join showing Joined until `joinedHold` is up.
     @State private var holding: Set<String> = []
     /// Start a group's sheet (BP app start-a-group 02).
-    @State private var starting = false
+    @State private var starting = LaunchFlags.value(.startGroup) != nil
     /// Opens the new Group's page on the shell's stack once the sheet is down.
     @Environment(\.hostOpener) private var opener
 

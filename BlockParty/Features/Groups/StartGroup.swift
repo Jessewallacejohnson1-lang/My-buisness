@@ -189,7 +189,17 @@ struct StartGroupSheet: View {
                 }
             }
         }
-        .onAppear { naming = true }
+        .onAppear {
+            naming = true
+            #if DEBUG
+            // `-start-group <name>`: typed and a photo picked, as nothing types on the simulator.
+            if let name = LaunchFlags.value(.startGroup), draft.name.isEmpty {
+                draft.name = name
+                image = UIImage(named: "interest-fun-games.jpg")
+                naming = false
+            }
+            #endif
+        }
     }
 
     private var well: some View {
