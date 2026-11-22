@@ -201,33 +201,35 @@ def search_pages():
     return pages
 
 
-def rereads(db, now):
-    """Every Event linked to a Facebook event (its own listing or a mention) that starts after the next REREAD_DAY read,
-    as pages that day's search task reads again (BP app watch-every-place 24; Jesse, 2026-11-14: "check for updates on
-    events and changes in description or new images"): a cent each read. A page is named for the host that listed the
-    Event, its own source first, so the read keys to the same Event (write_judged's fb: id) and takes its new date, time,
-    place, About and cover, or its cancelling. A cancelled Event isn't read, nor one started before the read: the list
-    is made at the check before it, and Apify bills a past event too (Nov 21: 8 of 43; watch-every-place 41). One with
-    no time on the read's day is read. With no `db`, the database keys in the environment."""
+def rereads(db, today):
+    """Every upcoming Event linked to a Facebook event (its own listing or a mention), as pages: REREAD_DAY's search task
+    reads again those that start after it (sync_tasks), and a check names the rows it reads by all of them (BP app
+    watch-every-place 24; Jesse, 2026-11-14: "check for updates on events and changes in description or new images"): a
+    cent each read. A page is named for the host that listed the Event, its own source first, so the read keys to the
+    same Event (write_judged's fb: id) and takes its new date, time, place, About and cover, or its cancelling. A past or
+    cancelled Event isn't read. Each page's `starts` is its latest Event's start, "2026-11-21T09:00", or the day's end
+    with no time. With no `db`, the database keys in the environment."""
     from write_judged import parse_clock
     if db is None:
         from run import Supabase
         db = Supabase()
-    at = next_read(now, REREAD_DAY)
     rows = db.rest("GET", "event_mentions?select=source_name,source_url,club_events!inner(source_name,place_entry_id,"
                           f"event_date,start_time)&source_url=like.{quote('*facebook.com/events/*')}"
                           "&club_events.status=eq.approved&club_events.kind=eq.event&club_events.cancelled_at=is.null"
-                          f"&club_events.event_date=gte.{at.date()}")
+                          f"&club_events.event_date=gte.{today}")
     out = {}
     for r in rows:
         number, e = FB_EVENT.search(r.get("source_url") or ""), r.get("club_events") or {}
-        starts = parse_clock(e.get("start_time"))
-        if str(e.get("event_date")) == str(at.date()) and starts and starts < at.time():
+        if not number:
             continue
-        if number and (number[1] not in out or r["source_name"] == e.get("source_name")):
+        clock = parse_clock(e.get("start_time"))
+        starts = f"{e.get('event_date')}T{clock.strftime('%H:%M') if clock else '24:00'}"
+        if number[1] not in out or r["source_name"] == e.get("source_name"):
             out[number[1]] = {"entry_id": e.get("place_entry_id") or "", "name": r["source_name"], "kind": "search",
                               "busy": False, "reread": True, "url": f"https://www.facebook.com/events/{number[1]}/",
-                              "day": REREAD_DAY}
+                              "day": REREAD_DAY, "starts": max(starts, out.get(number[1], {}).get("starts", ""))}
+        else:
+            out[number[1]]["starts"] = max(starts, out[number[1]]["starts"])
     return [p for _, p in sorted(out.items())]
 
 
@@ -458,11 +460,13 @@ def since(task, began, now):
 def sync_tasks(root, missed=None, now=None, again=()):
     """Each task's pages as the lists now have them (page_lists), each weekly page in its day's task
     (`bp-weekly-<day>-<kind>`), and how far back each posts task reads (since); makes a task that is
-    missing. Returns {task name: id} of the tasks with pages. Every Event in `again` is read on its day: Apify
-    bills an event once a run however many of the run's pages return it, so one the town's events page returns too
-    costs nothing more (2026-11-16: 103 rows, 103 events), and skipping it saves only when the page stops returning it,
-    the read that matters (BP app watch-every-place 26, 2026-11-17)."""
+    missing. Returns {task name: id} of the tasks with pages. An Event in `again` is read on its day when it starts
+    after that read: the list is made at the check before it, and Apify bills an event already started too (Nov 21: 8 of
+    43; BP app watch-every-place 41). One the town's events page returns too costs nothing more: Apify bills an event
+    once a run however many of the run's pages return it (2026-11-16: 103 rows, 103 events; watch-every-place 26)."""
     now = now or datetime.now(timezone.utc)
+    read = next_read(now, REREAD_DAY).strftime("%Y-%m-%dT%H:%M")
+    again = [p for p in again if p.get("starts", "~") >= read]
     tasks, ids, began = by_name("/actor-tasks"), {}, days_began()
     for (run, kind), pages in page_lists(root, missed, now, again).items():
         actor, cap = ACTORS[(run, kind)]
@@ -493,7 +497,7 @@ def setup():
         api("PUT", f"/key-value-stores/{_store_id()}/records/days-began", {"at": began.isoformat()})
         print(f"[social] the weekly days begin where the last weekly check left off: {began.astimezone(LOCAL):%a %b %-d %-I:%M %p}")
     try:
-        again = rereads(None, now)
+        again = rereads(None, now.astimezone(LOCAL).date())
     except (Exception, SystemExit) as e:  # no database keys here (Supabase() exits): the next check's prepare adds them
         again = []
         print(f"[social] the Events to read again are unread ({e}); the next check's prepare adds them to the search tasks")
@@ -955,7 +959,7 @@ def prepare(run, now):
         except Exception as e:  # every page read this time, and none counted
             saved["missed"], _ = None, saved["failed"].append(f"set-aside pages unreadable: {e}")
         try:
-            saved["again"] = rereads(run.db, now)
+            saved["again"] = rereads(run.db, today)
         except (Exception, SystemExit) as e:  # no database keys (a dry run on a Mac): the next check's prepare adds them
             saved["again"], _ = [], saved["failed"].append(f"Events to read again unread: {e}")
         try:
@@ -1313,7 +1317,7 @@ def selftest():
     class Mentions:
         def rest(self, method, path, body=None, prefer=None):
             asked.append(path)
-            later = {"event_date": "2026-11-28", "start_time": "10 AM"}
+            later = {"event_date": "2026-11-28", "start_time": "4 PM"}
             return [{"source_name": "Visit Joetown", "source_url": "https://www.facebook.com/events/1596047658468573/",
                      "club_events": {"source_name": "JoeTown", "place_entry_id": "joetown", **later}},
                     {"source_name": "JoeTown", "source_url": "https://www.facebook.com/events/1596047658468573/?ref=1",
@@ -1327,19 +1331,15 @@ def selftest():
                     {"source_name": "Sal's", "source_url": "https://www.facebook.com/events/1595756672032370/",
                      "club_events": {"source_name": "Sal's", "place_entry_id": "sals", "event_date": "2026-11-21",
                                      "start_time": None}}]
-    friday_check = datetime(2026, 11, 20, 19, 30, tzinfo=LOCAL)  # Nov 21's read is Saturday 3 PM
-    again = rereads(Mentions(), friday_check)
-    check([(p["url"], p["name"], p["day"]) for p in again] == [
-              ("https://www.facebook.com/events/1107906461871802/", "Sunny Mary Meadow", "sat"),
-              ("https://www.facebook.com/events/1595756672032370/", "Sal's", "sat"),
-              ("https://www.facebook.com/events/1596047658468573/", "JoeTown", "sat")]
-          and again[2]["entry_id"] == "joetown" and all(p["reread"] and p["kind"] == "search" for p in again)
-          and "club_events.event_date=gte.2026-11-21" in asked[0] and "club_events.cancelled_at=is.null" in asked[0],
-          "each Event's Facebook event is read again on Saturday, named for the Event's own host; one that starts before "
-          "the 3 PM read is not (Nov 21: 8 of 43 read were past), one with no time is")
-    asked.clear()
-    rereads(Mentions(), datetime(2026, 11, 21, 15, 45, tzinfo=LOCAL))
-    check("event_date=gte.2026-11-28" in asked[0], "a check after Saturday's read lists Events for next Saturday's")
+    again = rereads(Mentions(), date(2026, 11, 20))
+    check([(p["url"], p["name"], p["day"], p["starts"]) for p in again] == [
+              ("https://www.facebook.com/events/1107906461871802/", "Sunny Mary Meadow", "sat", "2026-11-21T19:00"),
+              ("https://www.facebook.com/events/1382973853614119/", "RLC", "sat", "2026-11-21T09:00"),
+              ("https://www.facebook.com/events/1595756672032370/", "Sal's", "sat", "2026-11-21T24:00"),
+              ("https://www.facebook.com/events/1596047658468573/", "JoeTown", "sat", "2026-11-28T16:00")]
+          and again[3]["entry_id"] == "joetown" and all(p["reread"] and p["kind"] == "search" for p in again)
+          and "club_events.event_date=gte.2026-11-20" in asked[0] and "club_events.cancelled_at=is.null" in asked[0],
+          "each upcoming Event's Facebook event is read again on Saturday, named for the Event's own host, with its start")
     tabbed = {canon(p["url"]): p for p in again}
     reread = lambda **kw: {"inputUrl": "https://www.facebook.com/events/1107906461871802/", "id": "1107906461871802",
                            "url": "https://www.facebook.com/events/1107906461871802/", "name": "Winter Wreath Workshop",
@@ -1365,12 +1365,13 @@ def selftest():
     saved = {k: g[k] for k in fakes}
     try:
         g.update(fakes)
-        sync_tasks(None, {}, datetime(2026, 11, 15, tzinfo=LOCAL), again)
+        sync_tasks(None, {}, datetime(2026, 11, 20, 19, 30, tzinfo=LOCAL), again)  # Friday's check: Saturday 3 PM's read
+        sync_tasks(None, {}, datetime(2026, 11, 21, 15, 45, tzinfo=LOCAL), again)  # after it: next Saturday's
     finally:
         g.update(saved)
-    check(kept == [again] and asked == [],
-          "every Event is read again on its day, with no look at the last search: Apify bills an event once a run "
-          "(watch-every-place 26, 2026-11-17)")
+    check(kept == [[again[0], again[2], again[3]], [again[3]]] and asked == [],
+          "the Saturday task reads again only Events that start after its 3 PM read, one with no time that day too "
+          "(Nov 21: 8 of 43 read had started; watch-every-place 41), with no look at the last search (watch-every-place 26)")
     # watch-every-place 36: the store is found with a read, so an account Apify turned off keeps its marks; made once
     stores, posted = {"data": {"items": [{"name": STORE, "id": "s1"}, {"name": "other", "id": "o"}]}}, []
     def store_api(m, path, body=None):
