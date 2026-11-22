@@ -70,6 +70,20 @@ final class EventOpenerTests: XCTestCase {
         XCTAssertEqual(opener.item?.id, "a", "a lift on Town under an open page builds nothing")
     }
 
+    func testTheCardStaysWholeUntilItsPhotoFlies() {
+        let opener = EventOpener()
+        opener.reduceMotion = true
+        let photo = EventOpener.Source(box: source.box, photo: URL(string: "https://example.com/walk.jpg"))
+        opener.prepare(card("a"), from: photo)
+        XCTAssertFalse(opener.hidesCard("a"), "built during the wait, the card keeps its words and its press")
+        opener.open(card("a"), from: photo)
+        XCTAssertTrue(opener.hidesCard("a"), "its photo is the one flying")
+        opener.close()
+        XCTAssertFalse(opener.hidesCard("a"))
+        opener.open(card("b"), from: source)
+        XCTAssertFalse(opener.hidesCard("b"), "a card that grows its box stays under the page")
+    }
+
     func testPhotoFliesFromTheCardToThePageTop() {
         let box = CGRect(x: 16, y: 180, width: 370, height: 247)
         let hero = CGRect(x: 0, y: 0, width: 402, height: 410)

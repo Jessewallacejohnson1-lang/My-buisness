@@ -30,6 +30,9 @@ final class EventOpener {
     private(set) var source = Source(box: .zero)
     /// Where it is headed: open, or home.
     private(set) var isOpen = false
+    /// On screen, from the open until it is home: false while it is only built. Set once each way, so the cards that
+    /// read it never redraw with the spring.
+    private(set) var shown = false
     let progress = LiveSpring(0)
     @ObservationIgnored var reduceMotion = false
     /// Counted as an open, for popularity, as the pushed page's onAppear did (`RootView`).
@@ -41,6 +44,7 @@ final class EventOpener {
         guard !isOpen, progress.value == 0 else { return }
         self.item = item
         self.source = source
+        LeftOff.pageY[item.id] = 0
         Task { [weak self] in
             try? await Task.sleep(for: .seconds(PhotoDoubleTap.window + 0.6))
             self?.discard(item.id)
@@ -54,12 +58,15 @@ final class EventOpener {
     }
 
     func open(_ item: FeedCardItem, from source: Source) {
+        // A new page starts at its top: the last open's scroll would fly the photo above the screen.
+        if self.item?.id != item.id { LeftOff.pageY[item.id] = 0 }
         self.item = item
         self.source = source
         isOpen = true
+        shown = true
         counted(item.id)
         progress.animate(to: 1, response: SearchMetric.openResponse, damping: SearchMetric.openDamping, instant: reduceMotion,
-                         completion: landed)
+                         completion: mostlyOpen)
     }
 
     /// Home, from wherever it is. `velocity` is the finger's, in progress per second.
@@ -71,6 +78,7 @@ final class EventOpener {
                          instant: reduceMotion) { [weak self] in
             guard let self, !self.isOpen else { return }
             item = nil
+            shown = false
         }
     }
 
@@ -80,6 +88,7 @@ final class EventOpener {
         isOpen = false
         progress.set(0)
         item = nil
+        shown = false
         AppearanceStore.shared.eventOver = false
     }
 
@@ -87,7 +96,7 @@ final class EventOpener {
     func settleOpen(velocity: CGFloat) {
         isOpen = true
         progress.animate(to: 1, response: SearchMetric.settleResponse, damping: SearchMetric.settleDamping,
-                         velocity: velocity, instant: reduceMotion, completion: landed)
+                         velocity: velocity, instant: reduceMotion, completion: mostlyOpen)
     }
 
     /// Most of the way open, the page's clock is its own: white over its picture, as a pushed page's turned during its
@@ -96,14 +105,15 @@ final class EventOpener {
         if isOpen { AppearanceStore.shared.eventOver = true }
     }
 
-    private func landed() { mostlyOpen() }
 
     /// Its page is open, or on its way in or home: the card is covered, as by a pushed page.
     func isAway(_ id: String) -> Bool { item?.id == id }
 
     /// The card's photo is the one flying, so the card's own hides: only ever one photo. A card that grows its box
     /// stays, so the page fades into it and out of it with no empty slot.
-    func hidesCard(_ id: String) -> Bool { isAway(id) && source.photo != nil }
+    /// Not while the page is only built, during the double-tap wait: the card stays whole until its photo moves, and
+    /// a like never touches it.
+    func hidesCard(_ id: String) -> Bool { isAway(id) && source.photo != nil && shown }
 
     /// Where the flying picture is at `progress`: from the card's box to the page's top picture, scrolled up by
     /// `scrollY`. Not clamped, so the open's overshoot grows it a touch past its spot and back.
@@ -172,7 +182,8 @@ private struct EventOverlayBody: View {
 
     var body: some View {
         EventFlight(item: item, box: source.box, screen: screen, safe: safe, photo: source.photo, opener: opener)
-            .gesture(EventClosePan(opener: opener, item: item.id, band: safe.minY + SearchMetric.bizBand))
+            .gesture(EventClosePan(opener: opener, item: item.id,
+                                   band: screen.minY + EventLook.photoHeight * screen.width / EventLook.mockWidth))
             .gesture(EventEdgePan(opener: opener, width: screen.width))
             .ignoresSafeArea(.keyboard)
             .allowsHitTesting(opener.isOpen)
@@ -224,10 +235,14 @@ private struct EventFlight: View {
                         }
                     }
             } else {
-                // No photo to grow: the card's box grows into the screen, the page inside it.
+                // No photo to grow: the card's box grows into the screen, the page shrunk to its width inside it,
+                // fading in over the card.
+                let r = mix(box, screen, c)
+                let s = r.width / max(screen.width, 1)
                 page
-                    .clipShape(RoundedClip(rect: mix(box, screen, c).offsetBy(dx: -origin.x, dy: -origin.y),
-                                           radius: mix(Radius.card, 0, c)))
+                    .scaleEffect(s, anchor: .topLeading)
+                    .offset(x: r.minX - origin.x, y: r.minY - origin.y)
+                    .clipShape(RoundedClip(rect: r.offsetBy(dx: -origin.x, dy: -origin.y), radius: mix(Radius.card, 0, c)))
                     .opacity(min(1, Double(c) * 4))
             }
         }
