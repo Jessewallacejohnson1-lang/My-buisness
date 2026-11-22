@@ -1001,7 +1001,8 @@ test('views: a person inserts only their own, and nobody reads them back', async
                  values (gen_random_uuid(), $1, 'view', now() - interval '1 year')`, [event]);
   await refused(`insert into public.feed_actions (item_id, action) values ($1, 'like')`, [event]);
   await refused(`insert into public.feed_actions (id, item_id, action) values (gen_random_uuid(), $1, 'view')`, [event]);
-  await refused(`insert into public.feed_actions (item_id, action)
+  // An Event that has gone is skipped, not refused, so the rest of the app's batch lands (feed-learns 02).
+  await db.query(`insert into public.feed_actions (item_id, action)
                  values ('00000000-0000-0000-0009-00000000dead', 'view')`);
   await refused(`update public.feed_actions set action = 'open'`);
   await refused(`delete from public.feed_actions`);
