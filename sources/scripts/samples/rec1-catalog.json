@@ -183,7 +183,8 @@
       "value": "10am-11am",
       "polymerIcon": "schedule"
      }
-    ]
+    ],
+    "regStart": "09/22/2025"
    }
   ]
  },
@@ -277,7 +278,8 @@
       "value": "10am-11am",
       "polymerIcon": "schedule"
      }
-    ]
+    ],
+    "regStart": "09/22/2025"
    }
   ]
  },
@@ -458,7 +460,8 @@
       "value": "10am-11am",
       "polymerIcon": "schedule"
      }
-    ]
+    ],
+    "regStart": "09/22/2025"
    }
   ]
  },
@@ -552,7 +555,8 @@
       "value": "6pm-7pm",
       "polymerIcon": "schedule"
      }
-    ]
+    ],
+    "regStart": "07/22/2026"
    }
   ]
  },
@@ -599,7 +603,8 @@
       "value": "7pm-8pm",
       "polymerIcon": "schedule"
      }
-    ]
+    ],
+    "regStart": "07/22/2026"
    }
   ]
  },
