@@ -267,24 +267,22 @@ struct OnboardingNextBar: View {
         } label: {
             // One view around the branches: bare, the style's frame and capsule went round each branch, and a
             // move to or from the Name and Photo steps cross-faded two pills (onboarding 55's frames).
+            // The one "Next" stays put between the pills; only the arrow comes and goes.
             ZStack {
                 if busy {
                     ProgressView().tint(.white)
-                } else if arrow {
+                } else {
                     HStack(spacing: 8) {
                         Text(title)
-                        Image(systemName: "arrow.right")
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                            // "Follow 3 more" rolls to 2, and back up on an unfollow (onboarding 26): Apple's
+                            // number roll, the bar holding still.
+                            .contentTransition(.numericText(value: Double(count)))
+                            .animation(.snappy, value: title)
+                        if arrow { Image(systemName: "arrow.right") }
                     }
-                    .font(.apple(20, weight: .semibold))
-                } else {
-                    Text(title)
-                        .font(.apple(17, weight: .semibold))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                        // "Follow 3 more" rolls to 2, and back up on an unfollow (onboarding 26): Apple's number
-                        // roll, the bar holding still.
-                        .contentTransition(.numericText(value: Double(count)))
-                        .animation(.snappy, value: title)
+                    .font(arrow ? .apple(20, weight: .semibold) : .apple(17, weight: .semibold))
                 }
             }
         }
