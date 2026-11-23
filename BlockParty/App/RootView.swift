@@ -1021,8 +1021,10 @@ struct MainTabsView: View {
         let old = tab
         eventOpener.closeNow()
         tabs.visited.insert(old)
+        tabs.going = newTab
         // A tab's first visit is built off to its side first, so it slides in like the rest.
         let slide = {
+            guard tabs.going == newTab else { return }
             tabs.leaving = old
             withAnimation(reduceMotion
                 ? .easeInOut(duration: 0.2)
@@ -1033,7 +1035,9 @@ struct MainTabsView: View {
             }
         }
         if tabs.visited.insert(newTab).inserted {
-            DispatchQueue.main.async(execute: slide)
+            // Drawn there before the slide starts: on iOS 27 a slide started in the frame its page is made
+            // shows no page until the slide ends (measured on the iPhone, BP app tab-lag 04).
+            AfterFrames.run(2, slide)
         } else {
             slide()
         }

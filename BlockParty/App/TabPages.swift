@@ -98,8 +98,40 @@ final class TabSelection {
     var visited: Set<Tab> = []
     /// The tab sliding off during a switch, shown until its slide ends.
     var leaving: Tab?
+    /// The tab the last tap went to: a slide still waiting for its page to be drawn gives way to a later tap.
+    @ObservationIgnored var going: Tab?
 
     init(_ tab: Tab) { self.tab = tab }
+}
+
+/// Runs its work once the screen has been drawn `frames` more times.
+@MainActor
+final class AfterFrames: NSObject {
+    private var left: Int
+    private let work: () -> Void
+    private var link: CADisplayLink?
+
+    @discardableResult
+    static func run(_ frames: Int, _ work: @escaping () -> Void) -> AfterFrames {
+        let after = AfterFrames(frames, work)
+        let link = CADisplayLink(target: after, selector: #selector(tick))
+        link.add(to: .main, forMode: .common)
+        after.link = link
+        return after
+    }
+
+    private init(_ frames: Int, _ work: @escaping () -> Void) {
+        left = frames
+        self.work = work
+    }
+
+    @objc private func tick() {
+        left -= 1
+        guard left <= 0 else { return }
+        link?.invalidate()
+        link = nil
+        work()
+    }
 }
 
 /// Reads the selection in its own body, so only what it draws follows a switch.
