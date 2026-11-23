@@ -280,7 +280,8 @@ struct OnboardingNextBar: View {
                             // number roll, the bar holding still.
                             .contentTransition(.numericText(value: Double(count)))
                             .animation(.snappy, value: title)
-                        if arrow { Image(systemName: "arrow.right") }
+                        // Gone at once on the way out: fading, it stayed behind as the pill widened.
+                        if arrow { Image(systemName: "arrow.right").transition(.asymmetric(insertion: .opacity, removal: .identity)) }
                     }
                     .font(arrow ? .apple(20, weight: .semibold) : .apple(17, weight: .semibold))
                 }
