@@ -42,7 +42,9 @@ extension View {
         return self
             // The screen's width, whatever the page would like: Search's first layout asks for 1094 pt (its
             // rows' full length), and the whole shell, tab bar too, was laid out that wide for a frame.
-            .containerRelativeFrame(.horizontal)
+            // At least 320: the container is 0 wide for a pass at launch, and a page that narrow asks for
+            // negative sizes.
+            .containerRelativeFrame(.horizontal) { length, _ in max(length, 320) }
             .environment(\.tabOnScreen, shown)
             // A pure slide, as before: only Reduce Motion's crossfade animates the fade.
             .opacity(visible ? 1 : 0)
@@ -94,14 +96,18 @@ struct KeptTab<Content: View>: View, Equatable {
 /// The tab on screen, the tabs built so far (each stays once visited) and the one sliding off.
 @MainActor @Observable
 final class TabSelection {
-    var tab: Tab
+    var tab: Tab { didSet { going = tab } }
     var visited: Set<Tab> = []
     /// The tab sliding off during a switch, shown until its slide ends.
     var leaving: Tab?
-    /// The tab the last tap went to: a slide still waiting for its page to be drawn gives way to a later tap.
-    @ObservationIgnored var going: Tab?
+    /// The tab on screen, or the one a tap went to while its first page is drawn: a later tap or route takes its
+    /// place, and a slide still waiting for a page gives way.
+    @ObservationIgnored var going: Tab
 
-    init(_ tab: Tab) { self.tab = tab }
+    init(_ tab: Tab) {
+        self.tab = tab
+        going = tab
+    }
 }
 
 /// Runs its work once the screen has been drawn `frames` more times.
@@ -109,15 +115,10 @@ final class TabSelection {
 final class AfterFrames: NSObject {
     private var left: Int
     private let work: () -> Void
-    private var link: CADisplayLink?
 
-    @discardableResult
-    static func run(_ frames: Int, _ work: @escaping () -> Void) -> AfterFrames {
-        let after = AfterFrames(frames, work)
-        let link = CADisplayLink(target: after, selector: #selector(tick))
-        link.add(to: .main, forMode: .common)
-        after.link = link
-        return after
+    static func run(_ frames: Int, _ work: @escaping () -> Void) {
+        // The link keeps its target until it is invalidated.
+        CADisplayLink(target: AfterFrames(frames, work), selector: #selector(tick)).add(to: .main, forMode: .common)
     }
 
     private init(_ frames: Int, _ work: @escaping () -> Void) {
@@ -125,11 +126,10 @@ final class AfterFrames: NSObject {
         self.work = work
     }
 
-    @objc private func tick() {
+    @objc private func tick(_ link: CADisplayLink) {
         left -= 1
         guard left <= 0 else { return }
-        link?.invalidate()
-        link = nil
+        link.invalidate()
         work()
     }
 }

@@ -1001,7 +1001,7 @@ struct MainTabsView: View {
     /// real change. Town tapped again goes to its top, then reads again, as Instagram's
     /// Home does (BP app town-feed 61); the other tabs' second tap is a no-op.
     private func select(_ newTab: Tab) {
-        guard newTab != tab else {
+        guard newTab != tabs.going else {
             if newTab == .town {
                 Haptics.selection()
                 townTappedAgain += 1
@@ -1020,6 +1020,8 @@ struct MainTabsView: View {
     private func switchTab(to newTab: Tab) {
         let old = tab
         eventOpener.closeNow()
+        // Back to the tab on screen while another's first visit waits: that slide is let go.
+        guard newTab != old else { tabs.going = newTab; return }
         tabs.visited.insert(old)
         tabs.going = newTab
         // A tab's first visit is built off to its side first, so it slides in like the rest.

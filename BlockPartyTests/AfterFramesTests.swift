@@ -26,3 +26,14 @@ final class AfterFramesTests: XCTestCase {
         XCTAssertEqual(calls, 1)
     }
 }
+
+@MainActor
+final class TabSelectionTests: XCTestCase {
+    func testAnyChangeOfTabTakesOverFromAWaitingSlide() {
+        let tabs = TabSelection(.town)
+        XCTAssertEqual(tabs.going, .town)
+        tabs.going = .friends  // a tap whose first page is still being drawn
+        tabs.tab = .you        // a scanned code or a launch flag
+        XCTAssertEqual(tabs.going, .you)
+    }
+}
