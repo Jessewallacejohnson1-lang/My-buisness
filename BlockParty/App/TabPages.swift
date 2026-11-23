@@ -40,6 +40,11 @@ extension View {
         let shift: CGFloat = reduceMotion || shown ? 0 : page.rawValue < current.rawValue ? -1 : 1
         let visible = shown || page == leaving
         return self
+            // The screen's width, whatever the page would like: Search's first layout asks for 1094 pt (its
+            // rows' full length), and the whole shell, tab bar too, was laid out that wide for a frame.
+            // At least 320: the container is 0 wide for a pass at launch, and a page that narrow asks for
+            // negative sizes.
+            .containerRelativeFrame(.horizontal) { length, _ in max(length, 320) }
             .environment(\.tabOnScreen, shown)
             // A pure slide, as before: only Reduce Motion's crossfade animates the fade.
             .opacity(visible ? 1 : 0)
@@ -91,12 +96,42 @@ struct KeptTab<Content: View>: View, Equatable {
 /// The tab on screen, the tabs built so far (each stays once visited) and the one sliding off.
 @MainActor @Observable
 final class TabSelection {
-    var tab: Tab
+    var tab: Tab { didSet { going = tab } }
     var visited: Set<Tab> = []
     /// The tab sliding off during a switch, shown until its slide ends.
     var leaving: Tab?
+    /// The tab on screen, or the one a tap went to while its first page is drawn: a later tap or route takes its
+    /// place, and a slide still waiting for a page gives way.
+    @ObservationIgnored var going: Tab
 
-    init(_ tab: Tab) { self.tab = tab }
+    init(_ tab: Tab) {
+        self.tab = tab
+        going = tab
+    }
+}
+
+/// Runs its work once the screen has been drawn `frames` more times.
+@MainActor
+final class AfterFrames: NSObject {
+    private var left: Int
+    private let work: () -> Void
+
+    static func run(_ frames: Int, _ work: @escaping () -> Void) {
+        // The link keeps its target until it is invalidated.
+        CADisplayLink(target: AfterFrames(frames, work), selector: #selector(tick)).add(to: .main, forMode: .common)
+    }
+
+    private init(_ frames: Int, _ work: @escaping () -> Void) {
+        left = frames
+        self.work = work
+    }
+
+    @objc private func tick(_ link: CADisplayLink) {
+        left -= 1
+        guard left <= 0 else { return }
+        link.invalidate()
+        work()
+    }
 }
 
 /// Reads the selection in its own body, so only what it draws follows a switch.

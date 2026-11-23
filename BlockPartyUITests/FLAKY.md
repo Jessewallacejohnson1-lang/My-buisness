@@ -10,6 +10,11 @@ flake moves to Fixed, dated, and stays there.
 
 ## Flaky
 
+- 2026-11-23 · `EventCardPhotoTapTests.testDoubleTapOnPhotoLikesAndDoesNotPush` · red once on the Mac in a full run on
+  feat/new-tab-pops-in: the double tap did nothing ("Not liked", no page pushed) · main 10716d7's own code fails the same
+  way, 3 of 40 repeats (the branch 1 of 40), at load 2 to 12 · no fix yet: a lost double tap, not a slow one
+- 2026-11-22 · `EventCardPhotoTapTests.testSingleTapOnPhotoPushesTheEventPage` · red once on the Mac in a full run on
+  feat/new-tab-pops-in (the tap pushed nothing) · passed alone straight after and in the next full runs · no fix yet
 - 2026-11-18 · `AppSessionTests.testLaunchRunsEachJobOnceAndStopsWithTheShell` · red once on the Mac in a full run on
   feat/player-stats (a game page's player stats; no launch or Search code) at load about 19: XCTAssertTrue failed at
   line 225 · passed alone straight after · no fix yet · red again 2026-11-19 in a full run on
