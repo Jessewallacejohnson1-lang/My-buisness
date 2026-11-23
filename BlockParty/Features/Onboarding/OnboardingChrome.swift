@@ -259,6 +259,8 @@ struct OnboardingNextBar: View {
     static let narrowHeight: CGFloat = 49
 
     @State private var shakes = 0
+    /// The arrow and the 8 pt before it, at 20 pt (title3), growing with large text.
+    @ScaledMetric(relativeTo: .title3) private var arrowRoom: CGFloat = 28
 
     var body: some View {
         Button {
@@ -272,7 +274,7 @@ struct OnboardingNextBar: View {
                 if busy {
                     ProgressView().tint(.white)
                 } else {
-                    HStack(spacing: 8) {
+                    HStack(spacing: 0) {
                         Text(title)
                             .lineLimit(1)
                             .minimumScaleFactor(0.7)
@@ -280,8 +282,12 @@ struct OnboardingNextBar: View {
                             // number roll, the bar holding still.
                             .contentTransition(.numericText(value: Double(count)))
                             .animation(.snappy, value: title)
-                        // Gone at once on the way out: fading, it stayed behind as the pill widened.
-                        if arrow { Image(systemName: "arrow.right").transition(.asymmetric(insertion: .opacity, removal: .identity)) }
+                        // Always here, shut to nothing off the Name and Photo steps: added and taken away, it
+                        // trailed behind on the wrong side of Next as the pill changed width.
+                        Image(systemName: "arrow.right")
+                            .padding(.leading, 8)
+                            .frame(width: arrow ? arrowRoom : 0, alignment: .leading)
+                            .opacity(arrow ? 1 : 0)
                     }
                     .font(arrow ? .apple(20, weight: .semibold) : .apple(17, weight: .semibold))
                 }
