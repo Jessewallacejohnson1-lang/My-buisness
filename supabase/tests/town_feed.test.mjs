@@ -4816,3 +4816,28 @@ test("under 18 never sees an Event whose age mark starts at 18 or older (town-fe
   await born(ME, '1990-03-01');
   assert.deepEqual((await titles('2026-10-08 18:00')).sort(), Object.keys(marks).sort());
 });
+
+// Nobody can sign up any more (signups_closed_by; BP app watch-every-place 49): out of the feed and its later list, for
+// everyone but whoever is Going or Hearted it; back once it opens.
+test('an Event whose sign-ups closed leaves the feed and its later list, except for those Going or who Hearted it', async () => {
+  await reset();
+  await people(db, ME);
+  const full = await add('Advent Sacred Pause', '2026-12-02', { shows_from: '2026-11-18' });
+  const later = await add('Centering Prayer Retreat', '2026-12-20', { shows_from: '2026-12-06' });
+  await add('Open House', '2026-12-03', { shows_from: '2026-11-18' });
+  const titles = async (over) => (await db.query(
+    `select title from public.flat_town_feed('2026-11-23 12:00-06', false, $1)`, [over])).rows.map((r) => r.title).sort();
+  const mark = (by) => db.query('update public.club_events set signups_closed_by = $2 where id = any($1)', [[full, later], by]);
+  assert.deepEqual([await titles(false), await titles(true)], [['Advent Sacred Pause', 'Open House'], ['Centering Prayer Retreat']]);
+  await mark('page');
+  assert.deepEqual([await titles(false), await titles(true)], [['Open House'], []]);
+  await db.query('insert into public.event_rsvps (event_id, user_id) values ($1, $2)', [full, ME]);
+  await db.query('insert into public.event_likes (event_id, user_id) values ($1, $2)', [later, ME]);
+  await signIn(ME);
+  assert.deepEqual([await titles(false), await titles(true)], [['Advent Sacred Pause', 'Open House'], ['Centering Prayer Retreat']]);
+  await db.exec('reset role; reset request.jwt.claim.sub; reset request.jwt.claims');
+  assert.deepEqual(await titles(false), ['Open House'], 'nobody else');
+  await mark(null);
+  assert.deepEqual(await titles(false), ['Advent Sacred Pause', 'Open House'], 'it opened again');
+  await assert.rejects(mark('someone'), /signups_closed_by_check/);
+});

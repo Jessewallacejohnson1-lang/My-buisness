@@ -1417,11 +1417,13 @@ def rec1_opened(s):
     return m and date(int(m[3]), int(m[1]), int(m[2]))
 
 
-def rec1_items(catalog, entry, src, today, infos=None):
+def rec1_items(catalog, entry, src, today, infos=None, whole=True):
     """`catalog`: [{section, group, description, sessions}] as read_rec1 gathers them. A program
     listed under several sections (Youth and Toddler) is one item, called youth only when every
     section listing it is Youth. `infos`: {session id: its details' info}, for the days a run leaves out; a run whose
-    details couldn't be read is left out of this read, so its saved date stays, and is a problem line."""
+    details couldn't be read is left out of this read, so its saved date stays, and is a problem line. The last item is
+    THE CATALOG LINE (write_judged.py), when the list was read `whole`: every program still on it, so one that left it, as the City's do once their
+    sign-ups are over, leaves the Town feed (BP app watch-every-place 49)."""
     seen, sections, infos = {}, {}, infos or {}
     for g in catalog:
         for s in g["sessions"]:
@@ -1455,7 +1457,9 @@ def rec1_items(catalog, entry, src, today, infos=None):
                           blurb=" ".join(p for p in (about, cost) if p), price=None if price is None else f"${price:g}" if price else "Free",
                           closed=bool(s.get("sessionFull") or s.get("registrationOver")),
                           source_url=src["url"], source_uid=f"rec1:{sid}"))
-    return out
+    # A catalog that lists nothing is a bad read, not a City with no programs: it closes nothing.
+    here = [f"rec1:{sid}" for sid, (_, s) in seen.items() if not s.get("canceled")]
+    return out + ([{"kind": "catalog", "uid_prefix": "rec1:", "source_name": entry["_name"], "uids": here}] if here and whole else [])
 
 
 def read_rec1(src, entry, today):
@@ -1470,12 +1474,14 @@ def read_rec1(src, entry, today):
     form = {"Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json"}
     post = lambda path: json.loads(fetch(f"{root}/catalog/{path}", b"page=1", form)[1])
     tab = next(t["id"] for t in post(f"getTabs/{key}")["tabs"] if t["label"].lower().startswith("all"))
-    catalog = []
-    for section in post(f"getItems/{key}/{tab}")["sections"]:
+    catalog, listing = [], post(f"getItems/{key}/{tab}")
+    whole = listing.get("hasMoreResults") is False  # only the first page is read: with more, the list isn't whole
+    for section in listing["sections"]:
         for g in section["groups"]:
             if g.get("type") == "activity":
-                catalog.append({"section": section["name"], "group": g["name"], "description": g.get("description"),
-                                "sessions": post(f"getActivitySessions/{key}/{tab}/{g['id']}")["items"]})
+                got = post(f"getActivitySessions/{key}/{tab}/{g['id']}")
+                whole = whole and len(got["items"]) == got.get("itemCount")
+                catalog.append({"section": section["name"], "group": g["name"], "description": g.get("description"), "sessions": got["items"]})
     # The sessions call gives a run and its weekday, and leaves out the days the run skips: its details say them
     # ("No class on Nov 26"; BP app watch-every-place 47).
     infos = {}
@@ -1489,7 +1495,7 @@ def read_rec1(src, entry, today):
             raise
         except Exception:  # left out of this read, and the report says so
             infos[s["id"]] = None
-    return rec1_items(catalog, entry, src, today, infos)
+    return rec1_items(catalog, entry, src, today, infos, whole)
 
 
 # Town and junior teams (BP app school-search 12) ------------------------------------------
@@ -2414,7 +2420,14 @@ def t_nearby_hosts_are_registry_schools():
 def t_rec1():
     """The City's rec catalog, read 2026-10-24: each dated program once, at its next date."""
     src = {"url": "https://secure.rec1.com/MN/st-joseph-mn/catalog", "trust": "official"}
-    got = {i["title"]: i for i in rec1_items(json.loads(sample("rec1-catalog.json")), CITY, src, date(2026, 10, 24))}
+    *got, listed = rec1_items(json.loads(sample("rec1-catalog.json")), CITY, src, date(2026, 10, 24))
+    got = {i["title"]: i for i in got}
+    # Every program on its list, dated or not and full or not, so the writer knows one that left it (watch-every-place 49).
+    assert listed["kind"] == "catalog" and {i["source_uid"] for i in got.values()} < set(listed["uids"]), listed
+    group = json.loads(sample("rec1-catalog.json"))[0]
+    off = lambda **kw: rec1_items([{**group, "sessions": [{**group["sessions"][0], **kw}]}], CITY, src, date(2026, 10, 24))
+    assert not [i for i in off(canceled=True) if i["kind"] == "catalog"] and rec1_items([], CITY, src, date(2026, 10, 24)) == [], \
+        "a list that read empty says nothing"
     assert sorted(got) == ["Chanhassen Dinner Theatre Day Trip", "Fall Craft Day", "Fall Puzzle Competition",
                            "Halloween Adult Dodgeball Tournament", "Winter Paint and Sip",
                            "Youth dodgeball", "Youth volleyball"], sorted(got)
@@ -2477,14 +2490,14 @@ def t_rec1_skips_its_days():
                 raise TimeoutError("slow")
             return None, json.dumps(details[what[-1]])
         got = {"getTabs": {"tabs": [{"id": 1, "label": "All Programs"}]},
-               "getItems": {"sections": [{"name": g["section"], "groups": [{"id": n, "type": "activity", "name": g["group"],
+               "getItems": {"hasMoreResults": False, "sections": [{"name": g["section"], "groups": [{"id": n, "type": "activity", "name": g["group"],
                                                                             "description": g["description"]}]}
                                          for n, g in enumerate(catalog)]}}.get(what[0])
         if what[0] == "getActivitySessions":
-            got = {"items": catalog[int(what[-1])]["sessions"]}
+            got = {"items": catalog[int(what[-1])]["sessions"], "itemCount": len(catalog[int(what[-1])]["sessions"]) + more}
         return None, json.dumps(got) if got else '<body data-page-data="{&quot;checkoutData&quot;:{&quot;key&quot;:&quot;k&quot;}}">'
-    real, broken, src = fetch, None, {"url": "https://secure.rec1.com/MN/st-joseph-mn/catalog", "reader": "rec1"}
-    day = lambda items: {i["title"]: i["start"][:10] for i in items}
+    real, broken, more, src = fetch, None, 0, {"url": "https://secure.rec1.com/MN/st-joseph-mn/catalog", "reader": "rec1"}
+    day = lambda items: {i["title"]: i["start"][:10] for i in items if i["kind"] != "catalog"}
     read = lambda: read_all([{**CITY, "sources": [src]}], date(2026, 11, 23), {"rec1": read_rec1})
     fetch = post
     try:
@@ -2492,7 +2505,10 @@ def t_rec1_skips_its_days():
         assert day(items)["Youth volleyball"] == day(items)["Youth dodgeball"] == "2026-12-03", day(items)
         assert "Pilates Class" not in day(items) and sorted(asked) == ["4429084", "4429103"], asked
         assert summary[0]["error"] is None and summary[0]["items"] == len(items), summary
-        broken = "4429084"
+        assert [i["kind"] for i in items].count("catalog") == 1
+        more = 1
+        assert "catalog" not in [i["kind"] for i in read()[0]], "a list with a second page isn't whole: nothing has left it"
+        broken, more = "4429084", 0
         items, summary = read()
         # Never the plain weekday (Thanksgiving) in its place: the program is out of this read, the others stay in.
         assert "Youth volleyball" not in day(items) and day(items)["Youth dodgeball"] == "2026-12-03", day(items)
@@ -2507,7 +2523,7 @@ def t_rec1_skips_its_days():
                  "shows_from": "2026-11-19", "review_reason": None, "cancelled_at": None, "found": True, "category": None,
                  "mentions": [{"source_name": CITY["_name"], "source_uid": "rec1:4429084", "source_url": src["url"]}]}
         wrote = plan(items, [saved], date(2026, 11, 23), interest_ids())
-        assert not wrote["cancelled"] and "e1" not in [g["id"] for g in wrote["events"]], wrote["cancelled"]
+        assert not wrote["cancelled"] and not wrote["closed"] and "e1" not in [g["id"] for g in wrote["events"]], wrote["cancelled"]
     finally:
         fetch = real
 
@@ -2962,7 +2978,7 @@ def main():
         left = every - set(part.saved["sources"])
         if left:
             return print(f"[read] run again: {len(every) - len(left)} of {len(every)} sources read")
-    shown = [i for i in items if i["kind"] != "schedule"]
+    shown = [i for i in items if i["kind"] not in ("schedule", "catalog")]
     for i in sorted(shown, key=lambda i: (i["source_name"], i.get("start") or "")):
         print(f"  {i['kind']:<5} {str(i.get('start') or '')[:16]:<16}  {i['title'][:50]:<50} | "
               f"{i['source_name'][:26]:<26} | {(i.get('place') or '')[:36]}")
@@ -2970,7 +2986,7 @@ def main():
         print(f"[read] {'FAILED' if s['error'] else 'ok':<6} {s['source']} ({s['reader']}): "
               + (s["error"] or f"{s['items']} items") + (f"; {s['note']}" if s.get("note") else ""))
     print(f"[read] {len(shown)} items from {sum(not s['error'] for s in summary)} of {len(summary)} sources")
-    if len(shown) < len(items):
+    if any(i["kind"] == "schedule" for i in items):
         print("[read] every school was read: games missing from their schedules will be marked cancelled")
     if args.include_proposed:
         print("[read] proposed entries included: a dry run to look at, not for a live write (ADR-008)")

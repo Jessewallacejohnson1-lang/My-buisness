@@ -267,6 +267,21 @@ test("parts of a long Event: written, then the old ones taken away, by the job; 
   }
 });
 
+// Sign-ups (signups.keep and write_judged.mark_signups, BP app watch-every-place 49): the job reads which Events are
+// closed, and marks one closed and open again.
+test('sign-ups: the job marks an Event closed, sees it in the writer\'s list, and opens it', async () => {
+  const { rows: [{ id }] } = await db.query(`insert into public.club_events (status, title, event_date, all_day,
+    location, source_name, source_uid, source_url) values ('approved', 'Advent Retreat', $1, true, 'Abbey', 'Abbey', 's1', 'https://a.test/e') returning id`, [day(3)]);
+  await asJob('sign-ups: the Events', `select id, title, event_date, source_url, source_name, signups_closed_by from public.club_events
+    where status = 'approved' and kind = 'event' and (shows_from <= $1 or signups_closed_by = 'page')`, [day(0)]);
+  await asJob('sign-ups: the watched pages', `select url from public.sources where status = 'active'`);
+  await asJob('sign-ups: closed', `update public.club_events set signups_closed_by = 'page' where id = any($1) and signups_closed_by is null`, [[id]]);
+  const [{ l }] = await asJob('the writer\'s list', 'select public.listed_for_writer() as l');
+  assert.equal(l.find((e) => e.id === id).signups_closed_by, 'page');
+  await asJob('sign-ups: open', `update public.club_events set signups_closed_by = null where id = any($1) and signups_closed_by = 'page'`, [[id]]);
+  assert.deepEqual(await asJob('read back', 'select signups_closed_by from public.club_events where id = $1', [id]), [{ signups_closed_by: null }]);
+});
+
 // The finish's team logos step (team_logos.keep, BP app game-card 17): a team's logo, saved once, and the team
 // takes it, which shows its waiting games (private.team_logo_changed, run as the job).
 test("team logos: a new team's logo and colors", async () => {
