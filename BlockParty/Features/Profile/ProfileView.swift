@@ -244,6 +244,8 @@ struct ProfileView: View {
                 if friendsBook.hasAccount() {
                     plansRow
                     ProfileRowDivider()
+                    neighborsRow
+                    ProfileRowDivider()
                     // `suggest-me-switch` (daily-tab 22).
                     suggestRow
                     ProfileRowDivider()
@@ -330,6 +332,12 @@ struct ProfileView: View {
     private var plansRow: some View {
         switchRow("Show my plans to friends", icon: "person.2", value: model.plansToFriends,
                   failures: model.plansFailures) { on in await model.setPlansToFriends(on) }
+    }
+
+    /// Whether neighbours who aren't friends see you among who's going (inside-cards 36), on by default.
+    private var neighborsRow: some View {
+        switchRow("Show me to neighbors going", icon: "person.3", value: model.plansToNeighbors,
+                  failures: model.neighborsFailures) { on in await model.setPlansToNeighbors(on) }
     }
 
     /// Whether you show on others' People you may know (daily-tab 22), on by default.

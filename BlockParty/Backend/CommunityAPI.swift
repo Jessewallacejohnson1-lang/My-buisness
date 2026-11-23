@@ -1015,6 +1015,12 @@ struct CommunityAPI {
         try Supabase.decode(await db.rpc("event_host", ["p_event": eventID], anon: true))
     }
 
+    /// Who's Going to an Event, as far as you may see (`get_event_going`, inside-cards 36): friends first, four at most until
+    /// you're Going too.
+    func eventGoing(_ eventID: String) async throws -> [Neighbor] {
+        try Supabase.decode(await db.rpc("get_event_going", ["p_event": eventID]))
+    }
+
     // MARK: - My Going (the You tab)
 
     /// The neighbour's Going from `from` to `to`, Town days as "yyyy-MM-dd", both ends

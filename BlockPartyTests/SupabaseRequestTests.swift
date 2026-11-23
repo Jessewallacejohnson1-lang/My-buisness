@@ -219,6 +219,13 @@ final class SupabaseRequestTests: XCTestCase {
         XCTAssertEqual(lastBody, ["suggest_me": false])
     }
 
+    func testWhosGoingAsksForThatEvent() async throws {
+        let people = try await community.eventGoing("e1")
+        XCTAssertEqual(last.url!.absoluteString, "\(rest)/rpc/get_event_going")
+        XCTAssertEqual(lastBody, ["p_event": "e1"])
+        XCTAssertTrue(people.isEmpty)
+    }
+
     func testAWriteSignedOutThrowsAndSendsNothing() async {
         auth.userId = nil
         do {

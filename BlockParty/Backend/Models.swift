@@ -870,6 +870,8 @@ struct TownProfile: Decodable {
     let onboardedAt: String?
     /// "Show my plans to friends" (town-feed 28): nil when the read didn't carry it.
     var plansToFriends: Bool? = nil
+    /// "Show me to neighbors going" (inside-cards 36): nil when the read didn't carry it.
+    var plansToNeighbors: Bool? = nil
     /// "Suggest me to people I may know" (daily-tab 22): nil when the read didn't carry it.
     var suggestMe: Bool? = nil
     /// Profile's bio and cover photo (BP app references/profile-remake).

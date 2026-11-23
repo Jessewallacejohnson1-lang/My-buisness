@@ -838,10 +838,12 @@ struct EventPage: View {
             // Who hosts it, with Instagram's Follow, in a plain row (follows 02; inside-cards 09).
             EventHostRow(item: item, top: EventLook.hostTop, plain: true, sun: sun)
 
+            // Who's going, where Luma's is (inside-cards 36).
+            EventGoingSection(item: current, sun: sun)
+
             if goingChat {
                 ChatRoomRow(title: "Going chat", isIn: actions.going(current).isGoing,
                             listed: { [id = current.id] in $0.chat(forEvent: id) },
-                            quiet: actions.going(current).count > 0 ? "\(actions.going(current).count) going" : nil,
                             access: { [id = current.id] in try await $0.goingAccess(id) },
                             route: { [current] in .going(current, isHost: $0) })
             }
@@ -1062,6 +1064,8 @@ struct EventPage: View {
                 // Who hosts it, with Follow (follows 02), in Meetup's grey card.
                 EventHostRow(item: item, top: Metric.hostTop)
 
+                EventGoingSection(item: current)
+
                 if let about = Self.aboutText(item.description) {
                     AboutSection(text: about)
                         .padding(.top, Metric.sectionTop)
@@ -1121,7 +1125,6 @@ struct EventPage: View {
                 if goingChat {
                     ChatRoomRow(title: "Going chat", isIn: actions.going(current).isGoing,
                                 listed: { [id = current.id] in $0.chat(forEvent: id) },
-                                quiet: actions.going(current).count > 0 ? "\(actions.going(current).count) going" : nil,
                                 access: { [id = current.id] in try await $0.goingAccess(id) },
                                 route: { [current] in .going(current, isHost: $0) })
                 }
