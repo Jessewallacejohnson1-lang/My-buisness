@@ -5,6 +5,7 @@
 //  The Big art look's cake (onboarding 43) has to be sharp at its 124 pt.
 //
 
+import SwiftUI
 import UIKit
 import XCTest
 @testable import BlockParty
@@ -47,5 +48,19 @@ final class OnboardingLookTests: XCTestCase {
         XCTAssertEqual(OnboardingWelcome.pickPhoto(flag: nil, coin: false), photos.millstream)
         XCTAssertEqual(OnboardingWelcome.pickPhoto(flag: "millstream", coin: true), photos.millstream)
         XCTAssertEqual(OnboardingWelcome.pickPhoto(flag: "dogs", coin: false), photos.dogs)
+    }
+
+    /// The Next pill's words read on it in the dark, at rest, pressed and not allowed (backlog 41): white on its
+    /// cream measured 1.13:1.
+    func testNextPillWordsReadInTheDark() {
+        func rgb(_ color: Color) -> UInt32 {
+            var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0
+            UIColor(color).resolvedColor(with: UITraitCollection(userInterfaceStyle: .dark)).getRed(&r, green: &g, blue: &b, alpha: nil)
+            return [r, g, b].reduce(0) { $0 << 8 | UInt32(($1 * 255).rounded()) }
+        }
+        for (words, fill) in [(Hue.surface, Hue.ink), (Hue.surface, Hue.nextPressed), (Hue.nextOffWords, Hue.nextOff)] {
+            let both = [rgb(words), rgb(fill)].map(EventLook.contrastWithWhite)
+            XCTAssertGreaterThanOrEqual(both.max()! / both.min()!, 4.5, "\(both)")
+        }
     }
 }

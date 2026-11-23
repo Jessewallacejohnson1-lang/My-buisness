@@ -288,7 +288,7 @@ struct OnboardingNextBar: View {
             // The one "Next" stays put between the pills; only the arrow comes and goes.
             ZStack {
                 if busy {
-                    ProgressView().tint(.white)
+                    ProgressView().tint(Hue.surface)
                 } else {
                     HStack(spacing: 0) {
                         Text(title)
@@ -351,7 +351,7 @@ private struct NextBarStyle: ButtonStyle {
 
     private var words: Color {
         if deep { return allowed ? Hue.deepPillWords : Hue.deepOffWords }
-        return allowed ? Color.white : Hue.nextOffWords
+        return allowed ? Hue.surface : Hue.nextOffWords
     }
 
     private func fill(down: Bool) -> Color {

@@ -459,7 +459,7 @@ struct FollowTile: View {
     private var badge: some View {
         Image(systemName: on ? "checkmark" : "plus")
             .font(.glyph(13, weight: .bold))
-            .foregroundStyle(on ? Color.white : Hue.ink)
+            .foregroundStyle(on ? Hue.surface : Hue.ink)
             .frame(width: Self.badge, height: Self.badge)
             .background(on ? Hue.ink : Hue.surface, in: Circle())
             .background(Circle().fill(ring).padding(-2.5))

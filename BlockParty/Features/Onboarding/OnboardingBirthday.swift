@@ -126,7 +126,7 @@ private struct GenderPill: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)   // the largest text sizes, in a half-width box
             }
-            .foregroundStyle(on ? Color.white : Hue.ink)
+            .foregroundStyle(on ? Hue.surface : Hue.ink)
             .frame(maxWidth: .infinity, minHeight: OnboardingFieldBox.height)
             .bigArtBox(picked: on)
             .contentShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))

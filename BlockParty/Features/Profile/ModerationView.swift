@@ -718,7 +718,7 @@ struct ReviewQueueRow: View {
                 Spacer(minLength: 0)
 
                 Button { Haptics.light(); onApprove() } label: {
-                    Text(approveLabel).font(.displaySemi(15)).foregroundStyle(.white)
+                    Text(approveLabel).font(.displaySemi(15)).foregroundStyle(Hue.surface)
                         .padding(.horizontal, 16).frame(height: ReviewMetric.pill)
                         .background(Hue.ink, in: Capsule())
                         .frame(height: ReviewMetric.tap).contentShape(Rectangle())

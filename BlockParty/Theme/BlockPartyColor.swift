@@ -261,11 +261,11 @@ nonisolated enum Hue {
     static let onboardingChevron = Color(hex: 0xB0B0B6)
     /// The code box's dots where a digit is still to come (mock v8 `.codebox span`, onboarding 40).
     static let codeSlot = Color(hex: 0xB4B4BA)
-    /// The Next pill under the finger: ink lifted a touch.
-    static let nextPressed   = Color(hex: 0x2B2B2E)
-    /// The Next pill while not allowed, and its words.
-    static let nextOff       = Color(hex: 0xC2C2C7)
-    static let nextOffWords  = Color(hex: 0xF4F4F6)
+    /// The Next pill under the finger: ink lifted a touch, its dark cream lowered as much (backlog 41).
+    static let nextPressed   = Color(light: 0x2B2B2E, dark: 0xD8D7D2)
+    /// The Next pill while not allowed, and its words. In the dark they are `hairline`'s and `inkSecondary`'s.
+    static let nextOff       = Color(light: 0xC2C2C7, dark: 0x33332E)
+    static let nextOffWords  = Color(light: 0xF4F4F6, dark: 0x9C9A93)
     /// Contacts' small grey Invite, iOS's GET button (mock v8 `.get`).
     static let inviteGet = Color(hex: 0xEDEDF0)
     /// The Welcome's white pills, and pressed (ticket 25 mock).

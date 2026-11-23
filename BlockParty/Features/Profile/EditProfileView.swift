@@ -202,9 +202,9 @@ struct EditProfileView: View {
                 }
             } label: {
                 HStack(spacing: 8) {
-                    if saving { ProgressView().tint(.white) }
+                    if saving { ProgressView().tint(Hue.surface) }
                     Text(saving ? "Saving changes…" : "Save changes")
-                        .font(.displaySemi(17)).foregroundStyle(.white)
+                        .font(.displaySemi(17)).foregroundStyle(Hue.surface)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 16)
@@ -241,7 +241,7 @@ struct EditProfileView: View {
         .shadow(color: .black.opacity(0.14), radius: 14, y: 6)
         .overlay(alignment: .bottomTrailing) {
             Image(systemName: "camera.fill")
-                .font(.sansBold(12)).foregroundStyle(.white)
+                .font(.sansBold(12)).foregroundStyle(Hue.surface)
                 .frame(width: 34, height: 34)
                 .background(Hue.ink, in: Circle())
                 .overlay(Circle().stroke(.white, lineWidth: 2))

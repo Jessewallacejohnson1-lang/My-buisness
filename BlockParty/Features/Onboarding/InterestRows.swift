@@ -317,7 +317,7 @@ struct InterestCheckCircle: View {
             Circle().fill(Hue.ink).opacity(on ? 1 : 0)
             Image(systemName: "checkmark")
                 .font(.glyph(12, weight: .bold))
-                .foregroundStyle(Color.white)
+                .foregroundStyle(Hue.surface)
                 .opacity(on ? 1 : 0)
         }
         .frame(width: Metric.ring, height: Metric.ring)
@@ -374,7 +374,7 @@ private struct InterestChipFace: View {
                 .font(.apple(14, weight: .medium))
                 .lineLimit(1)
         }
-        .foregroundStyle(on ? Color.white : Hue.ink)
+        .foregroundStyle(on ? Hue.surface : Hue.ink)
         .padding(.horizontal, 13)
         .frame(minHeight: Metric.chip)
         .background(on ? Hue.ink : Hue.fill, in: Capsule())
