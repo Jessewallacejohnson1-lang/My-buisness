@@ -360,6 +360,63 @@ private struct NextBarStyle: ButtonStyle {
     }
 }
 
+/// The Phone and Code steps' small black pill, Hinge's (BP app onboarding 44 and 45): 120 x 48, faded to 28% until
+/// it may go, sinking to 97% as the mock's does. Tapped too early, Continue shakes.
+struct OnboardingHingePill: View {
+    let title: String
+    let size: CGFloat
+    let allowed: Bool
+    let busy: Bool
+    /// Bumped when the server said no: the pill shakes as on a tap too early.
+    let refused: Int
+    /// Verify faded answers nothing (the mock's).
+    var shakesEarly = true
+    let action: () -> Void
+
+    @State private var shakes = 0
+
+    var body: some View {
+        Button {
+            if busy { return }
+            if allowed { action() } else if shakesEarly { shakes += 1; Haptics.error() }
+        } label: {
+            ZStack {
+                if busy {
+                    ProgressView().tint(Hue.hingeWhite)
+                } else {
+                    Text(title).appleFont(size, weight: .medium)
+                }
+            }
+            .foregroundStyle(Hue.hingeWhite)
+            .frame(minWidth: 120, minHeight: 48)
+        }
+        .buttonStyle(HingePillStyle(allowed: allowed && !busy))
+        .opacity(allowed ? 1 : 0.28)
+        .animation(.easeOut(duration: 0.16), value: allowed)
+        .modifier(HingeShake(trigger: shakes, way: (-7, 6, -4, 2), seconds: 0.32))
+        .onChange(of: refused) { shakes += 1 }
+        .accessibilityIdentifier("phone-next")
+        .accessibilityLabel(title)   // the spinner too
+        .accessibilityHint(allowed ? "" : "Not yet: fill it in first")
+    }
+}
+
+private struct HingePillStyle: ButtonStyle {
+    let allowed: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        let down = configuration.isPressed && allowed
+        return configuration.label
+            .background {
+                Capsule().fill(down ? Hue.hingePillDown : Hue.hingePill)
+            }
+            .contentShape(Capsule())
+            .scaleEffect(down ? Press.shallowest : 1)
+            .animation(down ? .easeOut(duration: Press.inSeconds) : Motion.outQuint(0.16), value: down)
+            .onChange(of: down) { _, pressed in if pressed { Haptics.light() } }
+    }
+}
+
 /// Luma's field: a soft grey box, 46 pt tall, 12 pt corners, the words 16 pt in. Focused, a 1.5 pt
 /// ink line inside its edge (mock v8 `.field.on`). Grows with the text inside it.
 struct OnboardingFieldBox: ViewModifier {

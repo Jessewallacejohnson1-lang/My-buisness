@@ -5,15 +5,16 @@
 //  six question steps on one fixed frame in Luma's look (onboarding 34, mock v8): the grey canvas,
 //  back and the dashes on top, an icon circle over each question, and the one
 //  Next pill 84 pt from the bottom with its slot under it. Only the question moves between
-//  steps. Profile, Birthday and Find your friends wear the Big art look (onboarding 43, 51), and Interests its
+//  steps. Phone and its texted code are a screen of their own over it (`PhoneSignInScreen`, onboarding 17), behind
+//  `PhoneSignIn`. Profile, Birthday and Find your friends wear the Big art look (onboarding 43, 51), and Interests its
 //  photo circles on the deep Dusk backdrop with white chrome (48); the other steps take theirs in tickets of their own.
 //
 
 import Contacts
 import SwiftUI
 
-/// The flow's steps in order. Phone and its texted code (SPEC steps 2 and 3) come back with phone sign-in
-/// (onboarding 17): empty, they stay out (Jesse, 24). Profile is Clubhouse's two steps again, the name
+/// The flow's steps in order. Phone and its texted code (SPEC steps 2 and 3) are not among them: they make the
+/// account, as Log in does, on a screen over the Welcome that a relaunch never reopens (onboarding 17). Profile is Clubhouse's two steps again, the name
 /// (`profile`, which keeps its saved name) then the photo (onboarding 55; one step from 35 to 55).
 enum OnboardingStep: Int, CaseIterable {
     case welcome, profile, photo, birthday, interests, follow, friends, contacts
@@ -381,6 +382,9 @@ struct OnboardingFlow: View {
     @Environment(ProfileModel.self) private var profile
     /// Log in's and Create account's boxes, kept while you go back to the Welcome and in again.
     @State private var form = AccountForm()
+    /// Phone or its texted code is up, over the Welcome or Log in (onboarding 17). Never saved: a relaunch opens on
+    /// the Welcome.
+    @State private var phone: PhoneForm?
     @AccessibilityFocusState private var questionFocused: Bool
     /// The Name step's box has the keyboard. Every move drops it first, so the keyboard slides down and the
     /// pill rides it, rather than the keyboard vanishing under the step change.
@@ -392,8 +396,7 @@ struct OnboardingFlow: View {
     /// Next on Interests: its circles burst, then the step moves on (onboarding 48).
     @State private var bursting = false
     /// Contacts' check, held here so back to Find your friends and on again spends no second one of
-    /// the day's five. A quiet account can't ask (`match_contacts` wants a real one), so until phone
-    /// sign-in makes one at step 2 (onboarding 17) it finds nobody.
+    /// the day's five. A quiet account can't ask (`match_contacts` wants a real one): it finds nobody.
     @State private var contacts = ContactsMatch { emails, phones in
         #if DEBUG
         if LaunchFlags.backend == .samples { return OnboardingFlow.sampleMatches(phones) }
@@ -442,11 +445,22 @@ struct OnboardingFlow: View {
         // the chrome rather than off a blank screen, and only the question slides in.
         ZStack {
             questions
-                .accessibilityHidden(onWelcome)
+                .accessibilityHidden(onWelcome || phone != nil)
             if onWelcome {
-                OnboardingWelcome(create: go { [store] in store.open(.create) },
+                OnboardingWelcome(start: go { [store] in
+                                      if PhoneSignIn.isOn { phone = .signIn() } else { store.open(.create) }
+                                  },
                                   logIn: go { [store] in store.open(.logIn) })
+                    .accessibilityHidden(phone != nil)
                     .zIndex(1)
+                    .transition(.opacity)
+            }
+            if let phone {
+                PhoneSignInScreen(form: phone, close: go { [store] in
+                    self.phone = nil
+                    store.open(nil)
+                }, done: loggedIn)
+                    .zIndex(2)
                     .transition(.opacity)
             }
         }
@@ -773,7 +787,7 @@ struct OnboardingFlow: View {
 
     /// "Pick 2 more" until Interests has its 3, "Follow 2 more" until Follow 3 has.
     private var nextTitle: String {
-        if let way = store.account { return way.button }
+        if let way = store.account { return way == .logIn && form.hasPhone ? "Next" : way.button }
         if store.tooYoung { return "Close" }
         if store.step == .interests, picksMade < 3 { return "Pick \(3 - picksMade) more" }
         if store.step == .follow, followsNeeded > 0 { return "Follow \(followsNeeded) more" }
@@ -852,10 +866,10 @@ struct OnboardingFlow: View {
         Task {
             await form.submit(way, auth: .shared) {
                 switch way {
+                case .logIn where form.hasPhone:
+                    go { phone = .signIn(texted: PhoneNumber.digits(form.email)) }()
                 case .logIn, .newPassword:
-                    guard await profile.read() else { return AuthStore.Words.offline }
-                    let onboarded = profile.onboardedAt != nil
-                    go { [store] in store.loggedIn(onboarded: onboarded) }()
+                    return await loggedIn()
                 case .create: go { [store] in store.created() }()
                 case .forgot: go { [store] in store.open(.code) }()
                 case .code: go { [store] in store.open(.newPassword) }()
@@ -863,6 +877,18 @@ struct OnboardingFlow: View {
                 return nil
             }
         }
+    }
+
+    /// Logged in (an email, a new password or a texted code): Your profile's onboarded stamp sends the account straight
+    /// in or to the first question. A line when the read had no answer, to try again.
+    private func loggedIn() async -> String? {
+        guard await profile.read() else { return AuthStore.Words.offline }
+        let onboarded = profile.onboardedAt != nil
+        go { [store] in
+            phone = nil
+            store.loggedIn(onboarded: onboarded)
+        }()
+        return nil
     }
 
     /// Find your friends' Next: Apple's contacts prompt, which answers at once when it was settled
@@ -887,10 +913,10 @@ struct OnboardingFlow: View {
 
 /// Step 1, Nextdoor's welcome in BP's words (ticket 25 mock, Jesse 2026-10-24): a St. Joseph
 /// photo full bleed, the white wordmark and headline top left, the Terms line and Log in. One white
-/// pill, Continue with email, where Nextdoor's last sits (onboarding 27): Apple, Google and phone
-/// come back above it as each can make an account (tickets 25, 17).
+/// pill where Nextdoor's last sits: Continue with phone, or Continue with email until texts work
+/// (`PhoneSignIn`, onboarding 17). Apple and Google come above it as each can make an account (tickets 25, 39).
 struct OnboardingWelcome: View {
-    let create: () -> Void
+    let start: () -> Void
     let logIn: () -> Void
 
     /// Nextdoor's spacing, measured on its screen (BP app `references/welcome-dogs/SPEC.md`, onboarding 54):
@@ -978,7 +1004,8 @@ struct OnboardingWelcome: View {
     /// The pill, the Terms line and Log in, from the bottom up.
     private var actions: some View {
         VStack(spacing: 0) {
-            WelcomePill(title: "Continue with email", icon: Image(systemName: "envelope"), action: create)
+            WelcomePill(title: PhoneSignIn.isOn ? "Continue with phone" : "Continue with email",
+                        icon: Image(systemName: PhoneSignIn.isOn ? "phone" : "envelope"), action: start)
                 .rise(shown, delay: 0.16)
                 .padding(.horizontal, 24)
             terms

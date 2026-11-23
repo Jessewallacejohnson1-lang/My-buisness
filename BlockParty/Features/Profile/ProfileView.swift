@@ -41,6 +41,8 @@ struct ProfileView: View {
     @State private var showModeration = ProfileView.debugModeration()
     @State private var confirmSignOut = false
     @State private var confirmDelete = false
+    /// The Phone and Code steps, changing your number or adding one (onboarding 17).
+    @State private var changing: PhoneForm?
     @State private var showingCode = false
     @State private var pushedEvent: FeedCardItem?
     @State private var pushedGroup: TownGroup?
@@ -180,6 +182,12 @@ struct ProfileView: View {
                 .presentationDragIndicator(.visible)
         }
         .sheet(isPresented: $showModeration) { ModerationView() }
+        .fullScreenCover(item: $changing) { form in
+            PhoneSignInScreen(form: form, close: { changing = nil }, done: {
+                changing = nil
+                return nil
+            })
+        }
         .confirmationDialog("Log out of Block Party?", isPresented: $confirmSignOut, titleVisibility: .visible) {
             // Back to You, which starts over for the account that follows (`AppSession`).
             Button("Log out", role: .destructive) { Task { await model.signOut(); settings = false } }
@@ -279,6 +287,13 @@ struct ProfileView: View {
                 }
                 ProfileRow(icon: "info.circle", title: "About Block Party",
                            action: { showAbout = true })
+                // Only a real account has a number to change; only you see it (onboarding 17).
+                if PhoneSignIn.isOn, friendsBook.hasAccount() {
+                    ProfileRowDivider()
+                    ProfileRow(icon: "phone", title: "Phone number",
+                               subtitle: auth.phone.map { PhoneNumber.spaced(PhoneNumber.digits($0)) },
+                               action: { changing = .change() })
+                }
                 if let email = model.email, !email.isEmpty {
                     ProfileRowDivider()
                     ProfileRow(icon: "envelope", title: "Account", subtitle: email, accessory: .none)

@@ -34,8 +34,14 @@ enum OnboardingAccount {
     }
 
     /// The SF Symbol in the grey circle over the header (onboarding 34): a lock where a password is
-    /// found or made, else email.
-    var symbol: String { self == .forgot || self == .newPassword ? "lock" : "envelope" }
+    /// found or made, a person where Log in takes a phone number too (onboarding 17), else email.
+    var symbol: String {
+        switch self {
+        case .forgot, .newPassword: "lock"
+        case .logIn where PhoneSignIn.isOn: "person"
+        default: "envelope"
+        }
+    }
 
     /// Forgot password's steps.
     var resets: Bool { self == .forgot || self == .code || self == .newPassword }
@@ -55,6 +61,7 @@ enum OnboardingAccount {
 /// What's typed into Log in or Create account, and the server's answer.
 @MainActor @Observable
 final class AccountForm {
+    /// Log in's box: an email, or a phone number where phone sign-in is on (onboarding 17).
     var email = "" { didSet { message = nil } }
     var password = "" { didSet { message = nil } }
     /// The emailed code, digits only, up to 6.
@@ -70,7 +77,11 @@ final class AccountForm {
     /// Bumped on each no, for the Next bar's shake.
     private(set) var refusals = 0
 
+    /// Log in's box holds a phone number: no password, and its Next texts a code (onboarding 17).
+    var hasPhone: Bool { PhoneSignIn.isOn && PhoneNumber.looksLike(email) }
+
     func canSubmit(_ way: OnboardingAccount) -> Bool {
+        if way == .logIn, hasPhone { return true }
         switch way {
         case .create, .logIn: Self.looksLikeEmail(email) && password.count >= 6
         case .forgot: Self.looksLikeEmail(email)
@@ -94,6 +105,8 @@ final class AccountForm {
         defer { busy = false }
         let refused: String?
         switch way {
+        case .logIn where hasPhone:
+            refused = await auth.sendCode(to: PhoneNumber.sent(PhoneNumber.digits(email)))
         case .logIn where !auth.hasAccount:
             refused = await auth.signIn(email: mail, password: password)
         case .create where !auth.hasAccount:
@@ -150,6 +163,10 @@ struct AccountFields: View {
     /// The code screen's "Send code again".
     var resend: () -> Void = {}
 
+    /// Log in takes a phone number too, and has one now.
+    private var takesPhone: Bool { way == .logIn && PhoneSignIn.isOn }
+    private var phoned: Bool { way == .logIn && form.hasPhone }
+
     private enum Field { case email, password, code }
     @FocusState private var focus: Field?
     @State private var showPassword = false
@@ -167,18 +184,18 @@ struct AccountFields: View {
             }
             VStack(alignment: .leading, spacing: 0) {
                 if way != .code && way != .newPassword {
-                    box("Email", .email) {
+                    box(takesPhone ? "Phone number or email" : "Email", .email) {
                         TextField("", text: $form.email)
                             .textContentType(.username)
                             .keyboardType(.emailAddress)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
-                            .submitLabel(way == .forgot ? .go : .next)
-                            .accessibilityLabel("Email")
+                            .submitLabel(way == .forgot || phoned ? .go : .next)
+                            .accessibilityLabel(takesPhone ? "Phone number or email" : "Email")
                     }
                 }
                 if way == .code { codeBox }
-                if way != .forgot && way != .code {
+                if way != .forgot && way != .code && !phoned {
                     box(way == .newPassword ? "New password" : "Password", .password) {
                         HStack(spacing: 0) {
                             Group {
@@ -193,6 +210,7 @@ struct AccountFields: View {
                             if !form.password.isEmpty { eye }
                         }
                     }
+                    .transition(.opacity)
                 }
             }
             if way == .create || way == .newPassword {
@@ -209,7 +227,7 @@ struct AccountFields: View {
                     .padding(.top, 12)
                     .transition(.opacity.combined(with: .offset(y: 6)))
             }
-            if way == .logIn { link("Forgot password?", action: forgot) }
+            if way == .logIn, !phoned { link("Forgot password?", action: forgot).transition(.opacity) }
             if way == .code {
                 link(form.resent ? "Sent" : "Send code again", action: resend)
                     .disabled(form.resent)
@@ -218,7 +236,8 @@ struct AccountFields: View {
             }
         }
         .animation(reduceMotion ? nil : .smooth(duration: 0.22), value: form.message)
-        .onSubmit { if focus == .email && way != .forgot { focus = .password } else { submit() } }
+        .animation(reduceMotion ? nil : .smooth(duration: 0.22), value: phoned)
+        .onSubmit { if focus == .email && way != .forgot && !phoned { focus = .password } else { submit() } }
         .onAppear { focus = way == .code ? .code : way == .newPassword ? .password : .email }
     }
 

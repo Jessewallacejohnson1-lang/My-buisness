@@ -72,6 +72,8 @@ nonisolated enum LaunchFlags {
         case openProfile = "-open-profile"
         case openTab = "-open-tab"
         case openTeam = "-open-team"
+        /// `-phone-sign-in`: phone sign-in as it looks once texts work (BP app onboarding 17).
+        case phoneSignIn = "-phone-sign-in"
         case pillCycle = "-pill-cycle"
         case profileBottom = "-profile-bottom"
         case profileEdit = "-profile-edit"
