@@ -106,6 +106,9 @@ struct OnboardingPhotoStep: View {
         .padding(.bottom, bottomClear)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .ignoresSafeArea(.container, edges: .top)
+        // Laid out as if the Name step's keyboard were already gone, so the squircle arrives in its spot
+        // and only the pill rides down with the keyboard (it crossed the squircle on the way).
+        .ignoresSafeArea(.keyboard)
     }
 }
 
