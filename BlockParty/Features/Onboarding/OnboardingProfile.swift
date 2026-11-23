@@ -110,7 +110,7 @@ struct OnboardingPhotoStep: View {
 }
 
 /// Clubhouse's 158 pt squircle (measured, `references/profile-clubhouse/SPEC.md`): cream with a 1 pt ring and
-/// a photo glyph while empty, a spinner while a picked photo loads (an iCloud one can take a while), then the
+/// a photo glyph while empty, shimmering while a picked photo loads (an iCloud one can take a while), then the
 /// photo filling it. A tap opens Apple's photo picker, or asks library or camera when the phone has one, and
 /// the photo goes through Adjust's circle before it lands.
 struct OnboardingProfilePhoto: View {
@@ -172,7 +172,12 @@ struct OnboardingProfilePhoto: View {
 
     private var squircle: some View {
         ZStack {
-            Self.shape.fill(Hue.onboardingCream)
+            // Loading is a skeleton (LoadingGuardTests): the empty squircle shimmers while the photo comes in.
+            if loading {
+                Self.shape.fill(Hue.onboardingCream).shimmering()
+            } else {
+                Self.shape.fill(Hue.onboardingCream)
+            }
             Self.shape.strokeBorder(Hue.onboardingCreamRing, lineWidth: 1)
             if let picked = store.photo.flatMap(UIImage.init(data:)) {
                 Image(uiImage: picked)
@@ -181,9 +186,7 @@ struct OnboardingProfilePhoto: View {
                     .frame(width: Self.side, height: Self.side)
                     .clipShape(Self.shape)
                     .transition(.opacity)
-            } else if loading {
-                ProgressView().tint(Hue.ink)
-            } else {
+            } else if !loading {
                 Image(systemName: "photo")
                     .font(.glyph(50, weight: .semibold))
                     .foregroundStyle(Hue.ink)

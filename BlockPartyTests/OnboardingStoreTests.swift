@@ -45,7 +45,7 @@ final class OnboardingStoreTests: XCTestCase {
 
     func testRelaunchResumesOnTheSameStep() {
         let store = OnboardingStore(defaults: defaults)
-        for _ in 0..<2 { store.next() }
+        for _ in 0..<3 { store.next() }   // Welcome, Name, Photo
         XCTAssertEqual(OnboardingStore(defaults: defaults).step, .birthday)
     }
 
