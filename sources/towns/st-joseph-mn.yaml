@@ -372,3 +372,13 @@ agent_only: []
 # a regular expression. The Park Board moves between City Hall and the parks, so it stays blank.
 meets_at:
   - {host: City of St. Joseph, titles: '\b(City Council|Economic Development Authority)\b', place: City Hall}
+# Times a source sends wrong every morning, and the right ones (BP app backlog 39; write_judged.py's WRONG_TIMES). `id` is
+# the source's own id for the Event, `sent` the exact wrong start it sends: only that start is swapped, so a real move still
+# lands. Chicago's clock throughout; `end` left out is no end. `why` is the page that says so, or whose word it is. A
+# row is dead once its day has passed; take it out when you are here.
+wrong_times:
+  - {id: 'bound:h2026072607310270982593aefad7844', sent: '2026-12-03T18:00', start: '2026-12-03T17:20', end: '2026-12-03T21:00', why: "SMS Choir Concerts: isd748.org/calendars lists five, Grade 6 A Day at 5:20 PM to Grade 8 until 9 PM (Jesse, 2026-11-23)"}
+  - {id: 'bound:h2026072607342834381e4ffc66d2545', sent: '2026-12-10T06:00', start: '2026-12-10T18:00', end: '2026-12-10T20:00', why: "SMS Orchestra Concerts: isd748.org/calendars lists Grade 6 at 6 PM, Grades 7 & 8 from 7 to 8 PM"}
+  - {id: 'bound:h20260320072437399a67a32a55faf48', sent: '2026-12-12T23:00', start: '2026-12-12T11:00', why: "Roseau Girls Hockey vs River Lakes JV: the varsity game is 1 PM on the same rink (Jesse, 2026-11-23)"}
+  - {id: '4135163', sent: '2026-12-15T06:30', start: '2026-12-15T18:30', end: '2026-12-15T19:30', why: "Benedictine Spirituality Certificate: every webinar on the school's page is 6:30 PM (Jesse, 2026-11-23)"}
+  - {id: 'bound:h202606180344449281f1e0c45427147', sent: '2026-12-30T22:00', start: '2026-12-30T10:00', why: "Granite City Hockey Showcase JV: the JV day before and the varsity that day are 10 AM (Jesse, 2026-11-23)"}

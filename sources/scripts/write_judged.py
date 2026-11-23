@@ -136,6 +136,9 @@ THE RULES
   One show (same_show, BP app loopholes 21): two runs over days that overlap, at one place, one name inside the other,
     neither a game, are one Event whoever lists it and whatever day its id carries. A read joined that way is only a
     Mention: the listed Event keeps its first day, words and status, so a show's copy taken out stays out.
+  A wrong time (WRONG_TIMES, BP app backlog 39): a start its own source sends wrong, listed in the town file's wrong_times
+    with the page that says the right one, is swapped as it is read, so every re-read and every merge has the right time.
+    Another start or day than the one listed is the source's news, and lands.
   Not a move (back_home, BP app watch-every-place 45): a page's re-read that only falls back to its poster's own place
     leaves a listed Event where it is, and the summary says so.
   Which copy is kept: an event already listed stays the Event and every new copy is its Mention.
@@ -208,6 +211,11 @@ PLACE_STOP = STOP | set("st saint joseph collegeville mn minnesota united states
 # town file's meets_at, keyed by the town's label (the `home` the writer passes around).
 MEETS_AT = {t["label"]: [(m["host"], re.compile(m["titles"]), m["place"]) for m in t.get("meets_at") or []]
             for t in TOWNS.values()}
+# Times a source sends wrong, and the right ones (each town file's wrong_times): (the source's own id, the wrong start it
+# sends) -> the right start and end. Only that exact start is swapped, so a real move still lands (BP app backlog 39).
+WRONG_TIMES = {(str(w["id"]), w["sent"]): {k: datetime.fromisoformat(w[k]).replace(tzinfo=LOCAL).isoformat() if w.get(k) else None
+                                           for k in ("start", "end")}
+               for t in TOWNS.values() for w in t.get("wrong_times") or []}
 HOME = TOWNS[DEFAULT]["label"]
 INTERESTS_SWIFT = Path(__file__).resolve().parents[2] / "BlockParty" / "Backend" / "Interests.swift"
 MIGRATIONS = Path(__file__).resolve().parents[2] / "supabase" / "migrations"
@@ -920,6 +928,11 @@ def places():
 def event_of(it, today, interests, home, notes, titles=None, teams=None, made=None):
     try:
         day, at = when(it.get("start") or "", it.get("all_day"))
+        right = at and WRONG_TIMES.get((str(it.get("source_uid") or ""), at.isoformat(timespec="minutes")))
+        if right:
+            it, sent = {**it, **right}, clock(at)
+            day, at = when(it["start"])
+            notes.append(f"time kept: {it['title']!r} on {day} is {clock(at)}, its source sends {sent} again (wrong_times)")
         until = it.get("end") or ""
         if re.fullmatch(r"\d{4}-\d\d-\d\d", until):
             # A run over days gives its last day (the kiln, Oct 16 to 25; Festival of Cultures,
@@ -2436,6 +2449,54 @@ def t_the_clock_is_kept():
     assert at("2027-03-16T23:00:00+00:00")[0] == "6 PM" and at("2027-03-16T19:00:00-04:00")[0] == "6 PM", "another zone is worked out"
 
 
+def t_a_wrong_time_stays_right():
+    """Bound sends 6 AM for a 6 PM concert every morning (BP app backlog 39); the school's own calendar says 6 to 8 PM."""
+    uid = "bound:h2026072607342834381e4ffc66d2545"
+    concert = dict(title="SMS Orchestra Concerts", start="2026-12-10T06:00:00-06:00", end=None, place="Sartell Middle School",
+                   town="Sartell", area="announced", source_name="Sartell High School", source_uid=uid, interest=None)
+    old = listed(title="SMS Orchestra Concerts", event_date="2026-12-10", start_time="6 PM", location="Sartell Middle School, Sartell",
+                 source_name="Sartell High School", source_uid=uid, shows_from="2026-11-26")
+    was = dict(WRONG_TIMES)
+    WRONG_TIMES.clear()
+    try:
+        read = lambda **kw: (lambda r: (r["events"], r["notes"]))(run([item(**{**concert, **kw})], [old]))
+        assert read()[0][0]["row"]["start_time"] == "6 AM", "without the list, Bound's clock is written"
+        WRONG_TIMES[(uid, "2026-12-10T06:00")] = {"start": "2026-12-10T18:00:00-06:00", "end": "2026-12-10T20:00:00-06:00"}
+        # The exact wrong start, from the school or (one id on every school in it) another's calendar.
+        for again in ({}, {"start": "2026-12-10T06:00:00-05:00"}, {"source_name": "Cathedral High School"}):
+            events, notes = read(**again)
+            g = events[0]
+            assert len(events) == 1 and g["id"] == old["id"], (again, events)
+            assert (g["row"]["event_date"], g["row"]["start_time"], g["row"]["end_at"]) == (
+                "2026-12-10", "6 PM", "2026-12-10T20:00:00-06:00"), (again, g["row"])
+            assert any(n.startswith("time kept: 'SMS Orchestra Concerts'") for n in notes), notes
+        # A real change lands as sent: another day, another clock, all day, another Event at the same start.
+        for kw, want in (({"start": "2026-12-11T19:00:00-06:00"}, ("2026-12-11", "7 PM")),
+                         ({"start": "2026-12-11T06:00:00-06:00"}, ("2026-12-11", "6 AM")),
+                         ({"start": "2026-12-10T18:30:00-06:00"}, ("2026-12-10", "6:30 PM")),
+                         ({"start": "2026-12-10", "all_day": True}, ("2026-12-10", None))):
+            row = read(**kw)[0][0]["row"]
+            assert (row["event_date"], row["start_time"], row["end_at"]) == (*want, None), (kw, row)
+        other = run([item(**{**concert, "source_uid": "bound:other", "title": "SMS Swim Meet"})], [])["events"][0]["row"]
+        assert other["start_time"] == "6 AM", other
+        assert run([item(**{**concert, "start": "soon"})], [])["outcomes"][0][0] == "skipped", "an unreadable start is still skipped"
+        # The second copy merges at the right time: the school's own page lists the concert at 6 PM.
+        both = run([item(**concert), item(**{**concert, "source_uid": None, "source_name": "Sartell Music Boosters",
+                                            "start": "2026-12-10T18:00:00-06:00"})], [])["events"]
+        assert len(both) == 1 and both[0]["row"]["start_time"] == "6 PM", both
+    finally:
+        WRONG_TIMES.clear()
+        WRONG_TIMES.update(was)
+    # The list itself: every row names the day it is about, a start that differs, an end after it, and why.
+    for t in TOWNS.values():
+        for w in t.get("wrong_times") or []:
+            sent, start = datetime.fromisoformat(w["sent"]), datetime.fromisoformat(w["start"])
+            assert w["sent"] == sent.isoformat(timespec="minutes") and start != sent and w.get("why"), w
+            assert not w.get("end") or datetime.fromisoformat(w["end"]) > start, w
+            right = WRONG_TIMES[(str(w["id"]), w["sent"])]
+            assert right["start"].startswith(w["start"]) and (right["end"] or "")[:16] == (w.get("end") or ""), (w, right)
+
+
 def t_back_home_is_no_move():
     """A listing read twice from a shared calendar, the second time at the calendar's own church (BP app watch-every-place 45)."""
     church = dict(source_name="Church of Saint Joseph", source_url="https://church-of-st-joseph-470993.churchcenter.com/calendar/event/239707592",
@@ -3567,7 +3628,7 @@ TESTS = [t_another_hosts_facebook_event_is_asked, t_same_event_asked_only_when_i
          t_two_hosts_maybe_the_same, t_two_hosts_no_place_asked, t_two_hosts_kept_apart, t_one_place_two_names, t_followers_only, t_place_entry, t_wording, t_interest_list_is_the_apps, t_event_or_news, t_official_one_mention, t_everything_kept_goes_live, t_news_repeat_left_out,
          t_one_news_one_link, t_news_same_link_this_week, t_news_says_when_it_ends, t_closings_wait, t_a_dated_news_blocks_its_repeat_until_its_day, t_one_post_is_one_news, t_news_look_back_is_the_feeds_week, t_news_shouted_or_hyphened_is_one,
          t_all_day_a_day_apart_is_one, t_no_time_joins_the_timed_one, t_later_read_fills_the_time, t_merge_true_pair,
-         t_merge_near_miss_kept_apart, t_posted_twice, t_same_time_no_place, t_no_place_is_its_posters_own, t_reread_updates, t_the_clock_is_kept, t_back_home_is_no_move, t_admin_status_kept, t_misread_comes_back, t_cancelled, t_show_from_by_size, t_kept_out_when_nobody_can_go,
+         t_merge_near_miss_kept_apart, t_posted_twice, t_same_time_no_place, t_no_place_is_its_posters_own, t_reread_updates, t_the_clock_is_kept, t_a_wrong_time_stays_right, t_back_home_is_no_move, t_admin_status_kept, t_misread_comes_back, t_cancelled, t_show_from_by_size, t_kept_out_when_nobody_can_go,
          t_interest_checked, t_area, t_past_and_invalid_skipped, t_writes_are_one_safe_call,
          t_description_cut_at_a_word, t_city_meeting_end_and_place, t_game, t_teams_from_their_names, t_all_day_run_keeps_its_last_day, t_show_joins_only_its_run, t_show_under_a_new_name_is_one,
          t_long_titles_shortened_and_kept, t_news_titles_fit_their_two_lines, t_short_levels_kept_apart, t_one_host_listed_twice,
