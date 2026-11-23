@@ -117,6 +117,7 @@ optional once its row matches.
 | Outstanding console work, and why a past exception was made | `DECISIONS.md` |
 | Brand assets and logo artwork, in depth | `DESIGN.md` |
 | Map work, chronologically | `docs/archive/MAP_BUILD_LOG.md` |
+| What a Block Party word means | `/Users/owner/BP app/GLOSSARY.md` |
 | What the product is for, and the Town feed's intended shape | `PRODUCT.md` |
 | The onboarding spec — locked rules, bans, Jesse's direction | `ONBOARDING.md` |
 | Product and launch strategy | `docs/playbook.md` |

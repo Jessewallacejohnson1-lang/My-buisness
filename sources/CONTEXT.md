@@ -4,6 +4,10 @@ Where Block Party learns what exists in a town and what is happening there. This
 covers the places side (finding every place in a town and knowing whether it is open) and
 the events and news those places announce.
 
+The app's words are in the BP app folder's `GLOSSARY.md`. A word in both (Town, Place, Event,
+News) means the same thing: that file says what neighbours see, this one adds how the registry
+holds it.
+
 ## Language
 
 ### Places
@@ -102,7 +106,7 @@ _Avoid_: posting, listing, happening
 
 **News**:
 Something to know rather than go to, even when it carries dates: a road closure, a new
-menu, a policy change. It goes on the town board, never the event list.
+menu, a policy change. It shows in the Town feed as News, never as an Event.
 _Avoid_: event (for anything you cannot attend), announcement
 
 **Series**:
