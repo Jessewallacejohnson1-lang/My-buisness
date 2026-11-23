@@ -144,12 +144,14 @@ private struct GenderPill: View {
 }
 
 /// Apple's wheel where the keyboard sits, 272 pt with the home indicator's 34 under it. The stock
-/// picker ticks under the finger on its own.
+/// picker ticks under the finger on its own. A phone with no home indicator (the iPhone SE) passes
+/// its own 0 as `homeBar` (onboarding 47).
 struct OnboardingBirthdayWheel: View {
     @Binding var date: Date
     let now: Date
     /// What it sits on: Luma's grey (the Going chat's ask), or the Big art step's near-white canvas.
     var canvas = Hue.onboardingCanvas
+    var homeBar: CGFloat = 34
 
     static let height: CGFloat = 272
 
@@ -162,48 +164,34 @@ struct OnboardingBirthdayWheel: View {
             .environment(\.calendar, OnboardingAge.calendar)
             .environment(\.timeZone, OnboardingAge.calendar.timeZone)
             .frame(maxWidth: .infinity)
-            .padding(.bottom, 34)
-            .frame(height: Self.height, alignment: .center)
+            .padding(.bottom, homeBar)
+            .frame(height: Self.height - 34 + homeBar, alignment: .center)
             .background(canvas)
     }
 }
 
-/// "Come back when you're 13": Luma's quiet empty state (mock v8, onboarding 36), the grey clock in
-/// the circle every question has and the short line under it. Close clears everything and goes back to
-/// the Welcome; Back returns to the wheel.
+/// "Come back when you're 13" in the Big art look (onboarding 47, mock v2 `young`, Finch's quiet intro
+/// screen): the hourglass, the question and its line, centred between the top row and Close. The flow
+/// draws the grey, the Back chevron and Close (it clears everything and goes back to the Welcome).
 struct OnboardingTooYoung: View {
-    let back: () -> Void
-    let close: () -> Void
+    @AccessibilityFocusState.Binding var focused: Bool
 
-    static let symbol = "clock"
-
-    @AccessibilityFocusState private var headerFocused: Bool
+    /// Apple's hourglass stands in until there's a drawing (Jesse, 2026-11-21).
+    static let art = "\u{23F3}"
 
     var body: some View {
-        ZStack(alignment: .top) {
-            OnboardingBackdrop()
-            VStack(alignment: .leading, spacing: 0) {
-                OnboardingHeading(symbol: Self.symbol, question: "Come back when you're 13", focused: $headerFocused)
-                OnboardingSubline("Block Party is for neighbors 13 and up. We didn't save anything you entered.")
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, FollowGridMetric.gutter)
-            .padding(.top, FollowGridMetric.headingTop)
-            .ignoresSafeArea(.container)
-
-            HStack {
-                OnboardingBackChevron(action: back)
-                Spacer()
-            }
-            .padding(.leading, 6)
-            .padding(.top, 54)
-            .ignoresSafeArea(.container)
+        OnboardingBigArt(question: "Come back when you're 13",
+                         line: "Block Party is for neighbors 13 and up. We didn't save anything you entered.",
+                         focused: $focused) {
+            Text(Self.art)
+                .font(.glyph(92))   // artwork at the mock's size, not text
+                .accessibilityHidden(true)
         }
-        .overlay(alignment: .bottom) {
-            OnboardingNextBar(title: "Close", action: close)
-                .padding(.horizontal, FollowGridMetric.gutter)
-                .padding(.bottom, 50)   // 84 from the bottom, over the home indicator's 34
-        }
-        .onAppear { headerFocused = true }
+        .padding(.horizontal, FollowGridMetric.gutter)
+        // Between the top row (54 + 44 down) and Close with the slot under it.
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.top, 98)
+        .padding(.bottom, OnboardingNextBar.height + 6 + 44)
+        .ignoresSafeArea(.container, edges: .top)
     }
 }

@@ -217,6 +217,8 @@ nonisolated enum Hue {
     /// White: Find your friends' (Jesse's market drawing is on white paper, onboarding 51), and the Name and
     /// Photo steps', as Clubhouse's (onboarding 55).
     static let bigArtFriends  = Color(light: 0xFFFFFF, dark: 0x141412)
+    /// Under 13's quiet grey (onboarding 47, mock v2 `young`).
+    static let bigArtTooYoung = Color(light: 0xE8E8ED, dark: 0x141412)
     /// Clubhouse's cream on the Name and Photo steps (onboarding 55, `references/profile-clubhouse/SPEC.md`):
     /// the name box and the photo's squircle, and the squircle's 1 pt ring.
     static let onboardingCream     = Color(light: 0xF6F5EE, dark: 0x23231F)

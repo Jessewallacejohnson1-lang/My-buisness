@@ -30,8 +30,10 @@ final class OnboardingLookTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(cake.size.height * cake.scale, BigArt.art * 3)
     }
 
-    func testUnder13SymbolExists() {
-        XCTAssertNotNil(UIImage(systemName: OnboardingTooYoung.symbol))
+    /// Under 13's art is one emoji, drawn by Apple's emoji font.
+    func testUnder13ArtIsOneEmoji() {
+        XCTAssertEqual(OnboardingTooYoung.art.count, 1)
+        XCTAssertTrue(OnboardingTooYoung.art.unicodeScalars.first?.properties.isEmojiPresentation == true)
     }
 
     /// The Welcome's two photos (onboarding 54): both in the app, the coin picks either, and the
