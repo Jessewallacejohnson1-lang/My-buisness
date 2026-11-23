@@ -8,9 +8,9 @@ changing any first-run screen.
 Built and on (BP app onboarding tickets 16 to 24, 2026-10-30): `Features/Onboarding/
 OnboardingFlow.swift` holds the steps, the saved place (`OnboardingStore`) and the Welcome;
 `OnboardingChrome.swift` the backdrop, back chevron, progress bar and Next bar;
-`OnboardingDone.swift` the Done island. Six question steps: Phone and its texted code come
-back with phone sign-in (ticket 17), and Name and Photo are one Profile step, Luma's profile screen
-(`OnboardingProfile.swift`, ticket 35). A first launch shows it; an install that opened the tabs
+`OnboardingDone.swift` the Done island. Seven question steps: Phone and its texted code come
+back with phone sign-in (ticket 17), and Name and Photo are Clubhouse's two steps, "What Mom calls you"
+then "Add a photo?" (`OnboardingProfile.swift`, BP app onboarding 55; Bio left onboarding). A first launch shows it; an install that opened the tabs
 before it was on never does. DEBUG `-skip-onboarding` (eyes.py adds it) and `-ui-tests` skip it,
 and `-onboarding` shows it anyway. Finishing stamps `town_profiles.onboarded_at` with the
 birthday and interests before the Town feed's first read, and a stamp already on the server
@@ -18,7 +18,8 @@ skips the flow on a reinstall.
 
 `OnboardingChrome.swift` draws Luma's look (BP app onboarding 34, 2026-11-09): the pale grey
 canvas, a grey icon circle over each question and the flat Next pill. It also draws the Big art
-look's shared pieces (BP app onboarding 43, 2026-11-19; see *Direction*): the dashes on every step,
+look's shared pieces (BP app onboarding 43, 2026-11-19; see *Direction*): the dashes on every step from
+Birthday on (Name and Photo copy Clubhouse's, which has none, onboarding 55),
 and the step colour, large drawing, centred question and white boxes Profile and Birthday wear.
 `refs/onboarding/REFERENCE-SPEC.md`'s Duolingo press and progress numbers (section 8) are history:
 nothing uses them now.
@@ -33,7 +34,7 @@ for the top 150 pt and fading to #FBFAFD by 440 pt, which glides to the next ste
 tall heads the step and pops in; the question is centred, 26 pt bold on a 31 pt line; boxes are white
 with a soft edge; the tracker is one 4 pt dash for each step, this step's filling as it arrives. Built so
 far (onboarding 43): the dashes on every step, and the whole look on Profile (sand, its photo as the art)
-and Birthday (lilac, Jesse's cake). Profile's own ticket (onboarding 46) added the rest of mock v2's Profile: with the keyboard up its column rides up 120 pt and the photo fades, and its empty photo is Instagram's blank picture. Each other step keeps Luma's look below until its own ticket (48 to
+and Birthday (lilac, Jesse's cake). Profile has since become Clubhouse's Name and Photo steps on white (onboarding 55, 2026-11-22; BP app `references/profile-clubhouse/`): Clubhouse's sizes in Apple's font, a 290 pt cream name box, a 158 pt cream squircle, Skip, and its narrow pill (the second exception below). Each other step keeps Luma's look below until its own ticket (48 to
 52), as do Log in and Create account. Where mock v2 and Luma's mock differ on a step that wears Big art,
 mock v2 wins. **Until then the look is Luma's** (Jesse,
 2026-11-08; approved 2026-11-09): the Reference for every screen is mock v8,
@@ -76,7 +77,9 @@ between a flow that feels premium and one that feels assembled.
 What may change per step: the button's **title** (`Continue`, `Continue · 3`, `Done`)
 and its **enabled state**. Nothing else, apart from one look Jesse approved in mock v8
 (2026-11-09): Find your friends' pill is white with ink words (onboarding 37), in the same frame.
-Profile's Save Profile is every step's pill since BP app onboarding 46 (2026-11-19). Specifically
+The second exception (Jesse's yes, 2026-11-22, BP app onboarding 55): the Name and Photo steps copy
+Clubhouse's, so their pill is Clubhouse's narrow "Next →", 199 pt wide and centred, 55 pt from the bottom
+or 30.5 pt over the keyboard; from Birthday on, the pill is every step's again. Specifically
 not allowed:
 
 - A centred button on one screen and a bottom-pinned one on the next.
@@ -90,7 +93,8 @@ not allowed:
 
 The same rule applies to the rest of the chrome: back button fixed at the top-left,
 progress bar fixed on the same baseline, both present on every data-collection step so
-they never appear and disappear underfoot.
+they never appear and disappear underfoot. The Name and Photo steps are the exception (onboarding 55):
+Clubhouse's, so no dashes before Birthday, and no back on Name, whose account is already made.
 
 **How to build it so it cannot drift.** The flow shell owns the chrome and the footer;
 the step views are *content only* and must never draw their own CTA. One structure,
@@ -123,10 +127,10 @@ per step, or a frame-montage of the flow. A build is not done until that passes.
 - **Never ask for what can be derived or deferred.** Anything the app can infer, or ask
   later in context, is not an onboarding question.
 - **One tap per step wherever possible.** Typing is the most expensive input; reserve
-  it for the name and the optional Bio beside it on Profile (BP app onboarding 35), and nothing else.
+  it for the name (Bio left onboarding in BP app onboarding 55), and nothing else.
 - **No dead ends.** Back always goes somewhere real, and a first step with nowhere to
   go back to shows no back button at all rather than a dead one.
-- **Progress is always visible** and always honest — the bar's total is the real number
+- **Progress is always visible** from Birthday on, and always honest — the bar's total is the real number
   of steps, never padded to make the flow look shorter.
 - **Never block on the network.** Advance optimistically and reconcile in the
   background; a failed write surfaces later in context, it does not trap someone on
