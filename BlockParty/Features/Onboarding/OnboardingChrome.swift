@@ -288,7 +288,7 @@ struct OnboardingNextBar: View {
             // The one "Next" stays put between the pills; only the arrow comes and goes.
             ZStack {
                 if busy {
-                    ProgressView().tint(Hue.surface)
+                    ProgressView().tint(allowed ? Hue.surface : Hue.nextOffWords)
                 } else {
                     HStack(spacing: 0) {
                         Text(title)

@@ -244,7 +244,7 @@ struct EditProfileView: View {
                 .font(.sansBold(12)).foregroundStyle(Hue.surface)
                 .frame(width: 34, height: 34)
                 .background(Hue.ink, in: Circle())
-                .overlay(Circle().stroke(.white, lineWidth: 2))
+                .overlay(Circle().stroke(Hue.surface, lineWidth: 2))
         }
         .accessibilityLabel(image == nil ? "Add a profile picture" : "Change profile picture")
     }
