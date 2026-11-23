@@ -1006,7 +1006,7 @@ private struct ChatBubble: View {
                         NavigationLink(value: sender) {
                             Avatar(avatarUrl: sender.avatarUrl, size: ChatMetric.theirFace)
                                 .frame(width: ChatMetric.theirFace, height: ChatMetric.theirFace)
-                                .contentShape(Circle().inset(by: (ChatMetric.theirFace - PageMetric.tapMin) / 2))
+                                .contentShape(FaceShape().inset(by: (ChatMetric.theirFace - PageMetric.tapMin) / 2))
                         }
                         .buttonStyle(.press(.squish))
                         .accessibilityLabel("\(sender.displayName)'s profile")
@@ -1166,9 +1166,9 @@ private struct ChatUpdateCard: View {
 
     @ViewBuilder private var face: some View {
         let face = Avatar(avatarUrl: sender?.avatarUrl, size: ChatMetric.updateFace)
-            .overlay(Circle().stroke(Hue.surface, lineWidth: 2))
+            .overlay(FaceShape().stroke(Hue.surface, lineWidth: 2))
         if !mine, let sender {
-            NavigationLink(value: sender) { face.contentShape(Circle()) }
+            NavigationLink(value: sender) { face.contentShape(FaceShape()) }
                 .buttonStyle(.press(.squish))
                 .accessibilityLabel("\(sender.displayName)'s profile")
         } else {

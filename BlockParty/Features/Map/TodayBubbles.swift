@@ -493,7 +493,7 @@ private struct BubbleFaces: View {
         HStack(spacing: -Self.tuck) {
             ForEach(Array(friends.prefix(2).enumerated()), id: \.offset) { index, friend in
                 Avatar(friend.photo, size: Self.side)
-                    .background { Circle().fill(.white).padding(-1.5) }
+                    .background { FaceShape().fill(.white).padding(-1.5) }
                     .zIndex(Double(3 - index))
             }
             if friends.count > 2 {

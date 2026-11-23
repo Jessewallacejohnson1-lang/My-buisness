@@ -271,7 +271,7 @@ private struct DailyWeekFaces: View {
         HStack(spacing: -DailyWeekMetric.faceOverlap) {
             ForEach(Array(friends.prefix(DailyWeekMetric.faces).enumerated()), id: \.offset) { index, friend in
                 Avatar(friend.photo, size: DailyWeekMetric.face)
-                    .overlay(Circle().strokeBorder(Hue.paper, lineWidth: DailyWeekMetric.faceRing))
+                    .overlay(FaceShape().strokeBorder(Hue.paper, lineWidth: DailyWeekMetric.faceRing))
                     .zIndex(Double(DailyWeekMetric.faces - index))
             }
             if friends.count > DailyWeekMetric.faces {
@@ -281,8 +281,8 @@ private struct DailyWeekFaces: View {
                     .minimumScaleFactor(0.6)
                     .foregroundStyle(Hue.inkSecondary)
                     .frame(width: DailyWeekMetric.face, height: DailyWeekMetric.face)
-                    .background(Circle().fill(Hue.fill))
-                    .overlay(Circle().strokeBorder(Hue.paper, lineWidth: DailyWeekMetric.faceRing))
+                    .background(FaceShape().fill(Hue.fill))
+                    .overlay(FaceShape().strokeBorder(Hue.paper, lineWidth: DailyWeekMetric.faceRing))
             }
         }
         .frame(height: DailyWeekMetric.face)

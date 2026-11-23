@@ -41,9 +41,10 @@ enum Radius {
     static let shareCard: CGFloat = 18
     static let shareFace: CGFloat = 14
     /// Onboarding's Name box and Photo squircle, measured off Clubhouse's (BP app onboarding 55,
-    /// `references/profile-clubhouse/SPEC.md`): the box's corner, and the 158 pt squircle's iOS smooth corner.
+    /// `references/profile-clubhouse/SPEC.md`): the box's corner, and a face's iOS smooth corner as a
+    /// share of its side (66.6 on the Photo step's 160, whose inside is Clubhouse's 158 at 65.6): every person's picture (backlog 40).
     static let nameBox: CGFloat = 4.8
-    static let photoSquircle: CGFloat = 65.6
+    static let faceShare: CGFloat = 0.416
 }
 
 /// The single elevation in the system — one soft, neutral lift. Everything else

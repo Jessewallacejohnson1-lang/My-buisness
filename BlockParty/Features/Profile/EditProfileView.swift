@@ -114,7 +114,7 @@ struct EditProfileView: View {
                 pick = nil
             }
         }
-        .photoAdjust($adjustingPhoto, shape: .circle) { cut in
+        .photoAdjust($adjustingPhoto, shape: .face) { cut in
             withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { image = cut }
         }
         .photoAdjust($adjustingCover, shape: .wide(GroupPage.Metric.heroAspect)) { cut in
@@ -235,9 +235,9 @@ struct EditProfileView: View {
             }
         }
         .frame(width: 132, height: 132)
-        .clipShape(Circle())
-        .overlay(Circle().stroke(.white, lineWidth: 4))
-        .overlay(Circle().stroke(Hue.hairline, lineWidth: 1))
+        .clipShape(FaceShape())
+        .overlay(FaceShape().stroke(.white, lineWidth: 4))
+        .overlay(FaceShape().stroke(Hue.hairline, lineWidth: 1))
         .shadow(color: .black.opacity(0.14), radius: 14, y: 6)
         .overlay(alignment: .bottomTrailing) {
             Image(systemName: "camera.fill")

@@ -884,7 +884,7 @@ struct EventBar: View {
             HStack(spacing: -FriendFaces.overlap) {
                 if you {
                     Avatar(avatarUrl: profile?.avatarUrl, size: FriendFaces.side)
-                        .overlay(Circle().strokeBorder(Hue.paper, lineWidth: 1.5))
+                        .overlay(FaceShape().strokeBorder(Hue.paper, lineWidth: 1.5))
                         .zIndex(1)
                         .transition(reduceMotion ? .opacity : .scale(scale: 0.3).combined(with: .opacity))
                 }

@@ -113,7 +113,7 @@ struct OnboardingPhotoStep: View {
     }
 }
 
-/// Clubhouse's 158 pt squircle (measured, `references/profile-clubhouse/SPEC.md`): cream with a 1 pt ring and
+/// Clubhouse's 158 pt squircle, 160 with its ring (measured, `references/profile-clubhouse/SPEC.md`): cream with a 1 pt ring and
 /// a photo glyph while empty, shimmering while a picked photo loads (an iCloud one can take a while), then the
 /// photo filling it. A tap opens Apple's photo picker, or asks library or camera when the phone has one, and
 /// the photo goes through Adjust's circle before it lands.
@@ -131,8 +131,9 @@ struct OnboardingProfilePhoto: View {
     /// The camera's photo, held until the camera has gone so Adjust can come up.
     @State private var taken: UIImage?
 
-    static let side: CGFloat = 158
-    private static let shape = RoundedRectangle(cornerRadius: Radius.photoSquircle, style: .continuous)
+    /// 160 with its ring, so the inside is Clubhouse's 158.
+    static let side: CGFloat = 160
+    private static let shape = FaceShape()
     private static var hasCamera: Bool { UIImagePickerController.isSourceTypeAvailable(.camera) }
 
     var body: some View {
@@ -156,7 +157,7 @@ struct OnboardingProfilePhoto: View {
         }) {
             CameraPicker { taken = $0 }.ignoresSafeArea()
         }
-        .photoAdjust($adjusting, shape: .circle) { use($0) }
+        .photoAdjust($adjusting, shape: .face) { use($0) }
         .onChange(of: pick) { _, item in
             guard let item else { return }
             loading = true
