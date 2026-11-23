@@ -66,13 +66,13 @@ struct FeedCardFacepile: View {
                 value: overflowCount
             )
             .frame(width: 24, height: 24)
-            .background(Hue.fill, in: Circle())
-            .overlay(Circle().strokeBorder(ring, lineWidth: 1.5))
+            .background(Hue.fill, in: FaceShape())
+            .overlay(FaceShape().strokeBorder(ring, lineWidth: 1.5))
     }
 
     private func avatar(for slot: Slot) -> some View {
         Avatar(slot.url, size: 24)
-            .overlay(Circle().strokeBorder(ring, lineWidth: 1.5))
+            .overlay(FaceShape().strokeBorder(ring, lineWidth: 1.5))
     }
 
 }
@@ -110,7 +110,7 @@ struct FriendFaces: View {
         HStack(spacing: -tuck) {
             ForEach(Array(friends.prefix(3).enumerated()), id: \.offset) { index, friend in
                 Avatar(friend.photo, size: size)
-                    .overlay(Circle().strokeBorder(ring, lineWidth: 1.5))
+                    .overlay(FaceShape().strokeBorder(ring, lineWidth: 1.5))
                     .zIndex(Double(3 - index))
             }
         }

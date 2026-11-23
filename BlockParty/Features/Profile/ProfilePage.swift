@@ -366,7 +366,7 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
         } label: {
             Avatar(avatarUrl: face.avatarUrl, size: ProfileMetric.photo, outlined: true)
                 .padding(ProfileMetric.ring)
-                .background(Hue.onboardingCanvas, in: Circle())
+                .background(Hue.onboardingCanvas, in: FaceShape())
         }
         .buttonStyle(.press(.squish))
         .disabled(face.avatarUrl == nil)

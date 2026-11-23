@@ -482,7 +482,7 @@ struct BlockPartyTabBar: View {
     }
 }
 
-/// The You tab's photo, as Instagram's profile tab draws it: a plain circle, with an ink ring when
+/// The You tab's photo, as Instagram's profile tab draws it but the squircle (backlog 40), with an ink ring when
 /// selected (GUESSED ring: the recording never selects that tab). Without a photo the tab keeps the
 /// person icon, ink like every icon (taste.md 2026-09-27).
 private struct TabAvatar: View {
@@ -495,7 +495,7 @@ private struct TabAvatar: View {
             .padding(3)
             .overlay {
                 if selected {
-                    Circle().strokeBorder(ink, lineWidth: 1.5)
+                    FaceShape().strokeBorder(ink, lineWidth: 1.5)
                 }
             }
     }

@@ -1,6 +1,8 @@
 //
 //  Avatar.swift
-//  Block Party — a round photo, the one way the app draws it (BP app codebase-health 18).
+//  Block Party — a person's, place's, group's or host's picture, the one way the app draws it (BP app
+//  codebase-health 18). A person's is the squircle of onboarding's Photo step (backlog 40, Jesse 2026-11-22: "tweak
+//  all the profile pictures in the app now to the new one"); a place, group or host stays round.
 //
 //  A person without a photo is Instagram's blank profile picture (Jesse said yes to it everywhere,
 //  2026-10-26); a place, group or host without one keeps its first letter. The photo
@@ -9,6 +11,23 @@
 //
 
 import SwiftUI
+
+/// A person's picture's shape: the Photo step's squircle, its corner the same share of the side at every size. A
+/// ring or tap shape around a face takes it too, and an inset keeps the corner concentric.
+struct FaceShape: InsettableShape {
+    private var inset: CGFloat = 0
+
+    func path(in rect: CGRect) -> Path {
+        let corner = max(0, min(rect.width, rect.height) * Radius.faceShare - inset)
+        return RoundedRectangle(cornerRadius: corner, style: .continuous).path(in: rect.insetBy(dx: inset, dy: inset))
+    }
+
+    func inset(by amount: CGFloat) -> FaceShape {
+        var shape = self
+        shape.inset += amount
+        return shape
+    }
+}
 
 struct Avatar: View {
     /// What shows without a photo, or when it can't load.
@@ -28,18 +47,28 @@ struct Avatar: View {
     let picked: UIImage?
     /// A rounded square with these corners instead of a circle (an Event's host card).
     let corner: CGFloat?
+    /// The squircle: a person, who has the blank figure. A neighbour who hosts an Event is round, as every host
+    /// is (Jesse's yes), so the caller says so.
+    let person: Bool
 
     /// The URL that failed to load, so a dead link shows the blank instead of the light fill.
     @State private var failed: URL?
 
     init(_ url: URL?, size: CGFloat, blank: Blank = .figure, outlined: Bool = false, picked: UIImage? = nil,
-         corner: CGFloat? = nil) {
+         corner: CGFloat? = nil, person: Bool? = nil) {
         self.url = url
         self.size = size
         self.blank = blank
         self.outlined = outlined
         self.picked = picked
         self.corner = corner
+        if let person {
+            self.person = person
+        } else if case .figure = blank {
+            self.person = true
+        } else {
+            self.person = false
+        }
     }
 
     /// From a profile's `avatar_url`.
@@ -60,11 +89,16 @@ struct Avatar: View {
             }
         }
         .frame(width: size, height: size)
-        .clipShape(corner.map { AnyShape(RoundedRectangle(cornerRadius: $0, style: .continuous)) } ?? AnyShape(Circle()))
+        .clipShape(shape)
         .overlay {
-            if outlined { Circle().strokeBorder(Hue.ink.opacity(0.16), lineWidth: FriendsMetric.ring) }
+            if outlined { FaceShape().strokeBorder(Hue.ink.opacity(0.16), lineWidth: FriendsMetric.ring) }
         }
         .accessibilityHidden(true)
+    }
+
+    private var shape: AnyShape {
+        if let corner { return AnyShape(RoundedRectangle(cornerRadius: corner, style: .continuous)) }
+        return person ? AnyShape(FaceShape()) : AnyShape(Circle())
     }
 
     private var blankFace: some View {
@@ -83,9 +117,9 @@ struct Avatar: View {
     }
 }
 
-/// Instagram's blank figure, measured as fractions of the circle: a head 0.284 wide whose top
+/// Instagram's blank figure, measured as fractions of the side: a head 0.284 wide whose top
 /// sits 0.268 down, and shoulders, an ellipse 0.72 wide and 0.86 tall centred on the bottom
-/// edge, which the circle cuts off.
+/// edge, which the picture's edge cuts off.
 private struct BlankFigure: Shape {
     func path(in rect: CGRect) -> Path {
         let d = min(rect.width, rect.height)

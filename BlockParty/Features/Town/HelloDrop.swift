@@ -62,6 +62,11 @@ enum HelloDrop {
         var photo = false
         var tint: UInt32? = nil
         var confetti: [UInt32]? = nil
+
+        /// Its picture is a person's (a contact who joined, a request accepted), so it is the squircle.
+        var isPerson: Bool {
+            if case .person = target { true } else { false }
+        }
     }
 
     /// A contact who joined, as the pill says it: their photo round at the left, when they have one.
@@ -607,7 +612,7 @@ struct HelloDropView: View {
         } else if let logo = said.logo {
             Group {
                 if said.photo {
-                    Avatar(logo, size: Self.picture, blank: .initial(""))
+                    Avatar(logo, size: Self.picture, blank: said.isPerson ? .figure : .initial(""))
                 } else {
                     LogoDisc(logo: logo, initial: "", logoSide: Self.logoSide, letter: .sansSemibold(12))
                 }

@@ -40,9 +40,12 @@ struct SharePayload: Identifiable {
         self.shareText = shareText
     }
 
+    /// Its own page on the website, already in `shareText`: a Group's (start-a-group 07).
+    var link: URL?
+
     /// What Copy link copies: the words and the website, since an Event has no page of its own on it yet
-    /// (Jesse, share-sheet round 2).
-    var copied: String { shareText + " " + FriendsInvite.link.host()! }
+    /// (Jesse, share-sheet round 2); a share with its own link, just the words.
+    var copied: String { link == nil ? shareText + " " + FriendsInvite.link.host()! : shareText }
 }
 
 @MainActor
@@ -196,7 +199,7 @@ final class ShareCenter: ObservableObject {
                 parts.queryItems = [URLQueryItem(name: "text", value: payload.copied)]
             case .messenger:
                 parts.scheme = "fb-messenger"; parts.host = "share"
-                parts.queryItems = [URLQueryItem(name: "link", value: FriendsInvite.link.absoluteString)]
+                parts.queryItems = [URLQueryItem(name: "link", value: (payload.link ?? FriendsInvite.link).absoluteString)]
             }
             return parts.url
         }
@@ -253,17 +256,20 @@ extension SharePayload {
         return payload
     }
 
-    /// A group, from its Group page: what it is, when and where it meets, and its own page.
+    /// A group, from its Group page or Invite friends: what it is, when and where it meets, and its own link
+    /// (start-a-group 07), the one link in the words.
     static func group(_ group: TownGroup) -> SharePayload {
         let detail = GroupPage.whenLine(group)
+        let link = GroupLink.link(for: group.id)
         var text = "Come to \(group.name) with me"
         if let detail { text += ": \(detail)" }
-        if let page = group.pageUrl { text += ". \(page)" }
-        text += ". Shared from Block Party."
+        if let link { text += ". \(link.absoluteString)" }
         let line = detail ?? GroupPage.kindLine(group)
-        return SharePayload(story: ShareStory(title: group.name, line: line,
-                                              photo: group.photos.first { $0.kind == .photo }?.url),
-                            shareText: text)
+        var payload = SharePayload(story: ShareStory(title: group.name, line: line,
+                                                     photo: group.photos.first { $0.kind == .photo }?.url),
+                                   shareText: text)
+        payload.link = link
+        return payload
     }
 
     /// A place, from its page (BP app place-pages 11): its name and what it is over its cover. Copy link adds the

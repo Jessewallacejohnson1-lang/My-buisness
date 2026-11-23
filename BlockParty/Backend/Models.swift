@@ -51,7 +51,7 @@ nonisolated struct TownGroup: Decodable, Hashable, Identifiable, Sendable {
     }
 
     let id: String
-    let name: String
+    var name: String
     var kind: String? = nil
     var schedule: String? = nil
     var location: String? = nil
@@ -75,10 +75,18 @@ nonisolated struct TownGroup: Decodable, Hashable, Identifiable, Sendable {
     var asked = false
     /// Join requests waiting: the Admin's (its starter's) alone; nil for anyone else.
     var requests: Int? = nil
+    /// Who adds Events (start-a-group 04): "admin" (Only me), "picked" (Members I pick) or "members".
+    var eventsBy: String? = nil
+    /// Private can't be turned off, told only to its Admin: started by someone under 18 (SPEC decision 5), or by
+    /// someone who hasn't added a birthday.
+    var alwaysPrivate = false
+
+    /// You run it (start-a-group 04): its Admin, who edits, hands over and closes it. A turned-down Group has none.
+    var isAdmin: Bool { requests != nil && status != "rejected" }
 
     private enum CodingKeys: String, CodingKey {
         case id, name, kind, schedule, location, about, pageUrl, photos, logo, meetings, memberCount, joined,
-             status, invitedBy, imageUrl, asked, requests
+             status, invitedBy, imageUrl, asked, requests, eventsBy, alwaysPrivate
         case isPrivate = "private"
     }
 
@@ -118,6 +126,8 @@ nonisolated struct TownGroup: Decodable, Hashable, Identifiable, Sendable {
         isPrivate = (try? c.decodeIfPresent(Bool.self, forKey: .isPrivate)) ?? false
         asked = (try? c.decodeIfPresent(Bool.self, forKey: .asked)) ?? false
         requests = try? c.decodeIfPresent(Int.self, forKey: .requests)
+        eventsBy = try? c.decodeIfPresent(String.self, forKey: .eventsBy)
+        alwaysPrivate = (try? c.decodeIfPresent(Bool.self, forKey: .alwaysPrivate)) ?? false
     }
 }
 

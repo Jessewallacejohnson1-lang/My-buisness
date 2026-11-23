@@ -30,7 +30,7 @@ struct FollowersPage: View {
                 } else {
                     ForEach(0..<FriendsMetric.loadingRows, id: \.self) { _ in
                         HStack(spacing: FriendsMetric.avatarGap) {
-                            SkeletonBlock(cornerRadius: FriendsMetric.neighborFace / 2)
+                            SkeletonBlock(cornerRadius: FriendsMetric.neighborFace * Radius.faceShare)
                                 .frame(width: FriendsMetric.neighborFace, height: FriendsMetric.neighborFace)
                             SkeletonBlock(cornerRadius: FriendsMetric.loadingLine / 2)
                                 .frame(width: FriendsMetric.loadingName, height: FriendsMetric.loadingLine)

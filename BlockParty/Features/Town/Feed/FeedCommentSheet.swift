@@ -144,7 +144,7 @@ struct FeedCommentSheet: View {
 
     private func row(_ comment: PostComment) -> some View {
         HStack(alignment: .top, spacing: Metric.photoGap) {
-            Avatar(comment.authorPhoto, size: Metric.photo, blank: .initial(comment.author.name))
+            Avatar(comment.authorPhoto, size: Metric.photo)
             VStack(alignment: .leading, spacing: 2) {
                 Text("\(Text(comment.author.name).font(.sansSemibold(13)).foregroundStyle(Hue.ink)) \(Text(age(comment)).foregroundStyle(Hue.inkSecondary))")
                     .font(.sans(13))
@@ -386,7 +386,7 @@ struct CommentListSkeleton: View {
         VStack(alignment: .leading, spacing: 0) {
             ForEach(0..<3, id: \.self) { _ in
                 HStack(alignment: .top, spacing: 8) {
-                    Circle().fill(Hue.fill).frame(width: 32, height: 32)
+                    FaceShape().fill(Hue.fill).frame(width: 32, height: 32)
                     VStack(alignment: .leading, spacing: 5) {
                         SkeletonLine(widthFraction: 0.3, height: 12)
                         SkeletonLine(widthFraction: 0.9, height: 14)

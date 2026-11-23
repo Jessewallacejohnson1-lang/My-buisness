@@ -40,7 +40,8 @@ struct EditProfileSkeleton: View {
                 .padding(.bottom, 10)
 
             VStack(spacing: 26) {
-                SkeletonCircle(diameter: 132)
+                SkeletonBlock(cornerRadius: 132 * Radius.faceShare)
+                    .frame(width: 132, height: 132)
                     .padding(.top, 8)
 
                 VStack(alignment: .leading, spacing: 8) {

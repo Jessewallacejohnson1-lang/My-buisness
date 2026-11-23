@@ -220,7 +220,14 @@ struct AgendaCards: View {
     var faces = false
     let open: (FeedCardItem) -> Void
     var openGroup: (TownGroup) -> Void = { _ in }
+    /// A Group Calendar's day list for its Admin: a long press on one of the Group's own Events takes it off.
+    var takeOff: TakeOff? = nil
     @State private var openID: String?
+
+    struct TakeOff {
+        let ids: Set<String>
+        let ask: (FeedCardItem) -> Void
+    }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityVoiceOverEnabled) private var voiceOver
 
@@ -232,7 +239,7 @@ struct AgendaCards: View {
                                friends: faces ? event.item.friendsGoing : [], open: openID == event.id)
                 }
                 .buttonStyle(.press(.squish))
-                .modifier(GroupCardMenu(event: event))
+                .modifier(GroupCardMenu(event: event, takeOff: takeOff))
             }
         }
     }
@@ -419,9 +426,11 @@ private struct AgendaCard: View {
 }
 
 /// A long press on a Group get-together's card takes it off your Agenda (rsvp-and-groups 09: the
-/// Group page has no switch, Jesse 2026-11-13). Apple's own menu; an Event's card has none.
+/// Group page has no switch, Jesse 2026-11-13). Apple's own menu. An Event's card has one only on a Group Calendar,
+/// for its Admin: Remove event (start-a-group, SPEC decision 8).
 private struct GroupCardMenu: ViewModifier {
     let event: DailyEvent
+    let takeOff: AgendaCards.TakeOff?
 
     func body(content: Content) -> some View {
         if let group = event.group, let meeting = event.meeting {
@@ -430,6 +439,10 @@ private struct GroupCardMenu: ViewModifier {
                 Button("Remove from Agenda", systemImage: "calendar.badge.minus", role: .destructive) {
                     GroupAgenda.shared.remove(group, meeting)
                 }
+            }
+        } else if event.group == nil, let takeOff, takeOff.ids.contains(event.item.id) {
+            content.contextMenu {
+                Button("Remove event", systemImage: "trash", role: .destructive) { takeOff.ask(event.item) }
             }
         } else {
             content

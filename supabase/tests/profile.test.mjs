@@ -11,7 +11,8 @@ const db = await realDatabase();
 const id = (n) => `00000000-0000-0000-0000-${String(n).padStart(12, '0')}`;
 const [ANA, BEN, CAL, DEE, ANON] = [1, 2, 3, 4, 6].map(id);
 const [LIONS, BOOKS] = [900, 901].map(id);
-await db.exec(`insert into public.clubs (id, name) values ('${LIONS}', 'Lions'), ('${BOOKS}', 'Books')`);
+// Live Groups: one still waiting on its checks shows on a Profile only to those in it (start-a-group fix pass).
+await db.exec(`insert into public.clubs (id, name, status) values ('${LIONS}', 'Lions', 'approved'), ('${BOOKS}', 'Books', 'approved')`);
 const [MARKET, TRIVIA, FISH, OVER, CALLED] = [700, 701, 702, 703, 704].map(id);
 const PHOTOS = 'https://lxdgwhvqjqmqliobwjpi.supabase.co/storage/v1/object/public/avatars/';
 const KREWE = id(800);

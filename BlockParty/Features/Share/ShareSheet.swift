@@ -177,7 +177,7 @@ struct ShareSheet: View {
                 if let list, let targets = list.targets {
                     ForEach(targets) { target in
                         let done = list.sent.contains(target.id)
-                        ShareRound(word: done ? "Sent" : target.name, dim: done, done: done) {
+                        ShareRound(word: done ? "Sent" : target.name, dim: done, done: done, people: target.isPeople) {
                             ChatTargetFace(target: target, size: ShareMetric.circle)
                         } action: {
                             Task { await list.deliver(target) }
@@ -187,7 +187,8 @@ struct ShareSheet: View {
                 } else {
                     HStack(spacing: ShareMetric.circleGap) {
                         ForEach(0..<4, id: \.self) { _ in
-                            SkeletonCircle(diameter: ShareMetric.circle)
+                            SkeletonBlock(cornerRadius: ShareMetric.circle * Radius.faceShare)
+                                .frame(width: ShareMetric.circle, height: ShareMetric.circle)
                         }
                     }
                     .shimmering()
@@ -273,6 +274,8 @@ private struct ShareRound<Face: View>: View {
     var dim = false
     var done = false
     var fill: Color? = nil
+    /// A person or two, so the squircle; an Event, a Group and the buttons stay round.
+    var people = false
     @ViewBuilder let face: () -> Face
     let action: () -> Void
 
@@ -282,7 +285,7 @@ private struct ShareRound<Face: View>: View {
                 face()
                     .frame(width: ShareMetric.circle, height: ShareMetric.circle)
                     .background { if let fill { Circle().fill(fill) } }
-                    .clipShape(Circle())
+                    .clipShape(people ? AnyShape(FaceShape()) : AnyShape(Circle()))
                     .overlay(alignment: .bottomTrailing) {
                         Image(systemName: "checkmark")
                             .font(.glyph(ShareMetric.badgeGlyph, weight: .bold))

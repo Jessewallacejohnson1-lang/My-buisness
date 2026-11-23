@@ -3,7 +3,7 @@
 //  Block Party — Adjust: move and zoom a picked photo inside the frame it will show in, before it goes up (BP app
 //  backlog 32; Jesse, 2026-11-17: yes to the mock https://claude.ai/artifact/VNkvCwR1n8jmAUc1DbhtbY,
 //  `references/photo-adjust/`). One screen for a post's photos (the post's own shape or square, a tap on the photo in
-//  New post), the profile photo (a circle) and the cover (the profile's shape), the last two opening by themselves
+//  New post), the profile photo (a squircle) and the cover (the profile's shape), the last two opening by themselves
 //  right after a pick. Apple's own zooming scroll view does the moving: it follows the finger, flings, stretches past
 //  the edge and springs back so the frame stays filled, as Photos' crop does.
 //
@@ -101,7 +101,7 @@ enum PhotoAdjustShape: Equatable {
     /// A post: its first photo's own shape (4:5 to 1.91:1), or square after the shape button.
     case post(own: CGFloat)
     /// The profile photo.
-    case circle
+    case face
     /// The cover, at the profile's shape.
     case wide(CGFloat)
 }
@@ -142,11 +142,11 @@ struct PhotoAdjustView: View {
     private enum Metric {
         /// The post's frame starts here from the screen's top (the mock's 130 pt), the bar above it.
         static let postTop: CGFloat = 130
-        /// The circle leaves 20 pt each side.
-        static let circleInset: CGFloat = 20
+        /// The squircle leaves 20 pt each side.
+        static let faceInset: CGFloat = 20
         static let hintGap: CGFloat = 18
-        /// Under the circle the hint sits further off (the mock's 24).
-        static let circleHintGap: CGFloat = 24
+        /// Under the squircle the hint sits further off (the mock's 24).
+        static let faceHintGap: CGFloat = 24
         static let barLift: CGFloat = 8
         static let shapeButton: CGFloat = 36
         static let shapeInset: CGFloat = 12
@@ -173,7 +173,7 @@ struct PhotoAdjustView: View {
                     .font(.sans(13))
                     .foregroundStyle(.white.opacity(0.75))
                     .frame(width: screen.width)
-                    .offset(y: frame.maxY + (shape == .circle ? Metric.circleHintGap : Metric.hintGap))
+                    .offset(y: frame.maxY + (shape == .face ? Metric.faceHintGap : Metric.hintGap))
                     .opacity(touched ? 0 : 1)
                     .allowsHitTesting(false)
                     .accessibilityHidden(true)
@@ -202,19 +202,19 @@ struct PhotoAdjustView: View {
         case .post(let own):
             let aspect = isSquare ? 1 : max(own, 0.1)
             return CGRect(x: 0, y: Metric.postTop, width: screen.width, height: screen.width / aspect)
-        case .circle:
-            let side = screen.width - Metric.circleInset * 2
-            return CGRect(x: Metric.circleInset, y: (screen.height - side) / 2, width: side, height: side)
+        case .face:
+            let side = screen.width - Metric.faceInset * 2
+            return CGRect(x: Metric.faceInset, y: (screen.height - side) / 2, width: side, height: side)
         case .wide(let aspect):
             let h = screen.width / max(aspect, 0.1)
             return CGRect(x: 0, y: (screen.height - h) / 2, width: screen.width, height: h)
         }
     }
 
-    /// Everything outside the frame darkened, the frame cut out (a circle for the profile photo). Drawn as shapes so
+    /// Everything outside the frame darkened, the frame cut out (a squircle for the profile photo). Drawn as shapes so
     /// the hole moves with the shape button.
     private func dimmer(_ frame: CGRect, in screen: CGSize) -> some View {
-        let edge = shape == .circle ? AnyShape(Circle()) : AnyShape(Rectangle())
+        let edge = shape == .face ? AnyShape(FaceShape()) : AnyShape(Rectangle())
         return Rectangle()
             .fill(.black.opacity(Metric.dim))
             .mask {
@@ -233,7 +233,7 @@ struct PhotoAdjustView: View {
 
     /// Thirds and the frame's edge, while a finger is down.
     private func grid(_ frame: CGRect) -> some View {
-        let edge = shape == .circle ? AnyShape(Circle()) : AnyShape(Rectangle())
+        let edge = shape == .face ? AnyShape(FaceShape()) : AnyShape(Rectangle())
         return ZStack {
             Path { p in
                 for k in [1.0 / 3, 2.0 / 3] {
@@ -288,7 +288,7 @@ struct PhotoAdjustView: View {
     private var aspect: CGFloat {
         switch shape {
         case .post(let own): isSquare ? 1 : own
-        case .circle: 1
+        case .face: 1
         case .wide(let a): a
         }
     }

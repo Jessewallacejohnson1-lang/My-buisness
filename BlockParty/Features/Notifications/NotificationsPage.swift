@@ -364,7 +364,7 @@ private struct LoadingNotices: View {
     var body: some View {
         ForEach(0..<3, id: \.self) { _ in
             HStack(spacing: NoticeMetric.gap) {
-                SkeletonBlock(cornerRadius: NoticeMetric.face / 2)
+                SkeletonBlock(cornerRadius: NoticeMetric.face * Radius.faceShare)
                     .frame(width: NoticeMetric.face, height: NoticeMetric.face)
                 SkeletonBlock(cornerRadius: FriendsMetric.loadingLine / 2)
                     .frame(width: FriendsMetric.loadingName * 1.6, height: FriendsMetric.loadingLine)

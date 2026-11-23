@@ -204,7 +204,7 @@ test('Coming up: from now on, the next 3 or every one through this weekday next 
   await db.exec("delete from public.clubs where name in ('Runners', 'Quiet club', 'Empty club', 'Broken club', 'Weekly club')");
 });
 
-test("a Group's found Events: its own page's and its name at its place, next three, as cards", async () => {
+test("a Group's found Events: its own page's and its name at its place, every one to come, as cards", async () => {
   const lions = await idOf('St. Joseph Lions Club'), rod = await idOf('St. Joe Rod and Gun Club');
   await db.exec(`insert into public.sources (entry_id, url, town, name, status, method) values
       ('st-joseph-lions-club', 'https://facebook.com/stjoelions', 'st-joseph-mn', 'St. Joseph Lions Club Facebook', 'active', 'fetch')
@@ -217,7 +217,7 @@ test("a Group's found Events: its own page's and its name at its place, next thr
   const breakfast = await add('Pancake Breakfast', 30);
   const soon = await add('Eye glass drive', 3);
   const later = await add('Pancake Breakfast', 60);
-  await add('Fourth one', 90);
+  const fourth = await add('Fourth one', 90);
   await add('Last year', -5);
   await add('Turned down', 4, { status: 'rejected' });
   await add('Called off', 5, { cancelled: true });
@@ -234,7 +234,8 @@ test("a Group's found Events: its own page's and its name at its place, next thr
   };
   for (const as of [null, ME]) {
     const cards = await read(lions, as);
-    assert.deepEqual(cards.map((c) => c.id), [soon, breakfast, later], 'its own page\'s, soonest first, three at most');
+    // Every one still to come since the Group page's Calendar (start-a-group 05), not the next three.
+    assert.deepEqual(cards.map((c) => c.id), [soon, breakfast, later, fourth], 'its own page\'s, soonest first');
     assert.equal(cards[1].title, 'Pancake Breakfast', 'a whole card, as the Town feed has it');
   }
   assert.deepEqual((await read(rod, ME)).map((c) => c.id), [byName], 'its name at its place');

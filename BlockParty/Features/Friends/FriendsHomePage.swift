@@ -388,7 +388,7 @@ struct LoadingRows: View {
     var body: some View {
         ForEach(0..<FriendsMetric.loadingRows, id: \.self) { _ in
             HStack(spacing: FriendsMetric.avatarGap) {
-                SkeletonBlock(cornerRadius: FriendsMetric.neighborFace / 2)
+                SkeletonBlock(cornerRadius: FriendsMetric.neighborFace * Radius.faceShare)
                     .frame(width: FriendsMetric.neighborFace, height: FriendsMetric.neighborFace)
                 SkeletonBlock(cornerRadius: FriendsMetric.loadingLine / 2)
                     .frame(width: FriendsMetric.loadingName, height: FriendsMetric.loadingLine)
@@ -802,7 +802,7 @@ struct AddNameSheet: View {
             } else {
                 // The edit form's own shapes while the profile loads: the photo, the name.
                 VStack(spacing: FriendsMetric.loadingLine) {
-                    SkeletonBlock(cornerRadius: FriendsMetric.requestFace / 2)
+                    SkeletonBlock(cornerRadius: FriendsMetric.requestFace * Radius.faceShare)
                         .frame(width: FriendsMetric.requestFace, height: FriendsMetric.requestFace)
                     SkeletonBlock(cornerRadius: FriendsMetric.loadingLine / 2)
                         .frame(width: FriendsMetric.loadingName, height: FriendsMetric.loadingLine)

@@ -681,7 +681,7 @@ struct ChatDuoFace: View {
             Avatar(avatarUrl: first.avatarUrl, size: small)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             Avatar(avatarUrl: second.avatarUrl, size: small)
-                .overlay(Circle().stroke(Hue.surface, lineWidth: size < ChatMetric.face ? 1.5 : 2))
+                .overlay(FaceShape().stroke(Hue.surface, lineWidth: size < ChatMetric.face ? 1.5 : 2))
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
         }
         .frame(width: size, height: size)
@@ -693,7 +693,7 @@ private struct ChatLoadingRows: View {
     var body: some View {
         ForEach(0..<ChatMetric.loadingRows, id: \.self) { _ in
             HStack(spacing: ChatMetric.rowGap) {
-                SkeletonBlock(cornerRadius: ChatMetric.face / 2)
+                SkeletonBlock(cornerRadius: ChatMetric.face * Radius.faceShare)
                     .frame(width: ChatMetric.face, height: ChatMetric.face)
                 SkeletonBlock(cornerRadius: ChatMetric.loadingLine / 2)
                     .frame(width: ChatMetric.loadingName, height: ChatMetric.loadingLine)

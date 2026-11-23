@@ -18,6 +18,9 @@ final class ChatSendList {
         var chat: Chat? = nil
         var group: TownGroup? = nil
         var person: Neighbor? = nil
+
+        /// Its picture is a friend, or a chat of friends, not an Event's or a Group's.
+        var isPeople: Bool { group == nil && chat?.card == nil && chat?.clubId == nil }
     }
 
     /// The Event being sent.

@@ -522,12 +522,12 @@ private struct FollowTileArt: View {
     }
 }
 
-/// Six shimmering rows of round faces while Contacts is read.
+/// Six shimmering rows of faces while Contacts is read.
 struct OnboardingLoadingRows: View {
     var body: some View {
         ForEach(0..<6, id: \.self) { _ in
             HStack(spacing: 12) {
-                SkeletonBlock(cornerRadius: 24).frame(width: 48, height: 48)
+                SkeletonBlock(cornerRadius: 48 * Radius.faceShare).frame(width: 48, height: 48)
                 SkeletonBlock(cornerRadius: 6).frame(width: 140, height: 12)
                 Spacer(minLength: 0)
             }
