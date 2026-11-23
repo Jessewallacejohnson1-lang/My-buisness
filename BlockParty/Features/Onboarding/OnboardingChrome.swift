@@ -19,6 +19,10 @@ enum BigArt {
     static let top: CGFloat = 104
     static let row: CGFloat = 128
     static let art: CGFloat = 124
+    /// On a phone under `shortScreen` tall (the iPhone SE's 667), Birthday's cake is 112 pt in a 116 pt
+    /// row, so the date clears Next (onboarding 47).
+    static let shortScreen: CGFloat = 700
+    static let shortArt: CGFloat = 112
     /// The colour glides to the next step's, and a dash fills, over the mock's 420 ms out-quint.
     static let glide: Animation = Motion.outQuint(0.42)
 }
@@ -147,10 +151,12 @@ struct OnboardingHeading: View {
 
 /// What sits over a question in the Big art look (BP app onboarding 43, mock v2 `.pic`, `.q`, `.sub`):
 /// one drawing, centred in a 128 pt row, which pops in as the step arrives; 14 pt under it the question,
-/// centred, 26 pt bold on a 31 pt line. Reduce Motion skips the pop. (Profile's grey line under it left with
-/// Profile's Big art, onboarding 55.)
+/// centred, 26 pt bold on a 31 pt line; then, on Under 13, its grey line, centred. Reduce Motion skips the pop.
 struct OnboardingBigArt<Art: View>: View {
     let question: String
+    var line: String? = nil
+    /// The drawing's row: 4 pt taller than the drawing.
+    var row: CGFloat = BigArt.row
     @AccessibilityFocusState.Binding var focused: Bool
     @ViewBuilder let art: Art
 
@@ -160,7 +166,7 @@ struct OnboardingBigArt<Art: View>: View {
     var body: some View {
         VStack(spacing: 0) {
             art
-                .frame(height: BigArt.row)
+                .frame(height: row)
                 // The mock's pop, 480 ms out-quint after 60 ms: from 72%, 10 pt low and clear, to 105% and
                 // solid in the first 80 ms, then easing down to rest.
                 .keyframeAnimator(initialValue: BigArtPop(), trigger: arrived) { art, pop in
@@ -192,6 +198,16 @@ struct OnboardingBigArt<Art: View>: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityFocused($focused)
+            if let line {
+                Text(line)
+                    .font(.apple(15))
+                    .lineSpacing(3)            // SF's 18 pt line at 15 pt, to the mock's 21
+                    .foregroundStyle(Hue.bigArtWords)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 7.5)        // 6 pt under the question, and half that line's extra 3
+                    .padding(.bottom, 1.5)
+            }
         }
         .frame(maxWidth: .infinity)
         .onAppear { if !reduceMotion { arrived = true } }

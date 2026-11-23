@@ -34,7 +34,7 @@ for the top 150 pt and fading to #FBFAFD by 440 pt, which glides to the next ste
 tall heads the step and pops in; the question is centred, 26 pt bold on a 31 pt line; boxes are white
 with a soft edge; the tracker is one 4 pt dash for each step, this step's filling as it arrives. Built so
 far (onboarding 43): the dashes on every step, and the whole look on Profile (sand, its photo as the art)
-and Birthday (lilac, Jesse's cake). Profile has since become Clubhouse's Name and Photo steps on white (onboarding 55, 2026-11-22; BP app `references/profile-clubhouse/`): Clubhouse's sizes in Apple's font, a 290 pt cream name box, a 158 pt cream squircle, Skip, and its narrow pill (the second exception below). Each other step keeps Luma's look below until its own ticket (48 to
+and Birthday (lilac, Jesse's cake), and Under 13 (grey, an hourglass, its line and Close; onboarding 47, 2026-11-22). On a phone under 700 pt tall (the iPhone SE) Birthday's cake is 112 pt and its wheel has no home bar, so the date clears Next. Profile has since become Clubhouse's Name and Photo steps on white (onboarding 55, 2026-11-22; BP app `references/profile-clubhouse/`): Clubhouse's sizes in Apple's font, a 290 pt cream name box, a 158 pt cream squircle, Skip, and its narrow pill (the second exception below). Each other step keeps Luma's look below until its own ticket (48 to
 52), as do Log in and Create account. Where mock v2 and Luma's mock differ on a step that wears Big art,
 mock v2 wins. **Until then the look is Luma's** (Jesse,
 2026-11-08; approved 2026-11-09): the Reference for every screen is mock v8,
@@ -47,7 +47,7 @@ flat 48 pt black pill 20 pt from each side, which sinks to 97% and dims when pre
 allowed and shakes; soft grey field boxes with a small label above. The Welcome keeps Nextdoor's
 layout (ticket 25). Interests is one white card of
 rows with check circles, its chips grey until picked; Follow 3's logos sit on white with a plus that
-turns to an ink check, no Follow pills; Under 13 is a quiet icon and a line (ticket 36). Duolingo's
+turns to an ink check, no Follow pills. Duolingo's
 chunky bar, glint and raised button and chips are gone. Everything below this
 section still holds, except where the spec says otherwise: between steps only the question slides
 (Reduce Motion: a cross-fade), not a cross-fade of the whole step.
