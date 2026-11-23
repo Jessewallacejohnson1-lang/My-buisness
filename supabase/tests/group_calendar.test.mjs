@@ -357,3 +357,84 @@ test('any other Event still takes Going from anyone, and a friend\'s share of it
   await emptyChats();
   await reset();
 });
+
+// Everything an invite lets someone read of a Group.
+const reads = async (who, club, event) => ({
+  ...(await seesEvent(who, club, event)),
+  members: (await as(who, 'select user_id from public.club_members where club_id = $1 and user_id <> $2', [club, who])).length > 0,
+  meetings: ((await calendar(who, club))?.meetings ?? []).length > 0,
+  row: (await as(who, 'select id from public.clubs where id = $1', [club])).length > 0,
+  where: (await as(who, 'select location from public.get_groups() where id = $1', [club]))[0]?.location ?? null,
+  profile: (await as(who, 'select group_ids from public.get_profile($1)', [SAM]))[0].group_ids.includes(club),
+});
+const INSIDE = { calendar: true, feed: true, table: true, members: true, meetings: true, row: true, where: 'Resurrection Lutheran', profile: true };
+const OUTSIDE = { ...NONE, members: false, meetings: false, row: false, where: null, profile: false };
+const invite = (who, club, friend) => as(who, 'select public.invite_to_group($1, $2)', [club, [friend]]);
+const joinAs = (who, club) => as(who, 'insert into public.club_members (club_id, user_id) values ($1, $2)', [club, who]);
+// The leave every app sends.
+const leave = (who, club) => as(who, 'delete from public.club_members where club_id = $1 and user_id = $2', [club, who]);
+
+for (const [n, status, what] of [[21, 'approved', 'a private'], [22, 'pending', 'a waiting']]) {
+  test(`leaving ${what} Group ends what the invite gave; a fresh invite works again, and who hasn't joined keeps theirs`, async () => {
+    const club = group(n);
+    await live(club, { priv: status === 'approved', status });
+    await meets(SAM, club, ['tue'], null, '18:30', 'Resurrection Lutheran');
+    const night = await added(SAM, club, 'Members quilt night');
+    assert.equal(await claim(night, SAM), true);
+    await approve(night);
+    for (const friend of [ANA, BO]) {
+      await friends(SAM, friend);
+      await invite(SAM, club, friend);
+      assert.deepEqual(await reads(friend, club, night), INSIDE, 'invited, not yet in');
+    }
+    await joinAs(ANA, club);
+    assert.deepEqual(await reads(ANA, club, night), INSIDE);
+    await as(ANA, 'insert into public.event_rsvps (event_id, user_id) values ($1, $2)', [night, ANA]);
+    const [{ chat }] = await as(ANA, 'select public.join_going_chat($1) as chat', [night]);
+
+    await leave(ANA, club);
+    assert.deepEqual(await reads(ANA, club, night), OUTSIDE, 'left');
+    assert.deepEqual(await messages(ANA, chat), []);
+    await assert.rejects(as(ANA, 'select public.join_going_chat($1)', [night]), /chat_not_going/);
+    await assert.rejects(joinAs(ANA, club), /row-level security/, 'nor walks back in on the old invite');
+    await assert.rejects(invite(ANA, club, STAN), /only a member invites/);
+    assert.deepEqual(await reads(BO, club, night), INSIDE, 'invited and never in: as before');
+
+    await invite(SAM, club, ANA);
+    assert.deepEqual(await reads(ANA, club, night), INSIDE, 'invited afresh');
+    await joinAs(ANA, club);
+    await leave(ANA, club);
+    if (status === 'approved') {
+      await as(ANA, 'select public.ask_to_join($1)', [club]);
+      assert.deepEqual(await reads(ANA, club, night), OUTSIDE, 'asking shows nothing');
+      await as(SAM, 'select public.answer_join($1, $2, true)', [club, ANA]);
+      assert.deepEqual(await reads(ANA, club, night), INSIDE, 'let in again');
+      await leave(ANA, club);
+    }
+    assert.deepEqual(await reads(ANA, club, night), OUTSIDE);
+
+    // The Admin hands it over, then leaves: out as anyone.
+    await joinAs(BO, club);
+    await as(SAM, 'select public.hand_over_group($1, $2)', [club, BO]);
+    await leave(SAM, club);
+    const { members, meetings, where, profile } = await reads(SAM, club, night);
+    assert.deepEqual({ members, meetings, where, profile }, { members: false, meetings: false, where: null, profile: false });
+    await emptyChats();
+    await reset();
+  });
+}
+
+test('leaving a public Group ends its invite line, and Join works as before', async () => {
+  const club = group(23);
+  await live(club);
+  await friends(SAM, ANA);
+  await invite(SAM, club, ANA);
+  const row = async () => (await as(ANA, 'select invited_by, joined from public.get_groups() where id = $1', [club]))[0];
+  assert.deepEqual(await row(), { invited_by: 'Sam', joined: false });
+  await joinAs(ANA, club);
+  await leave(ANA, club);
+  assert.deepEqual(await row(), { invited_by: null, joined: false });
+  await joinAs(ANA, club);
+  assert.deepEqual(await row(), { invited_by: null, joined: true });
+  await reset();
+});
