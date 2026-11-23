@@ -81,8 +81,8 @@ final class AccountForm {
     var hasPhone: Bool { PhoneSignIn.isOn && PhoneNumber.looksLike(email) }
 
     func canSubmit(_ way: OnboardingAccount) -> Bool {
-        if way == .logIn, hasPhone { return true }
         switch way {
+        case .logIn where hasPhone: true
         case .create, .logIn: Self.looksLikeEmail(email) && password.count >= 6
         case .forgot: Self.looksLikeEmail(email)
         case .code: code.count == 6
