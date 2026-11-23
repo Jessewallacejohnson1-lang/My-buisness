@@ -222,4 +222,201 @@ test('a deleted Admin\'s Group goes to the member who joined longest ago; with n
   assert.equal(status, 'closed');
   assert.equal((await db.query('select 1 from auth.users where id = $1', [SAM])).rows.length, 0, 'the account went');
   await db.exec('delete from public.clubs');
+  await comeBack(SAM, 'Sam Rivera');
+});
+
+// Settings' Delete account: the delete-account edge function's rows half, then its deleteUser.
+const deleteAccount = async (who) => {
+  await as('service', 'select public.clear_account_rows($1)', [who]);
+  await db.query('delete from auth.users where id = $1', [who]);
+};
+const comeBack = async (who, name) => {
+  await db.query('insert into auth.users (id) values ($1)', [who]);
+  await db.query('insert into public.town_profiles (user_id, display_name, birthday) values ($1, $2, $3)', [who, name, '1980-01-01']);
+};
+let next = 20;
+for (const [path, leave] of [['Settings\' Delete account', deleteAccount],
+                             ['the under-13 exit', (who) => as(who, 'select public.delete_my_account()')]]) {
+  test(`${path}: a Group goes to its longest member someone could write to, or closes; its photo goes with the folder`, async () => {
+    const [club, alone, theirs] = [group(next++), group(next++), group(next++)];
+    await live(club, 'Joetown Sewing Circle', [STAN, BO, ANA]);
+    await live(alone, 'Sam\'s Own Club');
+    await db.query('update auth.users set banned_until = now() + interval \'1 year\' where id = $1', [STAN]);
+    // A block between the two goes with the account that leaves.
+    await db.query('insert into private.blocks (blocker_id, blocked_id) values ($1, $2)', [BO, SAM]);
+    await db.query('update public.clubs set image_url = $2 where id = $1', [club, PHOTO(SAM, club, 'a1')]);
+    // One Sam handed on earlier, its photo still in Sam's folder.
+    await live(theirs, 'Joetown Quilters', [ANA]);
+    await db.query('update public.clubs set image_url = $2 where id = $1', [theirs, PHOTO(SAM, theirs, 'a1')]);
+    await as(SAM, 'select public.hand_over_group($1, $2)', [theirs, ANA]);
+    await leave(SAM);
+    assert.equal((await seen(BO, club)).requests, 0, 'Bo runs it: Stan joined first but is banned');
+    assert.equal((await seen(ANA, club)).requests, null);
+    assert.equal(await seen(ANA, alone), undefined, 'no member left: it closes');
+    for (const g of [club, theirs]) assert.equal((await seen(ANA, g)).image_url, null, 'no card points at a file that went');
+    await edit(BO, club, { eventsBy: 'members' });
+    await db.query('update auth.users set banned_until = null where id = $1', [STAN]);
+    await comeBack(SAM, 'Sam Rivera');
+    await reset();
+  });
+}
+
+test('a photo a check has read is never on the list to take down', async () => {
+  const club = group(30);
+  const [A, B, C] = ['a1', 'b2', 'c3'].map((n) => PHOTO(SAM, club, n));
+  await live(club, 'Joetown Sewing Circle');
+  // A, then A again while its check runs, its check's two yeses, then B.
+  await edit(SAM, club, { name: 'Joetown Quilters', photo: A });
+  const first = await claim(club, SAM);
+  await edit(SAM, club, { name: 'Joetown Quilters', photo: A });
+  assert.equal(await apply(club, SAM, first), true);
+  await edit(SAM, club, { name: 'Joetown Quilters', photo: B });
+  const second = await claim(club, SAM);
+  assert.deepEqual([second.photo, second.drop], [B, undefined], 'A is live');
+  assert.equal((await seen(ANA, club)).image_url, A);
+
+  // B being read, B again, then C: B is its check's to settle, not the list's.
+  await edit(SAM, club, { name: 'Joetown Quilters', photo: B });
+  await edit(SAM, club, { name: 'Joetown Quilters', photo: C });
+  assert.equal((await claim(club, SAM)).drop, undefined);
+  assert.equal(await apply(club, SAM, second), true);
+  assert.equal((await seen(ANA, club)).image_url, B);
+
+  // A waiting photo put back is no longer one to take down.
+  const [D, E] = ['d4', 'e5'].map((n) => PHOTO(SAM, club, n));
+  for (const photo of [D, E, D]) await edit(SAM, club, { name: 'Joetown Quilters', photo });
+  const third = await claim(club, SAM);
+  assert.deepEqual([third.photo, third.drop], [D, [E]]);
+  await db.exec('delete from private.group_edit_checks');
+  await reset();
+});
+
+test('nobody reads an edit that waits on its check', async () => {
+  const club = group(31);
+  await live(club, 'Joetown Sewing Circle', [ANA]);
+  await edit(SAM, club, { name: 'Buy Followers Cheap', about: 'Call 555-0100', photo: PHOTO(SAM, club, 'a1') });
+  for (const who of [ANA, STAN]) {
+    const rows = JSON.stringify([await as(who, 'select * from public.clubs where id = $1', [club]), await seen(who, club)]);
+    assert.match(rows, /Joetown Sewing Circle/, 'the Group itself is read');
+    assert.doesNotMatch(rows, /Buy Followers|555-0100|group-00000000/, 'its waiting name, About and photo aren\'t');
+  }
+  await db.exec('set role anon');
+  const rows = JSON.stringify((await db.query('select * from public.clubs where id = $1', [club])).rows);
+  await db.exec('reset role');
+  assert.doesNotMatch(rows, /Buy Followers|555-0100|group-00000000/, 'nor signed out');
+  assert.equal((await claim(club, SAM)).name, 'Buy Followers Cheap', 'the check does');
+  await db.exec('delete from private.group_edit_checks');
+  await reset();
+});
+
+const birthday = (who, day) => db.query('update public.town_profiles set birthday = $2 where user_id = $1', [who, day]);
+const years = async (n) => (await db.query(`select ((now() at time zone 'America/Chicago')::date - make_interval(years => $1))::date::text as d`, [n])).rows[0].d;
+const switchOff = async (who, club) => {
+  await edit(who, club, { name: 'No Day Club', about: 'We sew.', private: false });
+  const row = await seen(who, club);
+  return row.private ? (row.always_private ? 'fixed on' : 'on') : 'off';
+};
+async function ageless(club, members = []) {
+  await birthday(SAM, null);
+  await live(club, 'No Day Club', members);
+}
+
+test('a starter with no birthday: private until they add an adult one', async () => {
+  const club = group(32);
+  await ageless(club);
+  assert.equal((await seen(SAM, club)).private, true);
+  assert.equal(await switchOff(SAM, club), 'fixed on');
+  await birthday(SAM, '1980-01-01');
+  assert.equal((await seen(SAM, club)).always_private, false);
+  assert.equal(await switchOff(SAM, club), 'off');
+  await reset();
+});
+
+test('a starter who turns out to have been under 18 when they started it: private for good', async () => {
+  const club = group(33);
+  await ageless(club);
+  // 18 now, 17 the day they started it.
+  await db.query(`update public.clubs set created_at = now() - interval '2 months' where id = $1`, [club]);
+  await birthday(SAM, (await db.query(`select ((now() at time zone 'America/Chicago')::date - interval '18 years 1 month')::date::text as d`)).rows[0].d);
+  assert.equal(await switchOff(SAM, club), 'fixed on');
+  await birthday(SAM, '1980-01-01');
+  await reset();
+});
+
+test('a starter under 18 grows up: still private', async () => {
+  const club = group(34);
+  await birthday(SAM, await years(17));
+  await live(club, 'No Day Club', [ANA]);
+  await db.query(`update public.clubs set created_at = created_at - interval '2 years' where id = $1`, [club]);
+  await birthday(SAM, await years(19));
+  assert.equal(await switchOff(SAM, club), 'fixed on');
+  await birthday(SAM, '1980-01-01');
+  await reset();
+});
+
+test('handed over while the starter\'s age is unknown: stays private, whatever they add later', async () => {
+  const club = group(35);
+  await ageless(club, [ANA]);
+  await as(SAM, 'select public.hand_over_group($1, $2)', [club, ANA]);
+  assert.equal(await switchOff(ANA, club), 'fixed on', 'Ana is an adult, but didn\'t start it');
+  await birthday(SAM, '1980-01-01');
+  assert.equal(await switchOff(ANA, club), 'fixed on');
+  await reset();
+  const left = group(36);
+  await ageless(left, [ANA]);
+  await deleteAccount(SAM);
+  assert.equal(await switchOff(ANA, left), 'fixed on', 'left behind by a deleted account too');
+  await comeBack(SAM, 'Sam Rivera');
+  await reset();
+});
+
+test('handed over once the starter is known an adult: the new Admin may make it public', async () => {
+  const club = group(37);
+  await ageless(club, [ANA]);
+  await birthday(SAM, '1980-01-01');
+  await as(SAM, 'select public.hand_over_group($1, $2)', [club, ANA]);
+  assert.equal(await switchOff(ANA, club), 'off');
+  await reset();
+});
+
+test('whether a Group is private for good, which says its starter\'s age, is told only to its Admin', async () => {
+  const club = group(38);
+  await birthday(SAM, await years(15));
+  await live(club, 'Teen Chess Club', [ANA]);
+  assert.equal((await seen(SAM, club)).always_private, true);
+  for (const who of [ANA, STAN]) assert.equal((await seen(who, club)).always_private, false);
+  await birthday(SAM, '1980-01-01');
+  await reset();
+});
+
+test('a waiting photo goes on the list to take down when the Group is handed over, closed or left', async () => {
+  const [over, closed, left] = [39, 40, 41].map(group);
+  const waiting = async (club, members) => {
+    await live(club, 'Joetown Sewing Circle', members);
+    await edit(SAM, club, { name: 'Joetown Quilters', photo: PHOTO(SAM, club, 'a1') });
+  };
+  await waiting(over, [ANA]);
+  const [{ drops }] = await as(SAM, 'select public.hand_over_group($1, $2) as drops', [over, ANA]);
+  assert.equal(drops, true, 'the app asks the check, which takes the photo down');
+  assert.deepEqual(await claim(over, SAM), { drop: [PHOTO(SAM, over, 'a1')] }, 'the one who handed it over asks');
+  assert.equal(await claim(over, SAM), null, 'once');
+  assert.equal((await seen(ANA, over)).name, 'Joetown Sewing Circle', 'the edit itself is gone');
+
+  await waiting(closed, []);
+  assert.equal((await as(SAM, 'select public.close_group($1) as drops', [closed]))[0].drops, true);
+  assert.deepEqual(await claim(closed, SAM), { drop: [PHOTO(SAM, closed, 'a1')] });
+  assert.equal((await as(SAM, 'select public.hand_over_group($1, $2) as drops', [over, ANA]).catch(() => [{ drops: 'refused' }]))[0].drops, 'refused');
+
+  // Left by the app before it could ask: the new Admin's next edit carries it.
+  await reset();
+  await waiting(left, [ANA]);
+  await as(SAM, 'select public.hand_over_group($1, $2)', [left, ANA]);
+  await edit(ANA, left, { name: 'Quilters of Joetown' });
+  assert.deepEqual((await claim(left, ANA)).drop, [PHOTO(SAM, left, 'a1')]);
+
+  const none = group(42);
+  await live(none, 'Joetown Sewing Circle', [ANA]);
+  assert.equal((await as(SAM, 'select public.hand_over_group($1, $2) as drops', [none, ANA]))[0].drops, false, 'nothing waits: nothing to ask');
+  await db.exec('delete from private.group_edit_checks');
+  await reset();
 });

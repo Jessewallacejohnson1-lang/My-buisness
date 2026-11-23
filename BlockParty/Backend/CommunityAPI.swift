@@ -324,12 +324,18 @@ struct CommunityAPI {
 
     /// Makes a member the Admin (`hand_over_group`); you stay a member.
     func handOverGroup(_ id: String, to user: String) async throws {
-        _ = try await db.rpc("hand_over_group", ["p_club": id, "p_user": user])
+        try await dropWaitingPhoto(id, after: db.rpc("hand_over_group", ["p_club": id, "p_user": user]))
     }
 
     /// Closes a Group you run (`close_group`): it leaves every list.
     func closeGroup(_ id: String) async throws {
-        _ = try await db.rpc("close_group", ["p_club": id])
+        try await dropWaitingPhoto(id, after: db.rpc("close_group", ["p_club": id]))
+    }
+
+    /// True in `answer`: an edit's photo still waited on the check, which takes it down. Nothing waits on that.
+    private func dropWaitingPhoto(_ id: String, after answer: Data) {
+        guard (try? JSONSerialization.jsonObject(with: answer, options: .fragmentsAllowed) as? Bool) == true else { return }
+        Task { _ = await checkGroupEdit(id) }
     }
 
     /// Invites friends to a Group you're in (`invite_to_group`): it shows first in their Groups to join.

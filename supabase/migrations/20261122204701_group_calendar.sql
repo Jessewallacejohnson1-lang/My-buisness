@@ -6,7 +6,8 @@
 --      lets in (clubs.events_by, private.club_editors; ticket 04).
 --      private.sees_members from 20261122031709_private_groups.sql, now also keeping a Group that waits on its checks
 --      or was turned down to those get_groups shows it to (its starter; while it waits, its members and invited), so
---      its Events, get-togethers and members read like a private Group's until it is live.
+--      its Events, get-togethers and members read like a private Group's until it is live, and a closed one to nobody
+--      (its Events stay with whoever posted each).
 --   2. "submit events": a row naming a Group only from someone who may add to it.
 --   3. claim_submit from 20261114153201_several_photos.sql, line for line but an Event may carry the Group of
 --      someone who may add to it. The check and the Town feed then treat it as any New event.
@@ -54,9 +55,10 @@ as $$
   select exists (
     select 1 from public.clubs c
     where c.id = p_club
-      and case when c.status in ('pending', 'rejected')
-               then c.submitted_by = auth.uid() or (c.status = 'pending' and private.sees_group(c.id))
-               else not c.private or private.inside_group(c.id) end)
+      and case c.status when 'approved' then not c.private or private.inside_group(c.id)
+                        when 'pending' then private.inside_group(c.id)
+                        when 'rejected' then c.submitted_by = auth.uid()
+                        else false end)
 $$;
 
 -- 2.
@@ -191,8 +193,8 @@ revoke execute on function public.get_group_calendar(uuid) from public;
 grant execute on function public.get_group_calendar(uuid) to anon, authenticated;
 
 -- 7. Days ('sun' to 'sat'), the weeks of the month (null for every week; [1, 3] for the 1st and 3rd; one for once a
--- month), a 24-hour time and a Place, any of the last three left out. No days clears them. Hands back the when line
--- it wrote: "1st & 3rd Tuesdays at 6:30 PM".
+-- month), a 24-hour time and a Place, any of the last three left out. No days clears them, the Place with
+-- them. Hands back the when line it wrote: "1st & 3rd Tuesdays at 6:30 PM".
 create function public.set_group_meets(p_club uuid, p_days text[], p_weeks int[], p_time text, p_where text)
 returns text
 language plpgsql
@@ -240,7 +242,7 @@ begin
                 'weeks', (select to_jsonb(array_agg(distinct w order by w)) from unnest(p_weeks) w),
                 'time', p_time))) end,
       schedule = v_schedule,
-      location = case when v_days is null then location else v_where end
+      location = case when v_days is not null then v_where end
   where id = p_club;
   return v_schedule;
 end;

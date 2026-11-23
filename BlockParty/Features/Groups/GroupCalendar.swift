@@ -375,6 +375,8 @@ nonisolated struct GroupMeetsDraft: Equatable {
         let place = String(place.trimmingCharacters(in: .whitespacesAndNewlines).prefix(NewEventDraft.placeLimit))
         return place.isEmpty ? nil : place
     }
+    /// Where it meets once saved: no days clears the Place with them (`set_group_meets` does the same).
+    var savedPlace: String? { days.isEmpty ? nil : sentPlace }
 }
 
 /// Add when you meet: Apple's sheet with Cancel and Save over a grouped form, the Clock app's Repeat rows for the
@@ -467,7 +469,7 @@ struct GroupMeetsSheet: View {
         defer { saving = false }
         do {
             let schedule = try await CommunityAPI(auth: AuthStore.shared).setGroupMeets(group.id, draft)
-            saved(schedule, draft.sentPlace)
+            saved(schedule, draft.savedPlace)
             dismiss()
         } catch {
             problem = NewEventCopy.offline

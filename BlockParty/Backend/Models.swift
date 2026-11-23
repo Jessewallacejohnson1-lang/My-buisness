@@ -77,7 +77,8 @@ nonisolated struct TownGroup: Decodable, Hashable, Identifiable, Sendable {
     var requests: Int? = nil
     /// Who adds Events (start-a-group 04): "admin" (Only me), "picked" (Members I pick) or "members".
     var eventsBy: String? = nil
-    /// Started by someone under 18 (SPEC decision 5): private for good, whoever runs it now.
+    /// Private can't be turned off, told only to its Admin: started by someone under 18 (SPEC decision 5), or by
+    /// someone who hasn't added a birthday.
     var alwaysPrivate = false
 
     /// You run it (start-a-group 04): its Admin, who edits, hands over and closes it. A turned-down Group has none.

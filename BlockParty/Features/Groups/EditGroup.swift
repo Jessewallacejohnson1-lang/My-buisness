@@ -308,7 +308,7 @@ struct EditGroupSheet: View {
         }
         #endif
         let api = CommunityAPI(auth: AuthStore.shared)
-        // Under 18 now, or the Group was started by someone under 18 (SPEC decision 5).
+        // Under 18 now or no birthday, or the Group was started by someone under 18 (SPEC decision 5).
         alwaysPrivate = group.alwaysPrivate
         if !alwaysPrivate { alwaysPrivate = await api.groupsAlwaysPrivate() }
         guard let read = try? await api.groupMembers(group.id) else { return }

@@ -143,9 +143,12 @@ test('Add when you meet writes the repeats the Calendar reads, 4 months ahead', 
     || (Number(m.day.slice(8)) >= 15 && Number(m.day.slice(8)) <= 21)), 'only the 1st and 3rd weeks');
   const [{ schedule: monthly }] = await meets(SAM, club, ['mon'], [2], null, null);
   assert.equal(monthly, '2nd Mondays');
-  const [{ schedule: none }] = await meets(SAM, club, [], null, null, null);
+  await meets(SAM, club, ['mon'], null, '18:30', 'Resurrection Lutheran');
+  const [{ schedule: none }] = await meets(SAM, club, [], null, null, 'Resurrection Lutheran');
   assert.equal(none, null);
   assert.deepEqual((await calendar(ANA, club)).meetings, [], 'no days: no repeats');
+  const [cleared] = await as(ANA, 'select schedule, location from public.get_groups() where id = $1', [club]);
+  assert.deepEqual(cleared, { schedule: null, location: null }, 'nor the Place they were at');
   await reset();
 });
 
@@ -234,3 +237,123 @@ test('the Admin takes any of the Group\'s own Events off; nobody else does', asy
   await reset();
 });
 
+
+const seesEvent = async (who, club, event) => ({
+  calendar: (await as(who, 'select card->>\'id\' as id from public.get_group_events($1)', [club])).some((r) => r.id === event),
+  feed: (await as(who, 'select id from public.get_town_feed(now(), false)')).some((r) => r.id === event),
+  table: (await as(who, 'select id from public.club_events where id = $1', [event])).length > 0,
+});
+const NONE = { calendar: false, feed: false, table: false };
+
+for (const [n, status, priv, what] of [[14, 'pending', false, 'a waiting'], [15, 'approved', false, 'a live'], [16, 'approved', true, 'a private']]) {
+  test(`closing ${what} Group takes its Events, get-togethers and members away from everyone`, async () => {
+    const club = group(n);
+    await live(club, { members: [ANA, BO], status, priv, eventsBy: 'members' });
+    await meets(SAM, club, ['tue'], null, '18:30', null);
+    const swap = await added(ANA, club, 'Holiday quilt swap');
+    assert.equal(await claim(swap, ANA), true);
+    await approve(swap);
+    assert.deepEqual(await seesEvent(BO, club, swap), { calendar: true, feed: true, table: true }, 'a member, while it runs');
+    await as(SAM, 'select public.close_group($1)', [club]);
+    for (const who of [STAN, BO, SAM, null]) {
+      assert.deepEqual(await seesEvent(who, club, swap), NONE, 'nobody sees its Events');
+      assert.equal(await calendar(who, club), null, 'nor its Calendar');
+    }
+    assert.equal((await as(ANA, 'select id from public.club_events where id = $1', [swap])).length, 1, 'only whoever posted one keeps it');
+    for (const who of [STAN, SAM]) {
+      assert.deepEqual(await as(who, 'select user_id from public.club_members where club_id = $1 and user_id <> $2', [club, who]), [],
+                       'nor who was in it');
+      assert.deepEqual((await as(who, 'select group_ids from public.get_profile($1)', [BO]))[0].group_ids, [], 'on a Profile either');
+    }
+    await reset();
+  });
+}
+
+const friends = (a, b) => db.query(`insert into private.friendships (a, b, requested_by)
+  values (least($1::uuid, $2::uuid), greatest($1::uuid, $2::uuid), $1) on conflict do nothing`, [a, b]);
+let clients = 0;
+const send = async (who, to, { words = null, event = null, reply = null, chat = null } = {}) => (await as(who,
+  'select * from public.send_chat_message($1, $2, $3, $4, null, null, null, $5, $6)',
+  [chat, chat ? null : to, id(5000 + ++clients), words, event, reply]))[0];
+const messages = (who, chat) => as(who, 'select * from public.get_chat_messages($1)', [chat]);
+const emptyChats = () => db.exec('delete from public.chat_messages; delete from private.chat_members; delete from private.chats');
+
+for (const [n, priv, status, what] of [[17, false, 'pending', 'a waiting'], [18, true, 'approved', 'a private']]) {
+  test(`an Event of ${what} Group shared in a chat shows its card only to those who see the Group`, async () => {
+    const club = group(n);
+    await friends(ANA, STAN);
+    await friends(ANA, BO);
+    await live(club, { members: [ANA, BO], priv, status });
+    const night = await added(SAM, club, 'Members quilt night');
+    assert.equal(await claim(night, SAM), true);
+    await approve(night);
+
+    const sent = await send(ANA, STAN, { event: night });
+    const toBo = await send(ANA, BO, { event: night });
+    const card = async (who, m) => (await messages(who, m.chat_id)).find((r) => r.id === m.id).card;
+    assert.equal((await card(ANA, sent)).title, 'Members quilt night', 'its sender, a member');
+    assert.equal((await card(BO, toBo)).title, 'Members quilt night', 'another member');
+    assert.equal(await card(STAN, sent), null, 'a friend outside the Group gets no title, place or Group');
+    const answer = await send(STAN, null, { chat: sent.chat_id, words: 'What is it?', reply: sent.id });
+    const quoted = async (who) => (await messages(who, sent.chat_id)).find((r) => r.id === answer.id).reply.body;
+    assert.equal(await quoted(STAN), null, 'nor in a quote of it');
+    assert.equal(await quoted(ANA), 'Members quilt night');
+    await assert.rejects(send(STAN, null, { chat: sent.chat_id, event: night }), /chat_event_gone/, 'nor sends it on');
+
+    await db.query(`update public.clubs set private = false, status = 'approved' where id = $1`, [club]);
+    assert.equal((await card(STAN, sent)).title, 'Members quilt night', 'live and public: the Town sees it');
+    await as(SAM, 'select public.close_group($1)', [club]);
+    assert.equal(await card(BO, toBo), null, 'closed: nobody');
+    await emptyChats();
+    await reset();
+  });
+}
+
+test('a Group\'s Event takes Going only from those who see it, and Hide never names its Group to anyone else', async () => {
+  const club = group(19);
+  await live(club, { members: [ANA], priv: true });
+  const night = await added(SAM, club, 'Members quilt night');
+  assert.equal(await claim(night, SAM), true);
+  await approve(night);
+  const going = (who) => as(who, 'insert into public.event_rsvps (event_id, user_id) values ($1, $2)', [night, who]);
+  await going(ANA);
+  await assert.rejects(going(STAN), /row-level security/, 'whoever gave them the id');
+  await assert.rejects(as(STAN, 'select public.mute_host($1)', [night]), /nothing to mute/);
+  await reset();
+});
+
+test('a Group\'s Event\'s Going chat is only for those who still see it', async () => {
+  const club = group(20);
+  await live(club, { members: [ANA, BO], priv: true });
+  const night = await added(SAM, club, 'Members quilt night');
+  assert.equal(await claim(night, SAM), true);
+  await approve(night);
+  for (const who of [ANA, BO]) await as(who, 'insert into public.event_rsvps (event_id, user_id) values ($1, $2)', [night, who]);
+  const [{ chat }] = await as(BO, 'select public.join_going_chat($1) as chat', [night]);
+  await as(ANA, 'select public.join_going_chat($1)', [night]);
+  await send(ANA, null, { chat, words: 'See you there' });
+  const rooms = async (who) => (await as(who, 'select * from public.get_chats()')).filter((c) => c.kind === 'going');
+  assert.equal((await rooms(BO))[0].event.title, 'Members quilt night');
+
+  await as(BO, 'delete from public.club_members where club_id = $1 and user_id = $2', [club, BO]);
+  assert.deepEqual(await rooms(BO), [], 'left the Group: its Event\'s chat goes');
+  assert.deepEqual(await messages(BO, chat), []);
+  assert.equal((await as(BO, 'select state from public.get_going_chat($1)', [night]))[0].state, 'none');
+  await assert.rejects(as(BO, 'select public.join_going_chat($1)', [night]), /chat_not_going/);
+  assert.equal((await rooms(ANA)).length, 1, 'a member keeps it');
+  await as(SAM, 'select public.close_group($1)', [club]);
+  assert.deepEqual(await rooms(ANA), [], 'closed: it goes');
+  await emptyChats();
+  await reset();
+});
+
+test('any other Event still takes Going from anyone, and a friend\'s share of it shows', async () => {
+  await friends(ANA, STAN);
+  const event = id(902);
+  await db.query(`insert into public.club_events (id, title, event_date, status) values ($1, 'Town quilt show', $2, 'approved')`, [event, tomorrow]);
+  await as(STAN, 'insert into public.event_rsvps (event_id, user_id) values ($1, $2)', [event, STAN]);
+  const sent = await send(ANA, STAN, { event });
+  assert.equal((await messages(STAN, sent.chat_id)).find((r) => r.id === sent.id).card.title, 'Town quilt show');
+  await emptyChats();
+  await reset();
+});

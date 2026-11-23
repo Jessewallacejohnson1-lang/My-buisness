@@ -40,7 +40,7 @@ struct GroupPage: View {
     @State private var calendar = GroupCalendar.Read()
     @State private var newEvent = false
     @State private var settingMeets = false
-    /// An Event opens on the shell's stack, as every page pushed there (architecture.md, The shell).
+    /// An Event opens on the stack this page is on: the shell's (architecture.md, The shell), or Start a group's sheet's.
     @Environment(\.hostOpener) private var opener
     @Environment(SearchModel.self) private var search: SearchModel?
     @Environment(ProfileModel.self) private var profile: ProfileModel?
@@ -143,7 +143,7 @@ struct GroupPage: View {
         .sheet(isPresented: $settingMeets) {
             GroupMeetsSheet(group: group, rule: calendar.rule, places: places) { schedule, place in
                 group.schedule = schedule
-                if schedule != nil { group.location = place }
+                group.location = place
                 Task { await loadCalendar() }
                 refresh()
             }

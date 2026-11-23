@@ -5,6 +5,7 @@
 //  what Add when you meet sends.
 //
 
+import SwiftUI
 import XCTest
 @testable import BlockParty
 
@@ -108,7 +109,9 @@ final class GroupCalendarTests: XCTestCase {
         XCTAssertEqual(draft.clock, "18:30")
         XCTAssertEqual(draft.sentPlace, "Resurrection Lutheran")
         XCTAssertTrue(draft.ready)
+        XCTAssertEqual(draft.savedPlace, "Resurrection Lutheran")
         draft.days = []
+        XCTAssertNil(draft.savedPlace, "and their Place, on the page as the server has it")
         XCTAssertTrue(draft.ready, "no days clears the times it had")
         XCTAssertEqual(draft.sentDays, [], "and sends no days")
 
@@ -139,6 +142,15 @@ final class GroupCalendarTests: XCTestCase {
         let member = try GroupCalendar.Read.from(Data(#"{"meetings": [], "adds": false, "meets": null}"#.utf8))
         XCTAssertNil(member.rule)
         XCTAssertEqual(member.takesOff, [], "only the Admin takes Events off")
+    }
+
+    /// A Group page inside Start a group's sheet opens an Event on the sheet's own stack, and no host's page.
+    func testAGroupPageInASheetOpensOnTheSheetsOwnStack() {
+        var path = NavigationPath()
+        let opener = HostOpener.inSheet { path.append($0) }
+        opener.push(card("Holiday quilt swap", "2026-11-28", "10 AM"))
+        XCTAssertEqual(path.count, 1)
+        XCTAssertNil(opener.group("sewing"))
     }
 
     /// New event from a Group page says so, not New post.

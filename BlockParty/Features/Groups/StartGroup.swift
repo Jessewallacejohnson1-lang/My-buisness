@@ -106,6 +106,8 @@ struct StartGroupSheet: View {
     @State private var alwaysPrivate = false
     /// Made: the sheet turns to Invite friends.
     @State private var made: TownGroup?
+    /// The sheet's own stack: a like-named Group's page, and an Event from its Calendar.
+    @State private var path = NavigationPath()
     @FocusState private var naming: Bool
 
     enum Metric {
@@ -121,7 +123,7 @@ struct StartGroupSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             Group {
                 if let made {
                     InviteFriendsView(group: made) { finish(made) }
@@ -129,7 +131,15 @@ struct StartGroupSheet: View {
                     form
                 }
             }
-            .navigationDestination(for: TownGroup.self) { GroupPage(group: $0) }
+            .navigationDestination(for: TownGroup.self) {
+                GroupPage(group: $0).environment(\.hostOpener, HostOpener.inSheet { path.append($0) })
+            }
+            // As on the map's own stack: its host, its map and its Going chat open on the shell's, so not from here.
+            .navigationDestination(for: FeedCardItem.self) {
+                EventPage(item: $0, goingChat: false)
+                    .environment(\.hostOpener, nil)
+                    .environment(\.viewOnMap, nil)
+            }
         }
         .interactiveDismissDisabled(saving)
         .presentationDragIndicator(made == nil ? .hidden : .visible)

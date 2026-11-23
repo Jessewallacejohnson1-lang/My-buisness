@@ -172,7 +172,8 @@ Deno.serve(async (req) => {
   // An Admin's edit (start-a-group 04): edit_group left a new name, kind, About or photo waiting on the Group;
   // claim_group_edit hands it over once (10 a day), and only both yeses put it live (apply_group_edit). Anything less
   // keeps the Group as it was and takes the new photo down. A waiting photo a newer edit replaced comes in `drop`
-  // and comes down too; an edit that is only that (taken back to the Group as it is) has nothing to check.
+  // and comes down too; an edit that is only that (taken back to the Group as it is, or left by a hand-over or a Close)
+  // has nothing to check.
   if (body?.group) {
     const id = String(body.group)
     const { data: claimed, error } = await admin.rpc('claim_group_check', { p_club: id, p_user: caller })

@@ -325,6 +325,12 @@ extension HostOpener {
     static let again: TimeInterval = 0.6
     /// How long a card waits to hear who its host is before opening the Event instead.
     static let readWait: Duration = .seconds(1)
+
+    /// A Group page inside a sheet: it pushes onto the sheet's own stack. The shell's sits beneath the sheet, where a
+    /// push shows nothing; its hosts' pages are there, so none opens from here.
+    static func inSheet(push: @escaping (any Hashable) -> Void) -> HostOpener {
+        HostOpener(opens: { _ in false }, open: { _, _ in }, group: { _ in nil }, push: push)
+    }
 }
 
 extension EnvironmentValues {
