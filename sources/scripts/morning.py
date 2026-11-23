@@ -1167,9 +1167,10 @@ def todays_events(db, today, tags=None, abouts=None):
     feed's function itself reads private helpers the service key can't reach. `tags` and `abouts`: the
     helpers' answers finish has yet to save, so an Event found this morning carries them too."""
     rows = db.rest("GET", "club_events?select=id,title,start_time,all_day,location,source_name,description,"
-                          "interests,interests_tagged_at,category,draw,clubs(name)"
+                          "interests,interests_tagged_at,category,draw,club_id,clubs(name,status,private)"
                           f"&status=eq.approved&kind=eq.event&event_date=eq.{today}&cancelled_at=is.null"
                           "&or=(submitted_by.not.is.null,source_name.not.is.null)&order=start_time") or []
+    rows = [r for r in rows if town_sees(r)]
     if not rows:
         return []
     # A show listed again each day it runs (a gallery exhibit) is a standout on its first day only, never
@@ -1188,6 +1189,12 @@ def todays_events(db, today, tags=None, abouts=None):
     count = lambda table: [x["event_id"] for x in db.rest("GET", f"{table}?select=event_id&event_id=in.({ids})") or []]
     going, hearts = count("event_rsvps"), count("event_likes")
     return [event_line(r, going.count(r["id"]), hearts.count(r["id"])) for r in rows]
+
+
+def town_sees(r):
+    """Not an Event of a Group the Town can't see: private, or not live (BP app start-a-group 09). Its members alone do."""
+    club = r.get("clubs") or {}
+    return not r.get("club_id") or club.get("status") == "approved" and not club.get("private")
 
 
 def first_day_only(rows, earlier_titles):
@@ -1939,6 +1946,12 @@ def selftest():
     shows = first_day_only([{"id": "r", "title": "Reflection:  Selected Works"}, {"id": "v", "title": "Veterans Day lunch"}],
                            ["reflection: selected works", None])
     checks.append(([r["id"] for r in shows] == ["v"], "a show listed again day after day is never a standout after its first day"))
+    group = lambda i, status, private: {"id": i, "title": i, "club_id": i, "clubs": {"name": i, "status": status, "private": private}}
+    held = FakeDb(answers={"club_events?select=id,": [group("open", "approved", False), group("private", "approved", True),
+                                                      group("waiting", "pending", False), {"id": "own", "title": "own", "club_id": None}],
+                           "club_events?select=title&": [], "event_rsvps": [], "event_likes": []})
+    checks.append(([e["id"] for e in todays_events(held, date(2026, 11, 23))] == ["open", "own"],
+                   "an Event only a Group's members see is never a standout"))
     many = [{"id": str(i)} for i in range(12)]
     checks.append((len(plan_standouts([{"id": str(i), "why": "x"} for i in range(12)], many, "2026-10-20")) == STANDOUTS,
                    "nine standouts at most"))
