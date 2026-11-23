@@ -28,6 +28,8 @@ struct FeedPostCard: View {
 
     @Environment(RealLifeActions.self) private var actions: RealLifeActions?
     @Environment(TownFeed.self) private var feed: TownFeed?
+    /// Its photo swipes and place taps (feed-learns 02).
+    @Environment(\.feedViews) private var taps
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     /// Where an `@` name or a `#` tag in the words goes (town-feed 60).
@@ -83,6 +85,8 @@ struct FeedPostCard: View {
                 PostPhotos(urls: post.photos, aspect: post.photoAspect, page: $photoPage, zooms: true,
                            label: post.words.isEmpty ? "Photos from \(post.poster.name)" : "Photos")
                     .padding(.top, post.words.isEmpty ? Metric.wordsTop : 0)
+                    // A photo swiped to (feed-learns 02); VoiceOver's pages too. The first is where it starts.
+                    .onChange(of: photoPage) { _, page in if (page ?? 0) > 0 { taps?.tapped(post.id, .photo) } }
             } else if let url = post.photo {
                 // One photo as it always was; the share's picture takes the first of several.
                 photo(url)
@@ -246,6 +250,7 @@ struct FeedPostCard: View {
             let row = FollowRow(targetType: name.kind == .place ? .place : .profile, targetId: name.id, name: name.name,
                                 kind: nil, picture: nil, pictureKind: nil)
             guard opener.opens(row) else { return }
+            if name.kind == .place { taps?.tapped(post.id, .place) }
             // From the words' middle: a link's own spot isn't known to the tap.
             let box = wordsFrame.rect
             opener.open(row, CGRect(x: box.midX - 22, y: box.midY - 22, width: 44, height: 44))

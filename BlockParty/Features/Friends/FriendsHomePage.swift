@@ -373,7 +373,7 @@ struct FriendsHomePage: View {
 }
 
 /// The Town feed's words for a read that failed.
-private struct FailedLine: View {
+struct FailedLine: View {
     var body: some View {
         Text("Check your connection and try again.")
             .font(.sans(15))
@@ -384,7 +384,7 @@ private struct FailedLine: View {
 }
 
 /// Nothing read yet: the rows' own shape, shimmering.
-private struct LoadingRows: View {
+struct LoadingRows: View {
     var body: some View {
         ForEach(0..<FriendsMetric.loadingRows, id: \.self) { _ in
             HStack(spacing: FriendsMetric.avatarGap) {
@@ -633,6 +633,13 @@ struct RelationButtons: View {
 
     private func pageFace(_ title: String, ink: Bool, spoken: String?, icon: String?, hint: String,
                           action: @escaping () -> Void) -> some View {
+        Self.rowButton(title, ink: ink, icon: icon, label: "\(spoken ?? title), \(person.displayName)", hint: hint,
+                       action: action)
+    }
+
+    /// A row's button, also a private Group's Requests list's Confirm and Delete (start-a-group 03).
+    static func rowButton(_ title: String, ink: Bool, icon: String? = nil, label: String, hint: String = "",
+                          action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: FriendsMetric.iconGap) {
                 if let icon { Image(systemName: icon).font(.glyph(13, weight: .bold)) }
@@ -649,7 +656,7 @@ struct RelationButtons: View {
                 .contentShape(Rectangle().inset(by: (FriendsMetric.button - PageMetric.tapMin) / 2))
         }
         .buttonStyle(.press(.squish))
-        .accessibilityLabel("\(spoken ?? title), \(person.displayName)")
+        .accessibilityLabel(label)
         .accessibilityHint(hint)
     }
 

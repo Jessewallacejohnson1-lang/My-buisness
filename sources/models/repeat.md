@@ -1,4 +1,4 @@
-# Repeat: is this News a story the Town feed already has?
+# Repeat: is this News a story the Town feed already has? Is this Event one already listed?
 
 Block Party's Town feed shows a town's Events and News. A place posts about the same thing again
 and again: the same closing, sale or sign-up in other words, a day or a week apart. Each repeat that
@@ -52,3 +52,47 @@ One JSON line per question, in order, and nothing else:
 
 `news` is the question's number; `same_as` is the number of what it repeats, or null, and `title`
 is that one's title, copied exactly.
+
+## Events: is this new Event one already listed?
+
+Some messages ask about new Events instead (`## Event 1: …`). A question is one new Event: its
+title, who listed it, its day, start and place, and the start of its words. Under it, numbered, are
+the Events that day it may be: the same start or no time on one, and something in common.
+
+The same happening is often listed by two hosts: a shop and the shop next door that joins its sale,
+a college's music department and its campus calendar, a band and the bar it plays at, a festival and
+the choir it books, a place's Facebook event and its own website. Each copy is one more card for the
+same night.
+
+Answer with the number of the one it **is**: the same thing happening at the same time, however it
+is named or placed:
+
+- **Another name for it.** "Open House with Rosie's Bakery" (the gift shop next door, no place) is
+  Rosie's own "Holiday Open House" at the same 9 AM. "Northside Quartet" on a festival's page is the
+  quartet's own "Songs for Winter" at that hour and church. "The Rivermen at Joe's Pub" is Joe's
+  "Rivermen: Live Music". "Wreath Class" is the same host's "Wreath Workshop".
+- **Another place line for it.** A Facebook event often gives only a street address, or the campus,
+  where the other names the hall: "Spring Sing: Concert Choir" at the chapel and the campus
+  calendar's "Concert Choir" in the recital hall at the same 3 PM are one concert.
+
+Answer null when they are two things, even at one place and hour:
+
+- **Two parts of one day.** A service and the children's program beside it, a story time and the
+  craft hour after it, a choir practice and a class in the next room.
+- **Two levels or teams.** JV and varsity, boys and girls, first grade and third grade.
+- **Two sessions of a series**, or one stop on a crawl and the crawl itself: a museum's own tour
+  during the downtown shopping crawl is its own Event.
+- **Two places' own events of one kind**: two bars' trivia nights, two schools' concerts.
+
+When unsure, answer null: a copy left up is taken out by hand, but a real event joined to another
+never reaches a neighbour.
+
+Answer one JSON line per Event question, in order, after any News lines:
+
+```
+{"event": 1, "same_as": 2, "title": "Black Friday"}
+{"event": 2, "same_as": null}
+```
+
+`event` is the question's number; `same_as` is the number of the one it is, or null, and `title` is
+that one's title, copied exactly.

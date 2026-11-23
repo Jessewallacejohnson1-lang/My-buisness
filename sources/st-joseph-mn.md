@@ -2337,7 +2337,8 @@ Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2
 ```yaml
 id: joes-joseph-st
 status: active
-tier: listed
+tier: watched
+category: town-team
 added_by: agent:discover
 address: "28 3rd Ave NW"
 sources:
@@ -2345,8 +2346,130 @@ sources:
     kind: website
     method: fetch
     trust: official
+  - url: https://www.saintjosephjoes.com/teams/default.asp?u=SAUKVAL-STJOSEPHJOES&s=baseball
+    method: fetch
+    trust: official
+    reader: hometeamsonline
+    team: St. Joseph Joes
+at: [45.56532, -94.32355]
+venue_at:
+  "schneider field": [45.56532, -94.32355]
 ```
-Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Unreviewed — tier `listed`, so it publishes nothing until promoted.
+Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. The town baseball team (Class B, Sauk Valley League), home at Schneider Field in Memorial Park. Watched for its games since 2026-11-21 (Jesse, BP app school-search 11 and 12: town teams get their own team page); `team` is its row in public.teams. Its fish fry and camps on the same page are not read as games.
+
+## Sartell Muskies
+```yaml
+id: sartell-muskies
+status: active
+tier: watched
+category: town-team
+added_by: agent:claude
+sources:
+  - url: https://www.hometeamsonline.com/teams/default.asp?u=SARTELLMUSKIES&s=baseball
+    method: fetch
+    trust: official
+    reader: hometeamsonline
+    team: Sartell Muskies
+at: [45.63712, -94.21797]
+venue_at:
+  "st. cloud orthopedics field": [45.63712, -94.21797]
+```
+Notes: Town baseball team (Class A), Sartell. BP app school-search 12 (Jesse, 2026-11-21). Home park St. Cloud Orthopedics Field, 920 12th St N, Sartell (map point from OpenStreetMap's address search, 2026-11-21), shared with the Stone Poneys.
+
+## Sartell Stone Poneys
+```yaml
+id: sartell-stone-poneys
+status: active
+tier: watched
+category: town-team
+added_by: agent:claude
+sources:
+  - url: https://www.hometeamsonline.com/teams/default.asp?u=SARTELLSTONEPONEYS&s=baseball
+    method: fetch
+    trust: official
+    reader: hometeamsonline
+    team: Sartell Stone Poneys
+at: [45.63712, -94.21797]
+```
+Notes: Town baseball team (Class A), Sartell. BP app school-search 12 (Jesse, 2026-11-21). Home park St. Cloud Orthopedics Field, shared with the Muskies (its map point is on that entry).
+
+## Sauk Rapids Cyclones
+```yaml
+id: sauk-rapids-cyclones
+status: active
+tier: watched
+category: town-team
+added_by: agent:claude
+sources:
+  - url: https://www.hometeamsonline.com/teams/default.asp?u=SAUKRAPIDSCYCLONES&s=baseball
+    method: fetch
+    trust: official
+    reader: hometeamsonline
+    team: Sauk Rapids Cyclones
+at: [45.59147, -94.15181]
+venue_at:
+  "veterans field- sauk rapids": [45.59147, -94.15181]
+```
+Notes: Town baseball team (Class B), Sauk Rapids. BP app school-search 12 (Jesse, 2026-11-21). Home park Veterans Field, 1020 1st St S (map point from OpenStreetMap's address search, 2026-11-21).
+
+## Cold Spring Springers
+```yaml
+id: cold-spring-springers
+status: active
+tier: watched
+category: town-team
+added_by: agent:claude
+sources:
+  - url: https://www.coldspringspringers.com/teams/default.asp?u=CSSPRINGERS&s=baseball
+    method: fetch
+    trust: official
+    reader: hometeamsonline
+    team: Cold Spring Springers
+at: [45.45456, -94.43522]
+venue_at:
+  "cold spring baseball park": [45.45456, -94.43522]
+```
+Notes: Town baseball team (Class B), Cold Spring. BP app school-search 12 (Jesse, 2026-11-21). Home park Cold Spring Baseball Park, 700 1st St S (map point from OpenStreetMap's address search, 2026-11-21).
+
+## St. Cloud Norsemen
+```yaml
+id: st-cloud-norsemen
+status: active
+tier: watched
+category: town-team
+added_by: agent:claude
+sources:
+  - url: https://tickets.stcloudnorsemen.com/
+    method: fetch
+    trust: official
+    reader: igniter
+    team: St. Cloud Norsemen
+    venue: Municipal Athletic Complex
+    town: St. Cloud
+at: [45.57017, -94.22059]
+```
+Notes: NAHL junior hockey (ages 16 to 21), home at the MAC in St. Cloud (its map point is the MAC's entry). BP app school-search 12 (Jesse, 2026-11-21). Its full schedule is only on GameSheet, whose robots.txt bars AI bots by name, so it is never read; the ticket site lists the home games.
+
+## Granite City Lumberjacks
+```yaml
+id: granite-city-lumberjacks
+status: active
+tier: watched
+category: town-team
+added_by: agent:claude
+sources:
+  - url: https://www.tix.com/api_ots/onlinesales/events/organization/6478
+    method: fetch
+    trust: official
+    reader: tix
+    team: Granite City Lumberjacks
+    venue: Sports Arena East
+    town: Sauk Rapids
+at: [45.57638, -94.15631]
+venue_at:
+  "miller buick gmc rink at sports arena east": [45.57638, -94.15631]
+```
+Notes: NA3HL junior hockey, home at the Miller Buick GMC Rink, Sports Arena East, Benton County Fairgrounds, Sauk Rapids (map point from OpenStreetMap, 2026-11-21). BP app school-search 12 (Jesse, 2026-11-21). The ticket list is the JSON Tix.com's own page loads (https://www.tix.com/ticket-sales/granitecity/6478); GameSheet is never read. The list may not hold every home game.
 
 ## St. Joseph Vet Clinic
 ```yaml

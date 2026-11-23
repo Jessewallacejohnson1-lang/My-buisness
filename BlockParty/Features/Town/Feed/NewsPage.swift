@@ -104,6 +104,8 @@ struct NewsPage: View {
     }
 
     @Environment(RealLifeActions.self) private var actions: RealLifeActions?
+    /// Its open and taps go up with the Town feed's views (feed-learns 02).
+    @Environment(\.feedViews) private var taps
     @Environment(\.hostOpener) private var opener
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var markFrame = FrameBox()
@@ -133,6 +135,7 @@ struct NewsPage: View {
                         let urls = news.photos.isEmpty ? [url] : news.photos
                         PostPhotos(urls: urls, aspect: photo.cardAspect, page: $photoPage, zooms: true,
                                    label: urls.count > 1 ? "Photos from \(news.place)" : "Photo from \(news.place)")
+                            .onChange(of: photoPage) { _, page in if (page ?? 0) > 0 { tapped(.photo) } }
                     }
                     if let actions {
                         actionRow(actions)
@@ -157,8 +160,16 @@ struct NewsPage: View {
         }
         .toolbar(.hidden, for: .navigationBar)
         // Only while it's open does a heart the server turns back shake here, as on its card.
-        .onAppear { actions?.cardOpened(news.id) }
+        .onAppear {
+            actions?.cardOpened(news.id)
+            tapped(.open)
+        }
         .onDisappear { actions?.cardClosed(news.id) }
+    }
+
+    /// An open or a tap here, for the Feed to learn from (feed-learns 02).
+    private func tapped(_ kind: FeedAction.Kind) {
+        taps?.tapped(news.id, kind, news: true)
     }
 
     /// The post's own words; while they aren't read, the card's own, so the page is never empty.
@@ -188,7 +199,10 @@ struct NewsPage: View {
         .accessibilityElement(children: .combine)
         return Group {
             if let row = placeRow, opener?.opens(row) == true {
-                Button { opener?.open(row, markFrame.rect) } label: { mark.contentShape(Rectangle()) }
+                Button {
+                    tapped(.place)
+                    opener?.open(row, markFrame.rect)
+                } label: { mark.contentShape(Rectangle()) }
                     .buttonStyle(.press(.dim))
                     .accessibilityHint("Opens \(news.place)")
             } else {
@@ -230,6 +244,7 @@ struct NewsPage: View {
 
     /// The post in its own app when it's on the phone, else Apple's in-app browser, as the card opened it before.
     private func openPost() {
+        tapped(.link)
         let post = news.post
         Task {
             if await !UIApplication.shared.open(post, options: [.universalLinksOnly: true]) {

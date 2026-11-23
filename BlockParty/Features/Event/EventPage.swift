@@ -34,6 +34,13 @@ struct EventPage: View {
     let item: FeedCardItem
 
     @Environment(\.dismiss) private var dismiss
+    /// Opened over the shell from a Town card (`EventOverlay`, tab-lag 02 round 5): Back sends it home into its card.
+    @Environment(\.eventPageClose) private var overClose
+    /// False while the page is built hidden during a Town tap's double-tap wait (`EventOpener.prepare`): nothing on
+    /// it runs, reads or counts until it opens, so a like leaves no trace.
+    @Environment(\.eventPageShown) private var shown
+    /// It came on screen (`appeared`), so leaving undoes it.
+    @State private var didAppear = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
     /// Going and Heart, shared with the card behind the page (`RealLifeActions`).
@@ -106,6 +113,8 @@ struct EventPage: View {
     @Environment(\.displayScale) private var displayScale
     /// What raises Block Party's map on this Event: the shell's, or the map's own when the page is on it.
     @Environment(\.viewOnMap) private var viewOnMap
+    /// Its taps go up with the Town feed's views (feed-learns 02).
+    @Environment(\.feedViews) private var taps
 
     /// The Going chat's row: not on the map's own stack, which has no chat to push to.
     private let goingChat: Bool
@@ -252,7 +261,8 @@ struct EventPage: View {
         .scrollPosition($position)
         // The small map's still, the first time it opens (until then its ground and the photo show), and again once
         // the page's width is known or a try failed.
-        .task(id: item.id) {
+        .task(id: shown ? item.id : nil) {
+            guard shown else { return }
             #if DEBUG
             if let names = LaunchFlags.value(.eventMorePlaces) { morePlaces = names.split(separator: "|").map(String.init); return }
             #endif
@@ -260,7 +270,8 @@ struct EventPage: View {
             guard game == nil, !item.found, UUID(uuidString: item.id) != nil else { return }
             morePlaces = await CommunityAPI(auth: AuthStore.shared).morePlaces(event: item.id)
         }
-        .task(id: item.id) {
+        .task(id: shown ? item.id : nil) {
+            guard shown else { return }
             #if DEBUG
             if LaunchFlags.has(.townPartDay) { parts = EventSchedule.oneDaySamples(.now); return }
             if LaunchFlags.has(.townPart) { parts = EventSchedule.samples(.now); return }
@@ -269,7 +280,8 @@ struct EventPage: View {
             guard game == nil, UUID(uuidString: item.id) != nil else { return }
             parts = await CommunityAPI(auth: AuthStore.shared).parts(event: item.id)
         }
-        .task(id: item.id) {
+        .task(id: shown ? item.id : nil) {
+            guard shown else { return }
             // Only a college basketball game's file has player lines, and its plays come first: a high school game has
             // neither. A sample's id isn't a real one.
             guard let game, game.isBasketball, !game.plays.isEmpty, game.players == nil,
@@ -381,16 +393,23 @@ struct EventPage: View {
         }
         // A failed Join or Heart shakes and buzzes only while its page is open: the buzz
         // used to land on Town after a pop. Leaving never cancels the write itself.
-        .onAppear {
-            actions.pageOpened(item.id)
-            live?.hold(liveHolder, [item])
-            if !reviewing { LeftOff.page = item.id }
-        }
+        .onAppear { if shown { appeared() } }
+        .onChange(of: shown) { _, now in if now { appeared() } }
         .onDisappear {
+            guard didAppear else { return }
             if LeftOff.page == item.id { LeftOff.page = nil }
             actions.pageClosed(item.id)
             live?.hold(liveHolder, [])
         }
+    }
+
+    /// On screen: a failed Join or Heart shakes here, its game's score is held live, and a restart comes back to it.
+    private func appeared() {
+        guard !didAppear else { return }
+        didAppear = true
+        actions.pageOpened(item.id)
+        live?.hold(liveHolder, [item])
+        if !reviewing { LeftOff.page = item.id }
     }
 
     /// No picture and no logo: the whole page is the exact yellow, with ink words (Jesse, 2026-11-06).
@@ -644,6 +663,8 @@ struct EventPage: View {
         .scrollClipDisabled()
         .scrollTargetBehavior(.paging)
         .scrollPosition(id: $heroPage)
+        // A piece or the flyer swiped to (feed-learns 02); VoiceOver's pages too. The first is where it starts.
+        .onChange(of: heroPage) { _, page in if (page ?? 0) > 0 { tapped(.photo) } }
         .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.x / max($0.containerSize.width, 1) } action: { _, x in
             heroSwipe = x
         }
@@ -790,7 +811,10 @@ struct EventPage: View {
                             .accessibilityHint(mapHint(map))
                     }
                     if let link {
-                        EventBigButton(glyph: link.glyph, word: Self.linkWord(link), sun: sun) { openURL(link.url) }
+                        EventBigButton(glyph: link.glyph, word: Self.linkWord(link), sun: sun) {
+                            tapped(.link)
+                            openURL(link.url)
+                        }
                     }
                 }
                 .padding(.top, EventLook.buttonsTop)
@@ -852,15 +876,24 @@ struct EventPage: View {
         }
     }
 
+    /// A tap on this page, for the Feed to learn from (feed-learns 02).
+    private func tapped(_ kind: FeedAction.Kind) {
+        taps?.tapped(item.id, kind)
+    }
+
     /// Opens or closes the small map in place; opening below the bar, the page scrolls on the same spring so it ends
     /// 12 pt above it, as the mock does. A short page drops a scroll asked while it grows, so once it has grown the
     /// page finishes the way.
     private func tapMap(_ map: EventMapRoute) {
         guard case .ourMap = map else {
-            if case .appleMaps(let url) = map { openURL(url) }
+            if case .appleMaps(let url) = map {
+                tapped(.map)
+                openURL(url)
+            }
             return
         }
         let opening = !smallMap
+        if opening { tapped(.map) }
         let spring = reduceMotion ? nil : EventLook.smallMapSpring
         withAnimation(spring, completionCriteria: .logicallyComplete) {
             smallMap = opening
@@ -881,6 +914,7 @@ struct EventPage: View {
     /// queue), Apple Maps' directions to the spot.
     private func openFullMap(_ at: CLLocationCoordinate2D) {
         Haptics.light()
+        tapped(.map)
         if let viewOnMap {
             viewOnMap.show(.init(event: current, spot: at))
         } else if let url = Directions.url(to: at) {
@@ -891,7 +925,7 @@ struct EventPage: View {
     /// Back, in Apple Invites' round glass over the picture. No calendar button (Jesse, 2026-11-15: "remove calender
     /// in top right corner").
     private var lookButtons: some View {
-        EventGlassButton(glyph: "arrow.left", label: "Back", sun: sun) { dismiss() }
+        EventGlassButton(glyph: "arrow.left", label: "Back", sun: sun) { back() }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.leading, EventLook.backInset - (MeetupPillStyle.minTarget - EventLook.glass) / 2)
             .padding(.top, EventLook.glassTop - (MeetupPillStyle.minTarget - EventLook.glass) / 2)
@@ -899,13 +933,18 @@ struct EventPage: View {
 
     // MARK: Buttons
 
+    /// Home into its card when opened over the shell; else the stack's own back.
+    private func back() {
+        if let overClose { overClose.close() } else { dismiss() }
+    }
+
     private var topButtons: some View {
         HStack(spacing: 0) {
             Self.circleButton(
                 glyph: Image(systemName: "arrow.left"),
                 label: "Back",
                 onColor: game != nil
-            ) { dismiss() }
+            ) { back() }
 
             Spacer(minLength: 0)
 
@@ -1039,7 +1078,7 @@ struct EventPage: View {
                 // Where it was found, for the rest: the Business page's link row (Jesse, 2026-10-27).
                 if let link {
                     InfoPill(glyph: link.glyph, text: link.text, url: link.url, hint: "Opens the link",
-                             glyphBox: SearchMetric.bizGlyphBox, leaves: true)
+                             glyphBox: SearchMetric.bizGlyphBox, leaves: true) { tapped(.link) }
                         .padding(.top, SearchMetric.bizLinksTop)
                 }
             }
@@ -1074,7 +1113,10 @@ struct EventPage: View {
                 if let place {
                     // The same search Your Day's "Directions" opens.
                     FactRow(glyph: "mappin.and.ellipse", lines: Self.placeLines(place), end: .opens,
-                            hint: "Opens in Maps") { Directions.url(forPlace: place).map { openURL($0) } }
+                            hint: "Opens in Maps") {
+                        tapped(.map)
+                        Directions.url(forPlace: place).map { openURL($0) }
+                    }
                 }
                 if goingChat {
                     ChatRoomRow(title: "Going chat", isIn: actions.going(current).isGoing,

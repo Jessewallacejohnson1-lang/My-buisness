@@ -31,6 +31,13 @@ struct GroupPage: View {
     @State private var failedPhotos: Set<URL> = []
     /// The Events found for the group (`get_group_events`), laid among its meetings once read.
     @State private var events: [FeedCardItem] = []
+    /// Private Groups (start-a-group 03): who asked, shared with Groups to join; the Admin's waiting asks.
+    private var asks: GroupAsks { GroupAsks.shared }
+    @State private var waiting: Int?
+    @State private var showingRequests = false
+
+    /// A private Group you aren't in: Ask to join, and none of its time, place, members or chat.
+    private var locked: Bool { GroupAsks.locked(group, member: actions.member(group).isMember) }
 
     /// The Figma frame's sizes, on a 420 pt phone. The round buttons, the sheet's corner, its
     /// side inset and the title's rhythm are the Event page's (`EventPage.Metric`).
@@ -93,6 +100,9 @@ struct GroupPage: View {
         // A failed join shakes and buzzes only while the page is open.
         .onAppear { actions.pageOpened(group.id) }
         .onDisappear { actions.pageClosed(group.id) }
+        .navigationDestination(isPresented: $showingRequests) {
+            JoinRequestsPage(group: group, waiting: Binding { waiting ?? 0 } set: { waiting = $0 })
+        }
     }
 
     // MARK: Pictures
@@ -194,10 +204,19 @@ struct GroupPage: View {
                 .accessibilityAddTraits(.isHeader)
                 .padding(.top, Event.titleTop)
 
-            Text(Self.kindLine(group))
-                .font(.sans(15))
-                .foregroundStyle(Hue.inkSecondary)
-                .padding(.top, Metric.kindTop)
+            if locked {
+                // Mock frame 7: the lock and the count on one line, in the kind line's place.
+                Label(Self.privateLine(actions.member(group).count), systemImage: "lock")
+                    .labelStyle(PrivateLineStyle())
+                    .font(.sans(15))
+                    .foregroundStyle(Hue.inkSecondary)
+                    .padding(.top, Metric.kindTop)
+            } else {
+                Text(Self.kindLine(group))
+                    .font(.sans(15))
+                    .foregroundStyle(Hue.inkSecondary)
+                    .padding(.top, Metric.kindTop)
+            }
 
             // Both checks said no (start-a-group 02): only its starter sees it, and this.
             if group.status == "rejected" {
@@ -207,7 +226,7 @@ struct GroupPage: View {
                     .padding(.top, Metric.whenTop)
             }
 
-            if let when = Self.whenLine(group) {
+            if !locked, let when = Self.whenLine(group) {
                 Text(when)
                     .font(.sans(15))
                     .foregroundStyle(Hue.ink)
@@ -216,7 +235,7 @@ struct GroupPage: View {
             }
 
             // Counts you the instant you join: the line fades in and the number rolls.
-            if let members = Self.membersText(actions.member(group).count) {
+            if !locked, let members = Self.membersText(actions.member(group).count) {
                 Text(members)
                     .font(.sansSemibold(15))
                     .foregroundStyle(Hue.ink)
@@ -226,11 +245,18 @@ struct GroupPage: View {
                     .transition(.opacity)
             }
 
+            // The Admin's asks waiting on a private Group (start-a-group 03).
+            if group.isPrivate, let count = waiting ?? group.requests {
+                requestsRow(count)
+            }
+
             // Once you're in. The count is right above, so with nothing said it has no second line.
+            if !locked {
             ChatRoomRow(title: "Group chat", isIn: actions.member(group).isMember && group.status != "rejected",
                         listed: { [id = group.id] in $0.chat(forGroup: id) },
                         ruled: false, access: { [id = group.id] in try await $0.groupAccess(id) },
                         route: { [group] _ in .groupChat(group) })
+            }
 
             if let about = Self.nonempty(group.about) {
                 section("About")
@@ -241,7 +267,11 @@ struct GroupPage: View {
                     .padding(.top, Metric.sectionBodyTop)
             }
 
-            let rows = Self.comingUp(Self.upcoming(group.meetings), events: events)
+            if locked {
+                MembersOnlyBox().padding(.top, Metric.sectionTop)
+            }
+
+            let rows = locked ? [] : Self.comingUp(Self.upcoming(group.meetings), events: events)
             if !rows.isEmpty {
                 section("Coming up")
                 // Kept by what each row is, so an Event that arrives fades in where its meeting was.
@@ -325,7 +355,48 @@ struct GroupPage: View {
     /// "Leave group?" under the words (Jesse, 2026-10-18: inside the group you can leave), over the
     /// RSVP pill's 0.18 s, both ways. It stays one button, so VoiceOver keeps its place. A join
     /// the server refuses holds, turns back, then shakes.
-    private var joinBar: some View {
+    @ViewBuilder private var joinBar: some View {
+        if locked { askBar } else { memberBar }
+    }
+
+    /// A private Group you aren't in (mock frame 7): Ask to join, then Asked in the light face, as Join's
+    /// Joined; a tap on Asked takes it back.
+    private var askBar: some View {
+        let asked = asks.isAsked(group)
+        return Button {
+            Task { await asks.toggle(group) }
+        } label: {
+            ZStack {
+                Text("Ask to join").opacity(asked ? 0 : 1)
+                Text("Asked").opacity(asked ? 1 : 0)
+            }
+            .font(.displaySemi(RSVPArea.Size.page.top))
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(MeetupPillStyle(height: Metric.pillHeight, minWidth: 0, light: asked))
+        .turnBackShake(failures: asks.failures[group.id] ?? 0, shakes: !reduceMotion)
+        .animation(.easeInOut(duration: reduceMotion ? 0.15 : RealLifeActions.flip), value: asked)
+        .accessibilityLabel(asked ? "Asked to join" : "Ask to join")
+        .accessibilityHint(asked ? "Takes your ask back" : "")
+        .padding(.horizontal, Metric.pillSide)
+        .padding(.bottom, Metric.pillBottom)
+        .background {
+            LinearGradient(colors: [Hue.paper.opacity(0), Hue.paper], startPoint: .top, endPoint: .bottom)
+                .padding(.top, -Metric.fadeAbovePill)
+                .ignoresSafeArea(edges: .bottom)
+                .allowsHitTesting(false)
+        }
+    }
+
+    /// Requests, the Group chat row's own look (`FactRow`): how many wait, and it opens them.
+    private func requestsRow(_ count: Int) -> some View {
+        FactRow(glyph: "person.badge.plus",
+                lines: EventPage.FactLines(first: "Requests", second: count > 0 ? "\(count) waiting" : nil),
+                end: .opens, hint: "Opens the requests") { showingRequests = true }
+            .padding(.top, Metric.membersTop)
+    }
+
+    private var memberBar: some View {
         let isMember = actions.member(group).isMember
         let failures = actions.memberFailureCount(group.id)
         let size = RSVPArea.Size.page
@@ -403,6 +474,11 @@ struct GroupPage: View {
 
     // MARK: Words (SearchModelTests)
 
+    /// "Private group · 12 members", mock frame 7; "Private group" before anyone is in it.
+    static func privateLine(_ members: Int) -> String {
+        ["Private group", membersText(members)].compactMap { $0 }.joined(separator: " · ")
+    }
+
     /// "Book club · St. Joseph": the town alone when the group doesn't say what kind it is.
     static func kindLine(_ group: TownGroup) -> String {
         return [nonempty(group.kind), Town.everyday].compactMap { $0 }.joined(separator: " · ")
@@ -470,5 +546,16 @@ struct GroupPage: View {
     private static func nonempty(_ value: String?) -> String? {
         guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else { return nil }
         return trimmed
+    }
+}
+
+/// The lock glyph a little closer to its words than a Label's, as the mock's 6 pt.
+private struct PrivateLineStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 6) {
+            configuration.icon.font(.glyph(13, weight: .semibold))
+            configuration.title
+        }
+        .accessibilityElement(children: .combine)
     }
 }

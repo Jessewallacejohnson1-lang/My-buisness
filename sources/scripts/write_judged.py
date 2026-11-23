@@ -1369,25 +1369,109 @@ def repeat_key(n):
     return f"{n['source_name']}\n{n['title'].lower()}"
 
 
+# A new Event the word rules leave on its own, beside another that day it may be (BP app watch-every-place 42): a model
+# says (sources/models/repeat.md, "Events"). No rule can: of 41 such pairs live on 2026-11-22 only 3 were one event, and
+# one host's two at one start were the Church of Saint Joseph's Mass and its Children's Liturgy. EVENT_ASK_MOST a question.
+EVENT_ASK_MOST = 5
+
+
+def worth_a_look(a, b):
+    """Two Events' facts that may be one event, for the model: the same day and start (or no time on one), the same team
+    words, neither a game, and titles alike (one's words inside the other's, or two thirds of the shorter's, read
+    whole and with each other's host's name out); one title the other's host ("Great River Chorale" on the WinterWalk's
+    page is the chorale's own concert); one host's two at one start; or a word in common where they can be one place (the
+    same registry place, none on one, or hosts sharing a name: CSB + SJU Music and CSB SJU Campus Events). The morning
+    report's "Possible doubles", watch-every-place 42's take-outs."""
+    if a["day"] != b["day"] or a["game"] or b["game"] or a["title"] & TEAM != b["title"] & TEAM:
+        return False
+    if not (a["at"] == b["at"] or a["at"] is None or b["at"] is None):
+        return False
+    plain = lambda t: t - FILLER - {"annual", "event", "live"}
+    alike = lambda x, y: bool(x & y) and (x <= y or y <= x or len(x & y) >= 2 and len(x & y) >= 2 / 3 * min(len(x), len(y)))
+    mine, theirs = plain(a["title"]), plain(b["title"])
+    if alike(mine, theirs) or alike(mine - b["names"], theirs - a["names"]):
+        return True
+    if a["title"] == b["names"] or b["title"] == a["names"] or a["poster"] == b["poster"] and a["at"] and a["at"] == b["at"]:
+        return True
+    one_place = bool(a["entry"]) and a["entry"] == b["entry"] or not (a["place"] and b["place"]) \
+        or bool(plain(a["names"]) & plain(b["names"]))
+    return bool(mine & theirs) and one_place
+
+
+def event_key(row):
+    """A new Event's question and answer, the same in the titles step and in save: its source and id."""
+    return f"{row['source_name']}\n{row['source_uid']}"
+
+
+def look_key(g):
+    """What a question's numbered row stands for: a listed Event's id, or this read's first copy of one."""
+    return g["old"]["id"] if g["old"] else event_key(g["items"][0][1]["row"])
+
+
+def _when(row):
+    day = date.fromisoformat(str(row["event_date"])[:10])
+    t = None if row.get("all_day") else parse_clock(row.get("start_time"))
+    return f"{day:%a %b} {day.day}" + (f", {clock(datetime.combine(day, t))}" if t else ", no time")
+
+
+def event_line(row, about=None):
+    place = row.get("location") or "no place"
+    words_ = _short(about if about is not None else row.get("description"), 200)
+    return f"{row['title']}, listed by {row['source_name']}: {_when(row)}, at {place}." + (f" {words_}" if words_ else "")
+
+
+def event_questions(asks, today, abouts=None, start=1):
+    """The model's message for new Events (repeat.md, "Events"): each numbered from `start`, over the Events that day
+    it may be (worth_a_look). `abouts`: {listed Event id: its About}, which the writer's list leaves out."""
+    abouts = abouts or {}
+    out = [f"Today is {today:%A, %b} {today.day}, {today.year}.\n"]
+    for i, (row, cands) in enumerate(asks, start):
+        out.append(f"## Event {i}: {event_line(row)}")
+        out += [f"  {j}. {event_line(c, abouts.get(c.get('id')))}" for j, c in enumerate(cands, 1)]
+        out.append("")
+    return "\n".join(out)
+
+
+def same_event_answers(answer, asks):
+    """The model's `event` lines as {question number: the index of the row it is, from 0, or None}. A number it made up,
+    or a title said back wrong, is None: a slip never joins two events."""
+    got = {}
+    for line in (answer or "").splitlines():
+        line = line.strip().strip(",")
+        try:
+            a = json.loads(line) if line.startswith("{") else None
+        except ValueError:
+            continue
+        if not isinstance(a, dict) or not isinstance(a.get("event"), int) or not 1 <= a["event"] <= len(asks):
+            continue
+        cands, j = asks[a["event"] - 1][1], a.get("same_as")
+        ok = isinstance(j, int) and not isinstance(j, bool) and 1 <= j <= len(cands)
+        got[a["event"]] = j - 1 if ok and words(a.get("title")) == words(cands[j - 1]["title"]) else None
+    return got
+
+
 def group(old=None, facts=None, home=HOME):
     return {"id": old and old["id"], "old": old, "facts": facts or listed_facts(old, home), "items": [],
             "row": None, "mentions": [dict(m) for m in (old or {}).get("mentions") or []]}
 
 
 def plan(items, existing, today, interests, town=TOWNS[DEFAULT], titles=None, teams=None, recent_news=(),
-         history=None, asked=None):
+         history=None, asked=None, asked_events=None):
     """Judged items + the events already listed -> what to write, and each item's outcome.
     `recent_news`: this week's News already in the app (news_in_db), so a repeat isn't added.
     `history`: the News (any status) and Events its News's places have from the last two weeks (history_in_db). The
     title rule reads its News too, so a take-out stands; a News it leaves gets a question in
     out["ask"], [(News, what its place has)], for a model (sources/models/repeat.md), unless `asked` answers it: {repeat_key(News as read): the row it repeats,
     or None} (BP app smooth-mornings 16). With no history, only a News event_told() matches to this read's Events is asked.
+    A new Event the word rules leave on its own beside one that day it may be (worth_a_look) gets a question in
+    out["ask_events"], [(its row, [the rows it may be])], unless `asked_events` answers it: {event_key: the look_key of the
+    one it is, or None}; the model's yes makes it that one's Mention (BP app watch-every-place 42).
     `titles`: this morning's shorter titles for long ones, {tidied title: short} (long_titles, long_headlines).
     `teams`: known_teams(); without it a game's names become ids, which apply() refuses."""
     home = town["label"]
     out = {"events": [], "news": [], "outcomes": [None] * len(items), "notes": [], "cancelled": [], "restored": [],
-           "teams_checked": teams is not None, "ask": []}
-    asked = asked or {}
+           "teams_checked": teams is not None, "ask": [], "ask_events": []}
+    asked, asked_events, said_same = asked or {}, asked_events or {}, set()
     taken_out = [r for r in history or () if not r.get("event_date") and r.get("status") != "published"]
     events = [r for r in history or () if r.get("event_date")] + events_read(items, town)
     made = {}  # this run's new teams, by id: their one name
@@ -1470,6 +1554,20 @@ def plan(items, existing, today, interests, town=TOWNS[DEFAULT], titles=None, te
                                         and not own_ids_differ(g, *key, ev["facts"])),
                                        key=lambda g: ((g["old"] or {}).get("status") == "rejected",
                                                       g["facts"]["at"] is None), default=None))
+            if g is None and not run:
+                # What the word rules leave: a model says whether it is one of the Events that day it may be (a
+                # co-host's Facebook event, a department's page, a band's own listing; watch-every-place 42). Never
+                # one taken out: a wrong yes there would hide a real event.
+                look = sorted((o for o in groups if worth_a_look(o["facts"], ev["facts"])
+                               and (o["old"] or {}).get("status") != "rejected" and (o["old"] or o["items"])
+                               and not own_ids_differ(o, *key, ev["facts"])),
+                              key=lambda o: -len(o["facts"]["title"] & ev["facts"]["title"]))[:EVENT_ASK_MOST]
+                if event_key(ev["row"]) in asked_events:
+                    g = next((o for o in look if look_key(o) == asked_events[event_key(ev["row"])]), None)
+                    if g:
+                        said_same.add(i)
+                elif look:
+                    out["ask_events"].append((ev["row"], [o["old"] or o["items"][0][1]["row"] for o in look]))
             if g is None:
                 # Two of one source's own ids are two events; nothing for Jesse to settle.
                 near = [g for g in groups if g["facts"]["day"] == ev["facts"]["day"] and (
@@ -1577,6 +1675,10 @@ def plan(items, existing, today, interests, town=TOWNS[DEFAULT], titles=None, te
                 out["outcomes"][i] = ("published", "")
             else:
                 out["outcomes"][i] = ("merged", f"with #{primary[0] + 1} {primary[1]['row']['title']!r}")
+        if said_same & {i for i, _ in g["items"]}:  # the copy left out is the one the report names
+            for i, _ in g["items"]:
+                if out["outcomes"][i][0] == "merged":
+                    out["outcomes"][i] = ("merged", out["outcomes"][i][1] + " (the model says)")
         out["events"].append(g)
 
     for g in groups:
@@ -3289,7 +3391,115 @@ def t_news_repeats_an_event():
     assert [outcome(r, i) for i in range(3)] == ["news"] * 3, r["outcomes"]
 
 
-TESTS = [t_news_repeats_an_event, t_a_title_names_its_own_day, t_facebook_event_read_again, t_made_with_other_businesses, t_a_repeat_is_asked_about, t_gender_only_as_a_page_says, t_ages_only_as_a_source_says, t_read_with_no_time_keeps_the_listed_time, t_one_facebook_event_is_one, t_news_state_initials_tell_nothing, t_one_host_no_place_is_one, t_real_copies, t_one_host_two_names, t_two_hosts_one_place_inside_another, t_two_hosts_an_address_names_its_shops, t_two_hosts_copy_kept,
+
+
+def t_another_hosts_facebook_event_is_asked():
+    """W|R Home's Facebook event "Black Friday Event with White Peony" (no place, 5 AM) was White Peony's own Black
+    Friday at 5 AM; both went live and were taken out by hand (BP app watch-every-place 42, 2026-11-22). Now the model
+    is asked, its yes makes the copy the listed one's Mention, and its null, or no answer, leaves both."""
+    peony = listed(title="Black Friday", event_date="2026-11-27", start_time="5 AM", location="White Peony Boutique",
+                   source_name="White Peony Boutique", source_uid="page:2026-11-27T0500:black-friday")
+    wr = item(title="Black Friday Event with White Peony", start="2026-11-27T05:00:00-06:00", end=None, place="",
+              source_name="WR Home & Clothing Co.", source_url="https://www.facebook.com/events/1652320912939132/",
+              blurb="A shop-local Black Friday sale with White Peony and WR Home & Clothing Co.")
+    r = run([wr], [peony])
+    assert outcome(r, 0) == "published" and [(row["title"], [c["id"] for c in cands]) for row, cands in r["ask_events"]] \
+        == [("Black Friday Event with White Peony", [peony["id"]])], r["ask_events"]
+    key = event_key(r["ask_events"][0][0])
+    said = plan([wr], [peony], TODAY, INTERESTS, asked_events={key: peony["id"]})
+    assert said["outcomes"][0] == ("merged", "into 'Black Friday' 2026-11-27 (already listed) (the model says)") \
+        and not said["ask_events"] and [g["id"] for g in said["events"]] == [peony["id"]], said["outcomes"]
+    no = plan([wr], [peony], TODAY, INTERESTS, asked_events={key: None})
+    assert outcome(no, 0) == "published" and not no["ask_events"], no["outcomes"]
+    gone = plan([wr], [dict(peony, status="rejected", review_reason="other")], TODAY, INTERESTS)
+    assert not gone["ask_events"], "an Event taken out is never what a new one joins"
+
+
+def t_same_event_asked_only_when_it_may_be():
+    """Asked: a title the other's host ("Great River Chorale" from the WinterWalk's page at the chorale's own 7:30 PM
+    concert), one host's two at one start (Sunny Mary Meadow's Facebook "Thanksgiving Centerpiece Class" and its site's
+    "Workshop"), and two hosts' alike titles at one start in two places (the music department's "Sing the Season" at the
+    Abbey Church, the campus calendar's "All College Choir" in the Great Hall). Not asked: one source's own two ids (the
+    Church of Saint Joseph's Mass and Children's Liturgy at 10 AM), another start, another level (JV and varsity), a
+    game, or two hosts' titles with no word in common."""
+    def asked(new, old):
+        return bool(run([new], [old])["ask_events"])
+    chorale = listed(title="Out of Darkness, Light", event_date="2026-12-04", start_time="7:30 PM",
+                     location="Church of Saint Joseph", source_name="Great River Chorale", source_uid="fb:1137578548737768")
+    festival = item(title="Great River Chorale", start="2026-12-04T19:30:00-06:00", end=None, place="Church of St. Joseph",
+                    source_name="JoeTown WinterWalk Festival", source_url="https://greatriverchorale.org")
+    mass = listed(title="Mass", event_date="2026-11-22", start_time="10 AM", location="Church of St. Joseph",
+                  source_name="Church of Saint Joseph", source_uid="cc:1")
+    liturgy = item(title="Liturgy of the Word for Children", start="2026-11-22T10:00:00-06:00", end=None,
+                   place="Church of St. Joseph", source_name="Church of Saint Joseph", source_uid="cc:2",
+                   source_url="https://church-of-st-joseph-470993.churchcenter.com/calendar")
+    workshop = listed(title="Thanksgiving Centerpiece Workshop", event_date="2026-11-25", start_time="6 PM",
+                      location="The Bloom Room at Sunny Mary Meadow", source_name="Sunny Mary Meadow",
+                      source_uid="page:2026-11-25T1800:centerpiece-thanksgiving-workshop")
+    klass = item(title="Thanksgiving Centerpiece Class", start="2026-11-25T18:00:00-06:00", end=None,
+                 place="The Bloom Room at Sunny Mary Meadow", source_name="Sunny Mary Meadow",
+                 source_url="https://www.facebook.com/events/28537505465927282/")
+    choir = listed(title="All College Choir", event_date="2026-12-06", start_time="3 PM", location="The Great Hall",
+                   source_name="CSB SJU Campus Events", source_uid="4100040")
+    season = item(title="Sing the Season: All College Choir", start="2026-12-06T15:00:00-06:00", end=None,
+                  place="Abbey Church, Collegeville", source_name="CSB + SJU Music Department",
+                  source_url="https://www.facebook.com/events/29330783379850695/")
+    kick = listed(title="Varsity High Kick", event_date="2026-12-19", start_time="11:30 AM", location="Cathedral High School",
+                  source_name="Cathedral High School", source_uid="bound:1")
+    assert asked(festival, chorale) and asked(klass, workshop) and asked(season, choir)
+    assert not asked(liturgy, mass), "one source's own two ids are two events, as before"
+    assert not asked(dict(klass, start="2026-11-25T10:00:00-06:00"), workshop), "another start"
+    assert not asked(item(title="Junior Varsity High Kick", start="2026-12-19T11:30:00-06:00", end=None,
+                          place="Cathedral High School", source_name="Cathedral High School",
+                          source_url="https://gobound.com/x"), kick), "another level"
+    assert not asked(dict(season, title="Hockey Night"), choir), "two hosts, no word in common"
+    assert not asked(item(title="Apollo vs Tech", start="2026-12-06T15:00:00-06:00", end=None, place="The Great Hall",
+                          source_name="Apollo High School", source_url="https://gobound.com/y"),
+                     listed(title="Tech vs Apollo", event_date="2026-12-06", start_time="3 PM", location="The Great Hall",
+                            source_name="Tech High School", source_uid="bound:2")), "a game has its own rules"
+
+
+def t_two_new_copies_one_read():
+    """Two hosts' copies new in one read: the second is asked about the first, and the model's yes keeps one, by the
+    usual order (the place's own host's)."""
+    peony = item(title="Black Friday", start="2026-11-27T05:00:00-06:00", end=None, place="White Peony Boutique",
+                 source_name="White Peony Boutique", source_url="https://whitepeonyboutique.com/pages/events")
+    wr = item(title="Black Friday Event with White Peony", start="2026-11-27T05:00:00-06:00", end=None, place="",
+              source_name="WR Home & Clothing Co.", source_url="https://www.facebook.com/events/1652320912939132/",
+              trust="secondhand")
+    r = run([peony, wr])
+    assert len(r["ask_events"]) == 1 and r["ask_events"][0][1][0]["title"] == "Black Friday", r["ask_events"]
+    said = plan([peony, wr], [], TODAY, INTERESTS, asked_events={event_key(r["ask_events"][0][0]): event_key(peony_row)}) \
+        if (peony_row := r["events"][0]["row"]) else None
+    assert [outcome(said, 0), said["outcomes"][1]] == ["published", ("merged", "with #1 'Black Friday' (the model says)")] \
+        and len(said["events"]) == 1, said["outcomes"]
+
+
+def t_same_event_question_and_answer():
+    """The message lays each new Event over the rows it may be, with their Abouts; an answer counts only with its row's
+    title said back, so a number that slipped joins nothing."""
+    row = {"title": "Sing the Season: All College Choir", "event_date": "2026-12-06", "start_time": "3 PM",
+           "all_day": False, "location": "Abbey Church, Collegeville", "source_name": "CSB + SJU Music Department",
+           "description": "Songs in many languages."}
+    cands = [{"id": "c0694c82", "title": "All College Choir", "event_date": "2026-12-06", "start_time": "3 PM",
+              "all_day": False, "location": "The Great Hall", "source_name": "CSB SJU Campus Events"},
+             {"id": "x", "title": "Hockey Night", "event_date": "2026-12-06", "start_time": "3 PM", "all_day": False,
+              "location": None, "source_name": "CSB SJU Campus Events"}]
+    text = event_questions([(row, cands)], date(2026, 11, 22), {"c0694c82": "The non-auditioned choir's concert."})
+    assert "## Event 1: Sing the Season: All College Choir, listed by CSB + SJU Music Department: Sun Dec 6, 3 PM, at " \
+           "Abbey Church, Collegeville. Songs in many languages." in text \
+        and "  1. All College Choir, listed by CSB SJU Campus Events: Sun Dec 6, 3 PM, at The Great Hall. The " \
+            "non-auditioned choir's concert." in text and "  2. Hockey Night, listed by CSB SJU Campus Events: Sun Dec 6, " \
+            "3 PM, at no place." in text, text
+    got = same_event_answers('{"event": 1, "same_as": 1, "title": "All College Choir"}\n{"event": 2, "same_as": 1}\n'
+                             '{"news": 1, "same_as": 1}', [(row, cands), (row, cands)])
+    assert got == {1: 0, 2: None}, got
+    assert same_event_answers('{"event": 1, "same_as": 2, "title": "All College Choir"}', [(row, cands)]) == {1: None}
+
+
+
+TESTS = [t_another_hosts_facebook_event_is_asked, t_same_event_asked_only_when_it_may_be, t_two_new_copies_one_read,
+         t_same_event_question_and_answer, t_news_repeats_an_event, t_a_title_names_its_own_day, t_facebook_event_read_again, t_made_with_other_businesses, t_a_repeat_is_asked_about, t_gender_only_as_a_page_says, t_ages_only_as_a_source_says, t_read_with_no_time_keeps_the_listed_time, t_one_facebook_event_is_one, t_news_state_initials_tell_nothing, t_one_host_no_place_is_one, t_real_copies, t_one_host_two_names, t_two_hosts_one_place_inside_another, t_two_hosts_an_address_names_its_shops, t_two_hosts_copy_kept,
          t_two_hosts_maybe_the_same, t_two_hosts_no_place_asked, t_two_hosts_kept_apart, t_one_place_two_names, t_followers_only, t_place_entry, t_wording, t_interest_list_is_the_apps, t_event_or_news, t_official_one_mention, t_everything_kept_goes_live, t_news_repeat_left_out,
          t_one_news_one_link, t_news_same_link_this_week, t_news_says_when_it_ends, t_closings_wait, t_a_dated_news_blocks_its_repeat_until_its_day, t_one_post_is_one_news, t_news_look_back_is_the_feeds_week, t_news_shouted_or_hyphened_is_one,
          t_all_day_a_day_apart_is_one, t_no_time_joins_the_timed_one, t_later_read_fills_the_time, t_merge_true_pair,

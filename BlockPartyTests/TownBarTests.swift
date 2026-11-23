@@ -421,12 +421,12 @@ final class AppearancePreferenceTests: XCTestCase {
 
         store.choice = .system
         XCTAssertNil(store.requestedScheme, "released, System asks for nothing")
-        store.holdsClock = true
+        store.holdClock("town", true)
         XCTAssertNotNil(store.requestedScheme, "held, System must be a request")
         XCTAssertEqual(store.requestedScheme, store.phoneScheme)
 
         for hold in [false, true] {
-            store.holdsClock = hold
+            store.holdClock("town", hold)
             store.choice = .light
             XCTAssertEqual(store.requestedScheme, .light)
             store.choice = .dark
@@ -436,6 +436,30 @@ final class AppearancePreferenceTests: XCTestCase {
         XCTAssertEqual(AppearanceStore.scheme(of: UITraitCollection(userInterfaceStyle: .dark)), .dark)
         XCTAssertEqual(AppearanceStore.scheme(of: UITraitCollection(userInterfaceStyle: .light)), .light)
         XCTAssertEqual(AppearanceStore.scheme(of: UITraitCollection(userInterfaceStyle: .unspecified)), .light)
+    }
+
+    /// Town to Block Party: the new tab's appear can run before the old tab's disappear
+    /// (2026-10-01), so the Town feed's release must leave the Block Party tab's hold (daily-tab 26).
+    /// A school's page lets every hold go.
+    func testATabSwitchKeepsTheNewTabsHoldOnTheClock() throws {
+        let (defaults, suite) = try makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = AppearanceStore(defaults: defaults)
+        store.choice = .system
+
+        store.holdClock("town", true)
+        var changes = 0
+        let watch = store.objectWillChange.sink { changes += 1 }
+        store.holdClock("daily", true)
+        store.holdClock("town", false)
+        watch.cancel()
+        XCTAssertTrue(store.holdsClock, "Block Party tab still holds after Town lets go")
+        XCTAssertEqual(changes, 0, "the hold moving between tabs changes nothing on screen, so redraws nothing")
+        XCTAssertEqual(store.requestedScheme, store.phoneScheme)
+
+        store.releaseClock()
+        XCTAssertFalse(store.holdsClock)
+        XCTAssertNil(store.requestedScheme)
     }
 
     func testTheControlOffersExactlyThreeOptionsInMenuOrder() {

@@ -212,13 +212,17 @@ nonisolated enum Hue {
     /// `onboardingCanvas`'s dark, so the ink on them reads; they get colours of their own at dark
     /// mode's pass (iOS MEMORY.md, 2026-09-24).
     static let bigArtCanvas   = Color(light: 0xFBFAFD, dark: 0x141412)
-    /// A step's soft colour at the top: Profile's sand (Jesse's yes, 2026-11-19) and Birthday's lilac.
-    static let bigArtProfile  = Color(light: 0xF3ECDF, dark: 0x141412)
+    /// A step's soft colour at the top: Birthday's lilac (Jesse's yes, 2026-11-19).
     static let bigArtBirthday = Color(light: 0xE6D8FA, dark: 0x141412)
-    /// Find your friends' white: Jesse's market drawing is on white paper (onboarding 51).
+    /// White: Find your friends' (Jesse's market drawing is on white paper, onboarding 51), and the Name and
+    /// Photo steps', as Clubhouse's (onboarding 55).
     static let bigArtFriends  = Color(light: 0xFFFFFF, dark: 0x141412)
     /// Under 13's quiet grey (onboarding 47, mock v2 `young`).
     static let bigArtTooYoung = Color(light: 0xE8E8ED, dark: 0x141412)
+    /// Clubhouse's cream on the Name and Photo steps (onboarding 55, `references/profile-clubhouse/SPEC.md`):
+    /// the name box and the photo's squircle, and the squircle's 1 pt ring.
+    static let onboardingCream     = Color(light: 0xF6F5EE, dark: 0x23231F)
+    static let onboardingCreamRing = Color(light: 0xE7E6E1, dark: 0x2E2E2A)
     /// The grey words on a Big art step: its line under the question, the labels over its boxes (mock v2
     /// `--ink2`). A step darker than `inkSecondary`, which fell to 4.4:1 on Birthday's lilac.
     static let bigArtWords    = Color(light: 0x63636A, dark: 0x9C9A93)

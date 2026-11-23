@@ -12,6 +12,8 @@ have a photo of event. dont worry about games for now"). A step of the morning j
   python3 sources/scripts/event_photos.py dig-sheets       the pages the finders named, read; their pictures on sheets
   python3 sources/scripts/event_photos.py dig-posts        the still-bare titles' places' own posts, read through Apify
   python3 sources/scripts/event_photos.py dig-keep [--dry-run]  the picks saved; every Event the dig finished marked
+  python3 sources/scripts/event_photos.py judge            the live picks no judge has seen, in batches for the judges
+  python3 sources/scripts/event_photos.py judge-keep [--dry-run]  each judge's verdict saved; a photo sent down comes off
   python3 sources/scripts/event_photos.py --selftest
 
 The pictures are the ones each Event came with, so nothing paid starts and no new page is read but its own:
@@ -53,7 +55,8 @@ step's own pick, and a photo, not a flyer) follows to that title's new dates: a 
 whatever its listing came with (BP app docs/plans/dig-deeper 20; Reflection and Bréagán, 2026-11-04 to 07). Those
 Events are not laid out; `keep` gives each a row of the same picture and marks it looked at.
 """
-import argparse, json, re, sys
+import argparse, json, re, shutil, sys
+from collections import Counter
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import quote, urlparse
@@ -707,15 +710,15 @@ NOT_OURS = re.compile(r"gettyimages|shutterstock|istockphoto|alamy|apimages|apne
                       r"depositphotos|123rf|unsplash|pexels|pixabay|stock\.adobe|wikimedia|wikipedia|pinterest|"
                       r"googleusercontent|maps\.googleapis|gstatic|google\.com/(?:maps|imgres|search)|facebook\.com|fbcdn|instagram",
                       re.I)
-# An exhibit shows work: its card runs a piece in the show, never a crowd or a room from another show (BP app
-# event-photos 24, Jesse, 2026-11-17: "for exhibits we need to be trying to find photos of work displayed").
-EXHIBIT = re.compile(r"\bexhibit|\bart show|\bgaller(?:y|ies)\b", re.I)
 ARTIST_IG = re.compile(r"^https?://(?:www\.)?instagram\.com/(?!p/|reel/|explore/|stories/)([\w.]+)/?$", re.I)
 
 
 def is_exhibit(e):
-    """An art show, gallery exhibit or museum show: its title or About says so, or it is held in a gallery."""
-    return bool(EXHIBIT.search(f"{e.get('title') or ''} {e.get('description') or ''} {e.get('location') or ''}"))
+    """An exhibit shows work: its card runs a piece in the show, never a crowd or a room from another show (BP app
+    event-photos 24, Jesse, 2026-11-17: "for exhibits we need to be trying to find photos of work displayed").
+    place_photos.is_exhibit, whose words also make the database's subject art-gallery (event-photos 26)."""
+    import place_photos
+    return place_photos.is_exhibit(e)
 
 
 def artist_pages(line):
@@ -1131,6 +1134,107 @@ def dig_keep(out, dry_run=False, db=None, now=None):
     out_lines += [f"[dig]   waiting: {g['title']} ({why_waiting(g)})" for g in waiting]
     print("\n".join(out_lines))
     return out_lines
+
+
+# --- The photo judge (BP app event-photos 30) -------------------------------------------------------
+# A second look at what the picks put live: each photo this step or the dig picked that no judge has seen, the one its
+# Event's or News's card leads with, laid out alone with what it runs on for a judge on the routine's own model
+# (sources/models/photo-judge.md; Jesse, 2026-11-22: "the goal is for people scrolling to feel interested from the
+# photo and has to relate to event or post"). The picker picked it, so a judge's run or weak agrees and it stays; down
+# takes it off, the card falls back to its place's own picture, and the report names it. A person's keep was his look.
+
+PER_JUDGE = 10    # photos in one judge's batch
+VERDICTS = ("run", "weak", "down")
+
+
+def to_judge(db, now):
+    """One block per picture file: every live pick no judge has seen that leads a card still showing (Jesse,
+    2026-11-22: "why not just look at every photo"), an upcoming Event's (soonest first) before a News of the last 30
+    days (newest first)."""
+    today = now.astimezone(LOCAL).date()
+    mine = f"&status=eq.live&judged=is.null&proposed_by=in.{in_list({OWN, DIG})}&position=eq.0"
+    rows = db.rest("GET", "place_photos?select=id,url,kind,source_url,club_events!inner(title,event_date,location,description,status)"
+                          f"{mine}&kind=in.(event,flyer)&club_events.status=eq.approved"
+                          f"&club_events.or={quote(f'(event_date.gte.{today},end_at.gte.{today})')}") or []
+    news = db.rest("GET", "place_photos?select=id,url,kind,source_url,board_items!inner(title,blurb,source_name,status,created_at)"
+                          f"{mine}&kind=eq.news&board_items.status=eq.published"
+                          f"&board_items.created_at=gte.{quote((now - timedelta(days=30)).isoformat())}") or []
+    blocks = {}
+    for r in rows:
+        b = blocks.setdefault(r["url"], {"url": r["url"], "ids": [], "events": [], "flyer": r["kind"] == "flyer",
+                                         "found_on": r.get("source_url") or ""})
+        b["ids"].append(r["id"])
+        b["events"].append(r["club_events"])
+    for r in news:
+        blocks.setdefault(r["url"], {"url": r["url"], "ids": [], "news": r["board_items"],
+                                     "found_on": r.get("source_url") or ""})["ids"].append(r["id"])
+    out = sorted((b for b in blocks.values() if "events" in b), key=lambda b: min(e["event_date"] for e in b["events"]))
+    out += sorted((b for b in blocks.values() if "news" in b), key=lambda b: b["news"]["created_at"], reverse=True)
+    return out
+
+
+def judge_line(key, b, image):
+    """A judge's line for one picture: what it runs on and the page it was found on, nothing of why it was picked."""
+    if "news" in b:
+        n = b["news"]
+        return {"photo": key, "image": image, "title": n["title"], "place": n.get("source_name") or "",
+                "about": " ".join((n.get("blurb") or "").split())[:800], "found_on": b["found_on"], "news": True}
+    e = b["events"][0]
+    return {"photo": key, "image": image, "title": " / ".join(sorted({x["title"] for x in b["events"]})),
+            "dates": sorted({x["event_date"] for x in b["events"]}), "place": e.get("location") or "",
+            "about": " ".join((e.get("description") or "").split())[:800], "found_on": b["found_on"],
+            **({"flyer": True} if b["flyer"] else {}), **({"exhibit": True} if is_exhibit(e) else {})}
+
+
+def judge(out, now=None, db=None, grab=None):
+    """The pictures to judge downloaded to judge/p<n>.png and laid out PER_JUDGE to a batch; the folder starts empty."""
+    import place_photos
+    grab = grab or place_photos.download
+    folder = out / "judge"
+    shutil.rmtree(folder, ignore_errors=True)
+    folder.mkdir(parents=True)
+    laid, lines, failed = {}, [], []
+    for i, b in enumerate(to_judge(db or Supabase(), now or datetime.now(timezone.utc)), 1):
+        key, dest = f"p{i}", folder / f"p{i}.png"
+        try:
+            grab(b["url"], dest)
+        except Exception as e:  # tried again the next morning
+            failed.append(f"[judge]   p{i} would not download ({' '.join(str(e).split())[:80]})")
+            continue
+        line = judge_line(key, b, str(dest))
+        laid[key] = {"ids": b["ids"], "title": line["title"]}
+        lines.append(json.dumps(line, ensure_ascii=False))
+    (folder / "laid.json").write_text(json.dumps(laid, indent=1, ensure_ascii=False))
+    for n, i in enumerate(range(0, len(lines), PER_JUDGE), 1):
+        (folder / f"batch-{n}.txt").write_text("\n".join(lines[i:i + PER_JUDGE]) + "\n")
+    said = (f"[judge] laid out {len(lines)} photos in {-(-len(lines) // PER_JUDGE)} batches" if lines
+            else "[judge] nothing to judge")
+    print("\n".join([said] + failed))
+    return said
+
+
+def judge_keep(out, dry_run=False, db=None):
+    """Each verdict on its picture's rows (public.judge_photos); down retires them, so each card falls back to its
+    place's own picture. A picture no judge answered stays unjudged for the next morning. The lines go in the morning's
+    report (finish)."""
+    folder = out / "judge"
+    laid = json.loads((folder / "laid.json").read_text()) if (folder / "laid.json").exists() else {}
+    said = {ln["photo"]: ln for ln in read_items(folder / "verdicts.jsonl")
+            if isinstance(ln, dict) and ln.get("photo") in laid and ln.get("verdict") in VERDICTS}
+    db = db or (None if dry_run else Supabase())
+    for key, ln in said.items():
+        if not dry_run:  # the database's function: the Watch key may take down only these steps' own picks
+            db.rest("POST", "rpc/judge_photos", {"p_ids": laid[key]["ids"], "p_verdict": ln["verdict"],
+                                                 "p_why": " ".join(str(ln.get("why") or "").split())[:200]})
+    n = Counter(ln["verdict"] for ln in said.values())
+    lines = [f"[judge] {len(said)} of {len(laid)} photos judged: {n['run']} run, {n['weak']} weak, {n['down']} taken down"
+             + (f"; {len(laid) - len(said)} wait for the next morning" if len(said) < len(laid) else "")
+             + (" (dry run: nothing written)" if dry_run else "")]
+    lines += [f"[judge]   taken down: {laid[k]['title']}: {ln.get('why')}" for k, ln in said.items() if ln["verdict"] == "down"]
+    if laid and not dry_run:
+        (folder / "report.txt").write_text("\n".join(lines) + "\n")
+    print("\n".join(lines))
+    return lines
 
 
 # --- Self-test --------------------------------------------------------------------------------------
@@ -1979,13 +2083,58 @@ def selftest():
                    7: "a new flyer picked over it: its own photo and flyer retired, so the flyer shows"}[gone and gone[0]]
                   + f" ({calls}; {line})")
 
+    # The photo judge (event-photos 30): what it lays out, and what its verdicts write.
+    class JudgeDb:
+        def __init__(self):
+            self.calls = []
+
+        def rest(self, method, path, body=None, prefer=None):
+            self.calls.append((method, path, body))
+            if method != "GET":
+                return None
+            ev = lambda t, d, where, about: {"title": t, "event_date": d, "location": where, "description": about,
+                                             "status": "approved"}
+            if "club_events" in path:
+                return [{"id": 1, "url": "u1", "kind": "event", "source_url": "https://facebook.com/parish/posts/1",
+                         "club_events": ev("Fish Fry", "2026-12-04", "Parish hall", "Lent")},
+                        {"id": 2, "url": "u1", "kind": "event", "club_events": ev("Fish Fry", "2026-12-11", "Parish hall", "Lent")},
+                        {"id": 3, "url": "u2", "kind": "flyer", "club_events": ev("Senior Art Show", "2026-11-30", "Arts center", "")}]
+            return [{"id": 4, "url": "u3", "kind": "news", "board_items": {"title": "New winter menu", "blurb": "Soups",
+                     "source_name": "The Cafe", "status": "published", "created_at": "2026-11-21T10:00:00+00:00"}}]
+
+    with tempfile.TemporaryDirectory() as tmp:
+        out, db = Path(tmp), JudgeDb()
+        judge(out, now=datetime(2026, 11, 22, 12, tzinfo=timezone.utc), db=db, grab=lambda url, dest: (1200, 900))
+        laid = json.loads((out / "judge" / "laid.json").read_text())
+        lines = [json.loads(x) for x in (out / "judge" / "batch-1.txt").read_text().splitlines()]
+        check([x["title"] for x in lines] == ["Senior Art Show", "Fish Fry", "New winter menu"]
+              and lines[0].get("flyer") and lines[0].get("exhibit") and lines[1]["dates"] == ["2026-12-04", "2026-12-11"]
+              and lines[2].get("news") and laid["p2"]["ids"] == [1, 2] and not any("why" in x or "shows" in x for x in lines)
+              and lines[1]["found_on"] == "https://facebook.com/parish/posts/1",
+              "judge: one line per picture with what it runs on and none of the picker's reasons, the soonest Event first, "
+              f"one picture's dates together, a flyer and an exhibit marked, then the News ({lines})")
+        check(all("judged=is.null" in p and "position=eq.0" in p and "status=eq.live" in p for m, p, b in db.calls),
+              "judge: only live pictures no judge has seen, each card's lead")
+        (out / "judge" / "verdicts.jsonl").write_text("\n".join([json.dumps({"photo": "p1", "verdict": "run", "why": "The show's art"}),
+                                                                   json.dumps({"photo": "p2", "verdict": "down", "why": "Another event"}),
+                                                                   json.dumps({"photo": "p9", "verdict": "down"}), "not json"]) + "\n")
+        db = JudgeDb()
+        said = judge_keep(out, db=db)
+        check([(p, b) for m, p, b in db.calls] == [("rpc/judge_photos", {"p_ids": [3], "p_verdict": "run", "p_why": "The show's art"}),
+                                                  ("rpc/judge_photos", {"p_ids": [1, 2], "p_verdict": "down", "p_why": "Another event"})]
+              and said == ["[judge] 2 of 3 photos judged: 1 run, 0 weak, 1 taken down; 1 wait for the next morning",
+                           "[judge]   taken down: Fish Fry: Another event"]
+              and (out / "judge" / "report.txt").read_text().splitlines() == said,
+              f"judge-keep: each verdict on every row of its picture, down retired, a line it never laid out ignored ({said})")
+
     print(f"{ok} passed, {bad} failed")
     return bad == 0
 
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("step", nargs="?", choices=["prepare", "keep", "dig", "dig-sheets", "dig-posts", "dig-keep"])
+    ap.add_argument("step", nargs="?", choices=["prepare", "keep", "dig", "dig-sheets", "dig-posts", "dig-keep", "judge",
+                                                "judge-keep"])
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--all", action="store_true", help="dig: the weekly pass today, whatever the day")
     ap.add_argument("--town", default=DEFAULT, help="the town whose photo folder the photos go in")
@@ -2007,6 +2156,10 @@ def main(argv=None):
         dig_posts(out_dir())
     elif a.step == "dig-keep":
         dig_keep(out_dir(), a.dry_run)
+    elif a.step == "judge":
+        judge(out_dir())
+    elif a.step == "judge-keep":
+        judge_keep(out_dir(), a.dry_run)
     else:
         ap.print_help()
 

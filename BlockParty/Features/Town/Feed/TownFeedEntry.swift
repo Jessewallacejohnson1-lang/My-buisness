@@ -52,13 +52,16 @@ extension TownFeedEntry {
     }
 }
 
-/// What the feed showed (a view), what was opened, or an Event shared from the app (ticket 26),
-/// for `feed_actions` (ticket 20).
+/// What the feed showed (a view), what was opened, an Event shared from the app (ticket 26), or a tap on a card or its
+/// page (BP app feed-learns 02), for `feed_actions` (ticket 20).
 struct FeedAction: Equatable {
-    /// `news` is a view of Town news, which goes apart from the rest (`see_news`, town-feed 41).
-    enum Kind: String { case view, open, share, news }
+    /// `news` is a view of Town news, which goes apart from the rest (`see_news`, town-feed 41). The taps: a photo swiped
+    /// to the next, the place or host, a map, the link to where it was found.
+    enum Kind: String { case view, open, share, news, photo, place, map, link }
     let itemID: String
     let kind: Kind
+    /// A News item's open or tap, for `news_actions`: `feed_actions` holds only Events and posts.
+    var onNews = false
 }
 
 /// Not interested, Mute and their undoing, for the server (ticket 21). Mute names an Event and

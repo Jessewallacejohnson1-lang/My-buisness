@@ -34,10 +34,13 @@ struct OnboardingBackdrop: View {
     var tint: Color? = nil
     /// Interests' Dusk over everything (onboarding 48): fades in and out as the step comes and goes.
     var deep = false
+    /// Clubhouse's Name and Photo steps (onboarding 55): the colour all the way down, no fade.
+    var flat = false
 
     var body: some View {
         ZStack(alignment: .top) {
             tint == nil ? Hue.onboardingCanvas : Hue.bigArtCanvas
+            (tint ?? Hue.onboardingCanvas).opacity(flat ? 1 : 0)
             // One colour under a still mask, so a move between steps glides the colour alone.
             (tint ?? Hue.onboardingCanvas)
                 .frame(height: BigArt.fadeEnd)
@@ -148,7 +151,7 @@ struct OnboardingHeading: View {
 
 /// What sits over a question in the Big art look (BP app onboarding 43, mock v2 `.pic`, `.q`, `.sub`):
 /// one drawing, centred in a 128 pt row, which pops in as the step arrives; 14 pt under it the question,
-/// centred, 26 pt bold on a 31 pt line; then its grey line, centred. Reduce Motion skips the pop.
+/// centred, 26 pt bold on a 31 pt line; then, on Under 13, its grey line, centred. Reduce Motion skips the pop.
 struct OnboardingBigArt<Art: View>: View {
     let question: String
     var line: String? = nil
@@ -261,31 +264,52 @@ struct OnboardingNextBar: View {
     var refused = 0
     /// White with ink words on Interests' deep backdrop, white at 26% while not allowed (onboarding 48, mock v5 `.btn`).
     var deep = false
+    /// Clubhouse's "Next →" on the Name and Photo steps (onboarding 55): 20 pt words and an arrow, on the
+    /// `narrow` pill. VoiceOver hears the title alone.
+    var arrow = false
     let action: () -> Void
 
     static let height: CGFloat = 48
+    /// Clubhouse's pill, 199.3 x 49.3 pt measured (`references/profile-clubhouse/SPEC.md`).
+    static let narrow: CGFloat = 199
+    static let narrowHeight: CGFloat = 49
 
     @State private var shakes = 0
+    /// The arrow and the 8 pt before it, at 20 pt (title3), growing with large text.
+    @ScaledMetric(relativeTo: .title3) private var arrowRoom: CGFloat = 28
 
     var body: some View {
         Button {
             if busy { return }
             if allowed { action() } else { shakes += 1; Haptics.error() }
         } label: {
-            if busy {
-                ProgressView().tint(.white)
-            } else {
-                Text(title)
-                    .font(.apple(17, weight: .semibold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                    // "Follow 3 more" rolls to 2, and back up on an unfollow (onboarding 26): Apple's number
-                    // roll, the bar holding still.
-                    .contentTransition(.numericText(value: Double(count)))
-                    .animation(.snappy, value: title)
+            // One view around the branches: bare, the style's frame and capsule went round each branch, and a
+            // move to or from the Name and Photo steps cross-faded two pills (onboarding 55's frames).
+            // The one "Next" stays put between the pills; only the arrow comes and goes.
+            ZStack {
+                if busy {
+                    ProgressView().tint(.white)
+                } else {
+                    HStack(spacing: 0) {
+                        Text(title)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                            // "Follow 3 more" rolls to 2, and back up on an unfollow (onboarding 26): Apple's
+                            // number roll, the bar holding still.
+                            .contentTransition(.numericText(value: Double(count)))
+                            .animation(.snappy, value: title)
+                        // Always here, shut to nothing off the Name and Photo steps: added and taken away, it
+                        // trailed behind on the wrong side of Next as the pill changed width.
+                        Image(systemName: "arrow.right")
+                            .padding(.leading, 8)
+                            .frame(width: arrow ? arrowRoom : 0, alignment: .leading)
+                            .opacity(arrow ? 1 : 0)
+                    }
+                    .font(arrow ? .apple(20, weight: .semibold) : .apple(17, weight: .semibold))
+                }
             }
         }
-        .buttonStyle(NextBarStyle(allowed: allowed, deep: deep))
+        .buttonStyle(NextBarStyle(allowed: allowed, deep: deep, height: arrow ? Self.narrowHeight : Self.height))
         .keyframeAnimator(initialValue: CGFloat(0), trigger: shakes) { bar, x in
             bar.offset(x: x)
         } keyframes: { _ in
@@ -305,13 +329,14 @@ struct OnboardingNextBar: View {
 private struct NextBarStyle: ButtonStyle {
     let allowed: Bool
     let deep: Bool
+    let height: CGFloat
 
     func makeBody(configuration: Configuration) -> some View {
         let down = configuration.isPressed && allowed
         return configuration.label
             .foregroundStyle(words)
             .frame(maxWidth: .infinity)
-            .frame(height: OnboardingNextBar.height)
+            .frame(height: height)
             .background {
                 Capsule()
                     .fill(fill(down: down))
@@ -382,12 +407,16 @@ struct OnboardingFieldLabel: View {
 /// sink to 95% and dim under the finger.
 struct OnboardingLink: View {
     let title: String
+    /// The Photo step's Skip is Clubhouse's grey 17 pt (onboarding 55): `inkSecondary`, not Clubhouse's lighter
+    /// grey, which reads under 4.5:1 on white.
+    var font: Font = .apple(15, weight: .semibold)
+    var color: Color = Hue.ink
     let action: () -> Void
     var body: some View {
         Button(action: action) {
             Text(title)
-                .font(.apple(15, weight: .semibold))
-                .foregroundStyle(Hue.ink)
+                .font(font)
+                .foregroundStyle(color)
                 .padding(.horizontal, 12)
                 .frame(minHeight: 44)
                 .contentShape(Rectangle())

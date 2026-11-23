@@ -227,9 +227,30 @@ struct CommunityAPI {
 
     /// A new Group (`start_group`, BP app start-a-group 02): pending, with you in it, until its checks say yes.
     /// `id` is made here so its photo, sent first by `uploadGroupPhoto`, can carry it.
-    func startGroup(id: String, name: String, kind: String?, photo: URL?) async throws {
+    func startGroup(id: String, name: String, kind: String?, photo: URL?, isPrivate: Bool = false) async throws {
         _ = try await db.rpc("start_group", ["p_id": id, "p_name": name, "p_kind": kind ?? NSNull(),
-                                             "p_photo": photo?.absoluteString ?? NSNull()])
+                                             "p_photo": photo?.absoluteString ?? NSNull(), "p_private": isPrivate])
+    }
+
+    /// New group's Private switch is fixed on (`groups_always_private`, start-a-group 03): under 18, or no birthday.
+    func groupsAlwaysPrivate() async -> Bool {
+        guard let data = try? await db.rpc("groups_always_private") else { return false }
+        return (try? JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed) as? Bool) ?? false
+    }
+
+    /// Ask to join a private Group, or take the ask back (`ask_to_join`).
+    func askToJoin(_ id: String, on: Bool) async throws {
+        _ = try await db.rpc("ask_to_join", ["p_club": id, "p_on": on])
+    }
+
+    /// The asks waiting on a Group you run, oldest first (`get_join_requests`).
+    func joinRequests(_ id: String) async throws -> [Neighbor] {
+        try Supabase.decode(await db.rpc("get_join_requests", ["p_club": id]))
+    }
+
+    /// Your yes puts them in; your no is kept (`answer_join`).
+    func answerJoin(_ id: String, user: String, yes: Bool) async throws {
+        _ = try await db.rpc("answer_join", ["p_club": id, "p_user": user, "p_yes": yes])
     }
 
     /// A new Group's photo: `group-<id>.jpg` in your own folder of `event-images`, the one name `start_group` takes.
@@ -492,16 +513,26 @@ struct CommunityAPI {
                           prefer: "resolution=ignore-duplicates,return=minimal")
     }
 
-    /// The Town feed's views and opens (ticket 20), in one insert, and which News went by (town-feed 41).
-    /// Who and when are set by the database; nobody reads them back. Ids that aren't real (samples) are
-    /// skipped.
+    /// The Town feed's views and opens (ticket 20) and the taps on cards and pages (feed-learns 02), and which
+    /// News went by (town-feed 41). Who and when are set by the database; nobody reads them back.
     func recordFeedActions(_ batch: [FeedAction]) async throws {
-        guard !Self.isSimulator else { return }
+        guard !Self.isSimulator || Self.proofSends else { return }
+        let split = Self.feedRows(batch)
+        if !split.cards.isEmpty { try await db.rest("feed_actions", method: "POST", body: split.cards, prefer: "return=minimal") }
+        if !split.seen.isEmpty { _ = try await db.rpc("see_news", ["p_items": split.seen]) }
+        // Last, so a refused News tap can't cost the views before it.
+        if !split.news.isEmpty { try await db.rest("news_actions", method: "POST", body: split.news, prefer: "return=minimal") }
+    }
+
+    /// A batch split by where each goes: News seen (`see_news`), News opens and taps (`news_actions`), and the rest
+    /// (`feed_actions`: Events and posts). Ids that aren't real (samples) are skipped.
+    static func feedRows(_ batch: [FeedAction])
+        -> (seen: [String], news: [[String: String]], cards: [[String: String]]) {
         let real = batch.filter { UUID(uuidString: $0.itemID) != nil }
-        let news = real.filter { $0.kind == .news }.map(\.itemID)
-        let rows = real.filter { $0.kind != .news }.map { ["item_id": $0.itemID, "action": $0.kind.rawValue] }
-        if !rows.isEmpty { try await db.rest("feed_actions", method: "POST", body: rows, prefer: "return=minimal") }
-        if !news.isEmpty { _ = try await db.rpc("see_news", ["p_items": news]) }
+        let row = { (action: FeedAction) in ["item_id": action.itemID, "action": action.kind.rawValue] }
+        return (real.filter { $0.kind == .news }.map(\.itemID),
+                real.filter { $0.kind != .news && $0.onNews }.map(row),
+                real.filter { $0.kind != .news && !$0.onNews }.map(row))
     }
 
     /// A simulator's views, opens and shares stay off the server: each simulator is its own quiet
@@ -513,6 +544,10 @@ struct CommunityAPI {
         false
         #endif
     }
+
+    /// `-send-feed-actions` (DEBUG): this simulator's views, opens and taps go up after all, for a proof with a
+    /// throwaway account (feed-learns 02).
+    private static var proofSends: Bool { LaunchFlags.has(.sendFeedActions) }
 
     /// Today's first open of the app, for the weekly numbers' reach (town-feed 26). The database
     /// keeps one row per person per Town day, so calling it on every return is harmless.
@@ -722,17 +757,20 @@ struct CommunityAPI {
     /// The Town's own schools (`teams.local`) and pages (`town_pages`), which Follow 3 suggests
     /// beside its Places (onboarding 22). Read with the public key, as there may be no account yet.
     func followableSchoolsAndPages() async throws -> (schools: [LocalSchool], pages: [TownPageRow]) {
-        async let schools = db.rest("teams", [("select", "id,uuid,name,school_name,logo_url"), ("local", "eq.true")], anon: true)
+        // Schools only: a town team is no school (BP app school-search 12).
+        async let schools = db.rest("teams", [("select", "id,uuid,name,school_name,logo_url"), ("local", "eq.true"),
+                                              ("town", "is.null")], anon: true)
         async let pages = db.rest("town_pages", [("select", "id,slug,name,kind,source_name,picture,picture_kind"),
                                                  ("town", "eq.\(Town.slug)")], anon: true)
         return (try Supabase.decode(await schools), try Supabase.decode(await pages))
     }
 
-    /// The Town's own schools with their names, crests and colours, and every activity they list in each school's
-    /// order: Search's Schools row and what typing finds there (school-search 01). Read with the public key.
+    /// The Town's own schools and town teams with their names, crests and colours, and every activity they list in each
+    /// school's order: Search's Schools row, the sports' teams and what typing finds there (school-search 01, 12). Read
+    /// with the public key.
     /// `page`: the rows asked for at a time, Supabase's most (1,000) unless a test asks for fewer.
     func schoolsAndActivities(page: Int = Supabase.pageMax) async throws -> (schools: [LocalSchool], activities: [SchoolActivity]) {
-        async let schools = db.rest("teams", [("select", "id,uuid,name,short_name,school_name,logo_url,nickname,aliases,colors"),
+        async let schools = db.rest("teams", [("select", "id,uuid,name,short_name,school_name,logo_url,nickname,aliases,colors,town"),
                                               ("local", "eq.true")], anon: true)
         // 489 activities on 2026-11-11, read a page at a time so the 1,001st isn't lost.
         async let activities: [SchoolActivity] = db.restAll("team_activities", [("select", "id,team_id,name"),

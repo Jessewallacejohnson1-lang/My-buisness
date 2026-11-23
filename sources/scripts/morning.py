@@ -77,7 +77,7 @@ town, part's clock and database). Every command needs SUPABASE_URL and a key in 
 --town names a sources/towns/ file (default st-joseph-mn, towns.DEFAULT).
 """
 
-import argparse, collections, contextlib, json, math, re, shutil, subprocess, sys, time, urllib.error
+import argparse, collections, contextlib, io, json, math, re, shutil, subprocess, sys, time, urllib.error
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import quote, urlparse
@@ -311,6 +311,15 @@ def repeat_check_lines(result):
     if result.get("ask"):
         lines.append(f"- Repeat check not answered for {len(result['ask'])} News: "
                      + "; ".join(n["title"] for n, _ in result["ask"]) + " (they went up)")
+    # The same for new Events beside one that day they may be (BP app watch-every-place 42).
+    asked, answered = result.get("event_check") or (0, 0)
+    joined = [d for what, d in result["outcomes"] if what == "merged" and d.endswith("(the model says)")]
+    lines += [f"- Same-event check: {answered} of {asked} new Events read by the model, {len(joined)} joined to one "
+              "already there"] if asked else []
+    lines += [f"- One event: {d}" for d in joined]
+    if result.get("ask_events"):
+        lines.append(f"- Same-event check not answered for {len(result['ask_events'])} Events: "
+                     + "; ".join(row["title"] for row, _ in result["ask_events"]) + " (they went up)")
     return lines
 
 
@@ -589,26 +598,54 @@ def long_titles(run):
 
 
 def repeat_questions(run):
-    """The News the word rules leave beside what their places have (write_judged.told), in repeats/batch-N.txt for
-    helpers (sources/models/repeat.md), and what each number stands for in repeats-asked.json, for
-    save (BP app smooth-mornings 16). The judge's items as they stand after the titles step."""
+    """The News the word rules leave beside what their places have (write_judged.told), and the new Events beside the
+    ones that day they may be (write_judged.worth_a_look; BP app watch-every-place 42), in repeats/batch-N.txt for
+    helpers (sources/models/repeat.md), and what each number stands for in repeats-asked.json and events-asked.json,
+    for save (BP app smooth-mornings 16). The items as save reads them (write), after the titles step."""
     out, db = run.folder, run.db
-    items = news_items(out)
-    asks = []
+    items = save_items(out)
+    asks, event_asks = [], []
     if items:
         result = write_judged.plan(items, write_judged.listed_in_db(db), run.today, write_judged.interest_ids(), TOWNS[run.town],
                                    recent_news=write_judged.news_in_db(db=db),
                                    history=told_before(items, run.today, db))
-        asks = result["ask"]
+        asks, event_asks = result["ask"], result["ask_events"]
     folder, size = out / "repeats", write_judged.REPEAT_BATCH
     shutil.rmtree(folder, ignore_errors=True)
     folder.mkdir()
     for b in range(0, len(asks), size):  # numbered through, so the helpers' lines share one file
         (folder / f"batch-{b // size + 1}.txt").write_text(write_judged.repeat_questions(asks[b:b + size], run.today, b + 1))
+    first, abouts = -(-len(asks) // size) + 1, listed_abouts(event_asks, db)
+    for b in range(0, len(event_asks), size):  # the Events' own numbers, in the batches after the News's
+        (folder / f"batch-{first + b // size}.txt").write_text(
+            write_judged.event_questions(event_asks[b:b + size], run.today, abouts, b + 1))
     (out / "repeats-asked.json").write_text(json.dumps([[write_judged.repeat_key(n), c] for n, c in asks], default=str))
+    (out / "events-asked.json").write_text(json.dumps(
+        [[write_judged.event_key(row), [[c.get("id") or write_judged.event_key(c), c["title"]] for c in cands]]
+         for row, cands in event_asks]))
     (out / "repeats.jsonl").unlink(missing_ok=True)  # an answer is only ever to these questions
-    print(f"[morning] {len(asks)} News for the repeat check"
-          + (f" in {-(-len(asks) // size)} batches ({folder})" if asks else ""))
+    batches = -(-len(asks) // size) + -(-len(event_asks) // size)
+    print(f"[morning] {len(asks)} News for the repeat check, {len(event_asks)} new Events for the same-event check"
+          + (f" in {batches} batches ({folder})" if batches else ""))
+
+
+def save_items(out):
+    """The items save writes (write), in its order: a Facebook event's fb: id hangs on how many starts the read gave it."""
+    feeds, judged = read_items(out / "feeds.jsonl"), read_items(out / "judged.jsonl")
+    return feeds + [x for x in judged if not (isinstance(x, dict) and x.get("kind") == "hours")]
+
+
+def listed_abouts(event_asks, db):
+    """{id: About} of the listed Events the questions name: the writer's list carries none. None read, none shown."""
+    ids = sorted({c["id"] for _, cands in event_asks for c in cands if c.get("id")})
+    if not ids:
+        return {}
+    try:
+        rows = db.rest("GET", f"club_events?select=id,description&id=in.({','.join(ids)})") or []
+    except Exception as e:  # the question goes without them
+        print(f"[repeats] the listed Events' Abouts couldn't be read: {type(e).__name__}: {e}")
+        return {}
+    return {r["id"]: r.get("description") or "" for r in rows}
 
 
 def told_before(items, today, db):
@@ -618,12 +655,6 @@ def told_before(items, today, db):
     except Exception as e:  # a read the check needs failing must never stop the save
         print(f"[repeats] what the News's places have couldn't be read, so only News matching this read's Events are asked: {type(e).__name__}: {e}")
         return None
-
-
-def news_items(out):
-    """The morning's News items, feeds' and judge's."""
-    return [x for x in read_items(out / "feeds.jsonl") + read_items(out / "judged.jsonl")
-            if isinstance(x, dict) and x.get("kind") == "news"]
 
 
 def repeat_answers(out):
@@ -638,6 +669,21 @@ def repeat_answers(out):
         return {}, len(asked)
     got = write_judged.same_story(path.read_text(), [({}, cands) for _, cands in asked])
     return {key: got.get(i) for i, (key, _) in enumerate(asked, 1) if i in got}, len(asked)
+
+
+def event_answers(out):
+    """{event_key: the key of the Event it is, or None} from repeats.jsonl's `event` lines, for the questions in
+    events-asked.json, and how many were asked. No answer: nothing is answered, and every Event goes up."""
+    try:
+        asked = json.loads((out / "events-asked.json").read_text())
+    except (OSError, ValueError):
+        return {}, 0
+    path = out / "repeats.jsonl"
+    if not path.exists():
+        return {}, len(asked)
+    got = write_judged.same_event_answers(path.read_text(), [({}, [{"title": t} for _, t in cands]) for _, cands in asked])
+    return {key: (cands[got[i]][0] if got[i] is not None else None)
+            for i, (key, cands) in enumerate(asked, 1) if i in got}, len(asked)
 
 
 def short_titles(out):
@@ -671,15 +717,16 @@ def made_with(items, folder):
 def write(run, dry_run):
     out, today, db = run.folder, run.today, run.db
     prep = run.summary()
-    feeds, judged = read_items(out / "feeds.jsonl"), read_items(out / "judged.jsonl")
-    hours = [x for x in judged if isinstance(x, dict) and x.get("kind") == "hours"]
-    items = made_with(feeds + [x for x in judged if not (isinstance(x, dict) and x.get("kind") == "hours")], out)
+    hours = [x for x in read_items(out / "judged.jsonl") if isinstance(x, dict) and x.get("kind") == "hours"]
+    items = made_with(save_items(out), out)
     existing = write_judged.listed_in_db(db)
     asked, questions = repeat_answers(out)
+    asked_events, event_questions = event_answers(out)
     result = write_judged.plan(items, existing, today, write_judged.interest_ids(), TOWNS[run.town], titles=short_titles(out),
                                teams=write_judged.known_teams(db), recent_news=write_judged.news_in_db(db=db),
-                               history=(history := told_before(items, today, db)), asked=asked)
+                               history=(history := told_before(items, today, db)), asked=asked, asked_events=asked_events)
     result["repeat_check"] = (questions, len(asked))
+    result["event_check"] = (event_questions, len(asked_events))
     if history is None:
         result["notes"].append("repeat check skipped: what the News's places have couldn't be read (see the [repeats] line)")
     write_judged.report(items, result)
@@ -1267,6 +1314,7 @@ def finish(run, dry_run):
                        ("event parts", lambda: event_parts.keep(run, dry_run)),
                        ("since the last report", lambda: since_lines(db, today)),
                        ("event photos", lambda: photo_lines(db, today)),
+                       ("photo judge", lambda: judged_lines(run.folder)),
                        ("map spots", lambda: map_spots(run, dry_run)),
                        ("places", lambda: place_lines(db)),
                        ("busy places", lambda: busy_lines(db, load(find_root(SCRIPTS))[0], today)),
@@ -1339,6 +1387,13 @@ def meeting_lines(run, dry_run):
         lines = [f"[meets] the Sunday read failed: {' '.join(str(e).split())[:300]}"]
     done.save(lines)
     return lines
+
+
+def judged_lines(folder):
+    """The photo judge's lines (event_photos.py judge-keep, BP app event-photos 30), so the chat reporting to Jesse
+    names each photo it took down. None when no judge ran this morning."""
+    f = folder / "judge" / "report.txt"
+    return f.read_text().splitlines() if f.exists() else []
 
 
 def social_lines():
@@ -1527,6 +1582,35 @@ def selftest():
         unanswered = repeat_answers(folder)
         (folder / "repeats.jsonl").write_text('{"news": 1, "same_as": 1, "title": "Closing for the Season Soon"}\n')
         answered = repeat_answers(folder)
+        # watch-every-place 42: a new Event's answer names the listed Event's id, or this read's copy's key
+        no_events = event_answers(folder)
+        (folder / "events-asked.json").write_text(json.dumps([
+            ["WR Home & Clothing Co.\nfb:1652320912939132", [["238ea1de", "Black Friday"], ["x", "Pink Friday"]]],
+            ["CSB + SJU Music Department\nfb:29330783379850695", [["c0694c82", "All College Choir"]]],
+            ["Sal's\npage:x", [["Sal's Bar and Grill\npage:y", "BLT Band: Live Music"]]]]))
+        (folder / "repeats.jsonl").write_text('{"news": 1, "same_as": 1, "title": "Closing for the Season Soon"}\n'
+                                              '{"event": 1, "same_as": 1, "title": "Black Friday"}\n{"event": 2, "same_as": null}\n')
+        events_said = event_answers(folder)
+        # The titles step's questions for new Events (watch-every-place 42): W|R Home's Facebook copy of White Peony's
+        # Black Friday is asked about the listed one, with its About; no News, no News batch.
+        peony = {"id": "238ea1de-0000-0000-0000-000000000000", "status": "approved", "title": "Black Friday",
+                 "event_date": "2026-11-27", "start_time": "5 AM", "all_day": False, "location": "White Peony Boutique",
+                 "source_name": "White Peony Boutique", "source_uid": "page:2026-11-27T0500:black-friday", "found": True}
+        wr = {"kind": "event", "title": "Black Friday Event with White Peony", "start": "2026-11-27T05:00:00-06:00",
+              "place": "", "area": "town", "source_name": "WR Home & Clothing Co.", "trust": "official", "sure": True,
+              "size": "everyday", "source_url": "https://www.facebook.com/events/1652320912939132/", "blurb": "Deals."}
+        (folder / "judged.jsonl").write_text(json.dumps(wr) + "\n")
+
+        class Db:
+            def rest(self, method, path, body=None, prefer=None):
+                if path == "rpc/listed_for_writer":
+                    return [peony]
+                return [{"id": peony["id"], "description": "Mega deals from 5 AM."}] if path.startswith("club_events?select=id,description") else []
+        with contextlib.redirect_stdout(io.StringIO()) as said_lines:
+            repeat_questions(type("Run", (), {"folder": folder, "db": Db(), "today": date(2026, 11, 22), "town": DEFAULT})())
+        laid = sorted(p.name for p in (folder / "repeats").iterdir())
+        event_text = (folder / "repeats" / "batch-1.txt").read_text() if laid else ""
+        events_asked = json.loads((folder / "events-asked.json").read_text())
     held = {"outcomes": [("repeat", "'Closing', the same story as 'Closing for the Season Soon' (the model says)"),
                          ("repeat", "of 'x' (already in the app)"), ("news", "")],
             "ask": [({"title": "Bingo"}, [soon])], "repeat_check": (3, 2)}
@@ -1538,6 +1622,22 @@ def selftest():
                                       "- Repeat check not answered for 1 News: Bingo (they went up)"],
          "the report says what the repeat check did"),
         (repeat_check_lines({"outcomes": [], "ask": []}) == [], "no questions, no line"),
+        (no_events == ({}, 0) and events_said == ({"WR Home & Clothing Co.\nfb:1652320912939132": "238ea1de",
+                                                    "CSB + SJU Music Department\nfb:29330783379850695": None}, 3),
+         "a new Event's answer names the Event it is; null or no answer joins nothing"),
+        (laid == ["batch-1.txt"] and "## Event 1: Black Friday Event with White Peony, listed by WR Home & Clothing Co.: "
+         "Fri Nov 27, 5 AM, at no place. Deals." in event_text and "  1. Black Friday, listed by White Peony Boutique: Fri "
+         "Nov 27, 5 AM, at White Peony Boutique. Mega deals from 5 AM." in event_text
+         and events_asked == [["WR Home & Clothing Co.\nfb:1652320912939132", [[peony["id"], "Black Friday"]]]]
+         and "0 News for the repeat check, 1 new Events for the same-event check in 1 batches" in said_lines.getvalue(),
+         "the titles step lays a new Event over the listed one it may be, with its About, for save"),
+        (repeat_check_lines({"outcomes": [("merged", "into 'Black Friday' 2026-11-27 (already listed) (the model says)"),
+                                          ("published", "")], "event_check": (3, 2),
+                             "ask_events": [({"title": "BLT Band at Sal's Bar"}, [])]})
+         == ["- Same-event check: 2 of 3 new Events read by the model, 1 joined to one already there",
+             "- One event: into 'Black Friday' 2026-11-27 (already listed) (the model says)",
+             "- Same-event check not answered for 1 Events: BLT Band at Sal's Bar (they went up)"],
+         "the report says what the same-event check did"),
         (told_before([{"kind": "news", "source_name": "Sal's"}], date(2026, 11, 9),
                      type("Db", (), {"rest": lambda self, *a, **k: 1 / 0})()) is None, "a failed read skips the check, not the save"),
     ]

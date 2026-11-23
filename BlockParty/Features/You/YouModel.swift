@@ -122,6 +122,7 @@ final class YouModel {
         let mine = latestGroups
         guard let read = try? await readGroups(), mine == latestGroups else { return nil }
         groups = read
+        GroupAsks.shared.read(read)
         return read
     }
 

@@ -364,7 +364,7 @@ struct EventHostRow: View {
                 VStack(alignment: .leading, spacing: plain ? 0 : Self.gap) {
                     ForEach(Array(hosts.enumerated()), id: \.element.id) { n, host in
                         EventHostLine(host: host, plain: plain, sun: sun, first: n == 0,
-                                      cover: item.coverOnly ? item.image.url : nil)
+                                      cover: item.coverOnly ? item.image.url : nil, eventID: item.id)
                     }
                 }
                 .padding(.top, top)
@@ -424,7 +424,10 @@ private struct EventHostLine: View {
     var first = true
     /// The place's cover, when it is the Event's only picture (`FeedCardItem.coverOnly`), which the page leaves out.
     var cover: URL? = nil
+    /// Its Event, whose host tap goes up with the Town feed's views (feed-learns 02).
+    var eventID: String? = nil
     @Environment(RealLifeActions.self) private var actions
+    @Environment(\.feedViews) private var taps
     @Environment(\.hostOpener) private var opener
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var picture = FrameBox()
@@ -561,6 +564,7 @@ private struct EventHostLine: View {
     private func open(_ host: FollowRow) {
         guard Date().timeIntervalSince(openedAt) > HostOpener.again else { return }
         openedAt = Date()
+        if let eventID { taps?.tapped(eventID, .place) }
         opener?.open(host, picture.rect)
     }
 }
