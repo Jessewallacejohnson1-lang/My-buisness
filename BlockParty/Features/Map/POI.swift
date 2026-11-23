@@ -7,6 +7,13 @@
 
 import CoreLocation
 
+/// A popular place's spot in line at the top of Follow 3, 1 first, and the photo that fills its circle (its logo
+/// shows without one).
+struct FollowSpot: Decodable, Hashable {
+    let spot: Int
+    let photo: URL?
+}
+
 struct POI: Identifiable, Decodable, Hashable {
     let id: String              // places.id (uuid)
     let placeId: String?        // Google's place id, or a local one (`stjoe-*`): Search's key for it
@@ -35,6 +42,8 @@ struct POI: Identifiable, Decodable, Hashable {
     /// The word it uses for itself (`places.category`): the category its owner picked on Google Maps ("Nutrition
     /// club"), live once a second check against its own site agreed (BP app search-helpful 09). nil until then.
     var category: String? = nil
+    /// Its spot at the top of onboarding's Follow 3 (`places.follow_spot`, BP app onboarding 50); nil for most places.
+    var followSpot: FollowSpot? = nil
 
     var coordinate: CLLocationCoordinate2D { .init(latitude: lat, longitude: lon) }
 

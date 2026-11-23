@@ -35,14 +35,14 @@ enum OnboardingStep: Int, CaseIterable {
         case .photo:     "Add a photo?"
         case .birthday:  "When's your birthday?"
         case .interests: "What do you love doing?"
-        case .follow:    "Follow 3 places"
+        case .follow:    "Follow 3 or more places\nyou like."
         case .friends:   "Find your friends"
         case .contacts:  "Friends on Block Party"
         }
     }
 
     /// The SF Symbol in the grey circle over the question, nearest mock v8's icons (onboarding 34). The
-    /// Welcome draws no circle, nor do the Name and Photo steps or Birthday (its art is the cake).
+    /// Welcome draws no circle, nor do the Name and Photo steps, Birthday (its art is the cake) or Follow 3.
     var symbol: String {
         switch self {
         case .welcome, .profile, .photo: "person"
@@ -64,8 +64,10 @@ enum OnboardingStep: Int, CaseIterable {
         }
     }
 
-    /// Interests sits on the deep Dusk backdrop with white words and chrome (onboarding 48); the others stay light.
-    var deep: Bool { self == .interests }
+    /// Interests sits on the deep Dusk backdrop with white words and chrome (onboarding 48), Follow 3 on its night
+    /// (onboarding 50); the others stay light.
+    var deep: Bool { self == .interests || night }
+    var night: Bool { self == .follow }
 
     /// The link in the slot under the Next bar, where the step has one.
     var slot: String? {
@@ -177,9 +179,10 @@ final class OnboardingStore {
         arrivedBefore = before
     }
 
-    /// Follow or unfollow on Follow 3, on the phone only.
-    func toggleFollow(_ target: FollowTarget) {
-        if let i = follows.firstIndex(of: target) { follows.remove(at: i) } else { follows.append(target) }
+    /// Follow or unfollow on Follow 3, on the phone only; `twin` goes with it, as a school that is a place too.
+    func toggleFollow(_ target: FollowTarget, with twin: FollowTarget? = nil) {
+        let both = [target, twin].compactMap { $0 }
+        if follows.contains(target) { follows.removeAll { both.contains($0) } } else { follows += both }
     }
 
     /// Add friend, or take it back, on Contacts, on the phone only.
@@ -483,7 +486,7 @@ struct OnboardingFlow: View {
 
     /// A follow on Follow 3. One under the college picks its interests (Campus life).
     private func toggleFollow(_ target: FollowTarget) {
-        store.toggleFollow(target)
+        store.toggleFollow(target, with: suggestions?.first { $0.target == target }?.twin)
         let college = FollowSuggestions.collegeTargets(in: suggestions ?? [])
         guard college.contains(target), store.follows.contains(target) else { return }
         store.interests = Interests.withCollege(store.interests)
@@ -494,9 +497,10 @@ struct OnboardingFlow: View {
     private var questions: some View {
         ZStack(alignment: .top) {
             // The step's colour glides to the next one's (mock v2); Reduce Motion changes it at once.
-            OnboardingBackdrop(tint: tint, deep: deep, flat: clubhouse)
+            OnboardingBackdrop(tint: tint, deep: deep, night: night, flat: clubhouse)
                 .animation(reduceMotion ? nil : BigArt.glide, value: tint)
                 .animation(reduceMotion ? nil : BigArt.glide, value: deep)
+                .animation(reduceMotion ? nil : BigArt.glide, value: night)
                 .animation(reduceMotion ? nil : BigArt.glide, value: clubhouse)
 
             if !onWelcome {
@@ -528,7 +532,8 @@ struct OnboardingFlow: View {
             .padding(.top, 54)
             .ignoresSafeArea(.container)
 
-            if [.follow, .contacts].contains(store.step) { foot.transition(.opacity) }
+            if store.step == .follow { foot(night: true).transition(.opacity) }
+            if store.step == .contacts { foot(night: false).transition(.opacity) }
 
             // Clubhouse's Skip at the top right of the photo step (onboarding 55): on without a photo.
             if on(.photo) {
@@ -556,8 +561,9 @@ struct OnboardingFlow: View {
         Binding(get: { [store] in store.birthday ?? .now }, set: { [store] in store.birthday = $0 })
     }
 
-    /// Interests' deep backdrop is up; Log in and Create account have none.
+    /// Interests' or Follow 3's deep backdrop is up; Log in and Create account have none.
     private var deep: Bool { store.account == nil && store.step.deep }
+    private var night: Bool { store.account == nil && store.step.night }
 
     /// The colour at the top of the step that is up, on a Big art step; Log in and Create account have none.
     private var tint: Color? {
@@ -580,15 +586,17 @@ struct OnboardingFlow: View {
     }
 
     /// Over a list that scrolls under the Next bar, the backdrop comes back over the bottom
-    /// 190 pt, clear at the top and solid from 38% down (the mock's foot).
-    private var foot: some View {
-        OnboardingBackdrop()
+    /// 190 pt, clear at the top and solid from 38% down (the mock's foot). Follow 3's is Spotify's slower
+    /// fade, clear 236 pt up and solid 80 pt up (onboarding 50).
+    private func foot(night: Bool) -> some View {
+        OnboardingBackdrop(night: night)
             .mask {
                 VStack(spacing: 0) {
                     Spacer(minLength: 0)
-                    LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.38)],
+                    LinearGradient(stops: [.init(color: .clear, location: 0),
+                                           .init(color: .black, location: night ? 156 / 236 : 0.38)],
                                    startPoint: .top, endPoint: .bottom)
-                        .frame(height: 190)
+                        .frame(height: night ? 236 : 190)
                 }
                 .ignoresSafeArea()
             }
@@ -606,16 +614,10 @@ struct OnboardingFlow: View {
             } else if on(.photo) {
                 OnboardingPhotoStep(store: store, headingFocused: $questionFocused, bottomClear: Self.clubhouseClear)
             } else if store.step == .follow {
-                // Follow 3's question scrolls away with its grid (onboarding 26).
+                // Follow 3's question scrolls away with its grid (onboarding 26); Spotify's look (50).
                 OnboardingFollowGrid(suggestions: suggestions, interests: store.interests,
                                      schoolsFirst: store.schoolsPicked, follows: store.follows,
-                                     toggle: { toggleFollow($0) }) {
-                    VStack(alignment: .leading, spacing: 0) {
-                        heading
-                        // Mock v8's line under Follow 3 (onboarding 36).
-                        OnboardingSubline("Picked from what you love. Their events show up first.")
-                    }
-                }
+                                     focused: $questionFocused, toggle: { toggleFollow($0) })
             } else if on(.interests) {
                 // 12 photo circles on the deep backdrop (onboarding 48).
                 InterestCircles(picked: Binding(get: { store.interests }, set: { store.interests = $0 }),
@@ -737,7 +739,7 @@ struct OnboardingFlow: View {
     private var bottom: some View {
         VStack(spacing: 6) {
             OnboardingNextBar(title: nextTitle, count: stillToPick, allowed: nextAllowed,
-                              busy: form.busy, refused: form.refusals, deep: deep,
+                              busy: form.busy, refused: form.refusals, deep: deep, night: night,
                               arrow: clubhouse, action: nextAction)
                 .frame(maxWidth: clubhouse ? OnboardingNextBar.narrow : .infinity)
             if !keyboardUp && !onWheel && !clubhouse { slot.frame(height: 44) }
@@ -800,7 +802,7 @@ struct OnboardingFlow: View {
     /// fewer than 3, so a neighbour on a weak signal is never stuck there (SPEC: never block on the network).
     private var followsNeeded: Int {
         guard let suggestions, suggestions.count >= 3 else { return 0 }
-        return max(0, 3 - store.follows.count)
+        return max(0, 3 - FollowSuggestions.followed(suggestions, store.follows))
     }
 
     /// Placeholders always allow Next; a step that asks something says when it may (17 to 24).

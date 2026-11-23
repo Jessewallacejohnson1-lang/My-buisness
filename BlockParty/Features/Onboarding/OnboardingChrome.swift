@@ -34,6 +34,8 @@ struct OnboardingBackdrop: View {
     var tint: Color? = nil
     /// Interests' Dusk over everything (onboarding 48): fades in and out as the step comes and goes.
     var deep = false
+    /// Follow 3's night over that (onboarding 50).
+    var night = false
     /// Clubhouse's Name and Photo steps (onboarding 55): the colour all the way down, no fade.
     var flat = false
 
@@ -51,13 +53,17 @@ struct OnboardingBackdrop: View {
                                    startPoint: .top, endPoint: .bottom)
                 }
             // Mock v5: the top colour to 32% down, then into the bottom one.
-            LinearGradient(stops: [.init(color: Hue.deepTop, location: 0), .init(color: Hue.deepTop, location: 0.32),
-                                   .init(color: Hue.deepBottom, location: 1)],
-                           startPoint: .top, endPoint: .bottom)
-                .opacity(deep ? 1 : 0)
+            sky(Hue.deepTop, Hue.deepBottom).opacity(deep ? 1 : 0)
+            sky(Hue.nightTop, Hue.nightBottom).opacity(night ? 1 : 0)
         }
         .ignoresSafeArea()
         .accessibilityHidden(true)
+    }
+
+    private func sky(_ top: Color, _ bottom: Color) -> some View {
+        LinearGradient(stops: [.init(color: top, location: 0), .init(color: top, location: 0.32),
+                               .init(color: bottom, location: 1)],
+                       startPoint: .top, endPoint: .bottom)
     }
 }
 
@@ -264,6 +270,8 @@ struct OnboardingNextBar: View {
     var refused = 0
     /// White with ink words on Interests' deep backdrop, white at 26% while not allowed (onboarding 48, mock v5 `.btn`).
     var deep = false
+    /// Its not-allowed fill is solid on Follow 3's night, where places scroll under it (onboarding 50).
+    var night = false
     /// Clubhouse's "Next →" on the Name and Photo steps (onboarding 55): 20 pt words and an arrow, on the
     /// `narrow` pill. VoiceOver hears the title alone.
     var arrow = false
@@ -309,7 +317,7 @@ struct OnboardingNextBar: View {
                 }
             }
         }
-        .buttonStyle(NextBarStyle(allowed: allowed, deep: deep, height: arrow ? Self.narrowHeight : Self.height))
+        .buttonStyle(NextBarStyle(allowed: allowed, deep: deep, night: night, height: arrow ? Self.narrowHeight : Self.height))
         .keyframeAnimator(initialValue: CGFloat(0), trigger: shakes) { bar, x in
             bar.offset(x: x)
         } keyframes: { _ in
@@ -329,6 +337,7 @@ struct OnboardingNextBar: View {
 private struct NextBarStyle: ButtonStyle {
     let allowed: Bool
     let deep: Bool
+    let night: Bool
     let height: CGFloat
 
     func makeBody(configuration: Configuration) -> some View {
@@ -347,6 +356,7 @@ private struct NextBarStyle: ButtonStyle {
             .animation(.easeOut(duration: 0.2), value: allowed)
             .onChange(of: down) { _, pressed in if pressed { Haptics.light() } }
             .animation(.easeOut(duration: 0.2), value: deep)
+            .animation(.easeOut(duration: 0.2), value: night)
     }
 
     private var words: Color {
@@ -355,7 +365,7 @@ private struct NextBarStyle: ButtonStyle {
     }
 
     private func fill(down: Bool) -> Color {
-        if deep { return allowed ? (down ? Hue.deepPressed : Color.white) : Hue.deepOff }
+        if deep { return allowed ? (down ? Hue.deepPressed : Color.white) : night ? Hue.nightOff : Hue.deepOff }
         return allowed ? (down ? Hue.nextPressed : Hue.ink) : Hue.nextOff
     }
 }

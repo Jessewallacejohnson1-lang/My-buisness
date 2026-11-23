@@ -401,6 +401,66 @@ final class OnboardingStoreTests: XCTestCase {
         XCTAssertNotEqual(names(["coffee"]), names(["bars"]))
     }
 
+    /// The places with a spot (`places.follow_spot`, onboarding 50) lead in that order whatever is picked; schools
+    /// still lead for somebody who picked Schools; then what fits the picks, as before.
+    func testPlacesWithASpotLeadFollowThree() {
+        var last = poi("p9", "Sal's", "bar_and_grill")
+        last.followSpot = FollowSpot(spot: 2, photo: nil)
+        var first = poi("p8", "Flour & Flower", "bakery", entry: "flour")
+        first.followSpot = FollowSpot(spot: 1, photo: URL(string: "https://x.co/b.webp"))
+        let live = ["a", "b"].map { PlacePicture(url: URL(string: "https://x.co/\($0).webp")!, kind: .photo) }
+        let all = FollowSuggestions.build(
+            places: [poi("p1", "The Middy", "bar", entry: "middy"), last, first], photos: ["flour": live],
+            schools: [LocalSchool(id: "apollo", uuid: "a1", name: "Apollo", schoolName: nil, logoUrl: nil)], pages: [],
+            events: [UpcomingTags(interests: ["bars"], place: "middy")])
+        XCTAssertEqual(FollowSuggestions.ordered(all, picked: ["bars"]).map(\.name),
+                       ["Flour & Flower", "Sal's", "The Middy", "Apollo"])
+        XCTAssertEqual(FollowSuggestions.ordered(all, picked: ["bars"], schoolsFirst: true).first?.name, "Apollo")
+        XCTAssertEqual(all.first { $0.name == "Flour & Flower" }?.photo, live[1].url, "the one picked, not the cover")
+        XCTAssertNil(FollowSuggestions.photo(of: first, live: [live[0]]), "taken down, it shows here no more")
+    }
+
+    /// A place with no logo shows its saved photo; one with a logo keeps the logo unless its spot names a photo.
+    func testAPlaceWithNoLogoShowsItsPhoto() {
+        let photo = PlacePicture(url: URL(string: "https://x.co/p.webp")!, kind: .photo)
+        let bare = poi("p1", "Ball Park", "park", entry: "park")
+        let logo = POI(id: "p2", placeId: nil, name: "Krewe", lat: 0, lon: 0, family: .food, primaryType: "restaurant",
+                       types: [], address: nil, logoUrl: "https://x.co/l.png", entryId: "krewe")
+        let all = FollowSuggestions.build(places: [bare, logo], photos: ["park": [photo], "krewe": [photo]],
+                                          schools: [], pages: [], events: [])
+        XCTAssertEqual(all.first { $0.name == "Ball Park" }?.photo, photo.url)
+        XCTAssertNil(all.first { $0.name == "Krewe" }?.photo)
+    }
+
+    /// Kennedy is a place and a school: one tile, the school's, which follows both and keeps the place's spot.
+    func testASchoolThatIsAPlaceTooIsOneTile() {
+        var place = poi("p1", "Kennedy Community School", "school")
+        place.followSpot = FollowSpot(spot: 3, photo: nil)
+        let all = FollowSuggestions.build(
+            places: [place, poi("p2", "St Joseph Meat Market Inc", "butcher_shop")],
+            schools: [LocalSchool(id: "kennedy", uuid: "k1", name: "Kennedy", schoolName: "Kennedy Community School", logoUrl: nil)],
+            pages: [], events: [UpcomingTags(interests: [], teams: ["kennedy"])])
+        XCTAssertEqual(all.map(\.name).sorted(), ["Kennedy Community School", "St Joseph Meat Market"])
+        let school = all.first { $0.isSchool }
+        XCTAssertEqual(school?.target, .init(type: .team, id: "k1"))
+        XCTAssertEqual(school?.twin, .init(type: .place, id: "p1"))
+        XCTAssertEqual(school?.spot, 3)
+    }
+
+    /// A tile that follows two things counts once toward the 3.
+    func testAFollowedTileCountsOnceThoughItFollowsTwo() {
+        let school = FollowSuggestion(target: .init(type: .team, id: "k1"), name: "Kennedy", kind: nil, picture: nil,
+                                      twin: .init(type: .place, id: "p1"))
+        let cafe = FollowSuggestion(target: .init(type: .place, id: "p2"), name: "Blend", kind: nil, picture: nil)
+        let store = OnboardingStore(defaults: defaults)
+        store.toggleFollow(school.target, with: school.twin)
+        store.toggleFollow(cafe.target)
+        XCTAssertEqual(store.follows.count, 3)
+        XCTAssertEqual(FollowSuggestions.followed([school, cafe], store.follows), 2)
+        store.toggleFollow(school.target, with: school.twin)
+        XCTAssertEqual(store.follows, [cafe.target])
+    }
+
     func testSchoolsLeadFollowThreeOnlyForWhoOpenedSchools() {
         let all = FollowSuggestions.build(
             places: [poi("z", "Zed's", "bar", entry: "zed")],

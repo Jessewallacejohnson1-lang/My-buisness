@@ -44,6 +44,8 @@ enum Radius {
     /// `references/profile-clubhouse/SPEC.md`): the box's corner, and a face's iOS smooth corner as a
     /// share of its side (66.6 on the Photo step's 160, whose inside is Clubhouse's 158 at 65.6): every person's picture (backlog 40).
     static let nameBox: CGFloat = 4.8
+    /// Follow 3's white search box, Spotify's, measured (BP app onboarding 50, `references/follow-spotify/SPEC.md`).
+    static let followSearch: CGFloat = 4.4
     static let faceShare: CGFloat = 0.416
 }
 
