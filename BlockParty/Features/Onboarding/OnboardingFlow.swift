@@ -492,9 +492,10 @@ struct OnboardingFlow: View {
     private var questions: some View {
         ZStack(alignment: .top) {
             // The step's colour glides to the next one's (mock v2); Reduce Motion changes it at once.
-            OnboardingBackdrop(tint: tint, deep: deep)
+            OnboardingBackdrop(tint: tint, deep: deep, flat: clubhouse)
                 .animation(reduceMotion ? nil : BigArt.glide, value: tint)
                 .animation(reduceMotion ? nil : BigArt.glide, value: deep)
+                .animation(reduceMotion ? nil : BigArt.glide, value: clubhouse)
 
             if !onWelcome {
                 question

@@ -30,10 +30,13 @@ struct OnboardingBackdrop: View {
     var tint: Color? = nil
     /// Interests' Dusk over everything (onboarding 48): fades in and out as the step comes and goes.
     var deep = false
+    /// Clubhouse's Name and Photo steps (onboarding 55): the colour all the way down, no fade.
+    var flat = false
 
     var body: some View {
         ZStack(alignment: .top) {
             tint == nil ? Hue.onboardingCanvas : Hue.bigArtCanvas
+            (tint ?? Hue.onboardingCanvas).opacity(flat ? 1 : 0)
             // One colour under a still mask, so a move between steps glides the colour alone.
             (tint ?? Hue.onboardingCanvas)
                 .frame(height: BigArt.fadeEnd)
