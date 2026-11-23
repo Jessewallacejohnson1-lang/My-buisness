@@ -176,6 +176,20 @@ test('photos, map spots and hours: the photo, social and accounts routines and t
   const kept = await flyer('Jesse');
   assert.equal(await retire(kept), 0, "a person's photo stays");
   await db.query('delete from public.place_photos where id = any($1)', [[ours, kept]]);
+  // The photo judge (BP app event-photos 30): the picks no judge has seen, and a verdict saved. Down retires the step's
+  // or the dig's own pick, never a person's.
+  await asJob('photos: picks to judge', `select p.id, p.url, p.kind, p.source_url, e.title, e.event_date, e.location, e.description, e.status
+    from public.place_photos p join public.club_events e on e.id = p.event_id
+    where p.status = 'live' and p.judged is null and p.proposed_by in ('event photos', 'the dig') and p.position = 0`);
+  const judge = async (row, verdict) => (await asJob('photos: a verdict saved',
+    'select public.judge_photos($1, $2, $3) as n', [[row], verdict, 'Another event']))[0].n;
+  const dug = await flyer('the dig');
+  assert.equal(await judge(dug, 'down'), 1, "the dig's own pick");
+  const mine = await flyer('Jesse');
+  assert.equal(await judge(mine, 'down'), 0, "a person's photo stays");
+  assert.deepEqual((await db.query('select id, status, judged from public.place_photos where id = any($1) order by id',
+    [[dug, mine]])).rows, [{ id: dug, status: 'retired', judged: 'down' }, { id: mine, status: 'live', judged: null }]);
+  await db.query('delete from public.place_photos where id = any($1)', [[dug, mine]]);
   await asJob('photos: Events a post named since', `select m.source_name, m.source_url, m.first_seen, e.id, e.photo_checked_at
     from public.event_mentions m join public.club_events e on e.id = m.event_id
     where m.source_url ~ '(facebook|instagram)[.]com/' and e.status = 'approved'`);

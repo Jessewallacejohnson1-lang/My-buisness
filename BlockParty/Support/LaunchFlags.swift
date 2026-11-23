@@ -87,6 +87,7 @@ nonisolated enum LaunchFlags {
         case searchChip = "-search-chip"
         case searchFocus = "-search-focus"
         case searchWords = "-search-words"
+        case sendFeedActions = "-send-feed-actions"
         case shareDemo = "-share-demo"
         case showSkeletons = "-show-skeletons"
         case skipOnboarding = "-skip-onboarding"
@@ -122,6 +123,8 @@ nonisolated enum LaunchFlags {
         case townSoccer = "-town-soccer"
         case townVolleyball = "-town-volleyball"
         case uiTests = "-ui-tests"
+        /// `-welcome-photo dogs|millstream`: the Welcome shows that photo, not one at random (BP app onboarding 54).
+        case welcomePhoto = "-welcome-photo"
         case youFreeToday = "-you-free-today"
         case wholeFlyer = "-whole-flyer"
     }

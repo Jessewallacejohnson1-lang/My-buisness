@@ -33,4 +33,17 @@ final class OnboardingLookTests: XCTestCase {
     func testUnder13SymbolExists() {
         XCTAssertNotNil(UIImage(systemName: OnboardingTooYoung.symbol))
     }
+
+    /// The Welcome's two photos (onboarding 54): both in the app, the coin picks either, and the
+    /// screenshot flag beats the coin.
+    func testWelcomePhotoTakesTurns() {
+        let photos = OnboardingWelcome.photos
+        for name in [photos.dogs, photos.millstream] {
+            XCTAssertNotNil(UIImage(named: name), "\(name) is not in the app")
+        }
+        XCTAssertEqual(OnboardingWelcome.pickPhoto(flag: nil, coin: true), photos.dogs)
+        XCTAssertEqual(OnboardingWelcome.pickPhoto(flag: nil, coin: false), photos.millstream)
+        XCTAssertEqual(OnboardingWelcome.pickPhoto(flag: "millstream", coin: true), photos.millstream)
+        XCTAssertEqual(OnboardingWelcome.pickPhoto(flag: "dogs", coin: false), photos.dogs)
+    }
 }

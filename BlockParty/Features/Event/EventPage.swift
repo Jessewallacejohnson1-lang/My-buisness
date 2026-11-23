@@ -113,6 +113,8 @@ struct EventPage: View {
     @Environment(\.displayScale) private var displayScale
     /// What raises Block Party's map on this Event: the shell's, or the map's own when the page is on it.
     @Environment(\.viewOnMap) private var viewOnMap
+    /// Its taps go up with the Town feed's views (feed-learns 02).
+    @Environment(\.feedViews) private var taps
 
     /// The Going chat's row: not on the map's own stack, which has no chat to push to.
     private let goingChat: Bool
@@ -661,6 +663,8 @@ struct EventPage: View {
         .scrollClipDisabled()
         .scrollTargetBehavior(.paging)
         .scrollPosition(id: $heroPage)
+        // A piece or the flyer swiped to (feed-learns 02); VoiceOver's pages too. The first is where it starts.
+        .onChange(of: heroPage) { _, page in if (page ?? 0) > 0 { tapped(.photo) } }
         .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.x / max($0.containerSize.width, 1) } action: { _, x in
             heroSwipe = x
         }
@@ -807,7 +811,10 @@ struct EventPage: View {
                             .accessibilityHint(mapHint(map))
                     }
                     if let link {
-                        EventBigButton(glyph: link.glyph, word: Self.linkWord(link), sun: sun) { openURL(link.url) }
+                        EventBigButton(glyph: link.glyph, word: Self.linkWord(link), sun: sun) {
+                            tapped(.link)
+                            openURL(link.url)
+                        }
                     }
                 }
                 .padding(.top, EventLook.buttonsTop)
@@ -869,15 +876,24 @@ struct EventPage: View {
         }
     }
 
+    /// A tap on this page, for the Feed to learn from (feed-learns 02).
+    private func tapped(_ kind: FeedAction.Kind) {
+        taps?.tapped(item.id, kind)
+    }
+
     /// Opens or closes the small map in place; opening below the bar, the page scrolls on the same spring so it ends
     /// 12 pt above it, as the mock does. A short page drops a scroll asked while it grows, so once it has grown the
     /// page finishes the way.
     private func tapMap(_ map: EventMapRoute) {
         guard case .ourMap = map else {
-            if case .appleMaps(let url) = map { openURL(url) }
+            if case .appleMaps(let url) = map {
+                tapped(.map)
+                openURL(url)
+            }
             return
         }
         let opening = !smallMap
+        if opening { tapped(.map) }
         let spring = reduceMotion ? nil : EventLook.smallMapSpring
         withAnimation(spring, completionCriteria: .logicallyComplete) {
             smallMap = opening
@@ -898,6 +914,7 @@ struct EventPage: View {
     /// queue), Apple Maps' directions to the spot.
     private func openFullMap(_ at: CLLocationCoordinate2D) {
         Haptics.light()
+        tapped(.map)
         if let viewOnMap {
             viewOnMap.show(.init(event: current, spot: at))
         } else if let url = Directions.url(to: at) {
@@ -1061,7 +1078,7 @@ struct EventPage: View {
                 // Where it was found, for the rest: the Business page's link row (Jesse, 2026-10-27).
                 if let link {
                     InfoPill(glyph: link.glyph, text: link.text, url: link.url, hint: "Opens the link",
-                             glyphBox: SearchMetric.bizGlyphBox, leaves: true)
+                             glyphBox: SearchMetric.bizGlyphBox, leaves: true) { tapped(.link) }
                         .padding(.top, SearchMetric.bizLinksTop)
                 }
             }
@@ -1096,7 +1113,10 @@ struct EventPage: View {
                 if let place {
                     // The same search Your Day's "Directions" opens.
                     FactRow(glyph: "mappin.and.ellipse", lines: Self.placeLines(place), end: .opens,
-                            hint: "Opens in Maps") { Directions.url(forPlace: place).map { openURL($0) } }
+                            hint: "Opens in Maps") {
+                        tapped(.map)
+                        Directions.url(forPlace: place).map { openURL($0) }
+                    }
                 }
                 if goingChat {
                     ChatRoomRow(title: "Going chat", isIn: actions.going(current).isGoing,

@@ -273,12 +273,15 @@ struct InfoPill: View {
     var glyphBox = EventPage.Metric.pinBox
     /// Marks a row that leaves the app with an arrow at its end.
     var leaves = false
+    /// Runs with the tap, before the link opens: an Event's found link counts for the Feed (feed-learns 02).
+    var tapped: () -> Void = {}
 
     @Environment(\.openURL) private var openURL
 
     var body: some View {
         let m = EventPage.Metric.self
         Button {
+            tapped()
             if let url { openURL(url) }
         } label: {
             HStack(spacing: m.pinGap) {

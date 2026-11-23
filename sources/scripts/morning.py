@@ -1314,6 +1314,7 @@ def finish(run, dry_run):
                        ("event parts", lambda: event_parts.keep(run, dry_run)),
                        ("since the last report", lambda: since_lines(db, today)),
                        ("event photos", lambda: photo_lines(db, today)),
+                       ("photo judge", lambda: judged_lines(run.folder)),
                        ("map spots", lambda: map_spots(run, dry_run)),
                        ("places", lambda: place_lines(db)),
                        ("busy places", lambda: busy_lines(db, load(find_root(SCRIPTS))[0], today)),
@@ -1386,6 +1387,13 @@ def meeting_lines(run, dry_run):
         lines = [f"[meets] the Sunday read failed: {' '.join(str(e).split())[:300]}"]
     done.save(lines)
     return lines
+
+
+def judged_lines(folder):
+    """The photo judge's lines (event_photos.py judge-keep, BP app event-photos 30), so the chat reporting to Jesse
+    names each photo it took down. None when no judge ran this morning."""
+    f = folder / "judge" / "report.txt"
+    return f.read_text().splitlines() if f.exists() else []
 
 
 def social_lines():

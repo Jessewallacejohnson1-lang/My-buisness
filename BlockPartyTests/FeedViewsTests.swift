@@ -1,8 +1,8 @@
 //
 //  FeedViewsTests.swift
-//  The Town feed's views and opens on their way to the server (`FeedViews`, ticket 20): one batch
-//  at most every 30 seconds, a failed one kept for the next. What counts as a view is
-//  `TownFeed`'s, tested in TownFeedEventsTests.
+//  The Town feed's views, opens and taps on their way to the server (`FeedViews`, ticket 20;
+//  feed-learns 02): one batch at most every 30 seconds, a failed one kept for the next. What
+//  counts as a view is `TownFeed`'s, tested in TownFeedEventsTests.
 //
 
 import XCTest
@@ -65,6 +65,41 @@ final class FeedViewsTests: XCTestCase {
         views.opened("e")
         await views.send(at: now.addingTimeInterval(120))
         XCTAssertEqual(sender.batches.last?.map(\.itemID), ["e"], "a refused batch would fail every one after it")
+    }
+
+    /// The four taps (BP app feed-learns 02) and a News page's open wait with the views and go up in the same batch.
+    func testEachTapGoesUpWithTheViews() async {
+        let sender = FeedSender()
+        let views = FeedViews(send: sender.send)
+        views.viewed("e", news: false)
+        views.tapped("e", .photo)
+        views.tapped("e", .place)
+        views.tapped("e", .map)
+        views.tapped("e", .link)
+        views.tapped("n", .open, news: true)
+        await views.send(at: now)
+        XCTAssertEqual(sender.batches, [[
+            FeedAction(itemID: "e", kind: .view), FeedAction(itemID: "e", kind: .photo),
+            FeedAction(itemID: "e", kind: .place), FeedAction(itemID: "e", kind: .map),
+            FeedAction(itemID: "e", kind: .link), FeedAction(itemID: "n", kind: .open, onNews: true),
+        ]])
+    }
+
+    /// News seen goes to `see_news`, a News item's opens and taps to `news_actions` (feed-learns 02), Events' and posts'
+    /// to `feed_actions`; a sample's id goes nowhere. Each tap is kept once a day by the server (supabase/tests/
+    /// feed_taps.test.mjs), so the app sends every one.
+    func testABatchSplitsByWhereItGoes() {
+        let event = "00000000-0000-0000-0000-000000000101"
+        let story = "00000000-0000-0000-0000-000000000201"
+        let rows = CommunityAPI.feedRows([
+            FeedAction(itemID: event, kind: .view), FeedAction(itemID: event, kind: .photo),
+            FeedAction(itemID: event, kind: .photo), FeedAction(itemID: story, kind: .news),
+            FeedAction(itemID: story, kind: .link, onNews: true), FeedAction(itemID: "e2", kind: .map),
+        ])
+        XCTAssertEqual(rows.seen, [story])
+        XCTAssertEqual(rows.news, [["item_id": story, "action": "link"]])
+        XCTAssertEqual(rows.cards, [["item_id": event, "action": "view"], ["item_id": event, "action": "photo"],
+                                    ["item_id": event, "action": "photo"]])
     }
 
     func testANewAccountDropsTheLastOnesWaitingViews() async {

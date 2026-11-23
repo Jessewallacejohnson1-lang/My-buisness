@@ -16,14 +16,14 @@ final class OnboardingStoreTests: XCTestCase {
         defaults.removePersistentDomain(forName: "OnboardingStoreTests")
     }
 
-    func testStartsOnWelcomeAndWalksTheSixBarSteps() {
+    func testStartsOnWelcomeAndWalksTheStepsWithDashesFromBirthday() {
         let store = OnboardingStore(defaults: defaults)
         XCTAssertEqual(store.step, .welcome)
         XCTAssertEqual(store.barIndex, 0)
         var indexes: [Int] = []
-        for _ in 0..<OnboardingStep.barTotal { store.next(); indexes.append(store.barIndex) }
-        XCTAssertEqual(indexes, Array(1...6))
-        XCTAssertEqual(OnboardingStep.barTotal, 6, "Phone and Code wait for phone sign-in (onboarding 24); Name and Photo are one Profile step (35)")
+        for _ in 1..<OnboardingStep.allCases.count { store.next(); indexes.append(store.barIndex) }
+        XCTAssertEqual(indexes, [0, 0, 1, 2, 3, 4, 5], "Name and Photo have no dashes (onboarding 55)")
+        XCTAssertEqual(OnboardingStep.barTotal, 5, "Phone and Code wait for phone sign-in (onboarding 24); the dashes start at Birthday (55)")
         XCTAssertEqual(store.step, .contacts)
         XCTAssertFalse(store.finished)
         store.next()
@@ -32,25 +32,26 @@ final class OnboardingStoreTests: XCTestCase {
 
     func testBackGoesToThePreviousStepAndStopsAtTheFirstQuestion() {
         let store = OnboardingStore(defaults: defaults)
-        store.next(); store.next()
+        store.next(); store.next(); store.next()
         XCTAssertEqual(store.step, .birthday)
         store.back()
-        XCTAssertEqual(store.step, .profile)
+        XCTAssertEqual(store.step, .photo)
         XCTAssertFalse(store.forward)
         store.back()
-        XCTAssertEqual(store.step, .profile, "the account is made before Profile: Back would make a second one")
+        XCTAssertEqual(store.step, .profile)
+        store.back()
+        XCTAssertEqual(store.step, .profile, "the account is made before the name step: Back would make a second one")
     }
 
     func testRelaunchResumesOnTheSameStep() {
         let store = OnboardingStore(defaults: defaults)
-        for _ in 0..<2 { store.next() }
+        for _ in 0..<3 { store.next() }   // Welcome, Name, Photo
         XCTAssertEqual(OnboardingStore(defaults: defaults).step, .birthday)
     }
 
     func testFinishedStaysFinished() {
         let store = OnboardingStore(defaults: defaults)
-        for _ in 0..<5 { store.next() }
-        XCTAssertEqual(store.step, .friends)
+        while store.step != .friends { store.next() }
         store.skipFriends()
         XCTAssertTrue(store.finishedHere, "finished through the flow: the Done island's")
         let again = OnboardingStore(defaults: defaults)
@@ -164,16 +165,23 @@ final class OnboardingStoreTests: XCTestCase {
         XCTAssertFalse(next.arrivedBefore)
     }
 
-    // MARK: Profile (onboarding 35): Name and Photo became one step
+    // MARK: Profile as Clubhouse's two steps (onboarding 55; one step from 35 to 55)
 
-    func testProfileIsTheFirstQuestionAndBirthdayFollowsIt() {
+    func testTheNameStepComesFirstThenThePhotoThenBirthday() {
         let store = OnboardingStore(defaults: defaults)
         store.next()
         XCTAssertEqual(store.step, .profile)
-        XCTAssertEqual(store.barIndex, 1)
+        XCTAssertEqual(store.step.question, "What Mom calls you", "Jesse's words")
+        XCTAssertFalse(store.step.dashed)
+        XCTAssertTrue(store.step.clubhouse)
         store.next()
-        XCTAssertEqual(store.step, .birthday, "no Photo step after it")
-        XCTAssertEqual(OnboardingStep.barTotal, 6, "the bar loses a step")
+        XCTAssertEqual(store.step, .photo)
+        XCTAssertFalse(store.step.dashed)
+        XCTAssertTrue(store.step.clubhouse)
+        store.next()
+        XCTAssertEqual(store.step, .birthday)
+        XCTAssertEqual(store.barIndex, 1, "the dashes start at Birthday")
+        XCTAssertFalse(store.step.clubhouse, "every step's pill again")
     }
 
     func testAFlowSavedOnTheOldNameStepResumesOnProfileWithWhatWasTyped() {
@@ -186,12 +194,12 @@ final class OnboardingStoreTests: XCTestCase {
         XCTAssertEqual(store.displayName, "Avery Lund")
     }
 
-    func testAFlowSavedOnTheOldPhotoStepResumesOnProfileWithItsPhoto() {
+    func testAFlowSavedOnThePhotoStepResumesThereWithItsPhoto() {
         defaults.set("photo", forKey: "onboarding.step")
         defaults.set("Avery", forKey: "onboarding.firstName")
         defaults.set(Data([4, 2]), forKey: "onboarding.photo")
         let store = OnboardingStore(defaults: defaults)
-        XCTAssertEqual(store.step, .profile)
+        XCTAssertEqual(store.step, .photo, "the Photo step is back (onboarding 55)")
         XCTAssertEqual(store.name, "Avery")
         XCTAssertEqual(store.photo, Data([4, 2]))
     }

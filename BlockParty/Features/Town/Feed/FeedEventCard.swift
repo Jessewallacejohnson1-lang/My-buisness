@@ -66,6 +66,8 @@ struct FeedEventCard: View {
     @State private var hostTapped = Date.distantPast
     @State private var hostRead: Task<Void, Never>?
     @Environment(\.hostOpener) private var hostOpener
+    /// A tap on its host goes up with the Town feed's views (feed-learns 02).
+    @Environment(\.feedViews) private var taps
     /// Town's: the photo opens the Event page over the shell, growing out of it (tab-lag 02 round 5). Elsewhere
     /// the card pushes the page.
     @Environment(\.eventOpener) private var eventOpener
@@ -291,7 +293,12 @@ struct FeedEventCard: View {
     /// A business the Event was made with: its page, as the host's opens; one Search can't open opens the Event.
     private func openCollab(_ collab: EventCollab) {
         guard let opener = hostOpener else { return }
-        if opener.opens(collab.row) { opener.open(collab.row, partnerFrame.rect) } else { opener.push(item) }
+        if opener.opens(collab.row) {
+            taps?.tapped(item.id, .place)
+            opener.open(collab.row, partnerFrame.rect)
+        } else {
+            opener.push(item)
+        }
     }
 
     @ViewBuilder
@@ -317,7 +324,12 @@ struct FeedEventCard: View {
         guard let opener = hostOpener, Date().timeIntervalSince(hostTapped) > HostOpener.again else { return }
         hostTapped = Date()
         if let id = item.groupID {
-            if let group = opener.group(id) { opener.push(group) } else { opener.push(item) }
+            if let group = opener.group(id) {
+                taps?.tapped(item.id, .place)
+                opener.push(group)
+            } else {
+                opener.push(item)
+            }
             return
         }
         let picture = hostFrame.rect
@@ -332,6 +344,7 @@ struct FeedEventCard: View {
             timeout.cancel()
             guard !Task.isCancelled else { return }
             if let host, opener.opens(host) {
+                taps?.tapped(item.id, .place)
                 opener.open(host, picture)
             } else {
                 opener.push(item)
