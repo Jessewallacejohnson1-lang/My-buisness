@@ -12,10 +12,13 @@
 --      yeses), so an edit can't skip the checks. A new photo goes up under a new name, so the live one never changes
 --      under it. A waiting photo a newer edit replaces, or that a hand-over or Close leaves behind, goes in its `drop`,
 --      which moderate-post takes out of Storage. A photo goes to one check, which shows it or takes it down: from then
---      on it is never in `drop`, so a live photo can't be.
+--      on it is never in `drop`, so a live photo can't be. Only the newest edit lands: a save, a hand-over or a Close
+--      while an older one is checked leaves that one nothing to change, whichever check finishes first.
 --   3. get_group_members: the Admin's list of the members, for Admin and Members I pick.
 --   4. private.give_group (a new Admin), hand_over_group, close_group.
---   5. "leave club": the Admin of a Group that isn't closed can't leave it.
+--   5. "leave club": the Admin of a Group that isn't closed can't leave it. "join club" (20261122001141): the time is
+--      the server's, which says who runs a deleted Admin's Group next. Both apps have only ever sent the Group and the
+--      person, and start_group and answer_join write past the rule. Nobody may update a row.
 --   6. private.pass_on_groups: what becomes of a deleted account's Groups, for both ways an account goes:
 --      delete_my_account (the under-13 exit) from 20261102212013_delete_my_account.sql, and clear_account_rows
 --      (Settings' Delete account, the delete-account edge function's first call, which needs no change itself) from
@@ -47,12 +50,13 @@ create table private.group_edits (
 );
 revoke all on private.group_edits from public, anon, authenticated;
 
--- One row per edit the check reads, with its new photo: at most 10 a day each.
+-- One row per edit the check reads: at most 10 a day each. `current` until it lands or a newer save replaces it.
 create table private.group_edit_checks (
   id bigint generated always as identity primary key,
   user_id uuid not null references auth.users (id) on delete cascade,
   club_id uuid not null references public.clubs (id) on delete cascade,
-  photo text,
+  edit jsonb not null,
+  current boolean not null default true,
   at timestamptz not null default now()
 );
 create index group_edit_checks_club on private.group_edit_checks (club_id);
@@ -146,6 +150,7 @@ declare
   v_kind text := nullif(btrim(coalesce(p_kind, '')), '');
   v_about text := nullif(btrim(coalesce(p_about, '')), '');
   v_photo text;
+  v_again boolean := false;
   v_old jsonb;
   v_edit jsonb;
   v_drop jsonb;
@@ -171,19 +176,31 @@ begin
   end if;
   select * into c from public.clubs where id = p_club for update;
   select w.edit into v_old from private.group_edits w where w.club_id = p_club;
-  -- Not the live photo, nor one a check has read already: that check shows it or takes it down.
-  v_photo := case when p_photo is distinct from c.image_url
-                       and not exists (select 1 from private.group_edit_checks k
-                                       where k.club_id = p_club and k.photo = p_photo) then p_photo end;
+  v_photo := case when p_photo is distinct from c.image_url then p_photo end;
   v_edit := case when v_name is distinct from c.name or v_kind is distinct from c.kind
                       or v_about is distinct from c.description or v_photo is not null
                  then jsonb_build_object('name', v_name, 'kind', v_kind, 'about', v_about)
                       || case when v_photo is null then '{}' else jsonb_build_object('photo', v_photo) end end;
+  -- A photo a check has read is that check's, which shows it or takes it down. The same edit sent again while it is
+  -- checked is that edit; any other needs a new upload.
+  if exists (select 1 from private.group_edit_checks k where k.club_id = p_club and k.edit->>'photo' = v_photo) then
+    v_again := exists (select 1 from private.group_edit_checks k
+                       where k.club_id = p_club and k.current and k.edit - 'drop' = v_edit);
+    if not v_again then
+      raise exception 'the photo must be your own new upload for this group' using errcode = '22023';
+    end if;
+  end if;
+  if not v_again then
+    update private.group_edit_checks set current = false where club_id = p_club and current;
+  end if;
   -- The photo of an edit still waiting, which this one replaces: nothing will show it.
   v_drop := coalesce(v_old->'drop', '[]'::jsonb)
             || case when v_old ? 'photo' then jsonb_build_array(v_old->'photo') else '[]'::jsonb end;
   if v_photo is not null then
     v_drop := v_drop - v_photo;
+  end if;
+  if v_again then
+    v_edit := null;
   end if;
   if v_drop <> '[]'::jsonb then
     v_edit := coalesce(v_edit, '{}'::jsonb) || jsonb_build_object('drop', v_drop);
@@ -195,7 +212,7 @@ begin
     on conflict (club_id) do update set edit = excluded.edit;
   end if;
   update public.clubs
-  set private = coalesce(p_private, false) or private.chat_minor(me) or private.group_held(p_club),
+  set private = coalesce(p_private, false) or private.group_held(p_club),
       events_by = p_events_by
   where id = p_club;
   -- No list (the app couldn't read the members): the picks stay as they were.
@@ -205,13 +222,14 @@ begin
     select p_club, m.user_id from public.club_members m
     where m.club_id = p_club and m.user_id = any (p_editors) and m.user_id <> me;
   end if;
-  return v_edit is not null;
+  return v_edit is not null or v_again;
 end;
 $$;
 revoke execute on function public.edit_group(uuid, text, text, text, text, boolean, text, uuid[]) from public, anon;
 grant execute on function public.edit_group(uuid, text, text, text, text, boolean, text, uuid[]) to authenticated;
 
--- moderate-post's claim on the Admin's waiting edit: it is taken off the Group (so it is read once) and handed back;
+-- moderate-post's claim on the Admin's waiting edit: it is taken off the Group (so it is read once) and handed back
+-- with its check's number, which apply_group_edit asks for;
 -- {"limit": true} when the day's 10 are used; null with nothing waiting or someone else asking. Only photos to take
 -- down (a hand-over's, a Close's) go to whoever asks: the one who handed it over or closed it runs it no more, and
 -- moderate-post tells its caller nothing but "ok".
@@ -224,8 +242,11 @@ set search_path = ''
 as $$
 declare
   v_edit jsonb;
+  v_check bigint;
 begin
   perform pg_advisory_xact_lock(hashtextextended('claim_group_edit:' || p_user::text, 0));
+  -- As edit_group locks, the Group first: a save can't miss the check this starts.
+  perform 1 from public.clubs where id = p_club for update;
   select w.edit into v_edit from private.group_edits w where w.club_id = p_club for update;
   if v_edit is null or (v_edit ? 'name' and not private.runs_group(p_club, p_user)) then
     return null;
@@ -235,14 +256,16 @@ begin
     if (select count(*) from private.group_edit_checks where user_id = p_user and at > now() - interval '24 hours') >= 10 then
       return jsonb_build_object('limit', true);
     end if;
-    insert into private.group_edit_checks (user_id, club_id, photo) values (p_user, p_club, v_edit->>'photo');
+    insert into private.group_edit_checks (user_id, club_id, edit) values (p_user, p_club, v_edit) returning id into v_check;
+    v_edit := v_edit || jsonb_build_object('check', v_check);
   end if;
   delete from private.group_edits where club_id = p_club;
   return v_edit;
 end;
 $$;
 
--- The edit both checks said yes to. False when the Group was closed or handed on while it was checked.
+-- The edit both checks said yes to. False when the Group was closed or handed on while it was checked, or a newer save
+-- replaced it: the caller then takes its photo down.
 create function public.apply_group_edit(p_club uuid, p_user uuid, p_edit jsonb)
 returns boolean
 language plpgsql
@@ -251,6 +274,13 @@ security definer
 set search_path = ''
 as $$
 begin
+  -- As edit_group locks, the Group first: a save and an older check's yes can't pass each other.
+  perform 1 from public.clubs where id = p_club for update;
+  update private.group_edit_checks set current = false
+  where id = (p_edit->>'check')::bigint and club_id = p_club and user_id = p_user and current;
+  if not found then
+    return false;
+  end if;
   update public.clubs
   set name = p_edit->>'name', kind = p_edit->>'kind', description = p_edit->>'about',
       image_url = coalesce(p_edit->>'photo', image_url)
@@ -289,7 +319,8 @@ $$;
 revoke execute on function public.get_group_members(uuid) from public, anon;
 grant execute on function public.get_group_members(uuid) to authenticated;
 
--- 4. An edit that waits is let go, its photo and any other to take down kept for moderate-post: true when there is one.
+-- 4. An edit that waits or is being checked is let go, a waiting one's photo and any other to take down kept for
+-- moderate-post: true when there is one.
 create function private.let_go_group_edit(p_club uuid)
 returns boolean
 language plpgsql
@@ -301,6 +332,7 @@ declare
   v_old jsonb;
   v_drop jsonb;
 begin
+  update private.group_edit_checks set current = false where club_id = p_club and current;
   select w.edit into v_old from private.group_edits w where w.club_id = p_club for update;
   v_drop := coalesce(v_old->'drop', '[]'::jsonb)
             || case when v_old ? 'photo' then jsonb_build_array(v_old->'photo') else '[]'::jsonb end;
@@ -382,6 +414,8 @@ grant execute on function public.hand_over_group(uuid, uuid), public.close_group
 -- 5.
 alter policy "leave club" on public.club_members
   using (user_id = (select auth.uid()) and not private.runs_group(club_id, (select auth.uid())));
+alter policy "join club" on public.club_members
+  with check (user_id = (select auth.uid()) and private.may_join(club_id) and created_at = now());
 
 -- 6. Each Group the account runs goes to the member who joined longest ago, a real account with a name that isn't
 -- banned; a block between the two goes with the account. With none left, it closes. A photo in the account's own folder

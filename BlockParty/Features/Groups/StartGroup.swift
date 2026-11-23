@@ -332,6 +332,7 @@ struct StartGroupSheet: View {
             group.status = "pending"
             group.imageUrl = photo
             group.isPrivate = isPrivate || alwaysPrivate
+            group.alwaysPrivate = alwaysPrivate
             group.requests = group.isPrivate ? 0 : nil
             actions.read([group])
             Haptics.success()

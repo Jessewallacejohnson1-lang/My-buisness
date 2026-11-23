@@ -68,7 +68,9 @@ test('the check\'s two yeses put the new name, About and photo live; a no leaves
   await edit(SAM, club, { name: 'Joetown Quilters', about: 'Quilts too.', photo: PHOTO(SAM, club, 'a1') });
   assert.equal(await claim(club, ANA), null, 'only the Admin\'s own edit is claimed');
   const e = await claim(club, SAM);
-  assert.deepEqual(e, { name: 'Joetown Quilters', kind: null, about: 'Quilts too.', photo: PHOTO(SAM, club, 'a1') });
+  const { check, ...fields } = e;
+  assert.equal(typeof check, 'number', 'its check\'s number, which apply asks for');
+  assert.deepEqual(fields, { name: 'Joetown Quilters', kind: null, about: 'Quilts too.', photo: PHOTO(SAM, club, 'a1') });
   assert.equal(await claim(club, SAM), null, 'read once');
   assert.equal(await apply(club, SAM, e), true);
   const row = await seen(ANA, club);
@@ -275,12 +277,12 @@ test('a photo a check has read is never on the list to take down', async () => {
   assert.deepEqual([second.photo, second.drop], [B, undefined], 'A is live');
   assert.equal((await seen(ANA, club)).image_url, A);
 
-  // B being read, B again, then C: B is its check's to settle, not the list's.
+  // B being read, B again, then C: B is its check's to take down, not the list's.
   await edit(SAM, club, { name: 'Joetown Quilters', photo: B });
   await edit(SAM, club, { name: 'Joetown Quilters', photo: C });
   assert.equal((await claim(club, SAM)).drop, undefined);
-  assert.equal(await apply(club, SAM, second), true);
-  assert.equal((await seen(ANA, club)).image_url, B);
+  assert.equal(await apply(club, SAM, second), false, 'C replaced it');
+  assert.equal((await seen(ANA, club)).image_url, A);
 
   // A waiting photo put back is no longer one to take down.
   const [D, E] = ['d4', 'e5'].map((n) => PHOTO(SAM, club, n));
@@ -420,3 +422,109 @@ test('a waiting photo goes on the list to take down when the Group is handed ove
   await db.exec('delete from private.group_edit_checks');
   await reset();
 });
+
+const joinBy = (who, club, fields = '', values = '') =>
+  as(who, `insert into public.club_members (club_id, user_id${fields}) values ($1, $2${values}) on conflict (club_id, user_id) do nothing`, [club, who]);
+
+test('the time someone joined is the server\'s: nobody joins in the past and runs the Group next', async () => {
+  const club = group(50);
+  await live(club, 'Joetown Sewing Circle', [BO]);
+  await db.query(`update public.club_members set created_at = now() - interval '1 day' where club_id = $1`, [club]);
+  for (const at of ['2000-01-01', '2100-01-01']) {
+    await assert.rejects(joinBy(STAN, club, ', created_at', `, '${at}'`), /row-level security/, at);
+  }
+  await joinBy(STAN, club);
+  assert.equal((await seen(STAN, club)).joined, true, 'an ordinary Join, as every phone sends it');
+  await as(STAN, `update public.club_members set created_at = '2000-01-01' where club_id = $1`, [club]);
+  await joinBy(STAN, club);
+  await deleteAccount(SAM);
+  assert.equal((await seen(STAN, club)).requests, null, 'Stan joined last');
+  assert.equal((await seen(BO, club)).requests, 0);
+  await comeBack(SAM, 'Sam Rivera');
+  await reset();
+});
+
+test('every other way in still works: starting, an invite, an approved ask, leaving and joining again', async () => {
+  const [open, priv] = [group(51), group(52)];
+  await live(open, 'Joetown Sewing Circle');
+  await joinBy(ANA, open);
+  await as(ANA, 'delete from public.club_members where club_id = $1 and user_id = $2', [open, ANA]);
+  await joinBy(ANA, open);
+  assert.equal((await seen(ANA, open)).joined, true);
+  await live(priv, 'Thursday Bible Study');
+  await db.query('update public.clubs set private = true where id = $1', [priv]);
+  await db.query(`insert into private.friendships (a, b, requested_by) values (least($1::uuid, $2::uuid), greatest($1::uuid, $2::uuid), $1)
+                  on conflict do nothing`, [SAM, BO]);
+  await as(SAM, 'select public.invite_to_group($1, $2)', [priv, [BO]]);
+  await joinBy(BO, priv);
+  await as(STAN, 'select public.ask_to_join($1)', [priv]);
+  await as(SAM, 'select public.answer_join($1, $2, true)', [priv, STAN]);
+  for (const who of [SAM, BO, STAN]) assert.equal((await seen(who, priv)).joined, true);
+  await reset();
+});
+
+test('an edit whose check finishes after a newer edit changes nothing', async () => {
+  const club = group(53);
+  await live(club, 'Joetown Sewing Circle');
+  const named = async () => (await seen(ANA, club)).name;
+  await edit(SAM, club, { name: 'First name' });
+  const first = await claim(club, SAM);
+  await edit(SAM, club, { name: 'Second name' });
+  const second = await claim(club, SAM);
+  assert.equal(await apply(club, SAM, second), true);
+  assert.equal(await apply(club, SAM, first), false, 'the older one finishes last');
+  assert.equal(await named(), 'Second name');
+  assert.equal(await apply(club, SAM, second), false, 'once');
+
+  await edit(SAM, club, { name: 'Third name' });
+  const third = await claim(club, SAM);
+  await edit(SAM, club, { name: 'Fourth name' });
+  assert.equal(await apply(club, SAM, third), false, 'nor with a newer one still waiting');
+  assert.equal(await apply(club, SAM, await claim(club, SAM)), true);
+
+  await edit(SAM, club, { name: 'Fifth name' });
+  const fifth = await claim(club, SAM);
+  await edit(SAM, club, { name: 'Fourth name' });
+  assert.equal(await apply(club, SAM, fifth), false, 'nor once it was taken back to the Group as it is');
+  assert.equal(await named(), 'Fourth name');
+
+  // Handed over and back while it is checked.
+  await db.query('insert into public.club_members (club_id, user_id) values ($1, $2)', [club, ANA]);
+  await edit(SAM, club, { name: 'Sixth name' });
+  const sixth = await claim(club, SAM);
+  await as(SAM, 'select public.hand_over_group($1, $2)', [club, ANA]);
+  await as(ANA, 'select public.hand_over_group($1, $2)', [club, SAM]);
+  assert.equal(await apply(club, SAM, sixth), false, 'nor after a hand-over, whoever runs it now');
+  assert.equal(await named(), 'Fourth name');
+  await db.exec('delete from private.group_edit_checks');
+  await reset();
+});
+
+test('a photo one check has read goes to no other edit', async () => {
+  const club = group(54);
+  await live(club, 'Joetown Sewing Circle');
+  const A = PHOTO(SAM, club, 'a1');
+  await edit(SAM, club, { name: 'Joetown Quilters', photo: A });
+  await claim(club, SAM);
+  await assert.rejects(edit(SAM, club, { name: 'Another name', photo: A }), /own new upload/);
+  await db.exec('delete from private.group_edit_checks');
+  await reset();
+});
+
+for (const [who, day] of [['no birthday', null], ['a birthday under 18', 15]]) {
+  test(`a public Group an adult started stays public when its new Admin has ${who}`, async () => {
+    const club = group(next++);
+    await live(club, 'Joetown Sewing Circle', [BO]);
+    await birthday(BO, day && await years(day));
+    await as(SAM, 'select public.hand_over_group($1, $2)', [club, BO]);
+    assert.equal((await seen(BO, club)).always_private, false);
+    await edit(BO, club, { eventsBy: 'members' });
+    const row = await seen(BO, club);
+    assert.deepEqual([row.private, row.always_private, row.events_by], [false, false, 'members']);
+    await edit(BO, club, { private: true });
+    await edit(BO, club, { private: false });
+    assert.equal((await seen(BO, club)).private, false, 'theirs to turn on and off');
+    await birthday(BO, '1980-01-01');
+    await reset();
+  });
+}

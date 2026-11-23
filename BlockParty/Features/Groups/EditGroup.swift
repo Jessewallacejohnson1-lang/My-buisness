@@ -93,7 +93,6 @@ struct EditGroupSheet: View {
     @State private var image: UIImage?
     @State private var pick: PhotosPickerItem?
     @State private var adjusting: UIImage?
-    @State private var alwaysPrivate = false
     @State private var saving = false
     @State private var failures = 0
     /// Why the checks held the edit back, under the name.
@@ -121,6 +120,9 @@ struct EditGroupSheet: View {
         static let faceOverlap: CGFloat = 8
         static let subIndent: CGFloat = 28
     }
+
+    /// Fixed on by who started the Group, never by who runs it now (`group_held`).
+    private var alwaysPrivate: Bool { group.alwaysPrivate }
 
     private enum Route: Hashable { case about, pick, admin }
 
@@ -308,9 +310,6 @@ struct EditGroupSheet: View {
         }
         #endif
         let api = CommunityAPI(auth: AuthStore.shared)
-        // Under 18 now or no birthday, or the Group was started by someone under 18 (SPEC decision 5).
-        alwaysPrivate = group.alwaysPrivate
-        if !alwaysPrivate { alwaysPrivate = await api.groupsAlwaysPrivate() }
         guard let read = try? await api.groupMembers(group.id) else { return }
         members = read.map { GroupMember(person: $0.person) }
         let picked = Set(read.filter(\.editor).map(\.person.id))
