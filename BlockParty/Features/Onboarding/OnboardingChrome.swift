@@ -382,29 +382,16 @@ struct OnboardingFieldLabel: View {
 /// sink to 95% and dim under the finger.
 struct OnboardingLink: View {
     let title: String
+    /// The Photo step's Skip is Clubhouse's grey 17 pt (onboarding 55): `inkSecondary`, not Clubhouse's lighter
+    /// grey, which reads under 4.5:1 on white.
+    var font: Font = .apple(15, weight: .semibold)
+    var color: Color = Hue.ink
     let action: () -> Void
     var body: some View {
         Button(action: action) {
             Text(title)
-                .font(.apple(15, weight: .semibold))
-                .foregroundStyle(Hue.ink)
-                .padding(.horizontal, 12)
-                .frame(minHeight: 44)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.press(.dim))
-    }
-}
-
-/// Clubhouse's Skip at the top right of the photo step (onboarding 55): grey 17 pt words with a 44 pt target,
-/// dimming under the finger. `inkSecondary`, not Clubhouse's lighter grey, which reads under 4.5:1 on white.
-struct OnboardingSkip: View {
-    let action: () -> Void
-    var body: some View {
-        Button(action: action) {
-            Text("Skip")
-                .font(.apple(17))
-                .foregroundStyle(Hue.inkSecondary)
+                .font(font)
+                .foregroundStyle(color)
                 .padding(.horizontal, 12)
                 .frame(minHeight: 44)
                 .contentShape(Rectangle())

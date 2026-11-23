@@ -43,9 +43,10 @@ struct OnboardingClubhouseQuestion: View {
 struct OnboardingNameStep: View {
     @Bindable var store: OnboardingStore
     @AccessibilityFocusState.Binding var headingFocused: Bool
+    /// The flow's, so a move to the next step drops the keyboard first.
+    var typing: FocusState<Bool>.Binding
     let submit: () -> Void
 
-    @FocusState private var typing: Bool
     @Environment(\.accessibilityVoiceOverEnabled) private var voiceOver
 
     var body: some View {
@@ -57,7 +58,7 @@ struct OnboardingNameStep: View {
         }
         .padding(.top, ClubhouseStep.questionTop)
         .ignoresSafeArea(.container, edges: .top)
-        .onAppear { if !voiceOver { typing = true } }
+        .onAppear { if !voiceOver { typing.wrappedValue = true } }
     }
 
     /// The question's one line at 22 pt, as drawn (measured 26.3, so the box lands on Clubhouse's 214).
@@ -70,7 +71,7 @@ struct OnboardingNameStep: View {
             .autocorrectionDisabled()
             .submitLabel(.next)
             .onSubmit(submit)
-            .focused($typing)
+            .focused(typing)
             .appleFont(24)
             .foregroundStyle(Hue.ink)
             .tint(Hue.ink)
@@ -83,7 +84,7 @@ struct OnboardingNameStep: View {
             .background(Hue.onboardingCream, in: RoundedRectangle(cornerRadius: Radius.nameBox, style: .continuous))
             // The whole box takes the tap.
             .contentShape(Rectangle())
-            .onTapGesture { typing = true }
+            .onTapGesture { typing.wrappedValue = true }
             .accessibilityLabel("Name")
     }
 }
@@ -140,6 +141,8 @@ struct OnboardingProfilePhoto: View {
             if Self.hasCamera { asking = true } else { library = true }
         } label: { squircle }
         .buttonStyle(.press(.squish))
+        // One pick at a time: a second one would race the first.
+        .disabled(loading)
         .accessibilityLabel(store.photo == nil ? "Add a photo" : "Change photo")
         .confirmationDialog("Add a profile picture", isPresented: $asking, titleVisibility: .hidden) {
             Button("Choose from library") { library = true }
@@ -160,6 +163,8 @@ struct OnboardingProfilePhoto: View {
             Task {
                 if let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) {
                     adjusting = await PhotoCrop.shrunk(image)
+                } else {
+                    Haptics.error()   // an iCloud photo offline: the squircle stops shimmering, empty again
                 }
                 pick = nil
                 loading = false

@@ -378,6 +378,9 @@ struct OnboardingFlow: View {
     /// Log in's and Create account's boxes, kept while you go back to the Welcome and in again.
     @State private var form = AccountForm()
     @AccessibilityFocusState private var questionFocused: Bool
+    /// The Name step's box has the keyboard. Every move drops it first, so the keyboard slides down and the
+    /// pill rides it, rather than the keyboard vanishing under the step change.
+    @FocusState private var naming: Bool
     @State private var keyboardUp = false
     /// Schools' tiles and Follow 3's Places, schools and pages: nil while reading, empty if it failed.
     @State private var suggestions: [FollowSuggestion]?
@@ -530,7 +533,7 @@ struct OnboardingFlow: View {
 
             // Clubhouse's Skip at the top right of the photo step (onboarding 55): on without a photo.
             if on(.photo) {
-                OnboardingSkip(action: go { [store] in store.next() })
+                OnboardingLink(title: "Skip", font: .apple(17), color: Hue.inkSecondary, action: go { [store] in store.next() })
                     .frame(height: 44)
                     .frame(maxWidth: .infinity, alignment: .trailing)
                     .padding(.trailing, 5)
@@ -586,7 +589,7 @@ struct OnboardingFlow: View {
         Group {
             if on(.profile) {
                 // Clubhouse's name step (onboarding 55): it draws its own question.
-                OnboardingNameStep(store: store, headingFocused: $questionFocused,
+                OnboardingNameStep(store: store, headingFocused: $questionFocused, typing: $naming,
                                    submit: go { [store] in if store.profileDone { store.next() } })
             } else if on(.photo) {
                 OnboardingPhotoStep(store: store, headingFocused: $questionFocused, bottomClear: Self.clubhouseClear)
@@ -854,7 +857,10 @@ struct OnboardingFlow: View {
 
     /// A move between steps, on the slide's timing.
     private func go(_ move: @escaping () -> Void) -> () -> Void {
-        { withAnimation(reduceMotion ? .easeOut(duration: 0.2) : Self.slide) { move() } }
+        {
+            naming = false
+            withAnimation(reduceMotion ? .easeOut(duration: 0.2) : Self.slide) { move() }
+        }
     }
 }
 
