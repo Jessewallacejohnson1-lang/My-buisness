@@ -251,8 +251,9 @@ struct OnboardingNextBar: View {
     let action: () -> Void
 
     static let height: CGFloat = 48
-    /// Clubhouse's pill width (199.3 pt measured, `references/profile-clubhouse/SPEC.md`).
+    /// Clubhouse's pill, 199.3 x 49.3 pt measured (`references/profile-clubhouse/SPEC.md`).
     static let narrow: CGFloat = 199
+    static let narrowHeight: CGFloat = 49
 
     @State private var shakes = 0
 
@@ -280,7 +281,7 @@ struct OnboardingNextBar: View {
                     .animation(.snappy, value: title)
             }
         }
-        .buttonStyle(NextBarStyle(allowed: allowed, deep: deep))
+        .buttonStyle(NextBarStyle(allowed: allowed, deep: deep, height: arrow ? Self.narrowHeight : Self.height))
         .keyframeAnimator(initialValue: CGFloat(0), trigger: shakes) { bar, x in
             bar.offset(x: x)
         } keyframes: { _ in
@@ -300,13 +301,14 @@ struct OnboardingNextBar: View {
 private struct NextBarStyle: ButtonStyle {
     let allowed: Bool
     let deep: Bool
+    let height: CGFloat
 
     func makeBody(configuration: Configuration) -> some View {
         let down = configuration.isPressed && allowed
         return configuration.label
             .foregroundStyle(words)
             .frame(maxWidth: .infinity)
-            .frame(height: OnboardingNextBar.height)
+            .frame(height: height)
             .background {
                 Capsule()
                     .fill(fill(down: down))

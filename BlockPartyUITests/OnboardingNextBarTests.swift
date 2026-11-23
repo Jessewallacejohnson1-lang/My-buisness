@@ -86,7 +86,7 @@ final class OnboardingNextBarTests: XCTestCase {
         name.typeText("Avery")
         let riding = resting(next)
         XCTAssertEqual(riding.width, 199, accuracy: 0.5, "not Clubhouse's pill")
-        XCTAssertEqual(riding.height, 48, accuracy: 0.5)
+        XCTAssertEqual(riding.height, 49, accuracy: 0.5)
         XCTAssertEqual(riding.midX, app.frame.midX, accuracy: 0.5, "Clubhouse's pill isn't centred")
         next.tap()
         // Photo: the same pill 55 pt up, grey until a photo is in; Skip goes on without one.

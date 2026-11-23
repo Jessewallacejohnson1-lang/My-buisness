@@ -60,8 +60,8 @@ struct OnboardingNameStep: View {
         .onAppear { if !voiceOver { typing = true } }
     }
 
-    /// The question's one line at 22 pt (title2's 28).
-    private static let questionLine: CGFloat = 28
+    /// The question's one line at 22 pt, as drawn (measured 26.3, so the box lands on Clubhouse's 214).
+    private static let questionLine: CGFloat = 26
 
     private var nameBox: some View {
         TextField("Name", text: $store.name, prompt: Text("Your name").foregroundStyle(Hue.bigArtHint))

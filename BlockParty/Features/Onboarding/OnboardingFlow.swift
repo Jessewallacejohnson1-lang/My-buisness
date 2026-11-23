@@ -741,7 +741,7 @@ struct OnboardingFlow: View {
     private static let clubhouseLift: CGFloat = 55 - 34
     private static let clubhouseOverKeyboard: CGFloat = 30.5
     /// What the Photo step keeps clear over the safe area's bottom: the pill in its spot.
-    private static let clubhouseClear: CGFloat = OnboardingNextBar.height + clubhouseLift
+    private static let clubhouseClear: CGFloat = OnboardingNextBar.narrowHeight + clubhouseLift
 
     /// Not now on Find your friends (which skips Contacts too), else empty.
     @ViewBuilder private var slot: some View {
