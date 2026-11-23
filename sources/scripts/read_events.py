@@ -1345,9 +1345,17 @@ def rec1_clock(text):
     return hour, int(m.group(2) or 0)
 
 
+def holiday(day):
+    """A day a weekly program skips: Thanksgiving, Christmas Eve and Day, New Year's Eve and Day, Memorial Day, July 4, Labor Day."""
+    week = (day.day + 6) // 7
+    return (day.month, day.day) in {(1, 1), (7, 4), (12, 24), (12, 25), (12, 31)} or \
+        (day.month, day.weekday(), week) in {(11, 3, 4), (9, 0, 1)} or (day.month, day.weekday()) == (5, 0) and day.day > 24
+
+
 def rec1_next(dates, days, today):
     """The program's next day from today: "12/11/26" is that day; "10/06-12/29" with days "Mon"
-    is the next Monday in that run. None when it has no dates yet ("Open TBD") or is over."""
+    is the next Monday in that run, never a holiday: the City gives the run and the weekday, so a day we work out on
+    Thanksgiving is our guess (BP app watch-every-place 46). None when it has no dates yet ("Open TBD") or is over."""
     one = re.fullmatch(r"(\d\d)/(\d\d)/(\d\d)", dates or "")
     if one:
         day = date(2000 + int(one.group(3)), int(one.group(1)), int(one.group(2)))
@@ -1365,7 +1373,7 @@ def rec1_next(dates, days, today):
     wanted = {WEEKDAYS.index(d[:3].lower()) for d in re.split(r"[,\s/]+", days or "") if d[:3].lower() in WEEKDAYS}
     day = max(first, today)
     while day <= last:
-        if not wanted or day.weekday() in wanted:
+        if not wanted or day.weekday() in wanted and not (holiday(day) and last > first):
             return day
         day += timedelta(days=1)
     return None
@@ -2373,6 +2381,13 @@ def t_rec1():
     assert (priced(price=0), priced(), priced(price=None), priced(price=12.5)) == ("Free", None, None, "$12.5")
     assert rec1_next("10/06-12/29", "Mon", date(2026, 12, 30)) is None and rec1_next("Open TBD", "", TODAY) is None
     assert rec1_next("12/28-01/04", "Sat", date(2026, 12, 29)) == date(2027, 1, 2), "a run over New Year"
+    # Youth volleyball and dodgeball, Thursdays Nov 12 to Dec 10: Kennedy has no school on Thanksgiving (watch-every-place 46).
+    assert rec1_next("11/12-12/10", "Thu", date(2026, 11, 23)) == date(2026, 12, 3), "over Thanksgiving to the next week"
+    assert rec1_next("11/12-11/26", "Thu", date(2026, 11, 23)) is None, "a run that ends on it is over"
+    assert rec1_next("11/26/26", "Thu", date(2026, 11, 23)) == rec1_next("11/26-11/26", "Thu", date(2026, 11, 23)) == \
+        date(2026, 11, 26), "a program that gives that one day keeps it"
+    off = [d for n in range(365) if holiday(d := date(2027, 1, 1) + timedelta(n))]
+    assert [f"{d:%b} {d.day}" for d in off] == ["Jan 1", "May 31", "Jul 4", "Sep 6", "Nov 25", "Dec 24", "Dec 25", "Dec 31"], off
     assert rec1_clock("9:30am") == (9, 30) and rec1_clock("12pm") == (12, 0) and rec1_clock("TBD") is None
 
 
