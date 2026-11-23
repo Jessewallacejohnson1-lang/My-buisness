@@ -1,7 +1,7 @@
 // Fixed stories for the older Group faults (supabase/migrations/*_older_group_faults.sql, BP app docs/plans/start-a-group,
 // ticket 09): a Group's live photo can't be swapped, its Admin can't delete its members' Events with it, a waiting Event
 // can't be moved to someone else's Group, the watch never takes a members-only Event for a repeat, a Private-only save
-// leaves a name being checked alone, joining ends your ask, and a card says when its Event is members only.
+// leaves a name being checked alone, joining ends your ask, and the morning's pick of a members-only Event shows a stranger nothing.
 // Run in PGlite: `npm install && npm test` in this folder.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -37,6 +37,7 @@ const later = (who, club, k) => `${who}/group-${club}-${k}.jpg`;
 
 // A Group of Sam's in this state, with these members and Who can add events.
 async function made(club, { members = [], eventsBy = 'members', priv = false, status = 'approved', photo = false } = {}) {
+  if (photo) await upload(first(SAM, club));
   await as(SAM, 'select public.start_group($1, $2, null, $3, $4)',
            [club, 'Joetown Sewing Circle', photo ? URL_ + first(SAM, club) : null, priv]);
   await db.query(`update public.clubs set status = $2, events_by = $3, created_at = now() - interval '2 days' where id = $1`,
@@ -67,7 +68,6 @@ const reset = () => db.exec(`delete from public.club_events; delete from public.
 test('a Group\'s photo can\'t be deleted from under it, by who uploaded it, so no unchecked one takes its name', async () => {
   const club = group(1);
   await made(club, { members: [ANA], photo: true });
-  await upload(first(SAM, club));
   await upload(`${SAM}/stray.jpg`);
   assert.equal(await del(SAM, first(SAM, club)), false, 'the live photo stays');
   assert.equal(await del(SAM, `${SAM}/stray.jpg`), true, 'a file nothing shows goes');
@@ -79,7 +79,6 @@ test('a Group\'s photo can\'t be deleted from under it, by who uploaded it, so n
 test('a waiting Group\'s photo and one being checked stay put too; a replaced one may go', async () => {
   const club = group(2);
   await made(club, { photo: true, status: 'pending' });
-  await upload(first(SAM, club));
   assert.equal(await del(SAM, first(SAM, club)), false, 'its starter\'s photo, while its checks run');
   await db.query(`update public.clubs set status = 'approved' where id = $1`, [club]);
   await upload(later(SAM, club, 'a1'));
@@ -89,6 +88,15 @@ test('a waiting Group\'s photo and one being checked stay put too; a replaced on
   assert.equal(await apply(club, SAM, e), true);
   assert.equal(await del(SAM, later(SAM, club, 'a1')), false, 'and once it is live');
   assert.equal(await del(SAM, first(SAM, club)), true, 'the old one shows nowhere now');
+  await reset();
+});
+
+test('a new Group takes only a photo that is already up', async () => {
+  const club = group(17);
+  const start = () => as(SAM, 'select public.start_group($1, $2, null, $3)', [club, 'Joetown Sewing Circle', URL_ + first(SAM, club)]);
+  await assert.rejects(start(), /your own upload/);
+  await upload(first(SAM, club));
+  await start();
   await reset();
 });
 
@@ -174,20 +182,23 @@ test('joining ends your ask, so leaving later leaves no "Asked" behind', async (
   await reset();
 });
 
-test('an Event\'s card says it is members only when the Town can\'t see its Group', async () => {
-  const [open, priv, waiting] = [group(12), group(13), group(14)];
+test('the morning\'s pick of a members-only Event gives a stranger nothing, and their Event of the day is the feed\'s', async () => {
+  const [open, priv] = [group(15), group(16)];
+  const today = (await db.query(`select (now() at time zone 'America/Chicago')::date::text as d`)).rows[0].d;
   await made(open, { members: [ANA] });
   await made(priv, { members: [ANA], priv: true });
-  await made(waiting, { members: [ANA] });
-  const events = [await added(ANA, open), await added(ANA, priv), await added(ANA, waiting), await added(ANA, null)];
-  await db.exec(`update public.club_events set status = 'approved'`);
-  await db.query(`update public.clubs set status = 'pending' where id = $1`, [waiting]);
-  const card = async (who, e) => (await as(who, 'select card from private.event_cards($1)', [[e]]))[0]?.card;
-  const says = [];
-  for (const e of events) says.push((await card(ANA, e)).members_only);
-  assert.deepEqual(says, [false, true, true, false]);
-  // Its poster, once out of the Group, still has their Event, and it still says so.
-  await as(ANA, 'delete from public.club_members where club_id = $1 and user_id = $2', [priv, ANA]);
-  assert.equal((await card(ANA, events[1])).members_only, true);
+  const [shown, secret] = [await added(ANA, open, 'Holiday quilt swap'), await added(ANA, priv, 'Members quilt night')];
+  await db.query(`update public.club_events set status = 'approved', event_date = $1, start_time = '11:59 PM'`, [today]);
+  await db.query(`insert into public.daily_standouts (town, day, event_id, rank, why)
+                  values ('st-joseph-mn', $1, $2, 1, 'Members quilt night is the one to see')`, [today, secret]);
+  const read = (who) => as(who, 'select event_id from public.daily_standouts').then((r) => r.map((x) => x.event_id));
+  assert.deepEqual(await read(ANA), [secret], 'a member reads it');
+  assert.deepEqual(await read(STAN), [], 'a stranger doesn\'t');
+  assert.deepEqual(await read(null), [], 'nor signed out');
+  const noon = `${today}T18:00:00Z`;
+  const best = (who) => as(who, 'select id from public.get_event_of_the_day($1)', [noon]).then((r) => r.map((x) => x.id));
+  assert.deepEqual(await best(STAN), [shown], 'a stranger\'s day isn\'t left empty by it');
+  await db.query(`update public.daily_standouts set event_id = $1, why = 'Swap'`, [shown]);
+  assert.deepEqual(await read(null), [shown], 'a public one shows to all');
   await reset();
 });
