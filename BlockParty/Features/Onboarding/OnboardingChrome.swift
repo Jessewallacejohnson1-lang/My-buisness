@@ -265,23 +265,27 @@ struct OnboardingNextBar: View {
             if busy { return }
             if allowed { action() } else { shakes += 1; Haptics.error() }
         } label: {
-            if busy {
-                ProgressView().tint(.white)
-            } else if arrow {
-                HStack(spacing: 8) {
+            // One view around the branches: bare, the style's frame and capsule went round each branch, and a
+            // move to or from the Name and Photo steps cross-faded two pills (onboarding 55's frames).
+            ZStack {
+                if busy {
+                    ProgressView().tint(.white)
+                } else if arrow {
+                    HStack(spacing: 8) {
+                        Text(title)
+                        Image(systemName: "arrow.right")
+                    }
+                    .font(.apple(20, weight: .semibold))
+                } else {
                     Text(title)
-                    Image(systemName: "arrow.right")
+                        .font(.apple(17, weight: .semibold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                        // "Follow 3 more" rolls to 2, and back up on an unfollow (onboarding 26): Apple's number
+                        // roll, the bar holding still.
+                        .contentTransition(.numericText(value: Double(count)))
+                        .animation(.snappy, value: title)
                 }
-                .font(.apple(20, weight: .semibold))
-            } else {
-                Text(title)
-                    .font(.apple(17, weight: .semibold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                    // "Follow 3 more" rolls to 2, and back up on an unfollow (onboarding 26): Apple's number
-                    // roll, the bar holding still.
-                    .contentTransition(.numericText(value: Double(count)))
-                    .animation(.snappy, value: title)
             }
         }
         .buttonStyle(NextBarStyle(allowed: allowed, deep: deep, height: arrow ? Self.narrowHeight : Self.height))
