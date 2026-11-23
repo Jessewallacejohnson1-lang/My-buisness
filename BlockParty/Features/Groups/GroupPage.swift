@@ -17,9 +17,12 @@ import SwiftUI
 struct GroupPage: View {
     /// As opened, then as its Admin saves it (start-a-group 04).
     @State private var group: TownGroup
+    /// False inside Start a group's sheet, whose stack can't open the chat (as the map's Event page's Going chat).
+    private let groupChat: Bool
 
-    init(group: TownGroup) {
+    init(group: TownGroup, groupChat: Bool = true) {
         _group = State(initialValue: group)
+        self.groupChat = groupChat
     }
 
     @Environment(\.dismiss) private var dismiss
@@ -50,12 +53,17 @@ struct GroupPage: View {
     @State private var showingRequests = false
     /// Edit group, the Admin's, from the ••• (start-a-group 04).
     @State private var editing = false
-    /// The Admin tapped Leave: hand over or close first.
-    @State private var adminLeaving = false
+    /// Leave group? on a Group that asks first (`GroupAsks.asksToLeave`).
+    @State private var leaving = false
     @Environment(YouModel.self) private var you: YouModel?
 
     /// A private Group you aren't in: Ask to join, and none of its time, place, members or chat.
     private var locked: Bool { GroupAsks.locked(group, member: actions.member(group).isMember) }
+
+    /// One still waiting on its checks that you left: nothing here to join or ask for, and no longer yours to see.
+    private var shut: Bool {
+        group.status == "pending" && !group.isAdmin && group.invitedBy == nil && !actions.member(group).isMember
+    }
 
     /// The Figma frame's sizes, on a 420 pt phone. The round buttons, the sheet's corner, its
     /// side inset and the title's rhythm are the Event page's (`EventPage.Metric`).
@@ -108,7 +116,7 @@ struct GroupPage: View {
         // account arrives.
         .safeAreaInset(edge: .bottom, spacing: 0) {
             // A turned-down Group has nothing to join or invite to (start-a-group 02).
-            if actions.canAct, group.status != "rejected" {
+            if actions.canAct, group.status != "rejected", !shut {
                 joinBar
                     .transition(reduceMotion ? .opacity : .move(edge: .bottom))
             }
@@ -148,11 +156,10 @@ struct GroupPage: View {
                 refresh()
             }
         }
-        .alert("You're the Admin", isPresented: $adminLeaving) {
-            Button("Edit group") { editing = true }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("To leave, hand the group to a member or close it.")
+        .modifier(LeaveGroupQuestion(group: group, asking: $leaving, edit: { editing = true }, leave: flip))
+        // The leave landed and the Groups were read again without it.
+        .onChange(of: you?.groups?.contains { $0.id == group.id }) { _, listed in
+            if listed == false, shut { dismiss() }
         }
         #if DEBUG
         // `-group-admin edit|hand|close`: Edit group open at launch.
@@ -364,7 +371,7 @@ struct GroupPage: View {
             }
 
             // Once you're in. The count is right above, so with nothing said it has no second line.
-            if !locked {
+            if groupChat, !locked {
             ChatRoomRow(title: "Group chat", isIn: actions.member(group).isMember && group.status != "rejected",
                         listed: { [id = group.id] in $0.chat(forGroup: id) },
                         ruled: false, access: { [id = group.id] in try await $0.groupAccess(id) },
@@ -536,15 +543,21 @@ struct GroupPage: View {
     /// and shakes the pill.
     private func toggle() {
         // The Admin hands over or closes first (start-a-group 04); the server won't let them leave either.
-        if group.isAdmin, actions.member(group).isMember {
-            adminLeaving = true
-            return
+        if actions.member(group).isMember, GroupAsks.asksToLeave(group) {
+            leaving = true
+        } else {
+            flip()
         }
+    }
+
+    private func flip() {
         tappedAt = actions.memberFailureCount(group.id)
         let joining = !actions.member(group).isMember
         actions.toggleMember(group)
         // Joined: the toast asks whether its get-togethers go on your Agenda (rsvp-and-groups 09).
         if joining, actions.member(group).isMember { GroupAgenda.shared.joined(group) }
+        // The invite that let you in goes as you leave (`leaving_ends_invite`): Ask to join, not a Join that's refused.
+        if !joining { group.invitedBy = nil }
     }
 
     // MARK: Words (SearchModelTests)

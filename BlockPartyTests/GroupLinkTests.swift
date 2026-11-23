@@ -77,6 +77,21 @@ final class GroupLinkTests: XCTestCase {
         XCTAssertEqual(payload.copied, payload.shareText, "Copy link adds no second website")
     }
 
+    /// When and where a private Group meets, or one still waiting on its checks, stays off its share (start-a-group 09).
+    func testAPrivateGroupsShareLeavesOutWhenAndWhereItMeets() {
+        var group = TownGroup(id: id, name: "Sunday Supper Club", kind: "Faith")
+        group.schedule = "Sundays at 5 PM"
+        group.location = "Sam's house"
+        XCTAssertTrue(SharePayload.group(group).shareText.contains("Sundays at 5 PM · Sam's house"), "a public Group says")
+        for hide in [{ (g: inout TownGroup) in g.isPrivate = true }, { (g: inout TownGroup) in g.status = "pending" }] {
+            var hidden = group
+            hide(&hidden)
+            let payload = SharePayload.group(hidden)
+            XCTAssertEqual(payload.shareText, "Come to Sunday Supper Club with me. https://blockpartymn.com/g/\(id)")
+            XCTAssertEqual(payload.story.line, GroupPage.kindLine(hidden))
+        }
+    }
+
     /// Scan a code reads a Group's code too, and opens its page; a neighbour's stays a neighbour's.
     func testScanACodeReadsAGroupsCode() {
         XCTAssertEqual(ScannedCode(GroupLink.link(for: id)!.absoluteString), .group(id))

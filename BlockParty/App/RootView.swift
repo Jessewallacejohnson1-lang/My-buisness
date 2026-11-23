@@ -566,13 +566,8 @@ struct MainTabsView: View {
             if let state = LaunchFlags.value(.newPostState) { PostOutbox.shared.sample(state) }
             if LaunchFlags.has(.newPost) { creating = true }
             // `-group-admin admin|member|edit|hand|close`: a sample Group's page, yours to run or not (start-a-group 04).
-            if let state = LaunchFlags.value(.groupAdmin) {
-                var group = TownGroup(id: "sample-group", name: "Joetown Sewing Circle", kind: "Crafts",
-                                      photos: Bundle.main.url(forResource: "millstream-arts-festival", withExtension: "jpg")
-                                          .map { [PlacePicture(url: $0, kind: .photo)] } ?? [], memberCount: 7)
-                group.about = "We sew, mend and quilt together. Bring what you're working on."
-                group.joined = true
-                group.requests = state == "member" ? nil : 0
+            // With `-start-group`, its sheet opens it instead.
+            if let group = TownGroup.sampleForAdmin, LaunchFlags.value(.startGroup) == nil {
                 actions.read([group])
                 path.append(group)
             }
@@ -932,6 +927,8 @@ struct MainTabsView: View {
         // Town feed's cards for what friends are going to.
         case .friends:
             FriendsHomePage(tab: true, cards: townFeed.cards)
+                // Start a group's sheet: a Group page's New event and When you meet there.
+                .environment(searchModel)
                 // The Town tab reads the feed; a launch straight onto Friends reads it here.
                 .task { if townFeed.entries == nil { await townFeed.refresh() } }
         // Places, businesses and the Town feed's Events (five-tabs 04).

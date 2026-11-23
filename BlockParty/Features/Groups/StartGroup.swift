@@ -101,9 +101,9 @@ struct StartGroupSheet: View {
     @State private var failures = 0
     /// The day's 3 already started: said once, under the name.
     @State private var limited: String?
-    /// Private (start-a-group 03); fixed on for an account under 18 or with no birthday.
+    /// Private (start-a-group 03); fixed on for an account under 18 or with no birthday. nil until that's read.
     @State private var isPrivate = false
-    @State private var alwaysPrivate = false
+    @State private var alwaysPrivate: Bool?
     /// Made: the sheet turns to Invite friends.
     @State private var made: TownGroup?
     /// The sheet's own stack: a like-named Group's page, and an Event from its Calendar.
@@ -132,8 +132,11 @@ struct StartGroupSheet: View {
                 }
             }
             .navigationDestination(for: TownGroup.self) {
-                GroupPage(group: $0).environment(\.hostOpener, HostOpener.inSheet { path.append($0) })
+                GroupPage(group: $0, groupChat: false)
+                    .environment(\.hostOpener, HostOpener.inSheet { path.append($0) })
             }
+            // Its pages hide the bar, which turns the swipe back off.
+            .background { SwipeBack().frame(width: 0, height: 0) }
             // As on the map's own stack: its host, its map and its Going chat open on the shell's, so not from here.
             .navigationDestination(for: FeedCardItem.self) {
                 EventPage(item: $0, goingChat: false)
@@ -159,6 +162,8 @@ struct StartGroupSheet: View {
             withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { image = cut }
         }
     }
+
+    private var madePrivate: Bool { isPrivate || alwaysPrivate == true }
 
     private var form: some View {
         ScrollView(showsIndicators: false) {
@@ -233,6 +238,11 @@ struct StartGroupSheet: View {
                     group.imageUrl = Bundle.main.url(forResource: "interest-fun-games", withExtension: "jpg")
                     made = group
                 }
+                // `-group-admin <state>` too: the sample Group's page in this sheet's own stack.
+                if let sample = TownGroup.sampleForAdmin {
+                    actions.read([sample])
+                    path.append(sample)
+                }
             }
             #endif
         }
@@ -241,18 +251,18 @@ struct StartGroupSheet: View {
     /// Mock frame 4's row: a lock, "Private", Apple's switch, in a white card; fixed on, the plan's one line under it.
     private var privateRow: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Toggle(isOn: Binding { isPrivate || alwaysPrivate } set: { isPrivate = $0 }) {
+            Toggle(isOn: Binding { madePrivate } set: { isPrivate = $0 }) {
                 Label("Private", systemImage: "lock")
                     .font(.sans(17))
                     .foregroundStyle(Hue.ink)
             }
             .tint(Hue.ink)
-            .disabled(alwaysPrivate)
+            .disabled(alwaysPrivate == true)
             .padding(.horizontal, Metric.fieldPad)
             .frame(minHeight: 52)
             .background(Hue.surface, in: RoundedRectangle(cornerRadius: Metric.fieldCorner, style: .continuous))
             .overlay { RoundedRectangle(cornerRadius: Metric.fieldCorner, style: .continuous).strokeBorder(Hue.hairline) }
-            if alwaysPrivate { caption("Groups started by teens are private.") }
+            if alwaysPrivate == true { caption("Groups started by teens are private.") }
         }
         .task { alwaysPrivate = await CommunityAPI(auth: AuthStore.shared).groupsAlwaysPrivate() }
     }
@@ -324,19 +334,27 @@ struct StartGroupSheet: View {
             var photo: URL?
             if let image, let jpeg = ProfileModel.coverJPEG(image) { photo = try await api.uploadGroupPhoto(jpeg, id: id) }
             try await api.startGroup(id: id, name: draft.cleanName, kind: draft.kind, photo: photo,
-                                     isPrivate: isPrivate || alwaysPrivate)
+                                     isPrivate: madePrivate)
             Task { await api.checkNewGroup(id) }
             var group = TownGroup(id: id, name: draft.cleanName, kind: draft.kind,
                                   photos: photo.map { [PlacePicture(url: $0, kind: .photo)] } ?? [], memberCount: 1)
             group.joined = true
             group.status = "pending"
             group.imageUrl = photo
-            group.isPrivate = isPrivate || alwaysPrivate
-            group.alwaysPrivate = alwaysPrivate
-            group.requests = group.isPrivate ? 0 : nil
+            group.isPrivate = madePrivate
+            group.alwaysPrivate = alwaysPrivate == true
+            group.requests = 0
             actions.read([group])
             Haptics.success()
             withAnimation(reduceMotion ? nil : Motion.smooth) { made = group }
+            // The switch's read never came: the server made it private whatever was sent, so ask it again.
+            if alwaysPrivate == nil {
+                Task {
+                    guard await api.groupsAlwaysPrivate() == true else { return }
+                    made?.isPrivate = true
+                    made?.alwaysPrivate = true
+                }
+            }
         } catch {
             Log.network("StartGroupSheet: couldn't start \(id): \(error)")
             Haptics.error()

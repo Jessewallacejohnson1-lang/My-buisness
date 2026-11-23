@@ -43,6 +43,38 @@ final class GroupAsks {
     static func locked(_ group: TownGroup, member: Bool) -> Bool {
         group.isPrivate && !member && group.invitedBy == nil && group.requests == nil
     }
+
+    /// What coming back takes, for a Group that asks before you leave (start-a-group 09): one still waiting on its
+    /// checks needs a new invite, a private one its Admin's yes. nil for a Group you can walk back into.
+    static func leaveWarning(_ group: TownGroup) -> String? {
+        if group.status == "pending" { return "To come back, you'll need a new invite." }
+        return group.isPrivate ? "To come back, you'll have to ask to join again." : nil
+    }
+
+    /// A tap on Leave asks first: your own Group (hand it over or close it), or one you can't walk back into.
+    static func asksToLeave(_ group: TownGroup) -> Bool { group.isAdmin || leaveWarning(group) != nil }
+}
+
+/// "Leave this group?" in Apple's alert, as Leave this chat? asks; your own Group says to hand it over or close it.
+struct LeaveGroupQuestion: ViewModifier {
+    let group: TownGroup
+    @Binding var asking: Bool
+    /// Edit group, where there is one to open: the Group page.
+    var edit: (() -> Void)? = nil
+    let leave: () -> Void
+
+    func body(content: Content) -> some View {
+        content.alert(group.isAdmin ? "You're the Admin" : "Leave this group?", isPresented: $asking) {
+            if !group.isAdmin {
+                Button("Leave", role: .destructive, action: leave)
+            } else if let edit {
+                Button("Edit group", action: edit)
+            }
+            Button(group.isAdmin && edit == nil ? "OK" : "Cancel", role: .cancel) {}
+        } message: {
+            Text(group.isAdmin ? "To leave, hand the group to a member or close it." : GroupAsks.leaveWarning(group) ?? "")
+        }
+    }
 }
 
 /// The Members only box, mock frame 7: a lock, "Members only", and why.
