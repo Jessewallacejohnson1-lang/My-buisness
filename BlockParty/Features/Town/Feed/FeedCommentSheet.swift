@@ -144,7 +144,7 @@ struct FeedCommentSheet: View {
 
     private func row(_ comment: PostComment) -> some View {
         HStack(alignment: .top, spacing: Metric.photoGap) {
-            Avatar(comment.authorPhoto, size: Metric.photo, blank: .initial(comment.author.name), person: true)
+            Avatar(comment.authorPhoto, size: Metric.photo)
             VStack(alignment: .leading, spacing: 2) {
                 Text("\(Text(comment.author.name).font(.sansSemibold(13)).foregroundStyle(Hue.ink)) \(Text(age(comment)).foregroundStyle(Hue.inkSecondary))")
                     .font(.sans(13))

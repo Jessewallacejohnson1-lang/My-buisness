@@ -612,7 +612,7 @@ struct HelloDropView: View {
         } else if let logo = said.logo {
             Group {
                 if said.photo {
-                    Avatar(logo, size: Self.picture, blank: .initial(""), person: said.isPerson)
+                    Avatar(logo, size: Self.picture, blank: said.isPerson ? .figure : .initial(""))
                 } else {
                     LogoDisc(logo: logo, initial: "", logoSide: Self.logoSide, letter: .sansSemibold(12))
                 }

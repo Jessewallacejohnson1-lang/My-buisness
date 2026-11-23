@@ -47,7 +47,8 @@ struct Avatar: View {
     let picked: UIImage?
     /// A rounded square with these corners instead of a circle (an Event's host card).
     let corner: CGFloat?
-    /// The squircle: a person. Anything but the blank figure is round unless the caller says it is a person.
+    /// The squircle: a person, who has the blank figure. A neighbour who hosts an Event is round, as every host
+    /// is (Jesse's yes), so the caller says so.
     let person: Bool
 
     /// The URL that failed to load, so a dead link shows the blank instead of the light fill.
@@ -90,11 +91,7 @@ struct Avatar: View {
         .frame(width: size, height: size)
         .clipShape(shape)
         .overlay {
-            if outlined, person {
-                FaceShape().strokeBorder(Hue.ink.opacity(0.16), lineWidth: FriendsMetric.ring)
-            } else if outlined {
-                Circle().strokeBorder(Hue.ink.opacity(0.16), lineWidth: FriendsMetric.ring)
-            }
+            if outlined { FaceShape().strokeBorder(Hue.ink.opacity(0.16), lineWidth: FriendsMetric.ring) }
         }
         .accessibilityHidden(true)
     }

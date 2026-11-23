@@ -142,11 +142,11 @@ struct PhotoAdjustView: View {
     private enum Metric {
         /// The post's frame starts here from the screen's top (the mock's 130 pt), the bar above it.
         static let postTop: CGFloat = 130
-        /// The circle leaves 20 pt each side.
-        static let circleInset: CGFloat = 20
+        /// The squircle leaves 20 pt each side.
+        static let faceInset: CGFloat = 20
         static let hintGap: CGFloat = 18
-        /// Under the circle the hint sits further off (the mock's 24).
-        static let circleHintGap: CGFloat = 24
+        /// Under the squircle the hint sits further off (the mock's 24).
+        static let faceHintGap: CGFloat = 24
         static let barLift: CGFloat = 8
         static let shapeButton: CGFloat = 36
         static let shapeInset: CGFloat = 12
@@ -173,7 +173,7 @@ struct PhotoAdjustView: View {
                     .font(.sans(13))
                     .foregroundStyle(.white.opacity(0.75))
                     .frame(width: screen.width)
-                    .offset(y: frame.maxY + (shape == .face ? Metric.circleHintGap : Metric.hintGap))
+                    .offset(y: frame.maxY + (shape == .face ? Metric.faceHintGap : Metric.hintGap))
                     .opacity(touched ? 0 : 1)
                     .allowsHitTesting(false)
                     .accessibilityHidden(true)
@@ -203,8 +203,8 @@ struct PhotoAdjustView: View {
             let aspect = isSquare ? 1 : max(own, 0.1)
             return CGRect(x: 0, y: Metric.postTop, width: screen.width, height: screen.width / aspect)
         case .face:
-            let side = screen.width - Metric.circleInset * 2
-            return CGRect(x: Metric.circleInset, y: (screen.height - side) / 2, width: side, height: side)
+            let side = screen.width - Metric.faceInset * 2
+            return CGRect(x: Metric.faceInset, y: (screen.height - side) / 2, width: side, height: side)
         case .wide(let aspect):
             let h = screen.width / max(aspect, 0.1)
             return CGRect(x: 0, y: (screen.height - h) / 2, width: screen.width, height: h)

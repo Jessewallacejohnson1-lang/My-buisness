@@ -246,6 +246,8 @@ struct FollowPicture: View {
     let row: FollowRow
     let size: CGFloat
     var corner: CGFloat? = nil
+    /// An Event's host: round, as every host is, a neighbour included (Jesse's yes to hosts staying circles).
+    var host = false
 
     /// `picture_kind` for the Town's own logo, bundled in the app (`Town.logo`).
     static let townKind = "town"
@@ -284,7 +286,7 @@ struct FollowPicture: View {
                 .accessibilityHidden(true)
         } else {
             Avatar(url, size: size, blank: row.targetType == .profile ? .figure : .initial(row.name, font: size * 0.4),
-                   corner: corner)
+                   corner: corner, person: row.targetType == .profile && !host)
         }
     }
 
@@ -460,7 +462,7 @@ private struct EventHostLine: View {
                             .accessibilityHidden(true)
                     } else {
                         FollowPicture(row: host, size: EventHostRow.picture,
-                                      corner: host.targetType == .profile ? nil : EventHostRow.pictureCorner)
+                                      corner: host.targetType == .profile ? nil : EventHostRow.pictureCorner, host: true)
                     }
                 }
                 .trackFrame(picture)
@@ -540,7 +542,7 @@ private struct EventHostLine: View {
             HostMarkDisc(picture: PlacePicture(url: url, kind: .logo), name: host.name, size: size)
                 .accessibilityHidden(true)
         } else if EventHostRow.showsPhoto(host, cover: cover) {
-            FollowPicture(row: host, size: size)
+            FollowPicture(row: host, size: size, host: true)
         } else {
             Circle()
                 .fill(.white)

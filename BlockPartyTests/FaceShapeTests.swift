@@ -30,6 +30,6 @@ final class FaceShapeTests: XCTestCase {
     func testOnlyAPersonIsTheSquircle() {
         XCTAssertTrue(Avatar(nil, size: 40).person)
         XCTAssertFalse(Avatar(nil, size: 40, blank: .initial("Kay's Kitchen")).person)
-        XCTAssertTrue(Avatar(nil, size: 32, blank: .initial("Sam"), person: true).person)
+        XCTAssertFalse(Avatar(nil, size: 40, person: false).person, "a neighbour who hosts an Event is round")
     }
 }

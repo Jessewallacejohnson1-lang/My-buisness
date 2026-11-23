@@ -150,8 +150,8 @@ struct FriendsEmptyInvite: View {
                         .font(.glyph(28, weight: .regular))
                         .foregroundStyle(Hue.inkSecondary.opacity(0.55))
                         .frame(width: FriendsMetric.ghost, height: FriendsMetric.ghost)
-                        .background(Circle().fill(Hue.hairline))
-                        .overlay(Circle().strokeBorder(Hue.paper, lineWidth: FriendsMetric.ghostRing))
+                        .background(FaceShape().fill(Hue.hairline))
+                        .overlay(FaceShape().strokeBorder(Hue.paper, lineWidth: FriendsMetric.ghostRing))
                 }
             }
             .accessibilityHidden(true)
