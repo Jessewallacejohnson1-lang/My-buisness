@@ -1,0 +1,38 @@
+{
+ "4429084": {
+  "details": {
+   "id": 4429084,
+   "info": {
+    "Activity": "Volleyball",
+    "Session": "Volleyball",
+    "Date Range": "11/12-12/10 (Excluding 11/26)",
+    "Schedule Details": "6p-7p every Thu  from Nov 12 to Dec 10 (No class on Nov 26) at Kennedy Community School Kennedy Community School"
+   }
+  },
+  "errors": []
+ },
+ "4429103": {
+  "details": {
+   "id": 4429103,
+   "info": {
+    "Activity": "Dodgeball",
+    "Session": "Dodgeball (youth)",
+    "Date Range": "11/12-12/10 (Excluding 11/26)",
+    "Schedule Details": "7p-8p every Thu  from Nov 12 to Dec 10 (No class on Nov 26) at Kennedy Community School Kennedy Community School"
+   }
+  },
+  "errors": []
+ },
+ "3920573": {
+  "details": {
+   "id": 3920573,
+   "info": {
+    "Activity": "Pilates",
+    "Session": "Pilates Class",
+    "Date Range": "10/06-12/29",
+    "Schedule Details": "10a-11a every Mon  from Oct 6 to Dec 29 at City Hall Multi-Purpose Room"
+   }
+  },
+  "errors": []
+ }
+}

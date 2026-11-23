@@ -1345,17 +1345,30 @@ def rec1_clock(text):
     return hour, int(m.group(2) or 0)
 
 
-def holiday(day):
-    """A day a weekly program skips: Thanksgiving, Christmas Eve and Day, New Year's Eve and Day, Memorial Day, July 4, Labor Day."""
-    week = (day.day + 6) // 7
-    return (day.month, day.day) in {(1, 1), (7, 4), (12, 24), (12, 25), (12, 31)} or \
-        (day.month, day.weekday(), week) in {(11, 3, 4), (9, 0, 1)} or (day.month, day.weekday()) == (5, 0) and day.day > 24
+REC1_OFF = re.compile(r"(\d\d?)/(\d\d?)(?:/\d+)?(?:\s*(?:-|–|to|through)\s*(\d\d?)/(\d\d?)(?:/\d+)?)?")
 
 
-def rec1_next(dates, days, today):
+REC1_RANGE = re.compile(r"\s*\d\d?/\d\d?(?:/\d+)?\s*-\s*\d\d?/\d\d?(?:/\d+)?\s*(?:\(\s*excluding\b([^)]*)\)\s*)?", re.I)
+
+
+def rec1_off(info):
+    """The days a run's own details leave out, as ((month, day), (month, day)) from and through: "11/12-12/10 (Excluding
+    11/26)" (BP app watch-every-place 47). None for an answer in any other form, a day worked out past it being a guess: no
+    range, other words, or words after the dates in its schedule that the range doesn't have. One day is all that has been
+    seen, so a list and a range are read as anyone would write them."""
+    said = REC1_RANGE.fullmatch(info.get("Date Range") or "")
+    if not said or not said[1] and re.search(r"\d\s*\(", info.get("Schedule Details") or ""):
+        return None
+    if re.sub(r"[\s,;&]|\band\b", "", REC1_OFF.sub("", said[1] or "")):
+        return None
+    return [((int(a), int(b)), (int(c or a), int(d or b))) for a, b, c, d in REC1_OFF.findall(said[1] or "")] \
+        or (None if said[1] is not None else [])
+
+
+def rec1_next(dates, days, today, off=()):
     """The program's next day from today: "12/11/26" is that day; "10/06-12/29" with days "Mon"
-    is the next Monday in that run, never a holiday: the City gives the run and the weekday, so a day we work out on
-    Thanksgiving is our guess (BP app watch-every-place 46). None when it has no dates yet ("Open TBD") or is over."""
+    is the next Monday in that run but the days it leaves out (`off`, rec1_off's). None when it has no dates yet ("Open
+    TBD") or is over."""
     one = re.fullmatch(r"(\d\d)/(\d\d)/(\d\d)", dates or "")
     if one:
         day = date(2000 + int(one.group(3)), int(one.group(1)), int(one.group(2)))
@@ -1373,7 +1386,8 @@ def rec1_next(dates, days, today):
     wanted = {WEEKDAYS.index(d[:3].lower()) for d in re.split(r"[,\s/]+", days or "") if d[:3].lower() in WEEKDAYS}
     day = max(first, today)
     while day <= last:
-        if not wanted or day.weekday() in wanted and not (holiday(day) and last > first):
+        md = (day.month, day.day)
+        if (not wanted or day.weekday() in wanted) and not any(a <= md <= b if a <= b else md >= a or md <= b for a, b in off):
             return day
         day += timedelta(days=1)
     return None
@@ -1385,11 +1399,18 @@ def rec1_title(text, youth):
     return f"Youth {title[0].lower()}{title[1:]}" if youth and not re.search(r"\b(youth|kids?)\b", title, re.I) else title
 
 
-def rec1_items(catalog, entry, src, today):
+def rec1_dates(s):
+    """A session's (dates, days) features: ("11/12-12/10", "Thu")."""
+    f = {x["name"]: x["value"] for x in s.get("features") or []}
+    return f.get("dates"), f.get("days")
+
+
+def rec1_items(catalog, entry, src, today, infos=None):
     """`catalog`: [{section, group, description, sessions}] as read_rec1 gathers them. A program
     listed under several sections (Youth and Toddler) is one item, called youth only when every
-    section listing it is Youth."""
-    seen, sections = {}, {}
+    section listing it is Youth. `infos`: {session id: its details' info}, for the days a run leaves out; a run whose
+    details couldn't be read is left out of this read, so its saved date stays, and is a problem line."""
+    seen, sections, infos = {}, {}, infos or {}
     for g in catalog:
         for s in g["sessions"]:
             seen.setdefault(s["id"], (g, s))
@@ -1399,7 +1420,11 @@ def rec1_items(catalog, entry, src, today):
         if s.get("canceled"):
             continue
         f = {x["name"]: x["value"] for x in s.get("features") or []}
-        day = rec1_next(f.get("dates"), f.get("days"), today)
+        off = rec1_off(infos[sid]) if infos.get(sid) else [] if sid not in infos else None
+        if off is None:
+            out.append({"problem": f"{s['text']} left out of this read: the days it skips couldn't be read, so its saved date stays"})
+            continue
+        day = rec1_next(f.get("dates"), f.get("days"), today, off or [])
         if not day or not ahead(day, today):
             continue
         times = [rec1_clock(t) for t in (f.get("times") or "").split("-")]
@@ -1439,7 +1464,19 @@ def read_rec1(src, entry, today):
             if g.get("type") == "activity":
                 catalog.append({"section": section["name"], "group": g["name"], "description": g.get("description"),
                                 "sessions": post(f"getActivitySessions/{key}/{tab}/{g['id']}")["items"]})
-    return rec1_items(catalog, entry, src, today)
+    # The sessions call gives a run and its weekday, and leaves out the days the run skips: its details say them
+    # ("No class on Nov 26"; BP app watch-every-place 47).
+    infos = {}
+    for s in (s for g in catalog for s in g["sessions"]):
+        if s["id"] in infos or s.get("canceled") or "-" not in (rec1_dates(s)[0] or "") or not rec1_next(*rec1_dates(s), today):
+            continue
+        try:
+            infos[s["id"]] = post(f"getSessionDetails/{key}/{s['id']}")["details"]["info"]
+        except LeftForNextPart:
+            raise
+        except Exception:  # left out of this read, and the report says so
+            infos[s["id"]] = None
+    return rec1_items(catalog, entry, src, today, infos)
 
 
 # Town and junior teams (BP app school-search 12) ------------------------------------------
@@ -1646,6 +1683,9 @@ def read_all(entries, today, readers=READERS, saved=None, stop=None):
                 except Exception as ex:  # a site down or changed is a line in the summary
                     saved[key] = [[], f"{type(ex).__name__}: {ex}"[:300]]
             got, error = saved[key]
+            # A reader's own trouble with one listing is a line in the report; the rest of what it read stands.
+            error = error or "; ".join(g["problem"] for g in got if "problem" in g) or None
+            got = [g for g in got if "problem" not in g]
             row = {"source": e["_name"], "reader": name, "url": s["url"], "items": len(got), "error": error}
             # A listing's day comes back from a part's file as text.
             listings += [{**g["listing"], "day": date.fromisoformat(str(g["listing"]["day"]))} for g in got if "listing" in g]
@@ -2381,14 +2421,68 @@ def t_rec1():
     assert (priced(price=0), priced(), priced(price=None), priced(price=12.5)) == ("Free", None, None, "$12.5")
     assert rec1_next("10/06-12/29", "Mon", date(2026, 12, 30)) is None and rec1_next("Open TBD", "", TODAY) is None
     assert rec1_next("12/28-01/04", "Sat", date(2026, 12, 29)) == date(2027, 1, 2), "a run over New Year"
-    # Youth volleyball and dodgeball, Thursdays Nov 12 to Dec 10: Kennedy has no school on Thanksgiving (watch-every-place 46).
-    assert rec1_next("11/12-12/10", "Thu", date(2026, 11, 23)) == date(2026, 12, 3), "over Thanksgiving to the next week"
-    assert rec1_next("11/12-11/26", "Thu", date(2026, 11, 23)) is None, "a run that ends on it is over"
-    assert rec1_next("11/26/26", "Thu", date(2026, 11, 23)) == rec1_next("11/26-11/26", "Thu", date(2026, 11, 23)) == \
-        date(2026, 11, 26), "a program that gives that one day keeps it"
-    off = [d for n in range(365) if holiday(d := date(2027, 1, 1) + timedelta(n))]
-    assert [f"{d:%b} {d.day}" for d in off] == ["Jan 1", "May 31", "Jul 4", "Sep 6", "Nov 25", "Dec 24", "Dec 25", "Dec 31"], off
     assert rec1_clock("9:30am") == (9, 30) and rec1_clock("12pm") == (12, 0) and rec1_clock("TBD") is None
+
+
+def t_rec1_skips_its_days():
+    """Youth volleyball and dodgeball, Thursdays Nov 12 to Dec 10, leave out Thanksgiving in their details (read 2026-11-23);
+    Pilates leaves out none. One details call a run, none for a one-day program (BP app watch-every-place 47)."""
+    global fetch
+    off, next_ = (lambda s: rec1_off({"Date Range": s})), (lambda off: rec1_next("11/12-12/10", "Thu", date(2026, 11, 23), off))
+    assert off("11/12-12/10 (Excluding 11/26)") == [((11, 26), (11, 26))] and off("10/06-12/29") == []
+    assert off("11/12-12/10 (Excluding 11/26, 12/3 & 12/10/26)") == [((11, 26),) * 2, ((12, 3),) * 2, ((12, 10),) * 2]
+    assert off("12/17-01/14 (Excluding 12/24-12/31)") == [((12, 24), (12, 31))]
+    for info in ({}, {"Location": "x"}, {"Date Range": ""}, {"Date Range": "Open"}, *({"Date Range": s} for s in (
+            "11/12-12/10 (Excluding Thanksgiving)", "11/12-12/10 (Excluding )", "11/12-12/10 (except 11/26)", "11/12-12/10 (No session 11/26)")),
+            *({"Date Range": "11/12-12/10", "Schedule Details": f"6p-7p every Thu  from Nov 12 to Dec 10 ({s}) at Kennedy"}
+              for s in ("No class on Nov 26", "skips Nov 26"))):
+        assert rec1_off(info) is None, f"an answer it doesn't know is never a plain weekday: {info}"
+    assert next_([]) == date(2026, 11, 26) and next_(off("11/12-12/10 (Excluding 11/26)")) == date(2026, 12, 3)
+    assert next_(off("11/12-12/10 (Excluding 11/26-12/3)")) == date(2026, 12, 10) and next_(off("11/12-12/10 (Excluding 11/26-12/10)")) is None
+    assert rec1_next("12/17-01/14", "Thu", date(2026, 12, 20), off("12/17-01/14 (Excluding 12/24-1/7)")) == date(2027, 1, 14), "over New Year"
+    catalog, details, asked = json.loads(sample("rec1-catalog.json")), json.loads(sample("rec1-details.json")), []
+
+    def post(url, data=None, headers=None):
+        what = url.split("/catalog/")[-1].split("/")
+        if what[0] == "getSessionDetails":
+            asked.append(what[-1])
+            if what[-1] == broken:
+                raise TimeoutError("slow")
+            return None, json.dumps(details[what[-1]])
+        got = {"getTabs": {"tabs": [{"id": 1, "label": "All Programs"}]},
+               "getItems": {"sections": [{"name": g["section"], "groups": [{"id": n, "type": "activity", "name": g["group"],
+                                                                            "description": g["description"]}]}
+                                         for n, g in enumerate(catalog)]}}.get(what[0])
+        if what[0] == "getActivitySessions":
+            got = {"items": catalog[int(what[-1])]["sessions"]}
+        return None, json.dumps(got) if got else '<body data-page-data="{&quot;checkoutData&quot;:{&quot;key&quot;:&quot;k&quot;}}">'
+    real, broken, src = fetch, None, {"url": "https://secure.rec1.com/MN/st-joseph-mn/catalog", "reader": "rec1"}
+    day = lambda items: {i["title"]: i["start"][:10] for i in items}
+    read = lambda: read_all([{**CITY, "sources": [src]}], date(2026, 11, 23), {"rec1": read_rec1})
+    fetch = post
+    try:
+        items, summary = read()
+        assert day(items)["Youth volleyball"] == day(items)["Youth dodgeball"] == "2026-12-03", day(items)
+        assert day(items)["Pilates Class"] == "2026-11-23" and sorted(asked) == ["3920573", "4429084", "4429103"], asked
+        assert summary[0]["error"] is None and summary[0]["items"] == len(items), summary
+        broken = "4429084"
+        items, summary = read()
+        # Never the plain weekday (Thanksgiving) in its place: the program is out of this read, the others stay in.
+        assert "Youth volleyball" not in day(items) and day(items)["Youth dodgeball"] == "2026-12-03", day(items)
+        assert "Volleyball left out of this read" in summary[0]["error"] and summary[0]["items"] == len(items), summary
+        broken, details["4429084"]["details"]["info"]["Date Range"] = None, "11/12-12/10 (Excluding Thanksgiving)"
+        items, summary = read()
+        assert "Youth volleyball" not in day(items) and "Volleyball left out" in summary[0]["error"], "words it can't read are the same"
+        # A program missing from a morning's read is left as it was saved: no cancel, no move.
+        from write_judged import plan, interest_ids
+        saved = {"id": "e1", "status": "approved", "title": "Youth volleyball", "event_date": "2026-12-03", "start_time": "6 PM",
+                 "all_day": False, "location": "Kennedy Community School", "source_name": CITY["_name"], "source_uid": "rec1:4429084",
+                 "shows_from": "2026-11-19", "review_reason": None, "cancelled_at": None, "found": True, "category": None,
+                 "mentions": [{"source_name": CITY["_name"], "source_uid": "rec1:4429084", "source_url": src["url"]}]}
+        wrote = plan(items, [saved], date(2026, 11, 23), interest_ids())
+        assert not wrote["cancelled"] and "e1" not in [g["id"] for g in wrote["events"]], wrote["cancelled"]
+    finally:
+        fetch = real
 
 
 def t_part_file():
@@ -2790,7 +2884,7 @@ def t_town_teams():
     assert all(i["game"]["teams"][0] == "Granite City Lumberjacks" for i in lj)
 
 
-TESTS = [t_closings_wait, t_games_complete, t_gobound, t_robots, t_ical, t_diocese, t_diocese_repeats, t_pathify, t_roads, t_league_retries, t_kennedy_calendar, t_tech_calendar, t_csbsju_music, t_kennedy_news, t_county, t_rec1, t_league,
+TESTS = [t_closings_wait, t_games_complete, t_gobound, t_robots, t_ical, t_diocese, t_diocese_repeats, t_pathify, t_roads, t_league_retries, t_kennedy_calendar, t_tech_calendar, t_csbsju_music, t_kennedy_news, t_county, t_rec1, t_rec1_skips_its_days, t_league,
          t_league_tournament_and_moves, t_league_dance_show, t_league_conference_meet, t_league_undecided_opponent, t_league_schedule_line, t_league_stops_past_the_part, t_nearby_hosts_are_registry_schools,
          t_failure_in_summary, t_items_fit_the_writer, t_parts, t_part_file, t_town_teams]
 
