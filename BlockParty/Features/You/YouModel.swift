@@ -250,12 +250,13 @@ enum YouCalendar {
     }
 
     /// One get-together as an Agenda card: its words as the title, the Group's name where an Event's
-    /// club goes, where it meets as the place. nil when its day doesn't parse.
-    static func event(_ group: TownGroup, _ meeting: TownGroup.Meeting) -> DailyEvent? {
+    /// club goes, where it meets as the place. nil when its day doesn't parse. `photo`: the Group page's Calendar
+    /// shows the Group's own (start-a-group 05); You's shows its logo.
+    static func event(_ group: TownGroup, _ meeting: TownGroup.Meeting, photo: URL? = nil) -> DailyEvent? {
         let row = UpcomingEvent(id: "group-meeting|" + GroupAgenda.key(group, meeting), title: meeting.what,
                                 eventDate: meeting.day, startTime: meeting.time,
                                 location: meeting.place ?? group.location, goingCount: 0, createdAt: "",
-                                clubName: group.name, isAllDay: meeting.time == nil)
+                                imageUrl: photo?.absoluteString, clubName: group.name, isAllDay: meeting.time == nil)
         guard var event = event(from: row) else { return nil }
         event.group = group
         event.meeting = meeting

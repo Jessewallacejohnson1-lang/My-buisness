@@ -124,8 +124,26 @@ struct FriendsWaysCard: View {
     }
 
     private func face(_ word: String, fill: Color = Hue.fill, @ViewBuilder glyph: () -> some View) -> some View {
+        WayFace(word: word, fill: fill, glyph: glyph)
+    }
+}
+
+/// One round way in: the glyph on its circle, the word under it, in its 80 pt slot. The Friends card's, and
+/// Invite friends' (start-a-group 07).
+struct WayFace<Glyph: View>: View {
+    let word: String
+    var fill: Color = Hue.fill
+    let glyph: Glyph
+
+    init(word: String, fill: Color = Hue.fill, @ViewBuilder glyph: () -> Glyph) {
+        self.word = word
+        self.fill = fill
+        self.glyph = glyph()
+    }
+
+    var body: some View {
         VStack(spacing: FriendsMetric.wayLabelTop) {
-            glyph()
+            glyph
                 .frame(width: FriendsMetric.wayCircle, height: FriendsMetric.wayCircle)
                 .background(Circle().fill(fill))
             Text(word)

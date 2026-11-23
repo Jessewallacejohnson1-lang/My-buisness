@@ -15,7 +15,12 @@
 import SwiftUI
 
 struct GroupPage: View {
-    let group: TownGroup
+    /// As opened, then as its Admin saves it (start-a-group 04).
+    @State private var group: TownGroup
+
+    init(group: TownGroup) {
+        _group = State(initialValue: group)
+    }
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -29,12 +34,25 @@ struct GroupPage: View {
     @State private var shownPhotos: Set<URL> = []
     /// Photos that could not be loaded leave the pager, so a failure never holds a skeleton.
     @State private var failedPhotos: Set<URL> = []
-    /// The Events found for the group (`get_group_events`), laid among its meetings once read.
+    /// The Calendar (start-a-group 05): the Group's Events (`get_group_events`), its get-togethers 4 months ahead,
+    /// whether you may add, its rule and the Events its Admin may take off (`get_group_calendar`).
     @State private var events: [FeedCardItem] = []
+    @State private var calendar = GroupCalendar.Read()
+    @State private var newEvent = false
+    @State private var settingMeets = false
+    /// An Event opens on the stack this page is on: the shell's (architecture.md, The shell), or Start a group's sheet's.
+    @Environment(\.hostOpener) private var opener
+    @Environment(SearchModel.self) private var search: SearchModel?
+    @Environment(ProfileModel.self) private var profile: ProfileModel?
     /// Private Groups (start-a-group 03): who asked, shared with Groups to join; the Admin's waiting asks.
     private var asks: GroupAsks { GroupAsks.shared }
     @State private var waiting: Int?
     @State private var showingRequests = false
+    /// Edit group, the Admin's, from the ••• (start-a-group 04).
+    @State private var editing = false
+    /// The Admin tapped Leave: hand over or close first.
+    @State private var adminLeaving = false
+    @Environment(YouModel.self) private var you: YouModel?
 
     /// A private Group you aren't in: Ask to join, and none of its time, place, members or chat.
     private var locked: Bool { GroupAsks.locked(group, member: actions.member(group).isMember) }
@@ -49,7 +67,8 @@ struct GroupPage: View {
         static let membersTop: CGFloat = 16
         static let sectionTop: CGFloat = 24
         static let sectionBodyTop: CGFloat = 6
-        /// Coming up: a 64 pt date tile with 12 pt corners, the words 12 pt beside it, rows 12 pt apart.
+        /// The old Coming up's rows, kept by You's Coming up: a 64 pt date tile with 12 pt corners, the words 12 pt
+        /// beside it, rows 12 pt apart.
         static let tile: CGFloat = 64
         static let tileCorner: CGFloat = 12
         static let rowGap: CGFloat = 12
@@ -103,6 +122,96 @@ struct GroupPage: View {
         .navigationDestination(isPresented: $showingRequests) {
             JoinRequestsPage(group: group, waiting: Binding { waiting ?? 0 } set: { waiting = $0 })
         }
+        .sheet(isPresented: $editing) {
+            EditGroupSheet(group: group) { group = $0; refresh() } handedOver: {
+                group.requests = nil
+                refresh()
+            } closed: {
+                refresh()
+                dismiss()
+            }
+        }
+        .sheet(isPresented: $newEvent) {
+            if let profile {
+                NewPostSheet(places: places, me: profile, onShared: {
+                    HelloInbox.shared.add(.posted($0))
+                    Task { await loadCalendar() }
+                }, group: group)
+                .presentationDragIndicator(.visible)
+            }
+        }
+        .sheet(isPresented: $settingMeets) {
+            GroupMeetsSheet(group: group, rule: calendar.rule, places: places) { schedule, place in
+                group.schedule = schedule
+                group.location = place
+                Task { await loadCalendar() }
+                refresh()
+            }
+        }
+        .alert("You're the Admin", isPresented: $adminLeaving) {
+            Button("Edit group") { editing = true }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("To leave, hand the group to a member or close it.")
+        }
+        #if DEBUG
+        // `-group-admin edit|hand|close`: Edit group open at launch.
+        .task { if ["edit", "hand", "close"].contains(LaunchFlags.value(.groupAdmin) ?? "") { editing = true } }
+        // `-group-admin event|meets`: New event with the Group as host, or Add when you meet, open at launch.
+        .task {
+            switch LaunchFlags.value(.groupAdmin) {
+            case "event": newEvent = true
+            case "meets": settingMeets = true
+            default: break
+            }
+        }
+        #endif
+    }
+
+    /// New event's Place list, and Add when you meet's: Search's places.
+    private var places: [SearchItem] { NewEventPlaces.ordered(search?.items ?? []) }
+
+    /// The Calendar's two reads at once. A failed or cut-off read keeps what's shown.
+    private func loadCalendar() async {
+        #if DEBUG
+        if group.id == "sample-group" {
+            let sample = GroupCalendar.sample(now: .now)
+            events = sample.events
+            calendar.meetings = sample.meetings
+            calendar.adds = group.isAdmin
+            calendar.rule = group.isAdmin ? sample.rule : nil
+            calendar.takesOff = group.isAdmin ? Set(sample.events.map(\.id)) : []
+            return
+        }
+        #endif
+        let api = CommunityAPI(auth: AuthStore.shared)
+        async let found = api.groupEvents(group.id)
+        async let read = api.groupCalendar(group.id)
+        if let found = try? await found { events = found }
+        if let read = try? await read { calendar = read }
+    }
+
+    /// The Admin's take-off (SPEC decision 8): it leaves the Calendar at once; a refused or lost write puts it back.
+    private func takeOff(_ event: FeedCardItem) {
+        let kept = events
+        events.removeAll { $0.id == event.id }
+        #if DEBUG
+        if group.id == "sample-group" { return }
+        #endif
+        Task {
+            do {
+                try await CommunityAPI(auth: AuthStore.shared).takeOffGroupEvent(event.id)
+                calendar.takesOff.remove(event.id)
+            } catch {
+                Haptics.error()
+                events = kept
+            }
+        }
+    }
+
+    /// Every list that shows the Group reads it again.
+    private func refresh() {
+        Task { if let groups = await you?.refreshGroups() { actions.read(groups) } }
     }
 
     // MARK: Pictures
@@ -182,6 +291,10 @@ struct GroupPage: View {
         HStack(spacing: 0) {
             EventPage.circleButton(glyph: Image(systemName: "arrow.left"), label: "Back") { dismiss() }
             Spacer(minLength: 0)
+            // The Admin's alone (start-a-group 04), beside Share as the Event page's heart is.
+            if group.isAdmin {
+                EventPage.circleButton(glyph: Image(systemName: "ellipsis"), label: "Edit group") { editing = true }
+            }
             EventPage.circleButton(
                 glyph: Image(systemName: "square.and.arrow.up").font(.sansSemibold(15)), label: "Share"
             ) {
@@ -271,24 +384,13 @@ struct GroupPage: View {
                 MembersOnlyBox().padding(.top, Metric.sectionTop)
             }
 
-            let rows = locked ? [] : Self.comingUp(Self.upcoming(group.meetings), events: events)
-            if !rows.isEmpty {
-                section("Coming up")
-                // Kept by what each row is, so an Event that arrives fades in where its meeting was.
-                ForEach(rows) { row in
-                    Group {
-                        if let event = row.event {
-                            // A found Event opens its page, as a Town card does.
-                            NavigationLink(value: event) {
-                                meetingRow(row.meeting).frame(maxWidth: .infinity, alignment: .leading).contentShape(.rect)
-                            }
-                            .buttonStyle(.press(.row))
-                        } else {
-                            meetingRow(row.meeting)
-                        }
-                    }
-                    .padding(.top, Metric.rowTop)
-                }
+            // The Calendar, in Coming up's place (start-a-group 05): with something on it, or for whoever adds to it.
+            let plans = locked ? [] : GroupCalendar.plans(group, meetings: calendar.meetings, events: events)
+            if !locked, !plans.isEmpty || calendar.adds || group.isAdmin {
+                GroupCalendarView(plans: plans, adds: calendar.adds, admin: group.isAdmin,
+                                  meets: group.schedule != nil || calendar.rule != nil, takesOff: calendar.takesOff,
+                                  add: { newEvent = true }, setMeets: { settingMeets = true },
+                                  open: { opener?.push($0) }, takeOff: takeOff)
             }
 
             if let page = group.pageUrl, let row = BusinessPage.rows([PlaceLink(kind: "website", url: page)]).first {
@@ -302,10 +404,7 @@ struct GroupPage: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .animation(reduceMotion ? .easeInOut(duration: 0.15) : Motion.smooth, value: actions.member(group).count)
         .animation(reduceMotion ? .easeInOut(duration: 0.15) : Motion.smooth, value: events)
-        .task(id: group.id) {
-            // A failed or cut-off read keeps the Events already shown.
-            if let read = try? await CommunityAPI(auth: AuthStore.shared).groupEvents(group.id) { events = read }
-        }
+        .task(id: group.id) { await loadCalendar() }
         .background(Hue.paper, in: UnevenRoundedRectangle(topLeadingRadius: Event.sheetCorner,
                                                          topTrailingRadius: Event.sheetCorner, style: .continuous))
         .padding(.top, hasHero ? 0 : Event.buttonTop + Event.button + Event.noPhotoGap)
@@ -317,35 +416,6 @@ struct GroupPage: View {
             .foregroundStyle(Hue.ink)
             .accessibilityAddTraits(.isHeader)
             .padding(.top, Metric.sectionTop)
-    }
-
-    /// A date tile ("OCT" over "20"), then what it is and when.
-    private func meetingRow(_ meeting: TownGroup.Meeting) -> some View {
-        let tile = Self.tile(meeting.day)
-        return HStack(spacing: Metric.rowGap) {
-            VStack(spacing: 0) {
-                Text(tile.month)
-                    .font(.sansSemibold(11))
-                    .foregroundStyle(Hue.inkSecondary)
-                Text(tile.day)
-                    .font(.sansSemibold(20))
-                    .foregroundStyle(Hue.ink)
-                    .monospacedDigit()
-            }
-            .frame(width: Metric.tile, height: Metric.tile)
-            .background(Hue.fill, in: RoundedRectangle(cornerRadius: Metric.tileCorner, style: .continuous))
-            .accessibilityHidden(true)
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(meeting.what)
-                    .font(.sansSemibold(15))
-                    .foregroundStyle(Hue.ink)
-                Text(Self.meetingLine(meeting))
-                    .font(.sans(13))
-                    .foregroundStyle(Hue.inkSecondary)
-            }
-        }
-        .accessibilityElement(children: .combine)
     }
 
     // MARK: Join group
@@ -465,6 +535,11 @@ struct GroupPage: View {
     /// Join group and "Leave group?" both flip being in it; a write the server refuses turns back
     /// and shakes the pill.
     private func toggle() {
+        // The Admin hands over or closes first (start-a-group 04); the server won't let them leave either.
+        if group.isAdmin, actions.member(group).isMember {
+            adminLeaving = true
+            return
+        }
         tappedAt = actions.memberFailureCount(group.id)
         let joining = !actions.member(group).isMember
         actions.toggleMember(group)
@@ -488,35 +563,6 @@ struct GroupPage: View {
     static func whenLine(_ group: TownGroup) -> String? {
         let parts = [nonempty(group.schedule), nonempty(group.location)].compactMap { $0 }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
-    }
-
-    /// The get-togethers from today on: the groups are read once a launch, so one can pass while the app stays open.
-    static func upcoming(_ meetings: [TownGroup.Meeting], today: Date = Date()) -> [TownGroup.Meeting] {
-        let day = Town.day(today)
-        return meetings.filter { $0.day >= day }
-    }
-
-    /// One Coming up row: a meeting, or a found Event in a meeting's words, which opens its page.
-    struct ComingUp: Hashable, Identifiable {
-        let meeting: TownGroup.Meeting
-        var event: FeedCardItem? = nil
-        var id: String { event?.id ?? "\(meeting.day) \(meeting.time ?? "") \(meeting.what)" }
-    }
-
-    /// The meetings and the found Events, soonest first, one row a day: an Event takes its day's meeting's
-    /// place, as it is that get-together with a page of its own (rsvp-and-groups 10).
-    static func comingUp(_ meetings: [TownGroup.Meeting], events: [FeedCardItem]) -> [ComingUp] {
-        let found = events.compactMap { event in
-            event.eventDate.map { ComingUp(meeting: .init(what: event.title, day: $0, time: event.startTime), event: event) }
-        }
-        let days = Set(found.map(\.meeting.day))
-        let rows = meetings.filter { !days.contains($0.day) }.map { ComingUp(meeting: $0) } + found
-        return rows.enumerated().sorted { a, b in
-            let x = a.element.meeting, y = b.element.meeting
-            if x.day != y.day { return x.day < y.day }
-            let (p, q) = (EventWhen.minutes(x.time) ?? -1, EventWhen.minutes(y.time) ?? -1)
-            return p != q ? p < q : a.offset < b.offset
-        }.map(\.element)
     }
 
     /// Never "0 members".

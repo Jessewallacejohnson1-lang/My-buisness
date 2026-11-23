@@ -106,6 +106,8 @@ struct StartGroupSheet: View {
     @State private var alwaysPrivate = false
     /// Made: the sheet turns to Invite friends.
     @State private var made: TownGroup?
+    /// The sheet's own stack: a like-named Group's page, and an Event from its Calendar.
+    @State private var path = NavigationPath()
     @FocusState private var naming: Bool
 
     enum Metric {
@@ -121,7 +123,7 @@ struct StartGroupSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             Group {
                 if let made {
                     InviteFriendsView(group: made) { finish(made) }
@@ -129,7 +131,15 @@ struct StartGroupSheet: View {
                     form
                 }
             }
-            .navigationDestination(for: TownGroup.self) { GroupPage(group: $0) }
+            .navigationDestination(for: TownGroup.self) {
+                GroupPage(group: $0).environment(\.hostOpener, HostOpener.inSheet { path.append($0) })
+            }
+            // As on the map's own stack: its host, its map and its Going chat open on the shell's, so not from here.
+            .navigationDestination(for: FeedCardItem.self) {
+                EventPage(item: $0, goingChat: false)
+                    .environment(\.hostOpener, nil)
+                    .environment(\.viewOnMap, nil)
+            }
         }
         .interactiveDismissDisabled(saving)
         .presentationDragIndicator(made == nil ? .hidden : .visible)
@@ -216,6 +226,13 @@ struct StartGroupSheet: View {
                 draft.name = name
                 image = UIImage(named: "interest-fun-games.jpg")
                 naming = false
+                // `-group-invite list|code`: past Create, on Invite friends (and its Code), with nothing written.
+                if LaunchFlags.value(.groupInvite) != nil {
+                    var group = TownGroup(id: "3c9a51d2-7e4b-4f60-9d1a-6b2c8e0f4a17", name: name, kind: "Games",
+                                          memberCount: 1)
+                    group.imageUrl = Bundle.main.url(forResource: "interest-fun-games", withExtension: "jpg")
+                    made = group
+                }
             }
             #endif
         }
@@ -315,6 +332,7 @@ struct StartGroupSheet: View {
             group.status = "pending"
             group.imageUrl = photo
             group.isPrivate = isPrivate || alwaysPrivate
+            group.alwaysPrivate = alwaysPrivate
             group.requests = group.isPrivate ? 0 : nil
             actions.read([group])
             Haptics.success()
@@ -344,7 +362,7 @@ enum InviteMetric {
     static let row: CGFloat = 66
 }
 
-/// Invite friends, right after Create: Share link, then your friends with checks, and one pill that sends the
+/// Invite friends, right after Create: Share link, Copy link and Code (07), then your friends with checks, and one pill that sends the
 /// invites (or closes when none are checked).
 struct InviteFriendsView: View {
     let group: TownGroup
@@ -361,7 +379,7 @@ struct InviteFriendsView: View {
         ZStack(alignment: .bottom) {
             ScrollView(showsIndicators: false) {
                 LazyVStack(alignment: .leading, spacing: 0) {
-                    shareRow
+                    GroupInviteWays(group: group)
                     if !book.friends.isEmpty {
                         FriendsSearchField(words: $words)
                             .padding(.horizontal, FriendsMetric.side)
@@ -391,26 +409,6 @@ struct InviteFriendsView: View {
     private var shown: [Neighbor] {
         let w = words.trimmingCharacters(in: .whitespaces)
         return w.isEmpty ? book.friends : book.friends.filter { $0.displayName.localizedCaseInsensitiveContains(w) }
-    }
-
-    private var shareRow: some View {
-        Button {
-            ShareCenter.shared.present(.group(group))
-        } label: {
-            HStack(spacing: FriendsMetric.avatarGap) {
-                Image(systemName: "square.and.arrow.up")
-                    .font(.glyph(20, weight: .medium))
-                    .foregroundStyle(Hue.ink)
-                    .frame(width: InviteMetric.face, height: InviteMetric.face)
-                    .background(Hue.fill, in: Circle())
-                Text("Share link").font(.sansSemibold(17)).foregroundStyle(Hue.ink)
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, FriendsMetric.side)
-            .frame(height: InviteMetric.row)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.press(.dim))
     }
 
     private func friendRow(_ person: Neighbor) -> some View {

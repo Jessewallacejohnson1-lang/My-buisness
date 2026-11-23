@@ -54,7 +54,8 @@ nonisolated enum YourCode {
     static let scheme = "blockparty"
     static let host = "neighbor"
     /// The website's form, once app links are on (BP app backlog 10).
-    static let webHosts: Set<String> = ["blockpartymn.com", "www.blockpartymn.com"]
+    static let webHost = "blockpartymn.com"
+    static let webHosts: Set<String> = [webHost, "www.\(webHost)"]
     static let webPath = "n"
 
     /// Your link, the code's words.
@@ -68,10 +69,14 @@ nonisolated enum YourCode {
 
     /// The neighbour a link names, as a lowercase id: the app link or the website's `/n/<id>`.
     /// Anything else, and any id that isn't one, is nil: a scanned code is anyone's words.
-    static func userID(from url: URL) -> String? {
+    static func userID(from url: URL) -> String? { id(in: url, appHost: host, webPath: webPath) }
+
+    /// The lowercase id a Block Party link names, `blockparty://<appHost>/<id>` or the website's `/<webPath>/<id>`:
+    /// a neighbour's, or a Group's (`GroupLink`, start-a-group 07).
+    static func id(in url: URL, appHost: String, webPath: String) -> String? {
         let path = url.pathComponents.filter { $0 != "/" }
         let id: String? = switch url.scheme?.lowercased() {
-        case scheme: url.host()?.lowercased() == host && path.count == 1 ? path[0] : nil
+        case scheme: url.host()?.lowercased() == appHost && path.count == 1 ? path[0] : nil
         case "https": webHosts.contains(url.host()?.lowercased() ?? "") && path.count == 2 && path[0] == webPath ? path[1] : nil
         default: nil
         }
@@ -97,6 +102,23 @@ nonisolated enum YourCode {
     }
 }
 
+/// What Scan a code read: a neighbour's code, or a Group's (its link, start-a-group 07). Anything else is nil.
+nonisolated enum ScannedCode: Equatable {
+    case neighbor(String)
+    case group(String)
+
+    init?(_ words: String) {
+        guard let url = URL(string: words.trimmingCharacters(in: .whitespacesAndNewlines)) else { return nil }
+        if let id = GroupLink.groupID(from: url) {
+            self = .group(id)
+        } else if let id = YourCode.userID(from: url) {
+            self = .neighbor(id)
+        } else {
+            return nil
+        }
+    }
+}
+
 /// A neighbour's code from the iPhone camera, kept from the moment it opens until the tabs can open
 /// its page (BP app codebase-health-2 15). In memory only: if iOS closes the app first it's
 /// forgotten, and they scan again (Jesse, 2026-11-06).
@@ -105,12 +127,18 @@ nonisolated struct WaitingCode {
     /// Opened with no account, so the friend request goes by itself once they have one. Someone
     /// who already had an account taps Add friend (Jesse, 2026-11-06).
     private(set) var hadNoAccount = false
+    /// A Group's link (start-a-group 07): its page once the tabs are up.
+    private(set) var group: String?
 
     /// `signedOut`: the launch has looked and found no account. While it's still looking that's
     /// false, and `foundNoAccount` puts it right.
-    /// Whether the URL was a neighbour's code; anything else is let go.
+    /// Whether the URL was a neighbour's code or a Group's link; anything else is let go.
     @discardableResult
     mutating func opened(_ url: URL, signedOut: Bool) -> Bool {
+        if let read = GroupLink.groupID(from: url) {
+            group = read
+            return true
+        }
         guard let read = YourCode.userID(from: url) else { return false }
         id = read
         // Nothing shows that it was caught, so they may scan again once they have an account.
@@ -127,8 +155,16 @@ nonisolated struct WaitingCode {
     mutating func take(ready: Bool) -> (id: String, addFriend: Bool)? {
         guard ready, let id else { return nil }
         let taken = (id: id, addFriend: hadNoAccount)
-        self = WaitingCode()
+        self.id = nil
+        hadNoAccount = false
         return taken
+    }
+
+    /// The Group to open now, once. Nothing until `ready`, and it stays till then.
+    mutating func takeGroup(ready: Bool) -> String? {
+        guard ready, let group else { return nil }
+        self.group = nil
+        return group
     }
 
     /// An account ended: what it was waiting for isn't the next person's.
@@ -151,17 +187,14 @@ struct CodeOwner: Equatable {
     #endif
 }
 
-/// Your code in Apple's sheet, as tall as what it holds. Scan a code opens the scanner over it;
-/// a neighbour found there closes both and `open` pushes their page.
+/// Your code in Apple's sheet (`CodeSheet`). Scan a code opens the scanner over it; a neighbour or a Group found
+/// there closes both and `open` pushes their page.
 struct YourCodeSheet: View {
-    let open: (Neighbor) -> Void
+    let open: (any Hashable) -> Void
     @Environment(ProfileModel.self) private var model
     @ObservedObject private var auth = AuthStore.shared
     @Environment(\.dismiss) private var dismiss
     @State private var scanning = false
-    @State private var height: CGFloat = 640
-    /// Your code, drawn once for the card and once framed in white for Share.
-    @State private var codes: (card: UIImage, share: UIImage)?
 
     private var owner: CodeOwner? {
         #if DEBUG
@@ -171,43 +204,77 @@ struct YourCodeSheet: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
+        CodeSheet(name: owner?.name, line: owner?.since.map { "Neighbor since \($0)" },
+                  link: owner.map { YourCode.link(for: $0.id) }, label: "Your code", hint: "Let a neighbor scan this.") {
             Avatar(avatarUrl: owner?.avatarUrl, size: FriendsMetric.codeFace, outlined: true)
                 .overlay(FaceShape().strokeBorder(Hue.surface, lineWidth: FriendsMetric.codeFaceRing))
+        } buttons: { share in
+            Button { scanning = true } label: {
+                CodeAction(word: "Scan a code", glyph: "viewfinder", ink: true)
+            }
+            .buttonStyle(.press(.squish))
+            if let share {
+                let image = Image(uiImage: share)
+                ShareLink(item: image, message: Text(FriendsInvite.message),
+                          preview: SharePreview("Your code", image: image)) {
+                    CodeAction(word: "Share", glyph: "square.and.arrow.up", ink: false)
+                }
+                .buttonStyle(.press(.squish))
+            }
+        }
+        .task { if !model.loaded { await model.read() } }
+        .fullScreenCover(isPresented: $scanning) {
+            CodeScanner(me: owner?.id) { found in
+                scanning = false
+                dismiss()
+                open(found)
+            }
+        }
+    }
+}
+
+/// A code in Apple's sheet, as tall as what it holds: a face in its own white ring, a name, a line under it, the QR
+/// code of `link` on its white card, a hint, and the buttons, given the code framed in white for Share. Your code's,
+/// and a Group's (start-a-group 07).
+struct CodeSheet<Face: View, Buttons: View>: View {
+    /// nil (or empty) until they arrive: a space keeps the sheet as tall from the start.
+    let name: String?
+    let line: String?
+    let link: URL?
+    /// What VoiceOver calls the code.
+    let label: String
+    let hint: String
+    @ViewBuilder let face: () -> Face
+    @ViewBuilder let buttons: (_ share: UIImage?) -> Buttons
+
+    @State private var height: CGFloat = 640
+    /// The code, drawn once for the card and once framed in white for Share.
+    @State private var codes: (card: UIImage, share: UIImage)?
+
+    var body: some View {
+        VStack(spacing: 0) {
+            face()
                 .mapFloatShadow()
-            // A space until they arrive, so the sheet is as tall from the start.
-            Text(owner.map(\.name).flatMap { $0.isEmpty ? nil : $0 } ?? " ")
+            Text(name.flatMap { $0.isEmpty ? nil : $0 } ?? " ")
                 .font(.display(26))
                 .foregroundStyle(Hue.ink)
                 .lineLimit(1)
                 .padding(.top, FriendsMetric.codeNameTop)
+                .padding(.horizontal, FriendsMetric.inviteSide)
                 .accessibilityAddTraits(.isHeader)
-            Text(owner?.since.map { "Neighbor since \($0)" } ?? " ")
+            Text(line ?? " ")
                 .font(.sans(13))
                 .foregroundStyle(Hue.inkSecondary)
                 .padding(.top, FriendsMetric.codeSinceTop)
             code
                 .padding(.top, FriendsMetric.codeCardTop)
-            Text("Let a neighbor scan this.")
+            Text(hint)
                 .font(.sans(15))
                 .foregroundStyle(Hue.inkSecondary)
                 .padding(.top, FriendsMetric.codeHintTop)
-            HStack(spacing: FriendsMetric.codeActsGap) {
-                Button { scanning = true } label: {
-                    action("Scan a code", glyph: "viewfinder", ink: true)
-                }
-                .buttonStyle(.press(.squish))
-                if let picture = codes?.share {
-                    let image = Image(uiImage: picture)
-                    ShareLink(item: image, message: Text(FriendsInvite.message),
-                              preview: SharePreview("Your code", image: image)) {
-                        action("Share", glyph: "square.and.arrow.up", ink: false)
-                    }
-                    .buttonStyle(.press(.squish))
-                }
-            }
-            .padding(.top, FriendsMetric.codeActsTop)
-            .padding(.horizontal, FriendsMetric.inviteSide)
+            HStack(spacing: FriendsMetric.codeActsGap) { buttons(codes?.share) }
+                .padding(.top, FriendsMetric.codeActsTop)
+                .padding(.horizontal, FriendsMetric.inviteSide)
         }
         .frame(maxWidth: .infinity)
         .padding(.top, FriendsMetric.codeTop)
@@ -216,20 +283,11 @@ struct YourCodeSheet: View {
         .presentationDetents([.height(height)])
         .presentationDragIndicator(.visible)
         .presentationBackground(Hue.paper)
-        .task { if !model.loaded { await model.read() } }
-        .task(id: owner?.id) {
-            guard let owner else { codes = nil; return }
-            let link = YourCode.link(for: owner.id)
+        .task(id: link) {
+            guard let link else { codes = nil; return }
             if let card = YourCode.image(for: link),
                let share = YourCode.image(for: link, scale: FriendsMetric.codeScale, margin: FriendsMetric.codeMargin) {
                 codes = (card, share)
-            }
-        }
-        .fullScreenCover(isPresented: $scanning) {
-            CodeScanner(me: owner?.id) { neighbor in
-                scanning = false
-                dismiss()
-                open(neighbor)
             }
         }
     }
@@ -253,11 +311,19 @@ struct YourCodeSheet: View {
             }
             .frame(width: FriendsMetric.codeCard, height: FriendsMetric.codeCard)
             .accessibilityElement()
-            .accessibilityLabel("Your code")
+            .accessibilityLabel(label)
             .accessibilityAddTraits(.isImage)
     }
 
-    private func action(_ word: String, glyph: String, ink: Bool) -> some View {
+}
+
+/// A pill under a code: ink, or the light fill.
+struct CodeAction: View {
+    let word: String
+    let glyph: String
+    let ink: Bool
+
+    var body: some View {
         Label(word, systemImage: glyph)
             .font(.displaySemi(17))
             .foregroundStyle(ink ? Hue.surface : Hue.ink)
@@ -268,12 +334,14 @@ struct YourCodeSheet: View {
 }
 
 /// Scan a code: Apple's scanner over the whole screen, our white round X over it. A Block Party
-/// code is read (`get_neighbor`) and hands back that neighbour; any other code, or one naming
-/// nobody you can find, shows the pill for a moment and the scanner keeps looking.
+/// code is read (`get_neighbor`) and hands back that neighbour; a Group's code hands back the Group from the Groups
+/// you can see (`get_groups`); any other code, or one naming nobody you can find, shows the pill for a moment and
+/// the scanner keeps looking.
 struct CodeScanner: View {
     /// Your own id: your own code finds nothing.
     let me: String?
-    let found: (Neighbor) -> Void
+    /// A `Neighbor` or a `TownGroup`, for the shell's stack.
+    let found: (any Hashable) -> Void
 
     enum Camera { case asking, ready, off, missing }
     private typealias Round = EventPage.Metric
@@ -341,9 +409,16 @@ struct CodeScanner: View {
 
     private func seen(_ words: String) {
         guard !reading else { return }
-        guard let id = YourCode.userID(from: words) else {
+        guard let code = ScannedCode(words) else {
             say("Not a Block Party code")
             return
+        }
+        let id: String
+        switch code {
+        case .group(let group):
+            return seenGroup(group)
+        case .neighbor(let neighbor):
+            id = neighbor
         }
         guard id != me?.lowercased() else {
             say("That's your code")
@@ -358,6 +433,24 @@ struct CodeScanner: View {
                     found(neighbor)
                 } else {
                     say("Not a Block Party code")
+                }
+            } catch {
+                say("Check your connection and try again.")
+            }
+        }
+    }
+
+    /// A Group's code: its page, read fresh; one you can't see yet (pending, and you weren't invited) says so.
+    private func seenGroup(_ id: String) {
+        reading = true
+        Task {
+            defer { reading = false }
+            do {
+                if let group = try await CommunityAPI(auth: AuthStore.shared).getGroups().first(where: { $0.id.lowercased() == id }) {
+                    Haptics.success()
+                    found(group)
+                } else {
+                    say("This group isn't ready yet")
                 }
             } catch {
                 say("Check your connection and try again.")

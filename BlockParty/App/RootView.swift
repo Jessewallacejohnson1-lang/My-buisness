@@ -162,7 +162,7 @@ struct RootView: View {
     /// The tabs come up only with an account and with onboarding done.
     nonisolated static func tabsUp(hasAccount: Bool, onboardingUp: Bool) -> Bool { hasAccount && !onboardingUp }
 
-    /// A neighbour's code from the iPhone camera (friends 07). The tabs open it (`MainTabsView.openCode`)
+    /// A neighbour's code from the iPhone camera (friends 07), or a Group's link (start-a-group 07). The tabs open it (`MainTabsView.openCode`)
     /// but it's caught here, above the gate, so it's known whether it came with no account and it's
     /// let go when an account ends. Left to SwiftUI, a link opened behind the Welcome waits for the
     /// next `onOpenURL` to appear, whoever's account that is.
@@ -377,8 +377,9 @@ struct MainTabsView: View {
     /// Your Going in your iPhone Calendar, kept up to date from here while its switch in
     /// Profile is on (BP app docs/plans/you-tab, ticket 05).
     @State private var calendarSync = CalendarSync()
-    /// The shell stack's path: the bell, a neighbour's code and a followed row push onto it.
+    /// The shell stack's path: the bell, a neighbour's code, a Group's link and a followed row push onto it.
     @State private var path = NavigationPath()
+    @State private var groupNotReady = false
     /// Counts taps on the Town tab while on Town (`TownView.tappedAgain`).
     @State private var townTappedAgain = 0
     /// The Event page back on top after a restart: it's the same open, so it isn't counted again.
@@ -497,7 +498,10 @@ struct MainTabsView: View {
                 // A local team's page, from its picture on a game card (hello-drop 03).
                 .navigationDestination(for: Game.Team.self) { TeamPage(team: $0).timesOpen("team") }
                 // A group's page, from Search's Groups shelf (rsvp-and-groups 05).
-                .navigationDestination(for: TownGroup.self) { GroupPage(group: $0).timesOpen("group") }
+                .navigationDestination(for: TownGroup.self) {
+                    // Search's places, for its Calendar's New event and Add when you meet (start-a-group 05).
+                    GroupPage(group: $0).environment(searchModel).timesOpen("group")
+                }
                 // The Town's own page or its City's, from the Town bar's wordmark menu or Daily's
                 // Town logo, and a board's, from its row (follows 04).
                 .navigationDestination(for: TownPageKind.self) { TownPageView(shown: $0).timesOpen("town-page") }
@@ -542,7 +546,10 @@ struct MainTabsView: View {
         // A neighbour's code from the iPhone camera (friends 07): their page once the launch and the
         // Done island are over, so it opens where it can be seen (Jesse, 2026-11-06).
         .onChange(of: code.id, initial: true) { openWaitingCode() }
+        .onChange(of: code.group, initial: true) { openWaitingCode() }
         .onChange(of: codeReady) { openWaitingCode() }
+        // A Group's link the Town can't see yet (start-a-group 07).
+        .alert("This group isn't ready yet", isPresented: $groupNotReady) {}
         .sheet(isPresented: $creating) {
             NewPostSheet(places: NewEventPlaces.ordered(searchModel.items), me: profile, onShared: shared, onPosted: posted)
                 .presentationDragIndicator(.visible)
@@ -558,6 +565,17 @@ struct MainTabsView: View {
         .task {
             if let state = LaunchFlags.value(.newPostState) { PostOutbox.shared.sample(state) }
             if LaunchFlags.has(.newPost) { creating = true }
+            // `-group-admin admin|member|edit|hand|close`: a sample Group's page, yours to run or not (start-a-group 04).
+            if let state = LaunchFlags.value(.groupAdmin) {
+                var group = TownGroup(id: "sample-group", name: "Joetown Sewing Circle", kind: "Crafts",
+                                      photos: Bundle.main.url(forResource: "millstream-arts-festival", withExtension: "jpg")
+                                          .map { [PlacePicture(url: $0, kind: .photo)] } ?? [], memberCount: 7)
+                group.about = "We sew, mend and quilt together. Bring what you're working on."
+                group.joined = true
+                group.requests = state == "member" ? nil : 0
+                actions.read([group])
+                path.append(group)
+            }
         }
         #endif
         // Over the whole app, outside the stack: its Events close it and push their page (place-pages 05).
@@ -726,6 +744,22 @@ struct MainTabsView: View {
 
     private func openWaitingCode() {
         if let taken = code.take(ready: codeReady) { openCode(taken.id, addFriend: taken.addFriend) }
+        if let group = code.takeGroup(ready: codeReady) { openGroup(group) }
+    }
+
+    /// A Group's link (start-a-group 07): its page on the shell's stack, from a fresh read of the Groups you can
+    /// see. One you can't see yet (pending, and you weren't invited) says so; with no signal, nothing opens.
+    private func openGroup(_ id: String) {
+        showMap = false
+        Task {
+            guard let groups = await you.refreshGroups() else { return }
+            actions.read(groups)
+            if let group = groups.first(where: { $0.id.lowercased() == id }) {
+                path.append(group)
+            } else {
+                groupNotReady = true
+            }
+        }
     }
 
     /// A neighbour's code (friends 07): their page on the shell's stack, over the map, once

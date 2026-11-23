@@ -84,6 +84,7 @@ nonisolated enum NewEventCheck: Equatable {
 }
 
 enum NewEventCopy {
+    static let title = "New event"
     static let when = "Day and time"
     static let place = "Place"
     static let addPlace = "Add"
@@ -134,6 +135,8 @@ final class NewEventModel {
     private(set) var id = UUID().uuidString.lowercased()
     /// Where its photo went, once sent.
     private(set) var photoURL: String?
+    /// The Group putting it on (start-a-group 05): New event from a Group page's Calendar.
+    var clubId: String?
     private var posted = false
 
     /// Posts it once, then asks the check. nil while it couldn't send at all.
@@ -149,7 +152,7 @@ final class NewEventModel {
                     photoURL = try await Self.once { try await api.uploadEventPhoto(data, id: id) }?.absoluteString
                         ?? api.eventPhotoURL(id: id)?.absoluteString
                 }
-                try await Self.once { try await api.addEvent(draft.input(id: id, imageURL: photoURL)) }
+                try await Self.once { try await api.addEvent(draft.input(id: id, imageURL: photoURL), clubId: clubId) }
                 posted = true
             }
         } catch {
@@ -735,6 +738,8 @@ struct NewPostSheet: View {
     var editing: TownPost? = nil
     /// An edit the check let up: every list shows it at once.
     var onEdited: (PostEditInput) -> Void = { _ in }
+    /// New event from a Group page's Calendar (start-a-group 05): the Group is its host, and Event stays on.
+    var group: TownGroup? = nil
 
     @State private var model = NewPostModel()
     /// The photo on show of several, which the trash takes out (town-feed 46).
@@ -804,7 +809,7 @@ struct NewPostSheet: View {
                 }
             }
             .background(Hue.paper)
-            .navigationTitle(model.editing == nil ? NewPostCopy.title : PostEditCopy.title)
+            .navigationTitle(NewPostCopy.title(editing: model.editing != nil, group: group != nil))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -857,6 +862,9 @@ struct NewPostSheet: View {
                     try? await Task.sleep(for: .milliseconds(400))
                     selection = TextSelection(insertionPoint: model.draft.words.endIndex)
                 }
+            } else if let group {
+                model.setEvent(true)
+                model.eventModel.clubId = group.id
             } else if let back = PostOutbox.shared.back {
                 model.restore(back)
                 PostOutbox.shared.back = nil
@@ -901,7 +909,7 @@ struct NewPostSheet: View {
                     .foregroundStyle(Hue.ink)
                     .fixedSize(horizontal: false, vertical: true)
                     .animation(nil, value: model.draft.tagged)
-                audience
+                if let group { hostPill(group) } else { audience }
             }
         }
     }
@@ -938,14 +946,7 @@ struct NewPostSheet: View {
                     .opacity(audienceLocked ? 0 : 1)
                     .accessibilityHidden(true)
             }
-            .foregroundStyle(Hue.ink)
-            .padding(.leading, 9)
-            .padding(.trailing, 8)
-            .frame(height: NewPostMetric.pill)
-            .background(Hue.fill, in: Capsule())
-            // 26 pt drawn, 44 pt to tap.
-            .padding(.vertical, (NewPostMetric.tap - NewPostMetric.pill) / 2)
-            .contentShape(Rectangle())
+            .modifier(PillFace(trailing: 8))
         }
         .padding(.vertical, -(NewPostMetric.tap - NewPostMetric.pill) / 2)
         .disabled(audienceLocked)
@@ -955,6 +956,36 @@ struct NewPostSheet: View {
 
     /// An Event is the Town's; an edited post keeps who could see it (town-feed 44).
     private var audienceLocked: Bool { model.event || model.editing != nil }
+
+    /// A Group's Event: its pill names the Group, which hosts it and, when private, is all who see it.
+    private func hostPill(_ group: TownGroup) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: group.isPrivate ? "lock.fill" : "person.3.fill").font(.glyph(12, weight: .semibold))
+            Text(group.name).font(.apple(13, weight: .semibold)).lineLimit(1)
+        }
+        .modifier(PillFace(trailing: 9))
+        .padding(.vertical, -(NewPostMetric.tap - NewPostMetric.pill) / 2)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Host, \(group.name)")
+    }
+
+    /// The pill's face under the words: 26 pt drawn on the fill, 44 pt to touch (the Who can see this pill's, and the
+    /// Group's host pill in its place).
+    private struct PillFace: ViewModifier {
+        let trailing: CGFloat
+
+        func body(content: Content) -> some View {
+            content
+                .foregroundStyle(Hue.ink)
+                .padding(.leading, 9)
+                .padding(.trailing, trailing)
+                .frame(height: NewPostMetric.pill)
+                .background(Hue.fill, in: Capsule())
+                // 26 pt drawn, 44 pt to tap.
+                .padding(.vertical, (NewPostMetric.tap - NewPostMetric.pill) / 2)
+                .contentShape(Rectangle())
+        }
+    }
 
     // MARK: Chips
 
@@ -978,7 +1009,8 @@ struct NewPostSheet: View {
                 chip(on: model.draft.location != nil, label: model.draft.location ?? NewEventCopy.place) {
                     MapPinGlyph(size: NewPostMetric.chipIcon)
                 } action: { focus = nil; path.append(.place) }
-                if model.editing == nil {
+                // A Group's New event is an Event: no chip to turn it off.
+                if model.editing == nil && group == nil {
                     chip(on: model.event, label: NewPostCopy.event) {
                         Image(systemName: "calendar").font(.glyph(15))
                     } action: {
@@ -1343,6 +1375,11 @@ struct NewPostSheet: View {
 
 enum NewPostCopy {
     static let title = "New post"
+
+    /// New post; Edit post; New event when a Group page's Calendar opened it (start-a-group 05).
+    static func title(editing: Bool, group: Bool) -> String {
+        editing ? PostEditCopy.title : group ? NewEventCopy.title : title
+    }
     static let placeholder = "What's on your mind?"
     static let about = "Say something about it…"
     static let eventName = "Name your event"
@@ -1520,7 +1557,7 @@ private nonisolated enum NewPostMetric {
     static let pickedFace: CGFloat = 56
 }
 
-private struct NewEventPlace: View {
+struct NewEventPlace: View {
     let places: [SearchItem]
     @Binding var place: String
     @State private var words = ""
