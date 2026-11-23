@@ -90,18 +90,24 @@ from towns import TOWNS
 DAYS_AHEAD = 90
 LOCAL = ZoneInfo("America/Chicago")
 # A day a place is shut or a school day runs short. It waits until a week before (BP app town-feed 50). "Holiday" alone
-# isn't one: "Holiday Door Hangers" is News from the day it's read.
+# isn't one: a day off is News from the day it's read.
 CLOSING = re.compile(r"\b(closed(?! caption)|closure|no school|no classes|late start|early (release|dismissal))\b", re.I)
 CLOSING_DAYS = 7
-# Something to know rather than go to is News, even with a date (ADR-021). A sale with its own days is an Event,
-# as social.md says (BP app town-feed 47: the monastery's "Holiday Sales" came out as News).
-NEWS = re.compile(CLOSING.pattern + r"|\bholiday\b(?!.*\bsales?\b)", re.I)
+# Something to know rather than go to is News, even with a date (ADR-021): a closing, holiday hours, a day off ("Holiday").
+# A holiday with a start time is somewhere to go, and so is a sale, a party or a market with its own days (BP app
+# town-feed 47: the monastery's "Holiday Sales"; watch-every-place 44: Spirit 92.9's "Holiday Hope Event", 6 to 8 PM).
+NEWS = re.compile(CLOSING.pattern + r"|\bholiday (?:hours|schedule|break)\b", re.I)
+DAY_OFF = re.compile(r"\bholiday\b(?!.*\b(?:sales?|events?|concerts?|part(?:y|ies)|meetings?|markets?|open house)\b)", re.I)
 SAMPLES = Path(__file__).resolve().parent / "samples"
 
 
 def day_line(day, last=None):
     """A closing's day on its card, which shows no date of its own: "Thursday, Nov 26", or "Nov 25 to Nov 28"."""
     return f"{day:%b} {day.day} to {last:%b} {last.day}" if last and last > day else f"{day:%A, %b} {day.day}"
+
+
+def is_news(title, all_day):
+    return bool(NEWS.search(title) or all_day and DAY_OFF.search(title))
 
 
 def judged(entry, src, **kw):
@@ -269,7 +275,7 @@ def when(prop):
     # say America/Chicago); one that truly means UTC would read 5 to 6 hours late, so give it a
     # registry flag if one shows up.
     zone = tz and tz.group(1) not in ("UTC", "GMT", "Etc/UTC") and ZoneInfo(tz.group(1))
-    return dt.replace(tzinfo=zone or LOCAL), False
+    return dt.replace(tzinfo=zone or LOCAL).astimezone(LOCAL), False
 
 
 def clock(dt):
@@ -301,7 +307,7 @@ def ical_items(text, entry, src, today):
         if all_day:  # an all-day DTEND is the day after the last; a run over days keeps its last day
             last = end - timedelta(days=1) if end and not isinstance(end, datetime) else None
             end = last if last and last > start else None
-        out.append(judged(entry, src, kind="news" if NEWS.search(title) else "event", title=title,
+        out.append(judged(entry, src, kind="news" if is_news(title, all_day) else "event", title=title,
                           start=start.isoformat(), end=end and end.isoformat(), all_day=all_day,
                           # "St. Joseph MN 56374" alone is no place; the writer drops it.
                           place=unescape(ev.get("LOCATION", ("", ""))[1]),
@@ -448,7 +454,7 @@ def pathify_items(rows, entry, src, today):
                 end = shows[title]  # open to its last day: one Event the whole run
         if not ahead(date.fromisoformat(start[:10]), today):
             continue
-        news = bool(NEWS.search(title))
+        news = is_news(title, bool(r.get("all_day")))
         about = campus_blurb(r.get("description"), cal)
         if "Athletics" in cal:
             title, about = campus_game(title, place, CAMPUS_HOSTS.get(cal, f"CSB SJU {cal}"))
@@ -686,7 +692,7 @@ def finalsite_calendar_items(page, url, entry, src, today, words=None):
         if not place and calendar == src.get("own_calendar") and (
                 not away or entry["_name"].split()[0].lower() in away[1].lower()):
             place = entry["_name"]
-        news = bool(NEWS.search(title))
+        news = is_news(title, "Start" not in times)
         about = (words or {}).get((title, start[:16])) or (words or {}).get(title)
         out.append(judged(entry, src, kind="news" if news else "event", category="school" if news else None,
                           **({"blurb": about} if about else {}), title=title, start=start, end=times.get("End") or (last if last > start else None), all_day="Start" not in times,
@@ -774,7 +780,7 @@ def hcms_items(news, events, entry, src, today, town):
         place = ", ".join(p for p in (loc.get("address1"), loc.get("city")) if p)
         if (loc.get("address1") or "").startswith("2850 Abbey Plaza") and OUTDOOR_U.search(plain(field(d, "description"))):
             place = "Outdoor U, SJU"
-        out.append(judged(entry, src, kind="news" if NEWS.search(title) else "event", title=title, all_day=all_day,
+        out.append(judged(entry, src, kind="news" if is_news(title, all_day) else "event", title=title, all_day=all_day,
                           start=start.date().isoformat() if all_day else start.isoformat(),
                           end=None if all_day or not at.get("endDate") else utc_local(at["endDate"]).isoformat(),
                           place=place, area="town",
@@ -1312,7 +1318,7 @@ def diocese_items(text, entry, src, today):
         title, about = get(ev, "SUMMARY"), said(get(ev, "DESCRIPTION"))
         ending, host = PAPER_ENDING.search(title), HOSTED.search(about or "")
         place, town = venue_of(get(ev, "LOCATION"))
-        out.append(judged(entry, src, kind="news" if NEWS.search(title) else "event", title=PAPER_ENDING.sub("", title),
+        out.append(judged(entry, src, kind="news" if is_news(title, all_day) else "event", title=PAPER_ENDING.sub("", title),
                           start=start.isoformat(), end=end and end.isoformat(), all_day=all_day, place=place,
                           town=town, blurb=about, source_url=url, source_uid=uid,
                           source_name=(host and host[1]) or (ending and ending[1].partition(", ")[2]) or entry["_name"]))
@@ -1701,10 +1707,23 @@ def t_closings_wait():
     for title in ("Holiday - City Offices Closed", "Alcuin and Clemens Library Closed", "No School - Winter Break",
                   "No Classes", "Late Start", "Two-hour Early Dismissal", "Early Release"):
         assert NEWS.search(title) and say(title, start="2026-12-21")["shows_from"] == "2026-12-14", title
-    title = "Holiday Door Hangers for your Dorm!"
-    assert NEWS.search(title) and "shows_from" not in say(title, start="2026-11-19"), title
-    for title in ("Holiday Sales at the Art and Heritage Place", "Holiday Sale at Art and Heritage", "Holiday Craft & Bake Sale"):
-        assert not NEWS.search(title), title
+    title = "Columbus Day Holiday"
+    assert is_news(title, True) and "shows_from" not in say(title, start="2026-10-12"), title
+    for title in ("Holiday Sales at the Art and Heritage Place", "Holiday Sale at Art and Heritage", "Holiday Craft & Bake Sale",
+                  "Holiday Market", "Alumni Holiday Party"):
+        assert not is_news(title, True) and not is_news(title, False), title
+    for title in ("Holiday - City Offices Closed", "Holiday Hours at the Library", "Holiday Break"):
+        assert is_news(title, True) and is_news(title, False), title
+    # A clock on it is somewhere to go (BP app watch-every-place 44): two of the campus library's, and a radio station's evening.
+    for title in ("Holiday Door Hangers for your Dorm!", "Holiday Crafts!", "Holiday Hope Event"):
+        assert not is_news(title, False), title
+    hope = diocese_items("BEGIN:VEVENT\r\nUID:1-hope\r\nSUMMARY:Holiday Hope Event — St. Cloud\\, Calvary Community Church\r\n"
+                         "DTSTART;TZID=America/Chicago:20261208T180000\r\nDTEND;TZID=America/Chicago:20261208T200000\r\n"
+                         "LOCATION:Calvary Community Church\\, 1200 Roosevelt Rd\\, St. Cloud\\, MN\r\nGEO:45.54;-94.16\r\n"
+                         "URL:https://thecentralminnesotacatholic.org/event/holiday-hope-event-st-cloud-calvary-community-church/\r\n"
+                         "END:VEVENT\r\n", CITY, {"url": "https://thecentralminnesotacatholic.org/?ical=1"}, date(2026, 11, 23))[0]
+    assert (hope["kind"], hope["title"], hope["start"], hope["end"]) == (
+        "event", "Holiday Hope Event", "2026-12-08T18:00:00-06:00", "2026-12-08T20:00:00-06:00"), hope
     assert say("Winter Break", start="2026-12-21").get("shows_from") is None, "the words have to say so"
     assert "shows_from" not in say("City Offices Closed"), "no day to wait for"
     assert "shows_from" not in say("Highway 23 closure", start="2026-12-21", category="road"), "a road report goes up"

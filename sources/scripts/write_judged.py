@@ -21,7 +21,8 @@ THE JUDGED ITEM: the contract the judge (ticket 05) produces, one JSON object pe
   kind         "event" | "news"
   title        the event's own name, the way a neighbour would say it (.claude/skills/title-and-place)
   start        ISO 8601 with offset ("2026-10-24T16:00:00-05:00"), or a date ("2026-11-09")
-               when all_day. Required for an event; optional for news (the day it is about).
+               when all_day. Required for an event; optional for news (the day it is about). Either of
+               Chicago's offsets keeps the clock as written (BP app watch-every-place 43)
   end          optional, the same form; a run over days, timed or all day, gives its last day
                alone ("2026-10-25"), and lasts until the midnight after it. A News with none takes it from
                a dated phrase in its title or blurb ("through Nov 29"; news_end), and the Town feed shows
@@ -135,6 +136,8 @@ THE RULES
   One show (same_show, BP app loopholes 21): two runs over days that overlap, at one place, one name inside the other,
     neither a game, are one Event whoever lists it and whatever day its id carries. A read joined that way is only a
     Mention: the listed Event keeps its first day, words and status, so a show's copy taken out stays out.
+  Not a move (back_home, BP app watch-every-place 45): a page's re-read that only falls back to its poster's own place
+    leaves a listed Event where it is, and the summary says so.
   Which copy is kept: an event already listed stays the Event and every new copy is its Mention.
     Among new copies, the official one, then its place's own host's (not a town calendar's), then
     a timed one, then one with a place; kept all day, it takes the time another copy gives that day.
@@ -413,6 +416,18 @@ def spots(place):
 def own_host(f):
     """Posted by the place's own host: one its line names, or a line naming no registry place (its grounds)."""
     return f["host"] is not None and f["host"] in (f["spots"] or {f["host"]})
+
+
+def back_home(was, old, ev):
+    """A page's re-read that changes one thing, the place, from a registry place that isn't its poster's to its poster's
+    own (or to none): the judge missed the place the listing names. The Church of Saint Joseph's calendar lists "Advent
+    Reconciliation Service/St. John the Baptist"; it was read there on Nov 17 and at the calendar's own church on Nov 21
+    and 23, the rule in title-and-place notwithstanding (BP app watch-every-place 45). Of the 109 Events moved by Nov 23,
+    no real move looked like this. A source with ids of its own speaks for itself."""
+    now, row = ev["facts"], ev["row"]
+    return (bool(was["entry"] and now["host"]) and was["entry"] != now["host"] and row["place_entry_id"] == now["host"]
+            and now["entry"] == now["host"] and not real_uid(old.get("source_uid"))
+            and (was["day"], was["at"]) == (now["day"], now["at"]) and same_title(was["title"], now["title"]))
 
 
 def place_facts(place, poster):
@@ -854,11 +869,17 @@ def when(start, all_day=False):
     return local(start).date(), local(start).replace(tzinfo=None)
 
 
+# Chicago's two offsets. The judge writes one by hand beside the clock it read off the page, and can write the other half
+# of the year's: the Lions Club's "6 pm" of Mar 16, 2027 came as 18:00-06:00, and was written 7 PM (BP app
+# watch-every-place 43). The clock is right, so it is kept.
+CHICAGO = {timedelta(hours=-5), timedelta(hours=-6)}
+
+
 def local(stamp):
     dt = datetime.fromisoformat(stamp)
     if dt.tzinfo is None:
         raise ValueError(f"{stamp!r} needs an offset")
-    return dt.astimezone(LOCAL)
+    return dt.replace(tzinfo=LOCAL) if dt.utcoffset() in CHICAGO else dt.astimezone(LOCAL)
 
 
 _ENTRIES = _NAMES = _PLACES = None
@@ -1634,6 +1655,11 @@ def plan(items, existing, today, interests, town=TOWNS[DEFAULT], titles=None, te
             timed = next((ev for _, ev in g["items"]
                           if ev["facts"]["at"] and ev["facts"]["day"] == primary[1]["facts"]["day"]), None)
             g["status"] = "approved"
+        if old and primary and not filled and old["status"] != "rejected" and back_home(g["facts"], old, primary[1]):
+            # Not a move: the calendar's own place, which every listing on it has.
+            out["notes"].append(f"kept at {old['location']!r}: {old['title']!r} on {str(old['event_date'])[:10]} now reads as "
+                                f"at {old['source_name']}'s own place")
+            primary[1]["row"].update(location=old["location"], place_entry_id=g["facts"]["entry"])
         if old and primary and len(primary[1]["row"]["title"]) > TITLE_MAX >= len(old.get("title") or ""):
             # A title the morning job or Jesse shortened stays when its source sends the long one
             # again (title-and-place: 40 at most). ponytail: a source that renames an event to
@@ -2396,6 +2422,44 @@ def t_reread_updates():
     # The same page read twice the same morning, no uid: one event.
     assert len(run([item(), item()])["events"]) == 1
     assert "on conflict on constraint club_events_source_uid_key do update" in writes().read_text()
+
+
+def t_the_clock_is_kept():
+    """Chicago's offset from the wrong half of the year changes no clock (BP app watch-every-place 43). The Lions Club's
+    page: "6 pm dinner; 6:30 pm meeting", every month."""
+    at = lambda start, end=None: (lambda r: (r["start_time"], r["event_date"], r["end_at"]))(
+        event_of(item(start=start, end=end), TODAY, INTERESTS, HOME, [])[0]["row"])
+    assert at("2027-03-16T18:00:00-06:00") == at("2027-03-16T18:00:00-05:00") == ("6 PM", "2027-03-16", None)
+    assert at("2027-01-19T18:00:00-05:00")[0] == "6 PM", "either way round"
+    assert at("2027-03-16T23:30:00-06:00")[:2] == ("11:30 PM", "2027-03-16"), "and no other day"
+    assert at("2027-04-20T18:00:00-06:00", "2027-04-20T20:00:00-06:00")[2] == "2027-04-20T20:00:00-05:00"
+    assert at("2027-03-16T23:00:00+00:00")[0] == "6 PM" and at("2027-03-16T19:00:00-04:00")[0] == "6 PM", "another zone is worked out"
+
+
+def t_back_home_is_no_move():
+    """A listing read twice from a shared calendar, the second time at the calendar's own church (BP app watch-every-place 45)."""
+    church = dict(source_name="Church of Saint Joseph", source_url="https://church-of-st-joseph-470993.churchcenter.com/calendar/event/239707592",
+                  title="Advent Reconciliation Service", start="2026-12-12T13:00:00-06:00", end="2026-12-12T14:00:00-06:00",
+                  interest=None, area="announced")
+    old = listed(title="Advent Reconciliation Service", event_date="2026-12-12", start_time="1 PM",
+                 location="St. John the Baptist Church", source_name="Church of Saint Joseph", shows_from="2026-11-14",
+                 source_uid="page:2026-12-12T1300:advent-reconciliation-service")
+    read = lambda was=old, **kw: run([item(**{**church, **kw})], [was])
+    for again in ({"place": "Church of St. Joseph"}, {"place": ""}, {"place": "Church of St. Joseph", "start": "2026-12-12T13:00:00-05:00"}):
+        r = read(**again)
+        row = r["events"][0]["row"]
+        assert (row["location"], row["place_entry_id"]) == ("St. John the Baptist Church", "st-john-baptist-parish"), (again, row)
+        assert any("kept at 'St. John the Baptist Church'" in n for n in r["notes"]), r["notes"]
+    # What stays a move: another place, another time, a source that has its own ids, and from its own church to another's.
+    assert read(place="Millstream Park")["events"][0]["row"]["location"] == "Millstream Park"
+    later = read(place="Church of St. Joseph", start="2026-12-12T14:00:00-06:00", end=None)["events"][0]["row"]
+    assert later["place_entry_id"] == "church-jospehs-st", later
+    own = read({**old, "source_uid": "239707592"}, place="Church of St. Joseph", source_uid="239707592")["events"][0]["row"]
+    assert own["place_entry_id"] == "church-jospehs-st", own
+    out = read({**old, "location": "Church of St. Joseph"}, place="St. John the Baptist Church")["events"][0]["row"]
+    assert out["place_entry_id"] == "st-john-baptist-parish", out
+    gone = read({**old, "status": "rejected", "review_reason": "wrong_place"}, place="Church of St. Joseph")["events"][0]
+    assert gone["status"] == "pending", "a decline its source changed still goes back to Review"
 
 
 def t_misread_comes_back():
@@ -3503,7 +3567,7 @@ TESTS = [t_another_hosts_facebook_event_is_asked, t_same_event_asked_only_when_i
          t_two_hosts_maybe_the_same, t_two_hosts_no_place_asked, t_two_hosts_kept_apart, t_one_place_two_names, t_followers_only, t_place_entry, t_wording, t_interest_list_is_the_apps, t_event_or_news, t_official_one_mention, t_everything_kept_goes_live, t_news_repeat_left_out,
          t_one_news_one_link, t_news_same_link_this_week, t_news_says_when_it_ends, t_closings_wait, t_a_dated_news_blocks_its_repeat_until_its_day, t_one_post_is_one_news, t_news_look_back_is_the_feeds_week, t_news_shouted_or_hyphened_is_one,
          t_all_day_a_day_apart_is_one, t_no_time_joins_the_timed_one, t_later_read_fills_the_time, t_merge_true_pair,
-         t_merge_near_miss_kept_apart, t_posted_twice, t_same_time_no_place, t_no_place_is_its_posters_own, t_reread_updates, t_admin_status_kept, t_misread_comes_back, t_cancelled, t_show_from_by_size, t_kept_out_when_nobody_can_go,
+         t_merge_near_miss_kept_apart, t_posted_twice, t_same_time_no_place, t_no_place_is_its_posters_own, t_reread_updates, t_the_clock_is_kept, t_back_home_is_no_move, t_admin_status_kept, t_misread_comes_back, t_cancelled, t_show_from_by_size, t_kept_out_when_nobody_can_go,
          t_interest_checked, t_area, t_past_and_invalid_skipped, t_writes_are_one_safe_call,
          t_description_cut_at_a_word, t_city_meeting_end_and_place, t_game, t_teams_from_their_names, t_all_day_run_keeps_its_last_day, t_show_joins_only_its_run, t_show_under_a_new_name_is_one,
          t_long_titles_shortened_and_kept, t_news_titles_fit_their_two_lines, t_short_levels_kept_apart, t_one_host_listed_twice,
