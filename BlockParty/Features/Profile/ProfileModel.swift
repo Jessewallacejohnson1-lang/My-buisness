@@ -89,13 +89,11 @@ final class ProfileModel {
     // `signOut` ends the session; `writePlans` stands in for the server in tests.
     init(supabase: Supabase? = nil, phone: UserDefaults = .standard, signOut: (() async -> Void)? = nil,
          writePlans: ((Bool) async throws -> Void)? = nil,
-         writeNeighbors: ((Bool) async throws -> Void)? = nil,
          writeSuggest: ((Bool) async throws -> Void)? = nil) {
         self.supabase = supabase ?? .app
         self.phone = phone
         endSession = signOut ?? { await AuthStore.shared.signOut() }
         self.writePlans = writePlans
-        self.writeNeighbors = writeNeighbors
         self.writeSuggest = writeSuggest
         account = self.supabase.auth.userId
         // From the phone's copy at once, so nothing opens on "Add your name" and fades to it.

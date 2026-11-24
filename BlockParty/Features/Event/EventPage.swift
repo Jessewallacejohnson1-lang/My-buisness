@@ -839,7 +839,7 @@ struct EventPage: View {
             EventHostRow(item: item, top: EventLook.hostTop, plain: true, sun: sun)
 
             // Who's going, where Luma's is (inside-cards 36).
-            EventGoingSection(item: current, sun: sun)
+            if !reviewing { EventGoingSection(item: current, sun: sun) }
 
             if goingChat {
                 ChatRoomRow(title: "Going chat", isIn: actions.going(current).isGoing,
@@ -1064,7 +1064,7 @@ struct EventPage: View {
                 // Who hosts it, with Follow (follows 02), in Meetup's grey card.
                 EventHostRow(item: item, top: Metric.hostTop)
 
-                EventGoingSection(item: current)
+                if !reviewing { EventGoingSection(item: current) }
 
                 if let about = Self.aboutText(item.description) {
                     AboutSection(text: about)

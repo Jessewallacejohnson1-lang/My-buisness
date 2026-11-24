@@ -13,8 +13,6 @@ struct ChatRoomRow: View {
     let isIn: Bool
     /// Finds it on your list. There, you're in: known before the read, so the page doesn't jump on every open.
     let listed: (ChatBook) -> Chat?
-    /// The second line with nothing said yet.
-    var quiet: String? = nil
     /// Under the place's row, a line between them; a Group's has none above it.
     var ruled = true
     let access: (ChatAPI) async throws -> ChatAccess
@@ -37,7 +35,7 @@ struct ChatRoomRow: View {
     }
 
     private var lines: EventPage.FactLines {
-        .init(first: title, second: chat.map { ChatWords.preview($0) } ?? quiet)
+        .init(first: title, second: chat.map { ChatWords.preview($0) })
     }
 
     private var opens: ChatRoute { route(read?.isHost ?? chat?.isHost == true) }

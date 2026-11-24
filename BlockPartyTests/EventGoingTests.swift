@@ -26,6 +26,14 @@ final class EventGoingTests: XCTestCase {
         XCTAssertEqual(words.names, "Sam, Marlene, Alex, Ava, and 2 more")
     }
 
+    /// The card's own friends keep their faces when the server's answer names them too; two of one name are still two.
+    func testAFaceIsKnownByItsName() {
+        let card = GoingWords.faces([("Sam", nil), ("Marlene", nil)])
+        let read = GoingWords.faces([("Sam", URL(string: "https://x.test/a.jpg")), ("Marlene", nil), ("Sam", nil)])
+        XCTAssertEqual(card.map(\.id), Array(read.map(\.id).prefix(2)))
+        XCTAssertEqual(Set(read.map(\.id)).count, 3)
+    }
+
     func testYouLeadOnceGoing() throws {
         let words = try XCTUnwrap(make(7, you: true, "Sam", "Marlene", "Alex", "Ava"))
         XCTAssertEqual(words.faces.map(\.name), ["You", "Sam", "Marlene", "Alex"])

@@ -45,6 +45,15 @@ nonisolated struct GoingWords: Equatable {
         return GoingWords(total: total, faces: shown, names: line(shown.map(\.name), more: total - shown.count))
     }
 
+    /// A face is known by its name, so the card's own friends stay put when the server's answer names them too.
+    static func faces(_ people: [(name: String, photo: URL?)]) -> [Face] {
+        var seen: [String: Int] = [:]
+        return people.map { person in
+            seen[person.name, default: 0] += 1
+            return Face(id: "\(person.name)\(seen[person.name, default: 0])", name: person.name, photo: person.photo)
+        }
+    }
+
     /// Luma's words: a comma before "and" from three on.
     static func line(_ names: [String], more: Int) -> String {
         let parts = names + (more > 0 ? ["\(more) more"] : [])
@@ -70,6 +79,8 @@ struct EventGoingSection: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// The server's answer, friends first; nil until it lands, when the card's own friends stand in.
     @State private var people: [Neighbor]?
+    /// Whether you were Going at the last read that came back or failed; nil before the first.
+    @State private var readFor: Bool?
     @State private var open = false
     /// The row tapped in the list: its page opens once the card is down.
     @State private var tapped: Neighbor?
@@ -87,15 +98,17 @@ struct EventGoingSection: View {
     private var dim: Color { ink.opacity(sun ? EventLook.sunDim : EventLook.dim) }
     private var going: RealLifeActions.Going { actions.going(item) }
 
+    private var yourPhoto: URL? { profile?.avatarUrl.flatMap(URL.init(string:)) }
+
     private var you: GoingWords.Face? {
-        going.isGoing ? .init(id: "you", name: "You", photo: profile?.avatarUrl.flatMap(URL.init(string:)), you: true) : nil
+        going.isGoing ? .init(id: "you", name: "You", photo: yourPhoto, you: true) : nil
     }
 
     private var others: [GoingWords.Face] {
         if let people {
-            return people.map { .init(id: $0.id, name: $0.firstName, photo: $0.avatarUrl.flatMap(URL.init(string:))) }
+            return GoingWords.faces(people.map { ($0.firstName, $0.avatarUrl.flatMap(URL.init(string:))) })
         }
-        return item.friendsGoing.enumerated().map { .init(id: "friend\($0.offset)", name: $0.element.name, photo: $0.element.photo) }
+        return GoingWords.faces(item.friendsGoing.map { ($0.name, $0.photo) })
     }
 
     private var words: GoingWords? {
@@ -108,49 +121,62 @@ struct EventGoingSection: View {
         VStack(alignment: .leading, spacing: 0) {
             Color.clear.frame(height: 0)
             if let words {
-                Button { if actions.hasAccount { open = true } } label: { label(words) }
-                    .buttonStyle(.press(.squish))
-                    .disabled(!actions.hasAccount)
-                    .accessibilityLabel([GoingMetric.count(words.total), words.names].compactMap { $0 }.joined(separator: ", "))
-                    .accessibilityHint(actions.hasAccount ? "Shows who's going" : "")
-                    .padding(.top, GoingMetric.top)
-                    .transition(.opacity)
+                if actions.hasAccount {
+                    Button { open = true } label: { label(words) }
+                        .buttonStyle(.press(.squish))
+                        .accessibilityLabel([GoingMetric.count(words.total), words.names].compactMap { $0 }.joined(separator: ", "))
+                        .accessibilityHint("Shows who's going")
+                        .padding(.top, GoingMetric.top)
+                        .transition(.opacity)
+                } else {
+                    count(words)
+                        .padding(.top, GoingMetric.top)
+                        .transition(.opacity)
+                }
             }
         }
         .animation(reduceMotion ? nil : Motion.smooth, value: words)
         .task(id: shown ? Ask(id: item.id, going: going.isGoing, open: open) : nil) {
             guard shown, actions.hasAccount else { return }
             // Attend shows before its write lands; the list is the server's to give only after.
+            let wanted = going.isGoing
             await actions.goingLanded(item.id)
-            guard !Task.isCancelled, let read = try? await Self.read(item, going: going.isGoing), !Task.isCancelled else { return }
-            people = read
+            guard !Task.isCancelled else { return }
+            let read = try? await Self.read(item, going: wanted)
+            guard !Task.isCancelled else { return }
+            if let read { people = read }
+            readFor = wanted
         }
         .sheet(isPresented: $open, onDismiss: {
             if let tapped { opener?.push(tapped) }
             tapped = nil
         }) {
-            EventGoingCard(item: item, total: words?.total ?? going.count, you: you, people: people ?? [], sun: sun,
-                           onPerson: opener == nil ? nil : { person in
+            EventGoingCard(item: item, yourPhoto: yourPhoto, people: people ?? [], readFor: readFor, sun: sun, onPerson: opener == nil ? nil : { person in
                 tapped = person
                 open = false
             })
         }
     }
 
+    private func count(_ words: GoingWords) -> some View {
+        Text(GoingMetric.count(words.total))
+            .font(.displaySemi(GoingMetric.word))
+            .foregroundStyle(dim)
+            .monospacedDigit()
+            .contentTransition(.numericText())
+    }
+
     private func label(_ words: GoingWords) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(GoingMetric.count(words.total))
-                .font(.displaySemi(GoingMetric.word))
-                .foregroundStyle(dim)
-                .monospacedDigit()
-                .contentTransition(.numericText())
+            count(words)
             ink.opacity(EventLook.hairline)
                 .frame(height: EventPage.Metric.hairline)
                 .padding(.top, GoingMetric.lineTop)
             faces(words)
                 .padding(.top, GoingMetric.facesTop)
-            if let names = words.names {
-                Text(names)
+            // Their line is held while the first read is out, so the page doesn't move under it.
+            if words.names != nil || readFor == nil {
+                Text(words.names ?? " ")
                     .font(.sansSemibold(GoingMetric.word))
                     .foregroundStyle(ink)
                     .multilineTextAlignment(.leading)
@@ -211,9 +237,9 @@ struct EventGoingSection: View {
 /// small height with no background of its own.
 private struct EventGoingCard: View {
     let item: FeedCardItem
-    let total: Int
-    let you: GoingWords.Face?
+    let yourPhoto: URL?
     let people: [Neighbor]
+    let readFor: Bool?
     let sun: Bool
     let onPerson: ((Neighbor) -> Void)?
 
@@ -228,33 +254,38 @@ private struct EventGoingCard: View {
 
     private var isGoing: Bool { actions.going(item).isGoing }
     private var ink: Color { sun ? Hue.onBrandDisc : .white }
-    private var left: Int { max(0, total - people.count - (you == nil ? 0 : 1)) }
+    /// You and everyone named.
+    private var known: Int { people.count + (isGoing ? 1 : 0) }
+    private var total: Int { max(actions.going(item).count, known) }
+    private var left: Int { total - known }
+    /// The list isn't in yet: Apple's spinner in place of "and 37 more".
+    private var loading: Bool { readFor != isGoing }
 
     private var foot: CGFloat { max(0, GoingMetric.foot - safeBottom) }
 
     private var height: CGFloat {
         guard isGoing else { return gateHeight + foot }
-        let rows = people.count + (you == nil ? 0 : 1) + (left > 0 ? 1 : 0)
+        let rows = known + (left > 0 || loading ? 1 : 0)
         return min(GoingMetric.listMost, GoingMetric.listTop + CGFloat(rows) * GoingMetric.row + foot)
     }
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            // One leaves before the other comes, so their words never cross.
+            // One is nearly gone before the other comes, so their words don't cross.
             if isGoing { list.transition(Self.swap) } else { gate.transition(Self.swap) }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .overlay(alignment: .topTrailing) { close }
         .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.bottom } action: { safeBottom = $0 }
-        .animation(reduceMotion ? nil : Motion.smooth, value: isGoing)
+        .animation(reduceMotion ? nil : Motion.smooth, value: height)
         .presentationDetents([.height(height)])
         .presentationDragIndicator(.visible)
         .preferredColorScheme(sun ? .light : .dark)
     }
 
     private static let swap = AnyTransition.asymmetric(
-        insertion: .opacity.animation(.easeOut(duration: 0.2).delay(0.12)),
-        removal: .opacity.animation(.easeOut(duration: 0.12)))
+        insertion: .opacity.animation(.easeOut(duration: 0.2).delay(0.06)),
+        removal: .opacity.animation(.easeOut(duration: 0.1)))
 
     private var gate: some View {
         let failures = actions.failureCount(item.id)
@@ -289,7 +320,9 @@ private struct EventGoingCard: View {
                 .font(.displaySemi(RSVPArea.Size.page.top))
                 .frame(maxWidth: .infinity)
             }
-            .buttonStyle(MeetupPillStyle(height: GoingMetric.button, minWidth: 0, grey: true))
+            // As the page's bar: white, a game's in our team's color.
+            .buttonStyle(MeetupPillStyle(height: GoingMetric.button, minWidth: 0, grey: item.game == nil, yellow: item.game != nil,
+                                         tint: item.game.flatMap { GameMatchup.attend($0) }))
             .environment(\.colorScheme, .light)
             .turnBackShake(failures: failures, shakes: !reduceMotion && tappedAt != failures)
             .padding(.top, GoingMetric.buttonTop)
@@ -320,16 +353,22 @@ private struct EventGoingCard: View {
                 .frame(height: GoingMetric.listTop)
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
-                    if let you { row(you.photo, you.name) }
+                    row(yourPhoto, "You")
                     ForEach(people) { person in
-                        Button { onPerson?(person) } label: {
-                            row(person.avatarUrl.flatMap(URL.init(string:)), person.firstName)
+                        let photo = person.avatarUrl.flatMap(URL.init(string:))
+                        if let onPerson {
+                            Button { onPerson(person) } label: { row(photo, person.firstName) }
+                                .buttonStyle(.press(.dim))
+                                .accessibilityHint("Opens their page")
+                        } else {
+                            row(photo, person.firstName)
                         }
-                        .buttonStyle(.press(.dim))
-                        .allowsHitTesting(onPerson != nil)
-                        .accessibilityHint(onPerson == nil ? "" : "Opens their page")
                     }
-                    if left > 0 {
+                    if loading {
+                        ProgressView()
+                            .frame(maxWidth: .infinity)
+                            .frame(height: GoingMetric.row)
+                    } else if left > 0 {
                         Text("and \(left) more")
                             .contentTransition(.numericText())
                             .font(.sans(GoingMetric.word))
@@ -368,10 +407,13 @@ private struct EventGoingCard: View {
                 .frame(width: GoingMetric.close, height: GoingMetric.close)
                 .contentShape(Circle())
         }
-        .buttonStyle(.plain)
-        .glassEffect(.regular.interactive(), in: Circle())
+        .buttonStyle(.press(.squish))
+        // Glass on the sheet's glass all but disappears, so Luma's disc and rim are drawn.
+        .background(ink.opacity(GoingMetric.closeFill), in: Circle())
+        .overlay { Circle().strokeBorder(ink.opacity(GoingMetric.closeRim), lineWidth: GoingMetric.closeRimWidth).allowsHitTesting(false) }
         .padding(GoingMetric.closeInset)
         .accessibilityLabel("Close")
+        .accessibilitySortPriority(1)
     }
 }
 
@@ -397,15 +439,18 @@ enum GoingMetric {
     static let disc: CGFloat = 56
     static let discGlyph: CGFloat = 24
     static let discFill: Double = 0.08
-    static let lockGlyph: CGFloat = 13
-    static let lockOut: CGFloat = 4
+    static let lockGlyph: CGFloat = 16
+    static let lockOut: CGFloat = 5
     static let title: CGFloat = 21
     static let titleTop: CGFloat = 11
     static let wordsTop: CGFloat = 4
     static let wordsDim: Double = 0.84
     static let button: CGFloat = 50
     static let buttonTop: CGFloat = 24
-    static let close: CGFloat = 45
+    static let close: CGFloat = 46
+    static let closeFill: Double = 0.1
+    static let closeRim: Double = 0.22
+    static let closeRimWidth: CGFloat = 0.7
     static let closeInset: CGFloat = 16
     static let closeGlyph: CGFloat = 17
     /// The list: 56 pt rows with 44 pt faces, about 540 tall at most, then it scrolls.
