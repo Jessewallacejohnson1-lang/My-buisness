@@ -250,6 +250,7 @@ struct PhoneSignInScreen: View {
     @AccessibilityFocusState private var heading: Bool
     /// What the number's field holds; `form.digits` is the number.
     @State private var typed = ""
+    @State private var screenHeight: CGFloat = 874
     @State private var whyOpen = false
     @State private var countryOpen = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -267,6 +268,7 @@ struct PhoneSignInScreen: View {
             .transition(reduceMotion ? .opacity : .asymmetric(
                 insertion: .offset(x: form.forward ? 36 : -36).combined(with: .opacity),
                 removal: .opacity.animation(.easeOut(duration: 0.12))))
+            .padding(.bottom, screenHeight < BigArt.shortScreen ? Self.shortKeypad : 0)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .ignoresSafeArea(.container, edges: .top)
             closeButton
@@ -279,6 +281,9 @@ struct PhoneSignInScreen: View {
         .onAppear { AppearanceStore.shared.holdClock("phone", true); focus() }
         .onDisappear { AppearanceStore.shared.holdClock("phone", false) }
         .onChange(of: form.stage) { focus() }
+        .onGeometryChange(for: CGFloat.self) { $0.size.height + $0.safeAreaInsets.top + $0.safeAreaInsets.bottom } action: {
+            screenHeight = $0
+        }
         .sheet(isPresented: $countryOpen, onDismiss: focus) { countrySheet }
         .sheet(isPresented: $whyOpen, onDismiss: focus) { whySheet }
     }
@@ -470,6 +475,8 @@ struct PhoneSignInScreen: View {
     /// Where each step's question starts, down Hinge's screen; less on a phone too short for it (the iPhone SE).
     private static let numberTop: CGFloat = 122
     private static let codeTop: CGFloat = 136
+    /// On the iPhone SE iOS 26 draws its keypad 20 pt higher than it says (measured).
+    private static let shortKeypad: CGFloat = 20
     private static let box = RoundedRectangle(cornerRadius: Radius.hingeBox, style: .continuous)
     private static let digit = RoundedRectangle(cornerRadius: Radius.hingeDigit, style: .continuous)
 
