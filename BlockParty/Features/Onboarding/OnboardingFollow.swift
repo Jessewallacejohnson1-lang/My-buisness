@@ -237,6 +237,16 @@ enum FollowSuggestions {
         return build(places: try await places, photos: await photos ?? [:], schools: s, pages: p, events: events)
     }
 
+    /// The first three rows' pictures, read while the steps before are up so the circles come with theirs.
+    static func readAhead(_ all: [FollowSuggestion], width: CGFloat, scale: CGFloat) {
+        let side = FollowCircleMetric.side(width)
+        let first = all.filter { $0.spot != nil }.sorted { $0.spot ?? 0 < $1.spot ?? 0 }.prefix(9)
+        for url in first.compactMap(\.photo) {
+            FeedCardImageLoader.shared.readAhead(url, box: CGSize(width: side, height: side), scale: scale)
+        }
+        POILogoCache.shared.prefetch(first.filter { $0.photo == nil }.compactMap { $0.logo?.url })
+    }
+
     /// The schools and pages alone, for Edit Profile's Schools: its tiles need no Place or Event.
     static func loadSchools() async throws -> [FollowSuggestion] {
         let (s, p) = try await CommunityAPI(auth: AuthStore.shared).followableSchoolsAndPages()
@@ -542,10 +552,11 @@ private struct FollowCircleArt: View {
     private var logoSide: CGFloat { side * FollowCircleMetric.logo }
 
     var body: some View {
-        Circle().fill(Color.white)
+        // White behind a logo; a photo still loading is a faint disc on the night.
+        Circle().fill(suggestion.photo == nil ? Color.white : Hue.deepTrack)
             .overlay {
                 if let photo = suggestion.photo {
-                    FeedCardURLPhoto(url: photo, loadingFill: Hue.nightTop)
+                    FeedCardURLPhoto(url: photo, loadingFill: .clear)
                 } else if let logo = suggestion.logo {
                     TrimmedLogo(logo: logo).frame(width: logoSide, height: logoSide)
                 } else if suggestion.isTown {

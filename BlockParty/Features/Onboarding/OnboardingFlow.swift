@@ -390,6 +390,8 @@ struct OnboardingFlow: View {
     @FocusState private var naming: Bool
     @State private var keyboardUp = false
     @State private var screenHeight: CGFloat = 874
+    @State private var screenWidth: CGFloat = 402
+    @Environment(\.displayScale) private var displayScale
     /// Schools' tiles and Follow 3's Places, schools and pages: nil while reading, empty if it failed.
     @State private var suggestions: [FollowSuggestion]?
     /// Next on Interests: its circles burst, then the step moves on (onboarding 48).
@@ -457,6 +459,7 @@ struct OnboardingFlow: View {
         .onGeometryChange(for: CGFloat.self) { $0.size.height + $0.safeAreaInsets.top + $0.safeAreaInsets.bottom } action: {
             screenHeight = $0
         }
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { screenWidth = $0 }
         // One read for Schools and for Follow 3, while the earlier steps are up.
         .task { await readSuggestions() }
         // Reached Follow 3 with nothing read (no signal back then): read again.
@@ -475,6 +478,7 @@ struct OnboardingFlow: View {
     private func readSuggestions() async {
         let events = try? await CommunityAPI(auth: AuthStore.shared).upcomingTags()
         suggestions = (try? await FollowSuggestions.load(events: events ?? [])) ?? []
+        FollowSuggestions.readAhead(suggestions ?? [], width: screenWidth, scale: displayScale)
     }
 
     /// Nothing read (no signal back then): read again.
