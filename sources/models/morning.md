@@ -136,7 +136,7 @@ dropped that a neighbour might have wanted, and why. Nothing else.
 
 ## Rules
 
-- Pages are fetched only by `morning.py`, `event_photos.py`, `team_logos.py`, `place_logos.py` and `event_parts.py` (the registry's fetcher obeys robots
+- Pages are fetched only by `morning.py`, `event_photos.py`, `team_logos.py`, `place_logos.py`, `event_parts.py` and `signups.py` (the registry's fetcher obeys robots
   rules and Crawl-delay). WebFetch, curl and the like stay unused: some sites refuse them.
 - The database is written only by `morning.py save` and `finish` (which includes `venue_spots.py keep`, `audience.py keep`, `event_parts.py keep` and `place_logos.py keep`, and on Sundays its `check`), and `event_photos.py keep`, `dig-keep` and `judge-keep`. SQL by
   hand stays unused.

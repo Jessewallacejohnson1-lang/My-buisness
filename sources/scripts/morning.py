@@ -55,7 +55,8 @@ docs/plans/watch-every-place, ticket 05). The routine's steps are sources/models
             photo of what it is (BP app event-photos 08), the social watch's Apify spend (social.py spend; Jesse, 2026-10-22), asked here so no
             step can skip it (Oct 29's run did), and Firecrawl's credits left (BP app backlog 12). One line names the
             places busy with Events in the last 60 days that have no watched page of their own, a `venue_only` entry
-            aside (busy_lines; BP app watch-every-place 28). On Sundays it reads each school's club
+            aside (busy_lines; BP app watch-every-place 28). The own page of each Event showing in the
+            Town feed is read for sign-ups that filled, closed or opened again (signups.py; BP app watch-every-place 49). On Sundays it reads each school's club
             page for its clubs' meeting times, a line per change (meeting_times.sunday; BP app nothing-scheduled 05),
             and ends with how many things with nothing scheduled are due for a walk (nothing_scheduled.due_line; BP app
             nothing-scheduled 04). Its last line is Ready's, which ready.py keeps in .runs/: the Python and the
@@ -97,6 +98,7 @@ import team_logos
 import venue_spots
 import audience
 import event_parts
+import signups
 import nothing_scheduled
 import meeting_times
 import ready
@@ -732,10 +734,13 @@ def write(run, dry_run):
     write_judged.report(items, result)
     try:
         written = None if dry_run else write_judged.apply(result, db)
-        if not dry_run:  # saved before the summary, so a slip in printing it never re-reads these pages tomorrow
+        marks = write_judged.mark_signups(result, db, dry_run)
+        # Saved before the summary, so a slip in printing it never re-reads these pages tomorrow; not when a sign-ups mark
+        # failed, since only the same page read again would make it.
+        if not dry_run and not any(m.startswith("[morning]") for m in marks):
             save_fingerprints(run)
         # A social check's summary leaves the games to the morning's.
-        lines = summary_lines(prep, result, written) + save_words(run, items, dry_run) + save_posted(run, items, dry_run) \
+        lines = summary_lines(prep, result, written) + marks + save_words(run, items, dry_run) + save_posted(run, items, dry_run) \
             + save_host_words(run, items, dry_run) + save_hours(run, hours, dry_run) \
             + ([] if prep.get("run") else waiting_lines(db)) + ([] if prep.get("run") else live_lines(db, today - timedelta(days=1)))
         print("\n".join(lines))
@@ -1168,7 +1173,7 @@ def todays_events(db, today, tags=None, abouts=None):
     helpers' answers finish has yet to save, so an Event found this morning carries them too."""
     rows = db.rest("GET", "club_events?select=id,title,start_time,all_day,location,source_name,description,"
                           "interests,interests_tagged_at,category,draw,clubs(name)"
-                          f"&status=eq.approved&kind=eq.event&event_date=eq.{today}&cancelled_at=is.null"
+                          f"&status=eq.approved&kind=eq.event&event_date=eq.{today}&cancelled_at=is.null&signups_closed_by=is.null"
                           "&or=(submitted_by.not.is.null,source_name.not.is.null)&order=start_time") or []
     if not rows:
         return []
@@ -1312,6 +1317,7 @@ def finish(run, dry_run):
                        ("venue spots", lambda: venue_spots.keep(run, dry_run)),
                        ("who it's for", lambda: audience.keep(run, dry_run)),
                        ("event parts", lambda: event_parts.keep(run, dry_run)),
+                       ("sign-ups", lambda: signups.keep(run, dry_run)),
                        ("since the last report", lambda: since_lines(db, today)),
                        ("event photos", lambda: photo_lines(db, today)),
                        ("photo judge", lambda: judged_lines(run.folder)),
@@ -2916,8 +2922,8 @@ def whole_morning():
                 "cancelled": 0, "restored": 0, "added": {"events": list(range(len(p["p_events"]))),
                                                          "news": list(range(len(p["p_news"])))}}
 
-    def site(url, kind):
-        clock.t += 100  # four pages to a part
+    def site(url, kind, scrape=None):
+        clock.t += 100 if scrape is None else 0  # four pages to a part; the finish's sign-up pages take none
         if "dsl" in url:
             raise RuntimeError("HTTP Error 500: Internal Server Error")
         return 200, f"Harvest Supper Nov 3 at {url}", "fetch"
@@ -3089,6 +3095,7 @@ def whole_morning():
                     "[check] Sacred Heart Chapel Anniversary (2026-11-21): Starts at 7:30, not 7.",
                     "[morning] standouts: 1 of 1 events today",
                     "[morning] #1 Harvest Supper (5 PM): A church supper open to all",
+                    "- Sign-up pages: 1 of 1 read",
                     "No event photo yet:",
                     "- Tue Nov 3 · 5 PM · Harvest Supper · Milk & Honey Ciders",
                     "- Sat Nov 7 · 9 AM · Holiday Market · Milk & Honey Ciders",

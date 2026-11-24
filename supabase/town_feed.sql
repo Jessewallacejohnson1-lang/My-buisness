@@ -395,6 +395,11 @@ as $$
       -- Called off: out of the feed, Hearted or not. Whoever Hearted it or is Going hears it in the bell
       -- (BP app inside-cards 16; until then a Heart kept it here).
       and e.cancelled_at is null
+      -- Nobody can sign up any more (signups_closed_by; BP app watch-every-place 49): out of the feed and its later list,
+      -- except for whoever is Going or Hearted it.
+      and (e.signups_closed_by is null
+           or exists (select 1 from public.event_rsvps r where r.event_id = e.id and r.user_id = auth.uid())
+           or exists (select 1 from public.event_likes l where l.event_id = e.id and l.user_id = auth.uid()))
       -- For college students (onboarding 21): only for those who picked College, or are Going or Hearted it.
       and (not ('college' = any(e.interests) and e.interests_tagged_at is not null)
            or (select 'college' = any(me.interests) from me)

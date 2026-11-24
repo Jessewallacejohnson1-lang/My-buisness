@@ -83,6 +83,11 @@ morning every one of those sources was read (read_events.py, the league's high s
   A found event listed from one of those sources, with an id starting uid_prefix and a date from
   `from` to `through`, that no item this morning matches has been called off.
 
+THE CATALOG LINE: a reader that has a host's whole list of programs adds one more line (read_events.py, the City's Rec1):
+  {"kind": "catalog", "uid_prefix": "rec1:", "source_name": "City of St. Joseph", "uids": ["rec1:4585177", ...]}
+  A listed Event of that source with an id starting uid_prefix and not among `uids` left the list, as the City's programs
+  do once their sign-ups are over: nobody can sign up, so it leaves the Town feed (Sign-ups, below).
+
 THE RULES
   Place (Jesse, 2026-10-16): every event row carries place_entry_id, the registry entry it happens
     at, so its card shows that place's photo or logo: the place line matched to a name, `aka`,
@@ -161,9 +166,13 @@ THE RULES
   Show-from day (the event-lead-time rule, moved here from the skill): the event date minus
     14 days (everyday), 28 (notable) or 56 (big). With sign-ups closing, it lands at least a
     week before they close: size up if that does it, else the deadline minus 7 days. A re-read
-    keeps a day already set unless the date moved. Kept out (Jesse, 2026-10-17: "if your not
-    able ot signup or go dont recommend it"): an event marked closed, or whose sign-ups closed
-    before today, shows from the day after it ends, so the Town feed never shows it.
+    keeps a day already set unless the date moved.
+  Sign-ups (Jesse, 2026-10-17: "if your not able ot signup or go dont recommend it"; BP app watch-every-place 49): an Event
+    its own source's item marks closed, or whose sign-ups closed before today, is marked so (club_events.signups_closed_by:
+    'listing', 'catalog' for a catalog's program), listed new or long before: the Town feed leaves it out, except for
+    someone Going to it or who Hearted it. An item under its own id that says `closed` false, as the catalog's do, opens it
+    again; one that says nothing doesn't (the judge writes `closed` only when it is). A page that says it, read by
+    signups.py ('page'), is opened only by that page.
   Interest: checked against Interests.all; one not on the list is dropped and named.
   Cancelled (Jesse, 2026-10-15): an event its schedule dropped (THE SCHEDULE LINE) is kept and
     marked cancelled, never deleted; its title stays as written (the app shows a Canceled tag,
@@ -187,6 +196,7 @@ from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from read_events import BOUND_GENERIC, LOCAL, SCHOOL_KIND, clock
+from db import DbError
 from run import Supabase
 from towns import TOWNS, DEFAULT, lookup
 import registry
@@ -960,14 +970,9 @@ def event_of(it, today, interests, home, notes, titles=None, teams=None, made=No
     title, place = own_day(tidy_title(it["title"], it["source_name"]), day), tidy_place(place, home)
     title = (titles or {}).get(title, title)
     place = meets_at(place, it["source_name"], title, home)
-    # ponytail: kept out only as it is first listed. A listed event whose sign-ups close later
-    # keeps its day (apply_judged keeps a day already set); the event-lead-time skill's pass
-    # takes it out. Make a kept-out day win in apply_judged if that pass keeps finding them.
-    if it.get("closed") is True or (signup and signup < today):
-        shows = (end.date() if end and end.date() > day else day) + timedelta(1)
-        notes.append(f"kept out of the Town feed, nobody can still go: {title!r} {day}")
-    else:
-        shows = show_from(day, size, signup)
+    # True, False when its source says sign-ups are open (the catalog does), else None: it says nothing either way.
+    closed = True if it.get("closed") is True or signup and signup < today else False if it.get("closed") is False else None
+    shows = show_from(day, size, None if closed else signup)
     online = ONLINE.search(it["title"]) or place.lower() in ("online", "virtual")
     # ponytail: a source with no ids of its own gets one from the start and title, so when its
     # page moves an event to another day the moved one is added and the old one stays. Fix
@@ -1009,7 +1014,7 @@ def event_of(it, today, interests, home, notes, titles=None, teams=None, made=No
              "title": words(title), **place_facts(place, it["source_name"]), "own_id": real_uid(uid),
              "game": bool(game) or is_game(row), "poster": it["source_name"].strip(),
              "followers": it.get("followers_only") is True}
-    return {"row": row, "facts": facts}, None
+    return {"row": row, "facts": facts, "closed": closed}, None
 
 
 # How long the Town feed shows a News (town_feed.sql's `news`): a week, or to its date, up to a month.
@@ -1504,12 +1509,12 @@ def plan(items, existing, today, interests, town=TOWNS[DEFAULT], titles=None, te
     `teams`: known_teams(); without it a game's names become ids, which apply() refuses."""
     home = town["label"]
     out = {"events": [], "news": [], "outcomes": [None] * len(items), "notes": [], "cancelled": [], "restored": [],
-           "teams_checked": teams is not None, "ask": [], "ask_events": []}
+           "teams_checked": teams is not None, "ask": [], "ask_events": [], "closed": [], "opened": []}
     asked, asked_events, said_same = asked or {}, asked_events or {}, set()
     taken_out = [r for r in history or () if not r.get("event_date") and r.get("status") != "published"]
     events = [r for r in history or () if r.get("event_date")] + events_read(items, town)
     made = {}  # this run's new teams, by id: their one name
-    schedules, called_off = [], set()
+    schedules, catalogs, called_off = [], [], set()
     # A host's Facebook event this read gives one start (the same event read twice is still one): known by its number.
     # One page with a matinee and an evening show, or several dates, keeps an id per start.
     starts = {}
@@ -1527,6 +1532,10 @@ def plan(items, existing, today, interests, town=TOWNS[DEFAULT], titles=None, te
             schedules.append(it)
             out["outcomes"][i] = ("schedule", f"{len(it.get('sources') or [])} schedules read whole, "
                                               f"{it.get('from')} to {it.get('through')}")
+            continue
+        if isinstance(it, dict) and it.get("kind") == "catalog":
+            catalogs.append(it)
+            out["outcomes"][i] = ("catalog", f"{len(it.get('uids') or [])} programs on its list")
             continue
         if isinstance(it, dict) and it.get("kind") == "cancelled":
             number = facebook_event(it.get("source_url"))
@@ -1701,6 +1710,17 @@ def plan(items, existing, today, interests, town=TOWNS[DEFAULT], titles=None, te
             if not old and timed and row["all_day"] and not row["end_at"]:
                 row.update({k: timed["row"][k] for k in ("start_time", "all_day", "end_at")})
             g["row"] = row
+            # Sign-ups: any of its own source's items this read (another source that only gave it a time says nothing). Only
+            # the Event's own id says it is open again: the judge writes `closed` only when it is, so no word is no answer.
+            was, said = (old or {}).get("signups_closed_by"), [primary[1]] if not old else [ev for _, ev in mine]
+            shut = next((ev for ev in said if ev["closed"]), None)
+            if g["status"] == "rejected":
+                pass
+            elif shut and not was:
+                out["closed"].append((row, "catalog" if str(shut["row"]["source_uid"]).startswith("rec1:") else "listing"))
+            elif not shut and was in ("listing", "catalog") and any(
+                    ev["closed"] is False and ev["row"]["source_uid"] == old.get("source_uid") for ev in said):
+                out["opened"].append(row)
         for i, ev in g["items"]:
             if old:
                 detail = f"into {old['title']!r} {str(old['event_date'])[:10]} (already listed" + \
@@ -1724,6 +1744,12 @@ def plan(items, existing, today, interests, town=TOWNS[DEFAULT], titles=None, te
         old = g["old"]
         if not old or not old.get("found", True):
             continue
+        uid = str(old.get("source_uid") or "")
+        if not old.get("signups_closed_by") and g["row"] not in [r for r, _ in out["closed"]] and old.get("status") == "approved" \
+                and str(old["event_date"])[:10] >= today.isoformat() and any(
+                    c.get("uids") and uid.startswith(c.get("uid_prefix") or "\0") and uid not in c["uids"]
+                    and old["source_name"] == c.get("source_name") for c in catalogs):
+            out["closed"].append((old, "catalog"))
         if g["items"]:
             if old.get("cancelled_at"):
                 out["restored"].append(old)
@@ -1776,6 +1802,24 @@ def apply(result, db=None):
     if not result.get("teams_checked"):
         sys.exit("[judged] refused: the plan didn't look its games' teams up (plan(..., teams=known_teams()))")
     return (db or Supabase()).rest("POST", "rpc/apply_judged", payloads(result))
+
+
+def mark_signups(result, db=None, dry_run=False):
+    """Marks each Event whose sign-ups the plan found closed or open again (after apply, so a new one has its row), and
+    says so in the report's lines. A mark the database refuses is a line: the items are saved, and the next read tries again."""
+    lines = []
+    for row, by, word in [(r, by, "Sign-ups closed, out of the Town feed") for r, by in result["closed"]] + \
+            [(r, None, "Sign-ups open again, back in the Town feed") for r in result["opened"]]:
+        said = f"- {word}: {str(row['event_date'])[:10]} {row['title']} ({row['source_name']})"
+        if not dry_run:
+            try:
+                (db or Supabase()).rest("PATCH", f"club_events?source_name=eq.{quote(row['source_name'])}&source_uid=eq.{quote(str(row['source_uid']))}"
+                                        f"&signups_closed_by={'is.null' if by else 'in.(listing,catalog)'}",
+                                        {"signups_closed_by": by}, prefer="return=minimal")
+            except DbError as e:
+                said = f"[morning] sign-ups mark failed for {row['title']}: {' '.join(str(e).split())[:200]}"
+        lines.append(said)
+    return lines
 
 
 def listed_in_db(db=None):
@@ -2604,14 +2648,58 @@ def t_show_from_by_size():
 
 def t_kept_out_when_nobody_can_go():
     r = run([item(closed=True)])
-    assert r["events"][0]["row"]["shows_from"] == "2026-10-25" and "kept out" in " ".join(r["notes"])
-    r = run([item(signup_by="2026-10-13")])
-    assert r["events"][0]["row"]["shows_from"] == "2026-10-25", "sign-ups closed yesterday"
+    assert [(x["title"], by) for x, by in r["closed"]] == [("Plant Bingo", "listing")], r["closed"]
+    assert r["events"][0]["row"]["shows_from"] == "2026-09-26", "its day is its size's; the mark keeps it out"
+    assert run([item(signup_by="2026-10-13")])["closed"], "sign-ups closed yesterday"
     r = run([item(signup_by="2026-10-14")])
-    assert r["events"][0]["row"]["shows_from"] == "2026-09-26", "sign-ups close today: still open"
-    r = run([item(closed=True, end="2026-10-26T12:00:00-05:00")])
-    assert r["events"][0]["row"]["shows_from"] == "2026-10-27", "a multi-day event: the day after it ends"
+    assert not r["closed"] and r["events"][0]["row"]["shows_from"] == "2026-09-26", "sign-ups close today: still open"
+    assert not run([item()])["closed"] and not run([item(closed=False)])["opened"]
     assert run([item(closed="yes")])["outcomes"][0] == ("skipped", "invalid: closed must be true or false")
+
+
+def t_listed_event_fills_and_opens():
+    """A listed Event whose own source now says closed comes out; its next item that doesn't say so opens it (watch-every-place 49)."""
+    old = dict(title="Plant Bingo", event_date="2026-10-24", start_time="4 PM", location="Milk & Honey Ciders",
+               source_name="Milk & Honey Ciders", source_uid="page:2026-10-24T1600:bingo-plant", shows_from="2026-10-10")
+    r = run([item(closed=True)], [listed(**old)])
+    assert [(x["source_uid"], by) for x, by in r["closed"]] == [(old["source_uid"], "listing")] and not r["opened"], r["closed"]
+    assert not run([item(closed=True)], [listed(**old, signups_closed_by="listing")])["closed"], "marked once"
+    assert not run([item()], [listed(**old, signups_closed_by="listing")])["opened"], "an item that says nothing opens nothing"
+    r = run([item(closed=False)], [listed(**old, signups_closed_by="listing")])
+    assert [x["source_uid"] for x in r["opened"]] == [old["source_uid"]], "it opened again"
+    assert not run([item(closed=False)], [listed(**old, signups_closed_by="page")])["opened"], "only its page opens one its page closed"
+    from morning_run import FakeDb
+    db = FakeDb()
+    lines = mark_signups(run([item(closed=True)], [listed(**old)]), db)
+    assert lines == ["- Sign-ups closed, out of the Town feed: 2026-10-24 Plant Bingo (Milk & Honey Ciders)"], lines
+    (method, path, body), = db.writes()
+    assert method == "PATCH" and path.endswith("&signups_closed_by=is.null") and body == {"signups_closed_by": "listing"}, db.writes()
+
+    def refuse(*a):
+        raise DbError("PATCH", "club_events", 403, "permission denied")
+    assert mark_signups(r, FakeDb(answers={"club_events": refuse}))[0].startswith("[morning] sign-ups mark failed"), "a line"
+
+
+def t_left_the_catalog():
+    """A program gone from its host's list, as the City's go once their sign-ups are over: out (watch-every-place 49)."""
+    here = {"kind": "catalog", "uid_prefix": "rec1:", "source_name": "City of St. Joseph", "uids": ["rec1:1", "rec1:2"]}
+    on = lambda n, **kw: listed(**{"id": f"{n}" * 8, "title": f"Class {n}", "source_name": "City of St. Joseph",
+                                   "source_uid": f"rec1:{n}", **kw})
+    rows = [on(1), on(3), on(4, signups_closed_by="catalog"), on(5, status="rejected"), on(6, event_date="2026-10-13"),
+            on(7, source_name="City of Sartell"), on(8, source_uid="page:8")]
+    out = lambda cat: [x["source_uid"] for x, by in run([cat], rows)["closed"]]
+    assert out(here) == ["rec1:3"], out(here)
+    assert out({**here, "uids": []}) == [], "a list that read empty closes nothing"
+    # The City's calendar lists the program too: that copy neither keeps it in nor opens it.
+    copy = item(title="Class 3", source_name="City of St. Joseph", source_uid="2447", start="2026-12-04T19:00:00-06:00", end=None,
+                place="Saint John's University", closed=False)
+    r = run([here, copy], [on(3)])
+    assert [x["source_uid"] for x, by in r["closed"]] == ["rec1:3"] and not r["opened"], (r["closed"], r["outcomes"])
+    assert not run([here, copy], [on(3, signups_closed_by="catalog")])["opened"]
+    back = item(title="Class 1", source_name="City of St. Joseph", source_uid="rec1:1", start="2026-12-04T19:00:00-06:00", end=None, closed=False)
+    assert [x["source_uid"] for x in run([here, back], [on(1, signups_closed_by="catalog")])["opened"]] == ["rec1:1"], "on the list again"
+    r = run([here], rows)
+    assert outcome(r, 0) == "catalog" and not r["cancelled"], "out of the feed, never called off"
 
 
 def t_interest_checked():
@@ -3699,6 +3787,7 @@ def main():
         print(f"[judged] SQL for the live write: {args.sql} (not run)")
     if args.apply:
         print(f"[judged] written: {json.dumps(apply(r))}")
+        print("\n".join(mark_signups(r)) or "[judged] no sign-ups closed or opened")
 
 
 if __name__ == "__main__":
