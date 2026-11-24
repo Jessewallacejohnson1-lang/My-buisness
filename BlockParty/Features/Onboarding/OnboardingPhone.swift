@@ -247,6 +247,8 @@ struct PhoneSignInScreen: View {
     private enum Field { case number, code }
     @FocusState private var typing: Field?
     @AccessibilityFocusState private var heading: Bool
+    /// What the number box shows, spaced; `form.digits` is the number.
+    @State private var typed = ""
     @State private var whyOpen = false
     @State private var countryOpen = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -281,6 +283,7 @@ struct PhoneSignInScreen: View {
     }
 
     private func focus() {
+        typed = PhoneNumber.spaced(form.digits)
         // VoiceOver hears the question first; everyone else gets the number pad.
         if voiceOver { heading = true } else { typing = form.stage == .number ? .number : .code }
     }
@@ -330,7 +333,7 @@ struct PhoneSignInScreen: View {
         Button { countryOpen = true } label: {
             HStack(spacing: 0) {
                 Text(form.country.flag).appleFont(20)
-                Text(PhoneCountry.code).appleFont(18).padding(.leading, 11)
+                Text(PhoneCountry.code).appleFont(18).lineLimit(1).fixedSize().padding(.leading, 11)
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.down")
                     .font(.glyph(17, weight: .bold))
@@ -349,7 +352,7 @@ struct PhoneSignInScreen: View {
     }
 
     private var numberBox: some View {
-        TextField("", text: spacedDigits)
+        TextField("", text: $typed)
             .textContentType(.telephoneNumber)
             .keyboardType(.numberPad)
             .focused($typing, equals: .number)
@@ -359,17 +362,18 @@ struct PhoneSignInScreen: View {
             .foregroundStyle(Hue.hingeInk)
             .tint(Hue.hingeCaret)
             .accessibilityLabel("Phone number")
+            // Hinge's groups as they are typed: a binding that spaced them itself showed only on losing the keyboard.
+            .onChange(of: typed) { _, now in
+                form.digits = PhoneNumber.digits(now)
+                let spaced = PhoneNumber.spaced(form.digits)
+                if spaced != now { typed = spaced }
+            }
             .padding(.leading, 21)
             .padding(.trailing, 12)
             .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
             .background(Hue.hingeBox, in: Self.box)
             .contentShape(Self.box)
             .onTapGesture { typing = .number }
-    }
-
-    /// The ten digits, shown in Hinge's groups as they are typed.
-    private var spacedDigits: Binding<String> {
-        Binding(get: { PhoneNumber.spaced(form.digits) }, set: { form.digits = PhoneNumber.digits($0) })
     }
 
     // MARK: Code (onboarding 45)
@@ -384,7 +388,7 @@ struct PhoneSignInScreen: View {
                 Button { form.editNumber() } label: {
                     HStack(spacing: 9) {
                         underLine("Sent to \(PhoneNumber.spaced(form.digits)) •")
-                        Image(systemName: "pencil").font(.glyph(13, weight: .semibold)).foregroundStyle(Hue.hingeInk)
+                        Image(systemName: "pencil").font(.glyph(15, weight: .semibold)).foregroundStyle(Hue.hingeInk)
                     }
                 }
                 .buttonStyle(.press(.dim))
@@ -433,10 +437,11 @@ struct PhoneSignInScreen: View {
                 .focused($typing, equals: .code)
                 .foregroundStyle(.clear)
                 .tint(.clear)
-                .disabled(form.checked)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .accessibilityLabel("Verification code")
-                .onChange(of: form.code) { _, typed in
+                .onChange(of: form.code) { was, typed in
+                    // A right code is spent: it stays, and the number pad with it, till the next step loads.
+                    if form.checked { form.code = was; return }
                     let kept = String(typed.filter { $0.isASCII && $0.isNumber }.prefix(PhoneForm.codeLength))
                     if kept != typed { form.code = kept }
                 }
@@ -560,7 +565,7 @@ struct PhoneSignInScreen: View {
     }
 
     private var whySheet: some View {
-        sheet("What if my number changes?", height: 226) {
+        sheet("What if my number changes?", height: 170) {
             Text("Your number is how you log in. Got a new one? Log in with your old number, then change it in Settings.")
                 .font(.apple(15))
                 .foregroundStyle(Hue.hingeSheetWords)
