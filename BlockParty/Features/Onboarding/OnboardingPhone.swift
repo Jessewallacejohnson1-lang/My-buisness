@@ -616,9 +616,14 @@ struct PhoneSignInScreen: View {
 
 /// The blinking caret the two steps draw where the next digit goes (the mock's 2 x 22).
 private struct HingeCaret: View {
+    @State private var shown = Date()
+
     var body: some View {
-        Capsule().fill(Hue.hingeCaret).frame(width: 2, height: 22)
-            .phaseAnimator([1.0, 0.0]) { $0.opacity($1) } animation: { _ in .linear(duration: 0.01).delay(0.5) }
+        // Not a phase animator: its delay held the caret back half a second as the digits moved it.
+        TimelineView(.periodic(from: .now, by: 0.5)) { tick in
+            Capsule().fill(Hue.hingeCaret).frame(width: 2, height: 22)
+                .opacity(Int(tick.date.timeIntervalSince(shown) * 2) % 2 == 0 ? 1 : 0)
+        }
     }
 }
 
