@@ -88,8 +88,9 @@ a flag the app reads isn't here, or one here is read by nothing (move it to the 
   New group sheet with that name typed and a bundled photo picked (BP app start-a-group 02), since nothing types
   on the simulator; add `-group-invite list` to land past Create on Invite friends (Share link, Copy link, Code) for an
   invented Group with that name, nothing written, or `-group-invite code` for its Code sheet too (start-a-group 07).
-  `-group-admin admin|member|edit|hand|close|event|meets` opens a sample Group's page (start-a-group 04), with
-  no read: yours to run (the ••• beside Share), a member's (none), or Edit group open over it, on the Admin row's
+  `-group-admin admin|member|private|waiting|edit|hand|close|event|meets` opens a sample Group's page (start-a-group
+  04; with `-start-group`, inside that sheet), with no read: yours to run (the ••• beside Share), a member's (none;
+  `private` and `waiting` are a private Group's and one still on its checks, which ask before you leave), or Edit group open over it, on the Admin row's
   hand-over question, or on Close group's question; the sample neighbours are its members, two picked. Its Calendar
   (start-a-group 05) has invented Tuesday get-togethers and two Events; `event` opens its + (New event with the
   Group as host) and `meets` Edit when you meet, open on its Tuesdays at 6:30 PM; as `admin`, a long press on an Event

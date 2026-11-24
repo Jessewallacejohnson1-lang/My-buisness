@@ -273,6 +273,11 @@ nonisolated enum Hue {
     static let deepPillWords = Color(hex: 0x111111)
     /// A picked circle's check (mock v5 `.bd`): Google's green, not Apple's `now`.
     static let pickCheck    = Color(hex: 0x34A853)
+    /// Follow 3's night, later the same evening (Jesse's pick, 2026-11-23, BP app onboarding 50): held and faded as
+    /// Dusk is. Its Next pill while not allowed is solid, white at 26% over the night there, as places scroll under it.
+    static let nightTop     = Color(hex: 0x171B30)
+    static let nightBottom  = Color(hex: 0x35263A)
+    static let nightOff     = Color(hex: 0x645D6C)
 
     // MARK: Onboarding in Luma's look (BP app onboarding 34, mock v8 `--canvas` and friends)
 

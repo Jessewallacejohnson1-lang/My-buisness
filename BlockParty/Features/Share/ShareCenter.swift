@@ -257,9 +257,10 @@ extension SharePayload {
     }
 
     /// A group, from its Group page or Invite friends: what it is, when and where it meets, and its own link
-    /// (start-a-group 07), the one link in the words.
+    /// (start-a-group 07), the one link in the words. When and where a private Group meets, or one still waiting on its
+    /// checks, is its members' to know (Jesse, 2026-11-23, start-a-group 09).
     static func group(_ group: TownGroup) -> SharePayload {
-        let detail = GroupPage.whenLine(group)
+        let detail = group.isPrivate || group.status != "approved" ? nil : GroupPage.whenLine(group)
         let link = GroupLink.link(for: group.id)
         var text = "Come to \(group.name) with me"
         if let detail { text += ": \(detail)" }

@@ -126,7 +126,7 @@ carry on with the rest.
 
 **Answer** with the summary as `save` printed it, keep's `[photos]` line, `done`'s lines (the pictures line is what
    reading pictures added to the cost), every `[social] FAILED`, `[social] Events tab lists events` and `[social] Hosts a found Event` line
-   from Prepare, then one line per flag you dropped that a neighbour might have wanted, and why. After Prepare's
+   from Prepare, any `[helpers]` line (Wait in the turn), then one line per flag you dropped that a neighbour might have wanted, and why. After Prepare's
    `[social] stories:` line, say what each `stories-` page became: the Event or News title it gave (or the one it
    repeats), else left out and why (BP app watch-every-place 25). A
    page Apify says is not available, or returns nothing for, three reads in a row sets itself aside
@@ -138,6 +138,7 @@ carry on with the rest.
 
 ## Rules
 
+- Every helper, the Photos ones included, starts and is waited for by `sources/models/morning.md`'s **Wait in the turn** rule.
 - Pictures are read for their facts only, except the one a Photos helper picks as an Event's or a News's photo:
   it is saved, credited to its place and taken down on request (Jesse, 2026-10-30 and 2026-11-08; ADR-020). No other
   picture is shown, uploaded or kept past this check. `.runs/` goes with the copy.

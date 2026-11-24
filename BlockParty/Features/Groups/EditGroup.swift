@@ -68,6 +68,25 @@ nonisolated struct EditGroupDraft: Equatable {
     }
 }
 
+#if DEBUG
+extension TownGroup {
+    /// `-group-admin <state>`'s sample: yours to run, or a member's (`member`; `private` and `waiting` are a private
+    /// Group's and one still waiting on its checks).
+    static var sampleForAdmin: TownGroup? {
+        guard let state = LaunchFlags.value(.groupAdmin) else { return nil }
+        var group = TownGroup(id: "sample-group", name: "Joetown Sewing Circle", kind: "Crafts",
+                              photos: Bundle.main.url(forResource: "millstream-arts-festival", withExtension: "jpg")
+                                  .map { [PlacePicture(url: $0, kind: .photo)] } ?? [], memberCount: 7)
+        group.about = "We sew, mend and quilt together. Bring what you're working on."
+        group.joined = true
+        group.isPrivate = state == "private"
+        if state == "waiting" { group.status = "pending" }
+        group.requests = ["member", "private", "waiting"].contains(state) ? nil : 0
+        return group
+    }
+}
+#endif
+
 /// One member as the Admin's lists show them.
 struct GroupMember: Identifiable, Hashable {
     let person: Neighbor
@@ -330,8 +349,8 @@ struct EditGroupSheet: View {
             if draft.newPhoto, let image, let jpeg = ProfileModel.coverJPEG(image) {
                 photo = try await api.uploadGroupEditPhoto(jpeg, id: group.id)
             }
-            let checks = try await api.editGroup(group.id, draft, editors: members == nil ? nil : draft.editors,
-                                                 photo: photo)
+            let checks = try await api.editGroup(group.id, draft, checks: draft.needsCheck(from: start),
+                                                 editors: members == nil ? nil : draft.editors, photo: photo)
             var shown = group
             shown.isPrivate = draft.isPrivate || alwaysPrivate
             shown.eventsBy = draft.eventsBy.rawValue

@@ -48,8 +48,11 @@ at 24 pt semibold on a 30 pt line; Luma's
 flat 48 pt black pill 20 pt from each side, which sinks to 97% and dims when pressed, greys while not
 allowed and shakes; soft grey field boxes with a small label above. The Welcome keeps Nextdoor's
 layout (ticket 25). Interests is one white card of
-rows with check circles, its chips grey until picked; Follow 3's logos sit on white with a plus that
-turns to an ink check, no Follow pills. Duolingo's
+rows with check circles, its chips grey until picked; Follow 3 is Spotify's artist grid on a
+night sky (onboarding 50, 2026-11-23; BP app `references/follow-spotify/SPEC.md`): a white 31 pt bold question at the left
+and a white search box, 112 pt circles (a photo, or a logo on white) with Interests' ring and green check once
+followed, the popular places first (`places.follow_spot`), no icon circle, no plus, no Follow pills; its Next pill is
+Interests' white one. Duolingo's
 chunky bar, glint and raised button and chips are gone. Everything below this
 section still holds, except where the spec says otherwise: between steps only the question slides
 (Reduce Motion: a cross-fade), not a cross-fade of the whole step.

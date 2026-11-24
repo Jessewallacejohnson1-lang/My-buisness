@@ -48,6 +48,8 @@ enum Radius {
     /// `references/phone-hinge/SPEC.md`, `references/code-hinge/SPEC.md`).
     static let hingeBox: CGFloat = 20.3
     static let hingeDigit: CGFloat = 18.3
+    /// Follow 3's white search box, Spotify's, measured (BP app onboarding 50, `references/follow-spotify/SPEC.md`).
+    static let followSearch: CGFloat = 3.7
     static let faceShare: CGFloat = 0.416
 }
 

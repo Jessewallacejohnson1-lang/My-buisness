@@ -2020,12 +2020,12 @@ category: church
 added_by: agent:discover
 address: "1300 Jade Rd"
 sources:
-  - url: TODO
+  - url: https://rlcmn.church/st-joseph
     kind: website
-    method: submission
+    method: fetch
     trust: official
 ```
-Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Unreviewed — tier `listed`, so it publishes nothing until promoted. 2026-11-20 (BP app watch-every-place 34): the St. Joseph campus of a church with four campuses, meeting at Kennedy Community School, 1300 Jade Rd, Sundays 10:30 AM. Its own Instagram @stjoechurch ("River of Life - St. Joseph") is read weekly; two separate checks agreed: rlcmn.church/st-joseph links it, and its bio gives the same address. The same page links the campus Facebook page facebook.com/rlcmnstj, not yet on the list (the whole church's riveroflifechurchmn is).
+Notes: Proposed by discovery on 2026-09-24 from stjosephchamber.com. No URL was found, so this is `submission`: it waits on the owner rather than guessing an address (ADR-007). Unreviewed — tier `listed`, so it publishes nothing until promoted. 2026-11-20 (BP app watch-every-place 34): the St. Joseph campus of a church with four campuses, meeting at Kennedy Community School, 1300 Jade Rd, Sundays 10:30 AM. Its own Instagram @stjoechurch ("River of Life - St. Joseph") is read weekly; two separate checks agreed: rlcmn.church/st-joseph links it, and its bio gives the same address. The same page links the campus Facebook page facebook.com/rlcmnstj, not yet on the list (the whole church's riveroflifechurchmn is). 2026-11-23 (BP app community-value 07): its website is rlcmn.church/st-joseph, the campus's own page, which lets readers in; it lists no events. Its Events link forwards to Church Center (rlcmn.churchcenter.com), which keeps AI readers out: not added.
 
 ## Rock for Alzheimers
 ```yaml
