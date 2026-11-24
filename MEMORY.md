@@ -112,7 +112,9 @@ or its `docs/rules/` file and leaves here.
   (Jesse, of a scoop of the week's flavour marked weak: "an image of what the news is directly about just like how protrait of
   person works. we need to have the ai use its reasoning"): the person, the product, the dish a post announces run like a
   portrait; examples guide it, not a list to match. Down only for what a neighbour would call wrong at a glance. BP app
-  event-photos 30, `sources/models/photo-judge.md`.
+  event-photos 30, `sources/models/photo-judge.md`. For an Event people watch, a fresh look at the photo alone comes first
+  (Jesse, 2026-11-23, of a play's cast reading to schoolchildren: "this photo is wrong"): its people off doing something
+  else come down, even in costume. BP app event-photos 32, `sources/models/photo-look.md`.
 - 2026-11-01 — Venue photos come only from our own store (`public.place_photos`): the app has
   no Google Places code, call or key (Jesse: "I don't want any of the Google photos
   anymore"; Google at runtime cost about $40,000 a month at 10,000 users). Photos from a
