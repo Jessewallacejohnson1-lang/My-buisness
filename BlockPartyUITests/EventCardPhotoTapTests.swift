@@ -10,8 +10,7 @@
 //  for screenshots cannot send two taps close enough to count as a double tap, so the
 //  split is proven here, with XCUITest's own `doubleTap()`.
 //
-//  Also here: an edge swipe over the event page's picture sends the page home, and so does a pull down under
-//  the clock (the page opens over the shell since BP app tab-lag 02, round 5).
+//  Also here: an edge swipe over the event page's picture pops the page, and so does Back.
 //
 //  Run on the "BlockParty Tests" simulator, never the screenshot one (`sim-guard.sh`).
 //
@@ -168,22 +167,8 @@ final class EventCardPhotoTapTests: XCTestCase {
                        .completed, "an edge swipe on the hero did not pop the page")
     }
 
-    /// A Town card's page opens over the shell (BP app tab-lag 02, round 5): a drag down from the band under the
-    /// clock, while the page is at its top, sends it home into its card, as the Place page's does.
-    func testAPullDownUnderTheClockSendsThePageHome() {
-        let link = firstCardLink()
-        photo(of: link).tap()
-        XCTAssertTrue(pageOpened(timeout: 15), "a tap on the photo did not open the page")
-
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.08))
-            .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7)))
-        let gone = NSPredicate(format: "exists == false")
-        XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: gone, object: app.buttons["Back"])],
-                                      timeout: 10), .completed, "a pull down under the clock did not send the page home")
-    }
-
-    /// Back on the page opened over the shell sends it home (tab-lag 02, round 5).
-    func testBackSendsThePageHome() {
+    /// Back pops the page a Town card pushed (BP app tab-lag 06).
+    func testBackPopsThePage() {
         let link = firstCardLink()
         photo(of: link).tap()
         XCTAssertTrue(pageOpened(timeout: 15), "a tap on the photo did not open the page")
@@ -191,7 +176,7 @@ final class EventCardPhotoTapTests: XCTestCase {
         app.buttons["Back"].tap()
         let gone = NSPredicate(format: "exists == false")
         XCTAssertEqual(XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: gone, object: app.buttons["Back"])],
-                                      timeout: 10), .completed, "Back did not send the page home")
+                                      timeout: 10), .completed, "Back did not pop the page")
     }
 
     /// A finger from the screen's leading edge, most of the way across. 0.22 of the height

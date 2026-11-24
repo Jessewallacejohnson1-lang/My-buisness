@@ -68,11 +68,6 @@ struct FeedEventCard: View {
     @Environment(\.hostOpener) private var hostOpener
     /// A tap on its host goes up with the Town feed's views (feed-learns 02).
     @Environment(\.feedViews) private var taps
-    /// Town's: the photo opens the Event page over the shell, growing out of it (tab-lag 02 round 5). Elsewhere
-    /// the card pushes the page.
-    @Environment(\.eventOpener) private var eventOpener
-    /// Where the card's face is, for the page to grow out of.
-    @State private var faceFrame = FrameBox()
 
     init(item: FeedCardItem, onShare: (() -> Void)? = nil, debugAutoplay: Bool = false) {
         self.item = item
@@ -84,14 +79,11 @@ struct FeedEventCard: View {
         VStack(alignment: .leading, spacing: 0) {
             // The photo is the link to the event's page. The line under it stays outside it, so
             // "Can't go?" keeps its own tap and pressing it never squishes the card.
-            opensPage {
+            NavigationLink(value: item) {
                 VStack(alignment: .leading, spacing: 0) {
                     // Only the photo sinks in on a press; the line under it stays still
                     // (Jesse, 2026-10-27).
                     face
-                        .trackFrame(faceFrame)
-                        // Its page has it: one photo on screen, never two (as Search's tile, place-photos 10).
-                        .opacity(eventOpener?.hidesCard(item.id) == true ? 0 : 1)
                         // Two fingers lift the photo where it sits; its words and buttons step aside (BP app photo-zoom).
                         .pinchToZoom(corner: Radius.card, slot: Hue.paper, lifted: $faceLifted)
                         .onGeometryChange(for: CGSize.self) { $0.size } action: { photoSize = $0 }
@@ -174,38 +166,8 @@ struct FeedEventCard: View {
             actions.cardClosed(item.id, group: item.groupID)
             hostRead?.cancel()
         }
-        // Covered by its page over the shell, as by a pushed one: a failed heart or RSVP shakes there, not here.
-        .onChange(of: away) { _, now in
-            if now { actions.cardClosed(item.id, group: item.groupID) } else { actions.cardOpened(item.id, group: item.groupID) }
-        }
         .task { await runDebugAutoplay() }
         .task { await openMenuForDebug() }
-    }
-
-    // MARK: - Opening
-
-    private var away: Bool { eventOpener?.isAway(item.id) ?? false }
-
-    /// Where the page grows from: the photo the card shows, else (a flyer, a game, a logo, the white card) its face.
-    private var openSource: EventOpener.Source {
-        let grows = displayImage.isPhoto && !wholeFlyer && item.game == nil
-        return .init(box: faceFrame.rect, photo: grows ? displayImage.url : nil)
-    }
-
-    /// Town only: the finger lifted off the photo, so the page is built while the photo waits for a second tap.
-    private func prepareOpen() {
-        eventOpener?.prepare(item, from: openSource)
-    }
-
-    /// The photo's link: on Town a button opening the page over the shell from the card's face, its photo growing
-    /// into the page's (a flyer, a game or a logo grows the face's box); elsewhere the stack's push.
-    @ViewBuilder
-    private func opensPage<Label: View>(@ViewBuilder _ label: () -> Label) -> some View {
-        if let eventOpener {
-            Button { eventOpener.open(item, from: openSource) } label: { label() }
-        } else {
-            NavigationLink(value: item) { label() }
-        }
     }
 
     // MARK: - Host
@@ -375,7 +337,7 @@ struct FeedEventCard: View {
         // Called off: grey, as the photo goes (Jesse, 2026-10-15).
         .grayscale(item.cancelled ? 1 : 0)
         // A double tap likes, as on a photo; a tap opens the Event once that has failed.
-        .gesture(PhotoDoubleTap(onFirstLift: prepareOpen) { _ in performImageLike(at: nil) })
+        .gesture(PhotoDoubleTap { _ in performImageLike(at: nil) })
     }
 
     /// The white card's logo opens the host's page, as the mark on a photo does, wherever a host
@@ -559,7 +521,7 @@ struct FeedEventCard: View {
         // The link waits for this to fail before it pushes, so a single tap on the
         // photo opens the page `PhotoDoubleTap.window` after the finger lifts, and a
         // double tap likes without opening it (`EventCardPhotoTapTests`).
-        .gesture(PhotoDoubleTap(onFirstLift: prepareOpen) { performImageLike(at: $0) })
+        .gesture(PhotoDoubleTap { performImageLike(at: $0) })
     }
 
     /// The photo's own shape, known before it loads (`cardAspect`), so the card never jumps when it
@@ -697,8 +659,6 @@ struct FeedEventCard: View {
 
     /// No heart to mirror without an account, so no double tap either.
     private func performImageLike(at point: CGPoint?) {
-        // A like, not an open: the page built at the first lift goes.
-        eventOpener?.discard(item.id)
         guard actions.canAct else { return }
         withAnimation(motionIsReduced ? .easeInOut(duration: 0.15) : Motion.snappy) {
             actions.heartOn(item)
@@ -991,13 +951,6 @@ struct FeedCardLinkStyle: ButtonStyle {
 /// fails `window` after it.
 struct PhotoDoubleTap: UIGestureRecognizerRepresentable {
     let onDoubleTap: (CGPoint) -> Void
-    /// The first finger lifted, before the window: Town builds the Event page then (tab-lag 02 round 5).
-    var onFirstLift: (() -> Void)? = nil
-
-    init(onFirstLift: (() -> Void)? = nil, _ onDoubleTap: @escaping (CGPoint) -> Void) {
-        self.onFirstLift = onFirstLift
-        self.onDoubleTap = onDoubleTap
-    }
 
     /// Longest gap between the first lift and the second touch that still counts as a
     /// double tap. Shorter opens the page sooner, and a slower double tap reads as a
@@ -1005,9 +958,6 @@ struct PhotoDoubleTap: UIGestureRecognizerRepresentable {
     static let window: TimeInterval = 0.2
 
     final class Recognizer: UITapGestureRecognizer {
-        var firstLift: (() -> Void)?
-        private var lifts = 0
-
         override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
             NSObject.cancelPreviousPerformRequests(withTarget: self)
             super.touchesBegan(touches, with: event)
@@ -1016,8 +966,6 @@ struct PhotoDoubleTap: UIGestureRecognizerRepresentable {
         override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) {
             super.touchesEnded(touches, with: event)
             if state == .possible {
-                lifts += 1
-                if lifts == 1 { firstLift?() }
                 // `.common`, so the window still closes while a scroll is tracking.
                 perform(#selector(windowClosed), with: nil, afterDelay: PhotoDoubleTap.window,
                         inModes: [.common])
@@ -1026,7 +974,6 @@ struct PhotoDoubleTap: UIGestureRecognizerRepresentable {
 
         override func reset() {
             NSObject.cancelPreviousPerformRequests(withTarget: self)
-            lifts = 0
             super.reset()
         }
 
@@ -1038,12 +985,7 @@ struct PhotoDoubleTap: UIGestureRecognizerRepresentable {
     func makeUIGestureRecognizer(context: Context) -> Recognizer {
         let recognizer = Recognizer()
         recognizer.numberOfTapsRequired = 2
-        recognizer.firstLift = onFirstLift
         return recognizer
-    }
-
-    func updateUIGestureRecognizer(_ recognizer: Recognizer, context: Context) {
-        recognizer.firstLift = onFirstLift
     }
 
     func handleUIGestureRecognizerAction(_ recognizer: Recognizer, context: Context) {

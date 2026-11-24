@@ -62,7 +62,6 @@ nonisolated enum LaunchFlags {
         case onboardingNotYet = "-onboarding-not-yet"
         case openBusiness = "-open-business"
         case openCycle = "-open-cycle"
-        case openCycleCold = "-open-cycle-cold"
         case openEvent = "-open-event"
         case eventMorePlaces = "-event-more-places"
         case openFriends = "-open-friends"

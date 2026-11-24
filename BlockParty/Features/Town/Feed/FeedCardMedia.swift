@@ -142,12 +142,15 @@ private struct FeedCardDownsampledPhoto: View {
             }
         }
         .task(id: request) {
+            // Asked before the read, which fills the cache `image` looks in.
+            let drawn = image != nil
             let loadedImage = await FeedCardImageLoader.shared.image(for: request)
             guard !Task.isCancelled else { return }
             if let loadedImage {
-                // Cross-fade the photograph in rather than hard-cutting it over the ink.
+                // Cross-fade the photograph in rather than hard-cutting it over the ink. Not over itself: the fade
+                // showed as a grey blink on a Town card each time its page slid away (BP app tab-lag 06).
                 if let loaded { FeedCardImageLoader.shared.gone(loaded.url, loaded.image) }
-                withAnimation(.easeOut(duration: 0.2)) { loaded = (request.url, loadedImage) }
+                withAnimation(drawn ? nil : .easeOut(duration: 0.2)) { loaded = (request.url, loadedImage) }
                 FeedCardImageLoader.shared.showing(request.url, loadedImage)
             }
             // A photo already on screen at another size has not failed.
