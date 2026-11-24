@@ -111,10 +111,8 @@ struct EventGoingSection: View {
                 Button { if actions.hasAccount { open = true } } label: { label(words) }
                     .buttonStyle(.press(.squish))
                     .disabled(!actions.hasAccount)
-                    .accessibilityElement(children: .ignore)
                     .accessibilityLabel([GoingMetric.count(words.total), words.names].compactMap { $0 }.joined(separator: ", "))
                     .accessibilityHint(actions.hasAccount ? "Shows who's going" : "")
-                    .accessibilityAddTraits(actions.hasAccount ? .isButton : [])
                     .padding(.top, GoingMetric.top)
                     .transition(.opacity)
             }
@@ -224,35 +222,47 @@ private struct EventGoingCard: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// `actions.failureCount` at the last tap: a tap mid-shake stills it.
     @State private var tappedAt = 0
+    @State private var gateHeight = GoingMetric.gate
+    /// The home indicator's room, which Apple adds under a sheet's own height; none on an iPhone SE.
+    @State private var safeBottom = GoingMetric.foot
 
     private var isGoing: Bool { actions.going(item).isGoing }
     private var ink: Color { sun ? Hue.onBrandDisc : .white }
     private var left: Int { max(0, total - people.count - (you == nil ? 0 : 1)) }
 
+    private var foot: CGFloat { max(0, GoingMetric.foot - safeBottom) }
+
     private var height: CGFloat {
-        guard isGoing else { return GoingMetric.gate }
+        guard isGoing else { return gateHeight + foot }
         let rows = people.count + (you == nil ? 0 : 1) + (left > 0 ? 1 : 0)
-        return min(GoingMetric.listMost, GoingMetric.listTop + CGFloat(rows) * GoingMetric.row + GoingMetric.listFoot)
+        return min(GoingMetric.listMost, GoingMetric.listTop + CGFloat(rows) * GoingMetric.row + foot)
     }
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            if isGoing { list.transition(.opacity) } else { gate.transition(.opacity) }
+            // One leaves before the other comes, so their words never cross.
+            if isGoing { list.transition(Self.swap) } else { gate.transition(Self.swap) }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .overlay(alignment: .topTrailing) { close }
-        .ignoresSafeArea(edges: .bottom)
+        .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.bottom } action: { safeBottom = $0 }
         .animation(reduceMotion ? nil : Motion.smooth, value: isGoing)
         .presentationDetents([.height(height)])
         .presentationDragIndicator(.visible)
         .preferredColorScheme(sun ? .light : .dark)
     }
 
+    private static let swap = AnyTransition.asymmetric(
+        insertion: .opacity.animation(.easeOut(duration: 0.2).delay(0.12)),
+        removal: .opacity.animation(.easeOut(duration: 0.12)))
+
     private var gate: some View {
         let failures = actions.failureCount(item.id)
         return VStack(alignment: .leading, spacing: 0) {
-            Image(systemName: "person.2.badge.key")
+            Image(systemName: "person.2")
                 .font(.glyph(GoingMetric.discGlyph, weight: .medium))
+                .overlay(alignment: .bottomTrailing) { lock }
+                .compositingGroup()
                 .foregroundStyle(ink)
                 .frame(width: GoingMetric.disc, height: GoingMetric.disc)
                 .background(ink.opacity(GoingMetric.discFill), in: Circle())
@@ -286,6 +296,17 @@ private struct EventGoingCard: View {
         }
         .padding(.horizontal, GoingMetric.inset)
         .padding(.top, GoingMetric.inset)
+        .fixedSize(horizontal: false, vertical: true)
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { gateHeight = $0 }
+    }
+
+    /// Luma's people with a lock, cut out of them; SF Symbols has no such pair.
+    private var lock: some View {
+        Image(systemName: "lock")
+            .font(.glyph(GoingMetric.lockGlyph, weight: .semibold))
+            .padding(GoingMetric.gap)
+            .background { Capsule().fill(.black).blendMode(.destinationOut) }
+            .offset(x: GoingMetric.lockOut, y: GoingMetric.lockOut)
     }
 
     private var list: some View {
@@ -310,13 +331,14 @@ private struct EventGoingCard: View {
                     }
                     if left > 0 {
                         Text("and \(left) more")
+                            .contentTransition(.numericText())
                             .font(.sans(GoingMetric.word))
                             .foregroundStyle(ink.opacity(sun ? EventLook.sunDim : EventLook.dim))
                             .padding(.horizontal, GoingMetric.inset)
                             .frame(height: GoingMetric.row)
                     }
                 }
-                .padding(.bottom, GoingMetric.listFoot)
+                .padding(.bottom, foot)
                 .animation(reduceMotion ? nil : Motion.smooth, value: people)
             }
             .scrollIndicators(.hidden)
@@ -343,7 +365,7 @@ private struct EventGoingCard: View {
             Image(systemName: "xmark")
                 .font(.glyph(GoingMetric.closeGlyph, weight: .semibold))
                 .foregroundStyle(ink)
-                .frame(width: MeetupPillStyle.minTarget, height: MeetupPillStyle.minTarget)
+                .frame(width: GoingMetric.close, height: GoingMetric.close)
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
@@ -367,26 +389,30 @@ enum GoingMetric {
     static let tuck: CGFloat = 12
     static let gap: CGFloat = 2
     static let plus: CGFloat = 13
-    /// The card: 19 in, a 54 pt disc, the title, the words, the 48 pt button, 19 shorter than Luma's two lines of words.
-    static let inset: CGFloat = 19
-    static let gate: CGFloat = 236
-    static let disc: CGFloat = 54
+    /// The card. iOS 26 draws a small sheet at 96%, Luma's too, so these are the sizes drawn divided by it: a 54 pt disc, a
+    /// 48 pt button, 19 in. 34 under the button, the home indicator's room.
+    static let inset: CGFloat = 20
+    static let gate: CGFloat = 210
+    static let foot: CGFloat = 20
+    static let disc: CGFloat = 56
     static let discGlyph: CGFloat = 24
     static let discFill: Double = 0.08
-    static let title: CGFloat = 20
+    static let lockGlyph: CGFloat = 13
+    static let lockOut: CGFloat = 4
+    static let title: CGFloat = 21
     static let titleTop: CGFloat = 11
     static let wordsTop: CGFloat = 4
     static let wordsDim: Double = 0.84
-    static let button: CGFloat = 48
+    static let button: CGFloat = 50
     static let buttonTop: CGFloat = 24
-    static let closeInset: CGFloat = 15
+    static let close: CGFloat = 45
+    static let closeInset: CGFloat = 16
     static let closeGlyph: CGFloat = 17
-    /// The list: 56 pt rows with 44 pt faces, at most 540 tall, then it scrolls.
-    static let listTop: CGFloat = 66
-    static let listFoot: CGFloat = 24
-    static let listMost: CGFloat = 540
-    static let row: CGFloat = 56
-    static let rowFace: CGFloat = 44
+    /// The list: 56 pt rows with 44 pt faces, about 540 tall at most, then it scrolls.
+    static let listTop: CGFloat = 68
+    static let listMost: CGFloat = 526
+    static let row: CGFloat = 58
+    static let rowFace: CGFloat = 46
     static let rowGap: CGFloat = 12
     static let rowName: CGFloat = 17
 }
