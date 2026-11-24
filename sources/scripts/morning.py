@@ -2826,14 +2826,23 @@ def one_town():
 
 
 ROUTINE_FILES = ("morning.md", "social.md", "photos.md")  # sources/models/: what the routines follow
+WAIT = re.compile(r"^- \*\*Wait\s+in\s+the\s+turn\.\*\*.*?(?=^- |^## |\Z)", re.M | re.S)  # morning.md's rule for starting helpers
+WAIT_POINTER = re.compile(r"`sources/models/morning\.md`'s\s+\*\*Wait\s+in\s+the\s+turn\*\*")  # another file's pointer to it
 
 
 def wrong_in(texts):
     """What the routines' instruction files get wrong (BP app smooth-mornings 07): a step number (a
     renumbering sent the morning routine to the wrong steps on Oct 21-24), or a script command the
-    script doesn't have, `x.py word` in backticks where word isn't one of x.py's commands."""
+    script doesn't have, `x.py word` in backticks where word isn't one of x.py's commands. And a file that
+    speaks of helpers with neither the rule for waiting on them (WAIT, with the Agent tool's own setting in it)
+    nor a pointer to the morning's copy of it (BP app smooth-mornings 18: Nov 24's run ended its turn to wait for
+    its helpers, lost a wake and never saved)."""
     wrong = []
     for name, text in texts.items():
+        rule = any("`run_in_background: false`" in m.group(0) for m in WAIT.finditer(text))
+        pointer = name != "morning.md" and WAIT_POINTER.search(text)
+        if re.search(r"\bhelpers?\b", text, re.I) and not (rule or pointer):
+            wrong.append(f"{name}: helpers without the Wait in the turn rule or a pointer to it")
         wrong += [f"{name}: {m.group(0).strip()!r}" for m in re.finditer(r"\b[Ss]teps?\s+\d+|^\s*\d+\.\s+\*\*", text, re.M)]
         for span in re.findall(r"`([^`]+)`", text):
             for script, word in re.findall(r"\b([\w-]+)\.py\s+([a-z][\w-]*)", span):
@@ -2863,12 +2872,20 @@ def instructions():
     texts = {n: (SCRIPTS.parent / "models" / n).read_text() for n in ROUTINE_FILES}
     made_up = dict(texts, **{"morning.md": texts["morning.md"] + "\nRun `python3 sources/scripts/morning.py frobnicate`.\n"})
     gone = {"old.md": "`morning.py tag`, `morning.py describe`, `morning.py run`, `ready.py photos`, `place_photos.py check`"}
+    ruleless = {"morning.md": WAIT.sub("", texts["morning.md"]), "social.md": WAIT_POINTER.sub("", texts["social.md"]),
+                "photos.md": texts["photos.md"]}
+    unset = {"morning.md": texts["morning.md"].replace("`run_in_background: false`", "helper")}
     numbered = {"social.md": "Follow steps 3 to 6 of `sources/models/morning.md`.\n1. **Ready.** Run `ready.py social`.\n"}
-    return [(wrong_in(texts) == [], f"the routines' files name only commands the scripts have, and no step number: {wrong_in(texts)}"),
+    return [(wrong_in(texts) == [], f"the routines' files name only commands the scripts have, no step number, and start no helper outside the rule: {wrong_in(texts)}"),
             (wrong_in(made_up) == ["morning.md: morning.py frobnicate"] and wrong_in(numbered) == ["social.md: 'steps 3'", "social.md: '1. **'"],
              "a made-up command or a step number fails it"),
             (wrong_in(gone) == ["old.md: morning.py tag", "old.md: morning.py describe", "old.md: morning.py run"],
-             f"a command is one of the script's own, not any word it spells: {wrong_in(gone)}")]
+             f"a command is one of the script's own, not any word it spells: {wrong_in(gone)}"),
+            (wrong_in(ruleless) == ["morning.md: helpers without the Wait in the turn rule or a pointer to it",
+                                    "social.md: helpers without the Wait in the turn rule or a pointer to it"]
+             and wrong_in(unset) == ["morning.md: helpers without the Wait in the turn rule or a pointer to it"],
+             f"the rule, or its setting, taken out of the morning's file and the pointer out of the social's each fail, and "
+             f"the photo refresh, which starts no helper, passes with neither: {wrong_in(ruleless)}, {wrong_in(unset)}")]
 
 
 def whole_morning():
