@@ -248,7 +248,7 @@ struct PhoneSignInScreen: View {
     private enum Field { case number, code }
     @FocusState private var typing: Field?
     @AccessibilityFocusState private var heading: Bool
-    /// What the number box shows, spaced; `form.digits` is the number.
+    /// What the number's field holds; `form.digits` is the number.
     @State private var typed = ""
     @State private var whyOpen = false
     @State private var countryOpen = false
@@ -284,7 +284,7 @@ struct PhoneSignInScreen: View {
     }
 
     private func focus() {
-        typed = PhoneNumber.spaced(form.digits)
+        typed = form.digits
         // VoiceOver hears the question first; everyone else gets the number pad.
         if voiceOver { heading = true } else { typing = form.stage == .number ? .number : .code }
     }
@@ -352,29 +352,39 @@ struct PhoneSignInScreen: View {
         .accessibilityLabel("Country, \(form.country.name), \(PhoneCountry.code)")
     }
 
+    /// The number in Hinge's groups, over a field you can't see: rewriting the field's own words as they were typed
+    /// lost digits typed fast.
     private var numberBox: some View {
-        TextField("", text: $typed)
-            .textContentType(.telephoneNumber)
-            .keyboardType(.numberPad)
-            .focused($typing, equals: .number)
-            .appleFont(18)
-            .monospacedDigit()
-            .kerning(0.2)
-            .foregroundStyle(Hue.hingeInk)
-            .tint(Hue.hingeCaret)
-            .accessibilityLabel("Phone number")
-            // Hinge's groups as they are typed: a binding that spaced them itself showed only on losing the keyboard.
-            .onChange(of: typed) { _, now in
-                form.digits = PhoneNumber.digits(now)
-                let spaced = PhoneNumber.spaced(form.digits)
-                if spaced != now { typed = spaced }
-            }
-            .padding(.leading, 21)
-            .padding(.trailing, 12)
-            .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
-            .background(Hue.hingeBox, in: Self.box)
-            .contentShape(Self.box)
-            .onTapGesture { typing = .number }
+        HStack(spacing: 1) {
+            Text(PhoneNumber.spaced(form.digits))
+                .monospacedDigit()
+                .kerning(0.2)
+                .foregroundStyle(Hue.hingeInk)
+            if typing == .number { HingeCaret() }
+        }
+        .appleFont(18)
+        .accessibilityHidden(true)
+        .padding(.leading, 21)
+        .padding(.trailing, 12)
+        .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
+        .background(Hue.hingeBox, in: Self.box)
+        .overlay {
+            TextField("", text: $typed)
+                .textContentType(.telephoneNumber)
+                .keyboardType(.numberPad)
+                .focused($typing, equals: .number)
+                .foregroundStyle(.clear)
+                .tint(.clear)
+                .padding(.horizontal, 21)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .accessibilityLabel("Phone number")
+                .onChange(of: typed) { _, now in
+                    form.digits = PhoneNumber.digits(now)
+                    if form.digits != now { typed = form.digits }
+                }
+        }
+        .contentShape(Self.box)
+        .onTapGesture { typing = .number }
     }
 
     // MARK: Code (onboarding 45)
@@ -422,9 +432,7 @@ struct PhoneSignInScreen: View {
                             .transition(reduceMotion ? .identity : .asymmetric(
                                 insertion: .scale(scale: 0.6).combined(with: .opacity), removal: .identity))
                     } else if i == typed.count, typing == .code {
-                        Capsule().fill(Hue.hingeCaret).frame(width: 2, height: 22)
-                            .phaseAnimator([1.0, 0.0]) { $0.opacity($1) } animation: { _ in .linear(duration: 0.01).delay(0.5) }
-                            .transition(.identity)
+                        HingeCaret().transition(.identity)
                     }
                 }
                 .frame(width: 42.8, height: 98)
@@ -603,6 +611,14 @@ struct PhoneSignInScreen: View {
         .presentationDetents([.height(height)])
         .presentationDragIndicator(.visible)
         .presentationBackground(Hue.hingeWhite)
+    }
+}
+
+/// The blinking caret the two steps draw where the next digit goes (the mock's 2 x 22).
+private struct HingeCaret: View {
+    var body: some View {
+        Capsule().fill(Hue.hingeCaret).frame(width: 2, height: 22)
+            .phaseAnimator([1.0, 0.0]) { $0.opacity($1) } animation: { _ in .linear(duration: 0.01).delay(0.5) }
     }
 }
 
