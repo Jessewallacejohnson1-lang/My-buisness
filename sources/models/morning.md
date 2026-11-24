@@ -115,9 +115,14 @@ model, at most 10 running at once:
 - then run `python3 sources/scripts/event_photos.py dig-keep`.
 
 **Judge.** A second look at each photo the picks put live (BP app event-photos 30). Run
-`python3 sources/scripts/event_photos.py judge`; `nothing to judge` skips to Finish. For each
-`.runs/morning/judge/batch-N.txt`, one helper on your own model, at most 10 running at once, with: "Read
-`sources/models/photo-judge.md` and follow it for `.runs/morning/judge/batch-N.txt`. Answer with the JSON lines only."
+`python3 sources/scripts/event_photos.py judge`; `nothing to judge` skips to Finish. First, for each
+`.runs/morning/judge/look-N.txt` (there may be none), one helper on your own model, at most 10 running at once, with
+these words and nothing about any Event: "Read `sources/models/photo-look.md` and follow it for
+`.runs/morning/judge/look-N.txt`. Answer with the JSON lines only." Their lines go to `.runs/morning/judge/looks.jsonl`;
+write it, empty if need be, before the judges start. Then, for each `.runs/morning/judge/batch-N.txt`, another helper on
+your own model, at most 10 running at once, with: "Read
+`sources/models/photo-judge.md` and follow it for `.runs/morning/judge/batch-N.txt`, with the looks in
+`.runs/morning/judge/looks.jsonl`. Answer with the JSON lines only."
 Their lines go to `.runs/morning/judge/verdicts.jsonl`; never answer for them yourself. Then run
 `python3 sources/scripts/event_photos.py judge-keep`.
 
@@ -131,7 +136,7 @@ dropped that a neighbour might have wanted, and why. Nothing else.
 
 ## Rules
 
-- Pages are fetched only by `morning.py`, `event_photos.py`, `team_logos.py`, `place_logos.py` and `event_parts.py` (the registry's fetcher obeys robots
+- Pages are fetched only by `morning.py`, `event_photos.py`, `team_logos.py`, `place_logos.py`, `event_parts.py` and `signups.py` (the registry's fetcher obeys robots
   rules and Crawl-delay). WebFetch, curl and the like stay unused: some sites refuse them.
 - The database is written only by `morning.py save` and `finish` (which includes `venue_spots.py keep`, `audience.py keep`, `event_parts.py keep` and `place_logos.py keep`, and on Sundays its `check`), and `event_photos.py keep`, `dig-keep` and `judge-keep`. SQL by
   hand stays unused.

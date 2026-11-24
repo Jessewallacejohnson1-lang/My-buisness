@@ -267,6 +267,21 @@ test("parts of a long Event: written, then the old ones taken away, by the job; 
   }
 });
 
+// Sign-ups (signups.keep and write_judged.mark_signups, BP app watch-every-place 49): the job reads which Events are
+// closed, and marks one closed and open again.
+test('sign-ups: the job marks an Event closed, sees it in the writer\'s list, and opens it', async () => {
+  const { rows: [{ id }] } = await db.query(`insert into public.club_events (status, title, event_date, all_day,
+    location, source_name, source_uid, source_url) values ('approved', 'Advent Retreat', $1, true, 'Abbey', 'Abbey', 's1', 'https://a.test/e') returning id`, [day(3)]);
+  await asJob('sign-ups: the Events', `select id, title, event_date, source_url, source_name, signups_closed_by from public.club_events
+    where status = 'approved' and kind = 'event' and (shows_from <= $1 or signups_closed_by = 'page')`, [day(0)]);
+  await asJob('sign-ups: the watched pages', `select url from public.sources where status = 'active'`);
+  await asJob('sign-ups: closed', `update public.club_events set signups_closed_by = 'page' where id = any($1) and signups_closed_by is null`, [[id]]);
+  const [{ l }] = await asJob('the writer\'s list', 'select public.listed_for_writer() as l');
+  assert.equal(l.find((e) => e.id === id).signups_closed_by, 'page');
+  await asJob('sign-ups: open', `update public.club_events set signups_closed_by = null where id = any($1) and signups_closed_by = 'page'`, [[id]]);
+  assert.deepEqual(await asJob('read back', 'select signups_closed_by from public.club_events where id = $1', [id]), [{ signups_closed_by: null }]);
+});
+
 // The finish's team logos step (team_logos.keep, BP app game-card 17): a team's logo, saved once, and the team
 // takes it, which shows its waiting games (private.team_logo_changed, run as the job).
 test("team logos: a new team's logo and colors", async () => {
@@ -388,8 +403,48 @@ test("meeting times: a club's time read, moved and dropped by the Sunday step, a
   }
 });
 
+// BP app loopholes 22: a post is a club_events row, the table the job saves Events to, and a rule of its own keeps the
+// Watch key off it. A read or a change finds no row; writing one is refused. Each try reached the post before the rule.
+test('the Watch key never reaches a post: read, change, approve, write, or an Event turned into one', async () => {
+  const poster = '22222222-2222-2222-2222-222222222222';
+  await db.query('insert into auth.users (id) values ($1) on conflict do nothing', [poster]);
+  const row = async (kind, status, title) => (await db.query(`insert into public.club_events
+    (kind, status, title, submitted_by, event_date) values ($1, $2, $3, $4, $5) returning id`,
+    [kind, status, title, poster, kind === 'post' ? null : day(6)])).rows[0].id;
+  const post = await row('post', 'approved', 'Anyone seen a gray cat?');
+  const waiting = await row('post', 'pending', 'Waits for the check');
+  const event = await row('event', 'approved', 'Garage Sale');
+  const posts = async () => (await db.query(`select id, status, title, draw from public.club_events
+    where kind = 'post' order by id`)).rows;
+  const before = await posts();
+
+  assert.deepEqual(await asJob('read a post', 'select id from public.club_events where id = $1', [post]), []);
+  assert.deepEqual(await asJob('read the whole table', `select id from public.club_events where kind = 'post'`), []);
+  assert.deepEqual(await asJob('change a post', `update public.club_events set title = 'x' where id = $1 returning id`, [post]), []);
+  await asJob('change every row it can', 'update public.club_events set draw = 3');
+  assert.deepEqual(await asJob('approve a post', `update public.club_events set status = 'approved' where id = $1 returning id`,
+    [waiting]), []);
+  const refused = async (what, sql, params) => {
+    await db.exec(`discard plans; set role watch; set request.jwt.claims = '{"role": "watch"}'`);
+    try {
+      await assert.rejects(db.query(sql, params), /row-level security policy "watch never posts"/, what);
+    } finally {
+      await db.exec('reset role; reset request.jwt.claims');
+    }
+  };
+  await refused('write a post', `insert into public.club_events (kind, status, title) values ('post', 'approved', 'x')`, []);
+  await refused('turn an Event into a post', `update public.club_events set kind = 'post' where id = $1`, [event]);
+  await refused("save an Event onto a post's id", `insert into public.club_events (id, status, title) values ($1, 'approved', 'x')
+    on conflict (id) do update set title = excluded.title`, [post]);
+  assert.deepEqual(await posts(), before, 'every post is as the neighbour left it');
+
+  // What the job does write on a neighbour's own Event still saves: its Interests, draw and map spot.
+  assert.deepEqual(await asJob("tag a neighbour's own Event", `update public.club_events set interests = '{outdoors}', draw = 2,
+    lat = 45.56, lng = -94.32, interests_tagged_at = now() where id = $1 returning draw`, [event]), [{ draw: 2 }]);
+});
+
 // Ticket 12's proof: a page that talks the job into trying any of these gets a refusal.
-test('the Watch key is refused: deleting an Event, the waitlist, sign-in accounts, stored files, posts', async () => {
+test('the Watch key is refused: deleting an Event, the waitlist, sign-in accounts, stored files, comments', async () => {
   const refused = async (what, sql) => {
     await db.exec(`discard plans; set role watch; set request.jwt.claims = '{"role": "watch"}'`);
     try {
