@@ -75,7 +75,6 @@ struct EventGoingSection: View {
     @Environment(RealLifeActions.self) private var actions
     /// Your photo for your face; nil (a preview) or none is Instagram's blank.
     @Environment(ProfileModel.self) private var profile: ProfileModel?
-    @Environment(\.eventPageShown) private var shown
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// The server's answer, friends first; nil until it lands, when the card's own friends stand in.
     @State private var people: [Neighbor]?
@@ -136,8 +135,8 @@ struct EventGoingSection: View {
             }
         }
         .animation(reduceMotion ? nil : Motion.smooth, value: words)
-        .task(id: shown ? Ask(id: item.id, going: going.isGoing, open: open) : nil) {
-            guard shown, actions.hasAccount else { return }
+        .task(id: Ask(id: item.id, going: going.isGoing, open: open)) {
+            guard actions.hasAccount else { return }
             // Attend shows before its write lands; the list is the server's to give only after.
             let wanted = going.isGoing
             await actions.goingLanded(item.id)
