@@ -111,7 +111,7 @@ final class PhoneSignInTests: XCTestCase {
         XCTAssertNil(form.line)
     }
 
-    func testThePencilKeepsTheNumberAndContinueTextsAgainOnlyAfterTheWait() async {
+    func testThePencilKeepsTheNumberAndContinueGoesBackToTheCode() async {
         let server = Server(), form = form(server)
         form.digits = "3205550142"
         await form.send()?.value
@@ -120,16 +120,9 @@ final class PhoneSignInTests: XCTestCase {
         XCTAssertEqual(form.stage, .number)
         XCTAssertEqual(form.digits, "3205550142")
         XCTAssertFalse(form.forward, "slides in from the left")
-        XCTAssertNil(form.send(), "the code just sent still works")
-        XCTAssertEqual(form.stage, .code)
-        XCTAssertEqual(server.sent.count, 1)
-        form.editNumber()
-        await form.send(now: Date().addingTimeInterval(PhoneForm.resendWait + 1))?.value
-        XCTAssertEqual(server.sent.count, 2, "a new code")
-        form.editNumber()
-        form.digits = "3205550143"
         await form.send()?.value
-        XCTAssertEqual(server.sent.last, "+13205550143", "another number needs no wait")
+        XCTAssertEqual(form.stage, .code)
+        XCTAssertEqual(form.code, "")
     }
 
     func testAWrongCodeSaysSoAndEmptiesAndTypingClearsTheLine() async {
@@ -252,6 +245,32 @@ final class PhoneSignInTests: XCTestCase {
         XCTAssertEqual(server.asked.first?.body, ["phone": "+13205550142"], "nothing says whether the number is known")
     }
 
+    /// The pencil and Continue, or the X and back in, inside the server's 30 seconds: the code sent still works, so no
+    /// second text and no "Too many tries". A spent code's number is texted again.
+    func testANumberJustTextedIsNotTextedAgain() async {
+        let server = GoTrue(), auth = AuthStore(send: server.send)
+        for phone in ["+13205550142", "+13205550142", "+13205550143"] {
+            let refused = await auth.sendCode(to: phone)
+            XCTAssertNil(refused)
+        }
+        XCTAssertEqual(server.asked.count, 2, "once for each number")
+        server.answer = session("u1")
+        _ = await auth.verifyCode("482913", for: "+13205550142")
+        _ = await auth.sendCode(to: "+13205550142")
+        XCTAssertEqual(server.asked.map(\.path), ["otp", "otp", "verify", "otp"])
+    }
+
+    func testARefusedTextIsAskedForAgain() async {
+        let server = GoTrue(), auth = AuthStore(send: server.send)
+        server.status = 503
+        let first = await auth.sendCode(to: "+13205550142")
+        XCTAssertEqual(first, AuthStore.Words.offline)
+        server.status = 200
+        let second = await auth.sendCode(to: "+13205550142")
+        XCTAssertNil(second)
+        XCTAssertEqual(server.asked.count, 2)
+    }
+
     func testTheRightCodeSignsInWithItsNumber() async {
         let server = GoTrue(), auth = AuthStore(send: server.send)
         server.answer = session("u1")
@@ -318,7 +337,7 @@ final class PhoneSignInTests: XCTestCase {
     func testEachRefusalHasItsOwnLine() {
         func refused(_ code: String, _ status: Int) -> Error { SupabaseError(message: "Server English", status: status, code: code) }
         XCTAssertEqual(AuthStore.phoneLine(for: refused("validation_failed", 400)), AuthStore.Words.badPhone)
-        XCTAssertEqual(AuthStore.phoneLine(for: refused("sms_send_failed", 422)), AuthStore.Words.badPhone)
+        XCTAssertEqual(AuthStore.phoneLine(for: refused("sms_send_failed", 422)), AuthStore.Words.notTexted)
         XCTAssertEqual(AuthStore.phoneLine(for: refused("phone_exists", 422)), AuthStore.Words.phoneTaken)
         XCTAssertEqual(AuthStore.phoneLine(for: refused("over_sms_send_rate_limit", 429)), AuthStore.Words.tooMany)
         XCTAssertEqual(AuthStore.phoneLine(for: refused("phone_provider_disabled", 400)), AuthStore.Words.other)

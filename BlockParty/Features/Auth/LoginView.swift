@@ -67,6 +67,8 @@ final class AccountForm {
     /// The emailed code, digits only, up to 6.
     var code = "" { didSet { message = nil } }
     private(set) var busy = false
+    /// The number Log in just texted a code to (onboarding 17), however the box was edited while it went out.
+    private(set) var textedPhone: String?
     /// "Send code again" went: its link says Sent until the screen is left.
     private(set) var resent = false
     /// The new password reached the server, so a retry after a failed profile read doesn't send it
@@ -103,10 +105,13 @@ final class AccountForm {
         guard canSubmit(way), !busy else { return }
         busy = true
         defer { busy = false }
+        textedPhone = nil
         let refused: String?
         switch way {
         case .logIn where hasPhone:
-            refused = await auth.sendCode(to: PhoneNumber.sent(PhoneNumber.digits(email)))
+            let digits = PhoneNumber.digits(email)
+            refused = await auth.sendCode(to: PhoneNumber.sent(digits))
+            textedPhone = refused == nil ? digits : nil
         case .logIn where !auth.hasAccount:
             refused = await auth.signIn(email: mail, password: password)
         case .create where !auth.hasAccount:

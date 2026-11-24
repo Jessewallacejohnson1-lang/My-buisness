@@ -170,11 +170,22 @@ final class AuthStore: ObservableObject, TokenProviding {
         case refused(String)
     }
 
+    /// The server texts one number this often (its `sms_max_frequency`), and the code it sent still works: sooner, a
+    /// second ask answers as if it had sent, from whichever screen (the pencil, or the X and back in).
+    static let resendWait: TimeInterval = 30
+    private var texted: [String: Date] = [:]
+
+    private func justTexted(_ phone: String) -> Bool {
+        texted[phone].map { Date().timeIntervalSince($0) < Self.resendWait } ?? false
+    }
+
     /// Texts a code to `phone` (+ and the country code). A number nobody has makes its account here, so
     /// the answer is the same whether or not it's on Block Party.
     func sendCode(to phone: String) async -> String? {
+        if justTexted(phone) { return nil }
         do {
             _ = try await gotrue("otp", body: ["phone": phone])
+            texted[phone] = Date()
             return nil
         } catch {
             return Self.phoneLine(for: error)
@@ -193,9 +204,11 @@ final class AuthStore: ObservableObject, TokenProviding {
     /// Texts a code to the number this account changes to, or adds (Settings). The old one stays the
     /// account's until that code is right.
     func sendChangeCode(to phone: String) async -> String? {
+        if justTexted("change " + phone) { return nil }
         do {
             let token = try await validAccessToken()
             _ = try await gotrue("user", method: "PUT", body: ["phone": phone], bearer: token)
+            texted["change " + phone] = Date()
             return nil
         } catch {
             return Self.phoneLine(for: error)
@@ -219,6 +232,7 @@ final class AuthStore: ObservableObject, TokenProviding {
     private func answer(_ verify: () async throws -> Void) async -> CodeAnswer {
         do {
             try await verify()
+            texted = [:]   // the code is spent
             return .right
         } catch {
             if (error as? SupabaseError)?.code == "otp_expired" { return .wrong }
@@ -226,10 +240,12 @@ final class AuthStore: ObservableObject, TokenProviding {
         }
     }
 
-    /// `line(for:)`, with the phone's own two: a number that can't be texted, and one someone else has.
+    /// `line(for:)`, with the phone's own: a number that isn't one, or can't be texted, or someone else has.
     nonisolated static func phoneLine(for error: Error) -> String {
         switch (error as? SupabaseError)?.code {
-        case "validation_failed", "sms_send_failed": Words.badPhone
+        case "validation_failed": Words.badPhone
+        // A number no text reaches, or texting is down: the server says the same for both.
+        case "sms_send_failed": Words.notTexted
         case "phone_exists": Words.phoneTaken
         default: line(for: error)
         }
@@ -279,6 +295,7 @@ final class AuthStore: ObservableObject, TokenProviding {
         static let badCode = "That code didn't work. Check it, or send a new one."
         static let samePassword = "That's your old password. Pick a new one."
         static let badPhone = "Check your phone number."
+        static let notTexted = "We couldn't text that number. Check it and try again."
         static let phoneTaken = "That number is on another account."
         static let samePhone = "That's already your number."
         /// The Code step's, in the pencil line's place (BP app onboarding 45).

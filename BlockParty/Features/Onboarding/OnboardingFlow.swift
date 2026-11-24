@@ -866,10 +866,9 @@ struct OnboardingFlow: View {
         Task {
             await form.submit(way, auth: .shared) {
                 switch way {
-                case .logIn where form.hasPhone:
-                    go { phone = .signIn(texted: PhoneNumber.digits(form.email)) }()
                 case .logIn, .newPassword:
-                    return await loggedIn()
+                    guard let texted = form.textedPhone else { return await loggedIn() }
+                    go { phone = .signIn(texted: texted) }()
                 case .create: go { [store] in store.created() }()
                 case .forgot: go { [store] in store.open(.code) }()
                 case .code: go { [store] in store.open(.newPassword) }()

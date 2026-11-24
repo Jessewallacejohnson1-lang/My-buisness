@@ -71,8 +71,6 @@ final class PhoneForm: Identifiable {
     }
 
     static let codeLength = 6
-    /// The server texts one number this often (its `sms_max_frequency`): sooner, Continue goes back to the code sent.
-    static let resendWait: TimeInterval = 30
     /// The boxes' shake, then they empty.
     static let shake: Duration = .milliseconds(340)
 
@@ -97,7 +95,6 @@ final class PhoneForm: Identifiable {
     private let calls: Calls
     /// The number this account has now, which a change can't be to.
     private let current: String?
-    private var texted: (digits: String, at: Date)?
     private var out: Task<Void, Never>?
 
     /// `texted`: Log in already texted this number, so it opens on the code.
@@ -107,7 +104,6 @@ final class PhoneForm: Identifiable {
         self.current = current.map(PhoneNumber.digits)
         self.calls = calls
         stage = digits == nil ? .number : .code
-        texted = digits.map { ($0, Date()) }
     }
 
     /// Signing in or up, on the Welcome and Log in.
@@ -133,13 +129,9 @@ final class PhoneForm: Identifiable {
 
     /// Continue: texts the code and goes on to its step. Short of ten digits the pill shakes instead.
     @discardableResult
-    func send(now: Date = Date()) -> Task<Void, Never>? {
+    func send() -> Task<Void, Never>? {
         guard canSend, !busy else { return nil }
         if digits == current { refuse(AuthStore.Words.samePhone); return nil }
-        if let texted, texted.digits == digits, now.timeIntervalSince(texted.at) < Self.resendWait {
-            go(to: .code)
-            return nil
-        }
         busy = true
         let number = digits
         let task = Task {
@@ -147,7 +139,6 @@ final class PhoneForm: Identifiable {
             guard !Task.isCancelled else { return }
             busy = false
             if let refused { return refuse(refused) }
-            texted = (number, Date())
             // Typed on while it was out: the code went to the number sent.
             digits = number
             go(to: .code)
@@ -259,15 +250,12 @@ struct PhoneSignInScreen: View {
     var body: some View {
         ZStack(alignment: .top) {
             fade
-            Group {
+            ZStack {
                 switch form.stage {
-                case .number: numberStep
-                case .code: codeStep
+                case .number: numberStep.transition(slide)
+                case .code: codeStep.transition(slide)
                 }
             }
-            .transition(reduceMotion ? .opacity : .asymmetric(
-                insertion: .offset(x: form.forward ? 36 : -36).combined(with: .opacity),
-                removal: .opacity.animation(.easeOut(duration: 0.12))))
             .padding(.bottom, screenHeight < BigArt.shortScreen ? Self.shortKeypad : 0)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .ignoresSafeArea(.container, edges: .top)
@@ -275,9 +263,10 @@ struct PhoneSignInScreen: View {
                 .accessibilitySortPriority(1)
         }
         .animation(reduceMotion ? .easeOut(duration: 0.2) : Motion.outQuint(0.34), value: form.stage)
-        // Dark words and a dark clock on the fade, whatever the phone is set to.
+        // Dark words on the fade, whatever the phone is set to.
         .environment(\.colorScheme, .light)
-        // iOS 26 inks the clock white over the grey fade; Hinge's is black.
+        // iOS 26 inks the clock white over the grey fade; Hinge's is black. On a dark phone it stays white: dark mode's
+        // pass is parked (iOS MEMORY.md, 2026-09-24).
         .onAppear { AppearanceStore.shared.holdClock("phone", true); focus() }
         .onDisappear { AppearanceStore.shared.holdClock("phone", false) }
         .onChange(of: form.stage) { focus() }
@@ -286,6 +275,12 @@ struct PhoneSignInScreen: View {
         }
         .sheet(isPresented: $countryOpen, onDismiss: focus) { countrySheet }
         .sheet(isPresented: $whyOpen, onDismiss: focus) { whySheet }
+    }
+
+    /// The new step slides in as the old one fades, as a question does (no blank frame between them).
+    private var slide: AnyTransition {
+        reduceMotion ? .opacity : .asymmetric(
+            insertion: .offset(x: form.forward ? 36 : -36).combined(with: .opacity), removal: .opacity)
     }
 
     private func focus() {
@@ -477,6 +472,8 @@ struct PhoneSignInScreen: View {
     private static let codeTop: CGFloat = 136
     /// On the iPhone SE iOS 26 draws its keypad 20 pt higher than it says (measured).
     private static let shortKeypad: CGFloat = 20
+    /// There the question starts higher, and the X stays level with its first line.
+    private static let shortClose: CGFloat = 24
     private static let box = RoundedRectangle(cornerRadius: Radius.hingeBox, style: .continuous)
     private static let digit = RoundedRectangle(cornerRadius: Radius.hingeDigit, style: .continuous)
 
@@ -542,7 +539,7 @@ struct PhoneSignInScreen: View {
         .accessibilityLabel("Close")
         .frame(maxWidth: .infinity, alignment: .trailing)
         .padding(.trailing, 8)
-        .padding(.top, 61)
+        .padding(.top, screenHeight < BigArt.shortScreen ? Self.shortClose : 61)
         .ignoresSafeArea(.container, edges: .top)
     }
 
