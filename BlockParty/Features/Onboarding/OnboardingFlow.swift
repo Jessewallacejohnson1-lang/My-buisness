@@ -601,6 +601,8 @@ struct OnboardingFlow: View {
                                            .init(color: .black, location: night ? 156 / 236 : 0.38)],
                                    startPoint: .top, endPoint: .bottom)
                         .frame(height: night ? 236 : 190)
+                        // Solid on down behind a keyboard, whose glass would show the circles.
+                        .overlay(alignment: .bottom) { Color.black.frame(height: 400).offset(y: 400) }
                 }
                 // Follow 3's rises with the keyboard, as its search types over the grid.
                 .ignoresSafeArea(night ? .container : .all)
