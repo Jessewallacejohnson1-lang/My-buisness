@@ -238,10 +238,13 @@ struct StartGroupSheet: View {
                     group.imageUrl = Bundle.main.url(forResource: "interest-fun-games", withExtension: "jpg")
                     made = group
                 }
-                // `-group-admin <state>` too: the sample Group's page in this sheet's own stack.
+                // `-group-admin <state>` too: the sample Group's page in this sheet's own stack, once New group is up.
                 if let sample = TownGroup.sampleForAdmin {
                     actions.read([sample])
-                    path.append(sample)
+                    Task {
+                        try? await Task.sleep(for: .seconds(1.5))
+                        path.append(sample)
+                    }
                 }
             }
             #endif
