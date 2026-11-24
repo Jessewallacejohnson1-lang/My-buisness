@@ -182,7 +182,7 @@ final class OnboardingStore {
     /// Follow or unfollow on Follow 3, on the phone only; `twin` goes with it, as a school that is a place too.
     func toggleFollow(_ target: FollowTarget, with twin: FollowTarget? = nil) {
         let both = [target, twin].compactMap { $0 }
-        if follows.contains(target) { follows.removeAll { both.contains($0) } } else { follows += both }
+        if follows.contains(target) { follows.removeAll { both.contains($0) } } else { follows += both.filter { !follows.contains($0) } }
     }
 
     /// Add friend, or take it back, on Contacts, on the phone only.
@@ -602,7 +602,8 @@ struct OnboardingFlow: View {
                                    startPoint: .top, endPoint: .bottom)
                         .frame(height: night ? 236 : 190)
                 }
-                .ignoresSafeArea()
+                // Follow 3's rises with the keyboard, as its search types over the grid.
+                .ignoresSafeArea(night ? .container : .all)
             }
             .allowsHitTesting(false)
     }

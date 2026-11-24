@@ -420,6 +420,13 @@ final class OnboardingStoreTests: XCTestCase {
         XCTAssertNil(FollowSuggestions.photo(of: first, live: [live[0]]), "taken down, it shows here no more")
     }
 
+    /// An odd `follow_spot` can't fail the read of every place: it goes last.
+    func testAnOddSpotNeverFailsTheRead() throws {
+        let read = { (json: String) in try JSONDecoder().decode(FollowSpot.self, from: Data(json.utf8)) }
+        XCTAssertEqual(try read(#"{"spot": 4, "photo": "https://x.co/a.webp"}"#).spot, 4)
+        for odd in ["{}", #"{"photo": ""}"#, #"{"spot": 1.5}"#, "[]", "7"] { XCTAssertEqual(try read(odd).spot, .max, odd) }
+    }
+
     /// A place with no logo shows its saved photo; one with a logo keeps the logo unless its spot names a photo.
     func testAPlaceWithNoLogoShowsItsPhoto() {
         let photo = PlacePicture(url: URL(string: "https://x.co/p.webp")!, kind: .photo)
@@ -459,6 +466,9 @@ final class OnboardingStoreTests: XCTestCase {
         XCTAssertEqual(FollowSuggestions.followed([school, cafe], store.follows), 2)
         store.toggleFollow(school.target, with: school.twin)
         XCTAssertEqual(store.follows, [cafe.target])
+        store.toggleFollow(school.twin!)
+        store.toggleFollow(school.target, with: school.twin)
+        XCTAssertEqual(store.follows.count, 3, "its place, already followed, isn't followed twice")
     }
 
     func testSchoolsLeadFollowThreeOnlyForWhoOpenedSchools() {

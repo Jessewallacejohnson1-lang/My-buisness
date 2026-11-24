@@ -125,7 +125,9 @@ enum FollowSuggestions {
             return with(FollowSuggestion(target: .init(type: .team, id: school.uuid), name: name,
                                          key: school.id, kind: "School", logo: place?.logo ?? school.crest,
                                          picture: crest, photo: place?.photo, spot: place?.spot,
-                                         twin: place?.target, categories: ["school"]),
+                                         twin: place?.target,
+                                         // A college is like a college too, not like a high school alone.
+                                         categories: (place?.categories ?? []).union(["school"])),
                         [], byTeam[school.id] ?? [])
         }
         let fromPages = pages.map { page in
@@ -231,7 +233,7 @@ enum FollowSuggestions {
     static func load(events: [UpcomingTags]) async throws -> [FollowSuggestion] {
         let api = CommunityAPI(auth: AuthStore.shared)
         async let places = api.getPlaces()
-        // Only a place with no logo needs one: without them it shows its letters.
+        // Without them a place shows its logo, or its letters.
         async let photos = try? api.getPlacePhotos()
         let (s, p) = try await api.followableSchoolsAndPages()
         return build(places: try await places, photos: await photos ?? [:], schools: s, pages: p, events: events)
@@ -240,7 +242,7 @@ enum FollowSuggestions {
     /// The first three rows' pictures, read while the steps before are up so the circles come with theirs.
     static func readAhead(_ all: [FollowSuggestion], width: CGFloat, scale: CGFloat) {
         let side = FollowCircleMetric.side(width)
-        let first = all.filter { $0.spot != nil }.sorted { $0.spot ?? 0 < $1.spot ?? 0 }.prefix(9)
+        let first = ordered(all, picked: []).prefix(9)
         for url in first.compactMap(\.photo) {
             FeedCardImageLoader.shared.readAhead(url, box: CGSize(width: side, height: side), scale: scale)
         }
@@ -269,6 +271,7 @@ struct OnboardingFollowGrid: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var query = ""
+    @State private var scroll = ScrollPosition()
     /// The grid's order once read, which follows rearrange.
     @State private var order: [FollowSuggestion]?
     /// Bumped for a place a follow pulls up, so it arrives as a new tile growing out of the one
@@ -307,6 +310,7 @@ struct OnboardingFollowGrid: View {
                     // drops away under the typing.
                     .frame(minHeight: query.isEmpty ? 0 : geo.size.height + 240, alignment: .top)
                 }
+                .scrollPosition($scroll)
                 .scrollDismissesKeyboard(.immediately)
                 .padding(.top, FollowGridMetric.scrollTop)
 
@@ -340,7 +344,14 @@ struct OnboardingFollowGrid: View {
             showing = [:]
         }
         // A tile a search hid and brought back doesn't grow out of an old follow again.
-        .onChange(of: query) { arrivals = [:] }
+        .onChange(of: query) { old, new in
+            arrivals = [:]
+            // The first letter takes the field up under the dashes, so the results have the room. A point short of
+            // the pin: the field being typed in stays the one in sight, with its caret.
+            if old.isEmpty, !new.isEmpty, searchTop > FollowGridMetric.scrollTop {
+                withAnimation(reduceMotion ? nil : .smooth(duration: 0.3)) { scroll.scrollTo(y: FollowCircleMetric.heading - 1) }
+            }
+        }
     }
 
     /// Spotify's question: two lines of 31 pt bold, 38.3 pt apart.
@@ -483,6 +494,7 @@ private struct FollowSearchField: View {
             Image(systemName: "magnifyingglass")
                 .font(.glyph(18, weight: .regular))
                 .frame(width: 19)
+                .accessibilityHidden(true)
             TextField("Search places", text: $query, prompt: Text("Search").foregroundStyle(Hue.deepPillWords))
                 .font(.apple(16))
                 .autocorrectionDisabled()
@@ -551,20 +563,24 @@ private struct FollowCircleArt: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.circlePressed) private var pressed
+    @ObservedObject private var logos = POILogoCache.shared
+    /// No picture came: its logo, else its letters.
+    @State private var photoFailed = false
 
+    private var photo: URL? { photoFailed ? nil : suggestion.photo }
     private var logoSide: CGFloat { side * FollowCircleMetric.logo }
 
     var body: some View {
         // White behind a logo; a photo still loading is a faint disc on the night.
-        Circle().fill(suggestion.photo == nil ? Color.white : Hue.deepTrack)
+        Circle().fill(photo == nil ? Color.white : Hue.deepTrack)
             .overlay {
-                if let photo = suggestion.photo {
-                    FeedCardURLPhoto(url: photo, loadingFill: .clear)
-                } else if let logo = suggestion.logo {
+                if let photo {
+                    FeedCardURLPhoto(url: photo, onFailure: { photoFailed = true }, loadingFill: .clear, centered: true)
+                } else if let logo = suggestion.logo, !logos.failed.contains(logo.url) {
                     TrimmedLogo(logo: logo).frame(width: logoSide, height: logoSide)
                 } else if suggestion.isTown {
                     Image(Town.logo).resizable().interpolation(.high).scaledToFit().frame(width: logoSide, height: logoSide)
-                } else if let url = suggestion.picture {
+                } else if let url = suggestion.picture, suggestion.logo == nil {
                     FeedCardURLPhoto(url: url, loadingFill: Color.white)
                         .padding(suggestion.isLogo ? side * 0.16 : 0)
                 } else {

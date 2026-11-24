@@ -12,6 +12,20 @@ import CoreLocation
 struct FollowSpot: Decodable, Hashable {
     let spot: Int
     let photo: URL?
+
+    init(spot: Int, photo: URL?) {
+        self.spot = spot
+        self.photo = photo
+    }
+
+    /// Never throws: one odd row would fail the whole read of the places, Search's and the map's too. It goes last.
+    init(from decoder: Decoder) throws {
+        let row = try? decoder.container(keyedBy: CodingKeys.self)
+        spot = (try? row?.decode(Int.self, forKey: .spot)) ?? .max
+        photo = try? row?.decode(URL.self, forKey: .photo)
+    }
+
+    private enum CodingKeys: String, CodingKey { case spot, photo }
 }
 
 struct POI: Identifiable, Decodable, Hashable {

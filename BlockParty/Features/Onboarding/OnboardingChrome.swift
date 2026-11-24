@@ -356,7 +356,6 @@ private struct NextBarStyle: ButtonStyle {
             .animation(.easeOut(duration: 0.2), value: allowed)
             .onChange(of: down) { _, pressed in if pressed { Haptics.light() } }
             .animation(.easeOut(duration: 0.2), value: deep)
-            .animation(.easeOut(duration: 0.2), value: night)
     }
 
     private var words: Color {
@@ -440,7 +439,6 @@ struct OnboardingLink: View {
 struct OnboardingSearchField: View {
     let prompt: String
     @Binding var query: String
-    var top: CGFloat = 16
     @FocusState private var searching: Bool
 
     static let height: CGFloat = 40
@@ -466,6 +464,5 @@ struct OnboardingSearchField: View {
         // The whole box takes the tap, not only the line of text.
         .contentShape(Rectangle())
         .onTapGesture { searching = true }
-        .padding(.top, top)
     }
 }
