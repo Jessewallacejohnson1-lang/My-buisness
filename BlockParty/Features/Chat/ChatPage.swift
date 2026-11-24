@@ -1118,7 +1118,8 @@ private struct ChatBubbleBody: View {
                         .accessibilityElement(children: .contain)
                         .accessibilityLabel("\(spokenSender) sent an Event, \(ChatWords.agoSpoken(message.at))")
                 } else {
-                    Text("This Event is no longer available.")
+                    // Gone, or a Group's that only its members see.
+                    Text("This Event isn't available.")
                         .appleFont(14)
                         .foregroundStyle(Hue.chatGrey)
                         .padding(.horizontal, ChatMetric.bubbleX)

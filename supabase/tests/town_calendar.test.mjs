@@ -58,6 +58,22 @@ test('public Events only: no Group post, nothing for followers or friends alone,
   assert.deepEqual(await titles(), ['2026-11-20 Bake sale']);
 });
 
+test('an Event whose sign-ups closed leaves, but for whoever is Going or Hearted it, and comes back when they open', async () => {
+  await reset();
+  const going = await add('Paint night', '2026-11-20');
+  const hearted = await add('Retreat', '2026-11-21');
+  await add('Bake sale', '2026-11-22');
+  await db.query(`update public.club_events set signups_closed_by = 'page' where id = any($1)`, [[going, hearted]]);
+  await db.query('insert into public.event_rsvps (event_id, user_id) values ($1, $2)', [going, ME]);
+  await db.query('insert into public.event_likes (event_id, user_id) values ($1, $2)', [hearted, ME]);
+  const all = ['2026-11-20 Paint night', '2026-11-21 Retreat', '2026-11-22 Bake sale'];
+  assert.deepEqual(await titles(ME), all);
+  assert.deepEqual(await titles(NEIGHBOUR), ['2026-11-22 Bake sale']);
+  assert.deepEqual(await titles(null), ['2026-11-22 Bake sale']);
+  await db.query('update public.club_events set signups_closed_by = null');
+  assert.deepEqual(await titles(null), all);
+});
+
 test('the whole year from the first of this month, every earlier day of it too, every date of a series, past its show-from day', async () => {
   await reset();
   await add('Last month', '2026-10-31');

@@ -254,9 +254,10 @@ struct CommunityAPI {
     }
 
     /// New group's Private switch is fixed on (`groups_always_private`, start-a-group 03): under 18, or no birthday.
-    func groupsAlwaysPrivate() async -> Bool {
-        guard let data = try? await db.rpc("groups_always_private") else { return false }
-        return (try? JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed) as? Bool) ?? false
+    /// nil when it couldn't be read.
+    func groupsAlwaysPrivate() async -> Bool? {
+        guard let data = try? await db.rpc("groups_always_private") else { return nil }
+        return try? JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed) as? Bool
     }
 
     /// Ask to join a private Group, or take the ask back (`ask_to_join`).
@@ -288,10 +289,11 @@ struct CommunityAPI {
 
     /// Edit group (`edit_group`, start-a-group 04): Private, Who can add events and the picked members land at once.
     /// True when a new name, kind, About or photo waits on the check (`checkGroupEdit`).
-    /// `editors` nil keeps the picks as they were (the members weren't read).
-    func editGroup(_ id: String, _ draft: EditGroupDraft, editors: Set<String>?, photo: URL?) async throws -> Bool {
+    /// `editors` nil keeps the picks as they were (the members weren't read). `checks` false when none of the checked
+    /// ones was touched: no name is sent, so one still being checked goes on (start-a-group 09).
+    func editGroup(_ id: String, _ draft: EditGroupDraft, checks: Bool, editors: Set<String>?, photo: URL?) async throws -> Bool {
         let data = try await db.rpc("edit_group", [
-            "p_club": id, "p_name": draft.cleanName, "p_kind": draft.kind ?? NSNull(), "p_about": draft.about,
+            "p_club": id, "p_name": checks ? draft.cleanName : NSNull(), "p_kind": draft.kind ?? NSNull(), "p_about": draft.about,
             "p_photo": photo?.absoluteString ?? NSNull(), "p_private": draft.isPrivate,
             "p_events_by": draft.eventsBy.rawValue, "p_editors": editors.map { Array($0) } ?? NSNull(),
         ])

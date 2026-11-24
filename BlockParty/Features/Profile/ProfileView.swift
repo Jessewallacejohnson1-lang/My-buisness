@@ -97,7 +97,7 @@ struct ProfileView: View {
         .onChange(of: OpenCycle.shared.settings) { _, on in settings = on }
         #endif
         .navigationDestination(item: $pushedEvent) { EventPage(item: $0) }
-        .navigationDestination(item: $pushedGroup) { GroupPage(group: $0) }
+        .navigationDestination(item: $pushedGroup) { GroupPage(group: $0).environment(searchModel) }
         // The counts open their lists, as Instagram's do: Settings' Following here; friends and followers on the
         // shell's stack, so a name in them opens its page (a list pushed from here held that push under it).
         .navigationDestination(isPresented: $showingFollowing) { FollowingPage().environment(searchModel) }

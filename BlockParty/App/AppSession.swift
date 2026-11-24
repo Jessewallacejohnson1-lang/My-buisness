@@ -63,7 +63,11 @@ final class AppSession {
         self.liveGames = liveGames ?? LiveGames(listen: { _ in })
         let chats = chats ?? ChatBook(supabase: supabase)
         self.chats = chats
-        actions.memberWritten = { Task { await chats.refresh() } }
+        actions.memberWritten = { [weak actions] member in
+            Task { await chats.refresh() }
+            // A private Group you left isn't yours to walk back into, and one still waiting goes (start-a-group 09).
+            if !member { Task { if let groups = await you.refreshGroups() { actions?.read(groups) } } }
+        }
         self.searchModel = searchModel
         self.friendsBook = friendsBook
         self.you = you
