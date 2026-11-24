@@ -66,7 +66,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from registry import find_root, place_key  # noqa: E402
 import social, write_judged  # noqa: E402
 from read_events import LOCAL  # noqa: E402
-from run import Supabase, deadline, fetch, final_url, late, to_text  # noqa: E402
+from run import Supabase, deadline, fetch, final_url, late  # noqa: E402
 from morning_run import PART_MINUTES, Part  # noqa: E402
 from db import DbError  # noqa: E402
 from morning import read_items  # noqa: E402
@@ -1174,61 +1174,20 @@ def to_judge(db, now):
     return out
 
 
-def post_words(out):
-    """What each post read this morning says, by its link, from the pickers' own files: {page: {page_says, page_date}}."""
-    said_by = {}
-    for name in ("photos/events.json", "dig/posts/laid.json"):
-        f = out / name
-        for g in json.loads(f.read_text()) if f.exists() else []:
-            for c in g.get("cands") or []:
-                words = c.get("words") or (c.get("title") if POST.search(c["page"]) else "")  # the dig's posts put it there
-                if words:
-                    said_by[c["page"]] = {"page_says": words, **({"page_date": c["posted"]} if c.get("posted") else {})}
-    return said_by
-
-
-def page_words(url, get=fetch):
-    """What a web page says it is about, for the judge (event-photos 32: WJON's 2023 story on another play, on this
-    year's): its heading, summary and the first words under the heading, with its day when the page gives one. Nothing
-    for a Facebook or Instagram post (post_words has this morning's) or a page that won't read."""
-    import html as htmllib
-    import place_photos
-    if not url.startswith("http") or POST.search(url):
-        return {}
-    try:
-        _, raw = get(url)
-    except Exception:
-        return {}
-    metas = {}
-    for k, v in place_photos.metas(raw):
-        metas.setdefault(k, v)
-    tag = re.search(r"<title[^>]*>(.*?)</title>", raw, re.I | re.S)
-    clean = lambda t: " ".join((t or "").split())
-    title = clean(metas.get("og:title") or (htmllib.unescape(tag.group(1)) if tag else ""))[:120]
-    text = clean(to_text(raw))
-    at = text.lower().find(title.lower()) if title else -1
-    under = text[at + len(title):at + len(title) + 700] if at >= 0 else ""
-    words = " … ".join(x for x in (title, clean(metas.get("og:description") or metas.get("description"))[:300], under.strip()) if x)
-    day = re.search(r"\d{4}-\d\d-\d\d", metas.get("article:published_time") or "") or re.search(
-        r'"datePublished"\s*:\s*"(\d{4}-\d\d-\d\d)', raw)
-    return {**({"page_says": words} if words else {}), **({"page_date": day.group(day.lastindex or 0)} if day and words else {})}
-
-
-def judge_line(key, b, image, page=None):
-    """A judge's line for one picture: what it runs on and the page it was found on, with that page's words, nothing of
-    why it was picked."""
+def judge_line(key, b, image):
+    """A judge's line for one picture: what it runs on and the page it was found on, nothing of why it was picked."""
     if "news" in b:
         n = b["news"]
         return {"photo": key, "image": image, "title": n["title"], "place": n.get("source_name") or "",
-                "about": " ".join((n.get("blurb") or "").split())[:800], "found_on": b["found_on"], **(page or {}), "news": True}
+                "about": " ".join((n.get("blurb") or "").split())[:800], "found_on": b["found_on"], "news": True}
     e = b["events"][0]
     return {"photo": key, "image": image, "title": " / ".join(sorted({x["title"] for x in b["events"]})),
             "dates": sorted({x["event_date"] for x in b["events"]}), "place": e.get("location") or "",
-            "about": " ".join((e.get("description") or "").split())[:800], "found_on": b["found_on"], **(page or {}),
+            "about": " ".join((e.get("description") or "").split())[:800], "found_on": b["found_on"],
             **({"flyer": True} if b["flyer"] else {}), **({"exhibit": True} if is_exhibit(e) else {})}
 
 
-def judge(out, now=None, db=None, grab=None, get=fetch):
+def judge(out, now=None, db=None, grab=None):
     """The pictures to judge downloaded to judge/p<n>.png and laid out PER_JUDGE to a batch; the folder starts empty.
     look-N.txt lays the Events' photos out alone for a looker who never sees a title (event-photos 32); a News, a flyer
     and an exhibit's work need no glance."""
@@ -1237,7 +1196,7 @@ def judge(out, now=None, db=None, grab=None, get=fetch):
     folder = out / "judge"
     shutil.rmtree(folder, ignore_errors=True)
     folder.mkdir(parents=True)
-    laid, lines, looks, failed, posts = {}, [], [], [], post_words(out)
+    laid, lines, looks, failed = {}, [], [], []
     for i, b in enumerate(to_judge(db or Supabase(), now or datetime.now(timezone.utc)), 1):
         key, dest = f"p{i}", folder / f"p{i}.png"
         try:
@@ -1245,7 +1204,7 @@ def judge(out, now=None, db=None, grab=None, get=fetch):
         except Exception as e:  # tried again the next morning
             failed.append(f"[judge]   p{i} would not download ({' '.join(str(e).split())[:80]})")
             continue
-        line = judge_line(key, b, str(dest), {} if "news" in b else posts.get(b["found_on"]) or page_words(b["found_on"], get))
+        line = judge_line(key, b, str(dest))
         laid[key] = {"ids": b["ids"], "title": line["title"]}
         lines.append(json.dumps(line, ensure_ascii=False))
         if not any(line.get(k) for k in ("news", "flyer", "exhibit")):
@@ -2151,41 +2110,18 @@ def selftest():
 
     with tempfile.TemporaryDirectory() as tmp:
         out, db = Path(tmp), JudgeDb()
-        (out / "photos").mkdir()
-        (out / "photos" / "events.json").write_text(json.dumps([{"cands": [
-            {"page": "https://facebook.com/parish/posts/1", "words": "Fish fry photos from last Lent", "posted": "2026-03-01"},
-            {"page": "https://facebook.com/parish/posts/2"}]}]))
-        (out / "dig" / "posts").mkdir(parents=True)
-        (out / "dig" / "posts" / "laid.json").write_text(json.dumps([{"cands": [
-            {"page": "https://instagram.com/p/b", "title": "Wreaths", "posted": "2026-11-01"},
-            {"page": "https://news.example", "title": "A story"}]}]))
-        check(set(post_words(out)) == {"https://facebook.com/parish/posts/1", "https://instagram.com/p/b"}
-              and post_words(out)["https://instagram.com/p/b"] == {"page_says": "Wreaths", "page_date": "2026-11-01"},
-              "judge: the posts' words as the pickers read them, the dig's too; a site's page is read itself")
-        asked = []
-        judge(out, now=datetime(2026, 11, 22, 12, tzinfo=timezone.utc), db=db, grab=lambda url, dest: (1200, 900),
-              get=lambda url: asked.append(url))
+        judge(out, now=datetime(2026, 11, 22, 12, tzinfo=timezone.utc), db=db, grab=lambda url, dest: (1200, 900))
         laid = json.loads((out / "judge" / "laid.json").read_text())
         lines = [json.loads(x) for x in (out / "judge" / "batch-1.txt").read_text().splitlines()]
         check([x["title"] for x in lines] == ["Senior Art Show", "Fish Fry", "New winter menu"]
               and lines[0].get("flyer") and lines[0].get("exhibit") and lines[1]["dates"] == ["2026-12-04", "2026-12-11"]
               and lines[2].get("news") and laid["p2"]["ids"] == [1, 2] and not any("why" in x or "shows" in x for x in lines)
               and lines[1]["found_on"] == "https://facebook.com/parish/posts/1"
-              and lines[1]["page_says"] == "Fish fry photos from last Lent" and lines[1]["page_date"] == "2026-03-01"
-              and "page_says" not in lines[0] and asked == []
               and [json.loads(x) for x in (out / "judge" / "look-1.txt").read_text().splitlines()]
               == [{"photo": "p2", "image": str(out / "judge" / "p2.png")}],
               "judge: one line per picture with what it runs on and none of the picker's reasons, the soonest Event first, "
-              "a post's own words beside it, the photo alone for the looker (no flyer, exhibit or News), "
+              "the photo alone for the looker (no flyer, exhibit or News), "
               f"one picture's dates together, a flyer and an exhibit marked, then the News ({lines})")
-        story = ('<head><title>First play - WJON</title><meta property="og:title" content="First play"><meta property="og:description" '
-                 'content="A first."><script>{"datePublished":"2023-11-17T10:00"}</script></head><body><p>Menu</p><h1>First Play</h1>'
-                 '<p>The students stage Elephant and Piggie.</p></body>')
-        check(page_words("https://wjon.example/play", lambda u: (200, story))
-              == {"page_says": "First play … A first. … The students stage Elephant and Piggie.", "page_date": "2023-11-17"}
-              and page_words("https://www.instagram.com/p/x/", lambda u: 1 / 0) == page_words("https://x.example", lambda u: 1 / 0)
-              == page_words("", lambda u: 1 / 0) == {},
-              "judge: a story's heading, summary, first words and day; nothing from a post, or a page that won't read")
         check(all("judged=is.null" in p and "position=eq.0" in p and "status=eq.live" in p for m, p, b in db.calls),
               "judge: only live pictures no judge has seen, each card's lead")
         (out / "judge" / "verdicts.jsonl").write_text("\n".join([json.dumps({"photo": "p1", "verdict": "run", "why": "The show's art"}),
