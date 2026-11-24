@@ -31,6 +31,8 @@ struct FeedCardURLPhoto: View {
     /// With `whole`, what a flyer that reaches its frame's top rather than its sides starts under: on the
     /// Event page the clock, so the island never covers a tall poster's title (Jesse, 2026-11-05).
     var wholeTop: CGFloat = 0
+    /// Cut around its middle, not its focus: a photo picked by eye for its frame (Follow 3's circles, BP app onboarding 50).
+    var centered = false
 
     @Environment(\.displayScale) private var displayScale
 
@@ -48,7 +50,8 @@ struct FeedCardURLPhoto: View {
                 onFailure: onFailure,
                 loadingFill: loadingFill,
                 whole: whole,
-                wholeTop: wholeTop
+                wholeTop: wholeTop,
+                centered: centered
             )
             .frame(width: proxy.size.width, height: proxy.size.height)
         }
@@ -103,6 +106,7 @@ private struct FeedCardDownsampledPhoto: View {
     var loadingFill: Color = Hue.ink
     var whole: CGFloat? = nil
     var wholeTop: CGFloat = 0
+    var centered = false
 
     /// The bitmap this view loaded, tagged with its URL so a view handed a new URL never
     /// shows the old photo.
@@ -128,7 +132,7 @@ private struct FeedCardDownsampledPhoto: View {
                     .resizable()
                     .scaledToFill()
                     .offset(FeedCardURLPhoto.offset(image: CGSize(width: image.width, height: image.height), box: box,
-                                                    focus: FeedCardImageLoader.shared.focus(for: request.url)))
+                                                    focus: centered ? .center : FeedCardImageLoader.shared.focus(for: request.url)))
                     .transition(.opacity)
             } else {
                 // Ink, not a light fill: the card's title is white and already sits on
@@ -138,12 +142,15 @@ private struct FeedCardDownsampledPhoto: View {
             }
         }
         .task(id: request) {
+            // Asked before the read, which fills the cache `image` looks in.
+            let drawn = image != nil
             let loadedImage = await FeedCardImageLoader.shared.image(for: request)
             guard !Task.isCancelled else { return }
             if let loadedImage {
-                // Cross-fade the photograph in rather than hard-cutting it over the ink.
+                // Cross-fade the photograph in rather than hard-cutting it over the ink. Not over itself: the fade
+                // showed as a grey blink on a Town card each time its page slid away (BP app tab-lag 06).
                 if let loaded { FeedCardImageLoader.shared.gone(loaded.url, loaded.image) }
-                withAnimation(.easeOut(duration: 0.2)) { loaded = (request.url, loadedImage) }
+                withAnimation(drawn ? nil : .easeOut(duration: 0.2)) { loaded = (request.url, loadedImage) }
                 FeedCardImageLoader.shared.showing(request.url, loadedImage)
             }
             // A photo already on screen at another size has not failed.

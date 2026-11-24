@@ -127,16 +127,12 @@ final class AppearanceStore: ObservableObject {
     /// the pages take it back when they show again.
     func releaseClock() { clockHolders.removeAll() }
 
-    /// An Event page is open over the feed (`EventOpener`, tab-lag 02 round 5): the feed is still under it, but its
-    /// hero photo gets the white clock a pushed page's had.
-    @Published var eventOver = false
-
     /// What the root asks for. `.light` / `.dark` ask for themselves. `.system`
     /// asks for nothing, so the app follows the phone — except while the feed
     /// holds the clock, when it asks for the phone's own scheme: the same look,
     /// but a request, and a request is what pins the clock's ink.
     var requestedScheme: ColorScheme? {
-        choice.colorScheme ?? (holdsClock && !eventOver ? phoneScheme : nil)
+        choice.colorScheme ?? (holdsClock ? phoneScheme : nil)
     }
 
     /// Follows the phone's appearance: read now, and again every time the app

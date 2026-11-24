@@ -34,13 +34,6 @@ struct EventPage: View {
     let item: FeedCardItem
 
     @Environment(\.dismiss) private var dismiss
-    /// Opened over the shell from a Town card (`EventOverlay`, tab-lag 02 round 5): Back sends it home into its card.
-    @Environment(\.eventPageClose) private var overClose
-    /// False while the page is built hidden during a Town tap's double-tap wait (`EventOpener.prepare`): nothing on
-    /// it runs, reads or counts until it opens, so a like leaves no trace.
-    @Environment(\.eventPageShown) private var shown
-    /// It came on screen (`appeared`), so leaving undoes it.
-    @State private var didAppear = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
     /// Going and Heart, shared with the card behind the page (`RealLifeActions`).
@@ -261,8 +254,7 @@ struct EventPage: View {
         .scrollPosition($position)
         // The small map's still, the first time it opens (until then its ground and the photo show), and again once
         // the page's width is known or a try failed.
-        .task(id: shown ? item.id : nil) {
-            guard shown else { return }
+        .task(id: item.id) {
             #if DEBUG
             if let names = LaunchFlags.value(.eventMorePlaces) { morePlaces = names.split(separator: "|").map(String.init); return }
             #endif
@@ -270,8 +262,7 @@ struct EventPage: View {
             guard game == nil, !item.found, UUID(uuidString: item.id) != nil else { return }
             morePlaces = await CommunityAPI(auth: AuthStore.shared).morePlaces(event: item.id)
         }
-        .task(id: shown ? item.id : nil) {
-            guard shown else { return }
+        .task(id: item.id) {
             #if DEBUG
             if LaunchFlags.has(.townPartDay) { parts = EventSchedule.oneDaySamples(.now); return }
             if LaunchFlags.has(.townPart) { parts = EventSchedule.samples(.now); return }
@@ -280,8 +271,7 @@ struct EventPage: View {
             guard game == nil, UUID(uuidString: item.id) != nil else { return }
             parts = await CommunityAPI(auth: AuthStore.shared).parts(event: item.id)
         }
-        .task(id: shown ? item.id : nil) {
-            guard shown else { return }
+        .task(id: item.id) {
             // Only a college basketball game's file has player lines, and its plays come first: a high school game has
             // neither. A sample's id isn't a real one.
             guard let game, game.isBasketball, !game.plays.isEmpty, game.players == nil,
@@ -393,23 +383,16 @@ struct EventPage: View {
         }
         // A failed Join or Heart shakes and buzzes only while its page is open: the buzz
         // used to land on Town after a pop. Leaving never cancels the write itself.
-        .onAppear { if shown { appeared() } }
-        .onChange(of: shown) { _, now in if now { appeared() } }
+        .onAppear {
+            actions.pageOpened(item.id)
+            live?.hold(liveHolder, [item])
+            if !reviewing { LeftOff.page = item.id }
+        }
         .onDisappear {
-            guard didAppear else { return }
             if LeftOff.page == item.id { LeftOff.page = nil }
             actions.pageClosed(item.id)
             live?.hold(liveHolder, [])
         }
-    }
-
-    /// On screen: a failed Join or Heart shakes here, its game's score is held live, and a restart comes back to it.
-    private func appeared() {
-        guard !didAppear else { return }
-        didAppear = true
-        actions.pageOpened(item.id)
-        live?.hold(liveHolder, [item])
-        if !reviewing { LeftOff.page = item.id }
     }
 
     /// No picture and no logo: the whole page is the exact yellow, with ink words (Jesse, 2026-11-06).
@@ -927,7 +910,7 @@ struct EventPage: View {
     /// Back, in Apple Invites' round glass over the picture. No calendar button (Jesse, 2026-11-15: "remove calender
     /// in top right corner").
     private var lookButtons: some View {
-        EventGlassButton(glyph: "arrow.left", label: "Back", sun: sun) { back() }
+        EventGlassButton(glyph: "arrow.left", label: "Back", sun: sun) { dismiss() }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.leading, EventLook.backInset - (MeetupPillStyle.minTarget - EventLook.glass) / 2)
             .padding(.top, EventLook.glassTop - (MeetupPillStyle.minTarget - EventLook.glass) / 2)
@@ -935,18 +918,13 @@ struct EventPage: View {
 
     // MARK: Buttons
 
-    /// Home into its card when opened over the shell; else the stack's own back.
-    private func back() {
-        if let overClose { overClose.close() } else { dismiss() }
-    }
-
     private var topButtons: some View {
         HStack(spacing: 0) {
             Self.circleButton(
                 glyph: Image(systemName: "arrow.left"),
                 label: "Back",
                 onColor: game != nil
-            ) { back() }
+            ) { dismiss() }
 
             Spacer(minLength: 0)
 

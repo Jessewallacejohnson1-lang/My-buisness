@@ -8,8 +8,10 @@ changing any first-run screen.
 Built and on (BP app onboarding tickets 16 to 24, 2026-10-30): `Features/Onboarding/
 OnboardingFlow.swift` holds the steps, the saved place (`OnboardingStore`) and the Welcome;
 `OnboardingChrome.swift` the backdrop, back chevron, progress bar and Next bar;
-`OnboardingDone.swift` the Done island. Seven question steps: Phone and its texted code come
-back with phone sign-in (ticket 17), and Name and Photo are Clubhouse's two steps, "What Mom calls you"
+`OnboardingDone.swift` the Done island. Phone and its texted code (`OnboardingPhone.swift`, BP app onboarding
+17, 44 and 45) are built behind one switch, `PhoneSignIn`, off until Jesse's Twilio account is open; on, they
+come first, under "Continue with phone", on a screen over the Welcome that a relaunch never reopens. Seven
+question steps follow, and Name and Photo are Clubhouse's two steps, "What Mom calls you"
 then "Add a photo?" (`OnboardingProfile.swift`, BP app onboarding 55; Bio left onboarding). A first launch shows it; an install that opened the tabs
 before it was on never does. DEBUG `-skip-onboarding` (eyes.py adds it) and `-ui-tests` skip it,
 and `-onboarding` shows it anyway. Finishing stamps `town_profiles.onboarded_at` with the
@@ -46,8 +48,11 @@ at 24 pt semibold on a 30 pt line; Luma's
 flat 48 pt black pill 20 pt from each side, which sinks to 97% and dims when pressed, greys while not
 allowed and shakes; soft grey field boxes with a small label above. The Welcome keeps Nextdoor's
 layout (ticket 25). Interests is one white card of
-rows with check circles, its chips grey until picked; Follow 3's logos sit on white with a plus that
-turns to an ink check, no Follow pills. Duolingo's
+rows with check circles, its chips grey until picked; Follow 3 is Spotify's artist grid on a
+night sky (onboarding 50, 2026-11-23; BP app `references/follow-spotify/SPEC.md`): a white 31 pt bold question at the left
+and a white search box, 112 pt circles (a photo, or a logo on white) with Interests' ring and green check once
+followed, the popular places first (`places.follow_spot`), no icon circle, no plus, no Follow pills; its Next pill is
+Interests' white one. Duolingo's
 chunky bar, glint and raised button and chips are gone. Everything below this
 section still holds, except where the spec says otherwise: between steps only the question slides
 (Reduce Motion: a cross-fade), not a cross-fade of the whole step.
@@ -79,7 +84,11 @@ and its **enabled state**. Nothing else, apart from one look Jesse approved in m
 (2026-11-09): Find your friends' pill is white with ink words (onboarding 37), in the same frame.
 The second exception (Jesse's yes, 2026-11-22, BP app onboarding 55): the Name and Photo steps copy
 Clubhouse's, so their pill is Clubhouse's narrow "Next →", 199 pt wide and centred, 55 pt from the bottom
-or 30.5 pt over the keyboard; from Birthday on, the pill is every step's again. Specifically
+or 30.5 pt over the keyboard; from Birthday on, the pill is every step's again. The
+third (Jesse's yes, 2026-11-22, BP app onboarding 44 and 45): Phone and Code copy Hinge's, so each has Hinge's
+small black pill, 120 x 48 and centred, 45 pt over the number pad on Phone and 1 pt on Code; an X back to the
+Welcome and no dashes or back; and Continue waits for the server, as signing in can't go on without it, with
+the X and the pencil live the whole time. Specifically
 not allowed:
 
 - A centred button on one screen and a bottom-pinned one on the next.
@@ -127,7 +136,7 @@ per step, or a frame-montage of the flow. A build is not done until that passes.
 - **Never ask for what can be derived or deferred.** Anything the app can infer, or ask
   later in context, is not an onboarding question.
 - **One tap per step wherever possible.** Typing is the most expensive input; reserve
-  it for the name (Bio left onboarding in BP app onboarding 55), and nothing else.
+  it for the phone number and its code, and the name (Bio left onboarding in BP app onboarding 55).
 - **No dead ends.** Back always goes somewhere real, and a first step with nowhere to
   go back to shows no back button at all rather than a dead one.
 - **Progress is always visible** from Birthday on, and always honest — the bar's total is the real number

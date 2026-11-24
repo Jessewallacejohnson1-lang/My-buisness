@@ -263,6 +263,22 @@ test("a Town page's Events each send the Event card, with your heart and its cou
                    'signed out: the count, never a heart of its own');
 });
 
+test("a Town page leaves out an Event whose sign-ups closed, but for whoever is Going or Hearted it, until they open", async () => {
+  await reset();
+  const going = await event('Paint night', 'JoeTown', 3, { draw: 2 });
+  const hearted = await event('Retreat', 'JoeTown', 4, { draw: 2 });
+  await event('Winterwalk', 'JoeTown', 5, { draw: 2 });
+  await db.query(`update public.club_events set signups_closed_by = 'catalog' where id = any($1)`, [[going, hearted]]);
+  await db.query('insert into public.event_rsvps (event_id, user_id) values ($1, $2)', [going, ANA]);
+  await heart(ANA, hearted);
+  const read = async (who) => (await as(who, `select public.town_page('st-joseph-mn', 'town') p`))[0].p.events.map((e) => e.title);
+  const all = ['Paint night', 'Retreat', 'Winterwalk'];
+  assert.deepEqual(await read(ANA), all);
+  assert.deepEqual(await read(BEN), ['Winterwalk']);
+  await db.query('update public.club_events set signups_closed_by = null');
+  assert.deepEqual(await read(BEN), all);
+});
+
 test("a board's meetings each send the Event card, with your heart and its count", async () => {
   await reset();
   const far = await event('City Council Meeting', 'City of St. Joseph', 45, { location: 'City Hall' });

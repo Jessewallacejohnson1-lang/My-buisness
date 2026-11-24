@@ -69,6 +69,8 @@ struct GroupJoinRow: View {
     var joined: (TownGroup) -> Void = { _ in }
     @Environment(RealLifeActions.self) private var actions
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Joined, on a Group that asks before you leave (`GroupAsks.asksToLeave`).
+    @State private var leaving = false
 
     var body: some View {
         let member = actions.member(group)
@@ -114,6 +116,7 @@ struct GroupJoinRow: View {
         }
         .padding(.horizontal, FriendsMetric.side)
         .frame(height: FriendsMetric.row)
+        .modifier(LeaveGroupQuestion(group: group, asking: $leaving, leave: flip))
     }
 
     /// A private Group you aren't in (start-a-group 03): Ask, then Asked in the light face.
@@ -136,6 +139,14 @@ struct GroupJoinRow: View {
     }
 
     private func toggle() {
+        if actions.member(group).isMember, GroupAsks.asksToLeave(group) {
+            leaving = true
+        } else {
+            flip()
+        }
+    }
+
+    private func flip() {
         let joining = !actions.member(group).isMember
         actions.toggleMember(group)
         if joining, actions.member(group).isMember {

@@ -42,6 +42,9 @@ final class DynamicTypeAuditCoverageTests: XCTestCase {
         // `.audited` the day the page is finished; the surface is parked in
         // `DynamicTypeAuditTests.notDevelopedYet`, ready to move one line.
 
+        "OnboardingPhone.swift:$countryOpen": .notYetAudited(reason: "Phone's two countries in Apple's sheet (onboarding 44): a title and two rows. Its height is fixed, so larger text would scroll off. Text-size checks wait for Jesse (MEMORY.md, 2026-09-24)."),
+        "OnboardingPhone.swift:$whyOpen": .notYetAudited(reason: "Phone's What if my number changes? in Apple's sheet (onboarding 44): a title, two lines and Got it. Its height is fixed, so larger text would run off. Text-size checks wait for Jesse (MEMORY.md, 2026-09-24)."),
+        "ProfileView.swift:$changing": .notYetAudited(reason: "The Phone and Code steps from Settings (onboarding 17): the same screen as onboarding's, which isn't audited either. Text-size checks wait for Jesse (MEMORY.md, 2026-09-24)."),
         "OnboardingProfile.swift:$camera": .notYetAudited(reason: "Apple's own camera (UIImagePickerController) for onboarding's photo: no text of ours to scale."),
         "GroupLink.swift:$showingCode": .notYetAudited(reason: "A Group's code from Invite friends (start-a-group 07): Your code's sheet (CodeSheet) with the Group's picture, name, kind, the QR code and Share. Text-size checks wait for Jesse (MEMORY.md, 2026-09-24)."),
         "FriendsWaysIn.swift:$showingCode": .notYetAudited(reason: "Your code (friends 07): a photo, a name, a line, the QR code and two buttons in Apple's sheet, as tall as it measures. Text-size checks wait for Jesse (MEMORY.md, 2026-09-24)."),

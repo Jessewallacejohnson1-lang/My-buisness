@@ -1,9 +1,9 @@
 //
 //  OnboardingFollow.swift
-//  Block Party — "Follow 3 places", onboarding's step 8 (BP app onboarding 22, then 26): Spotify's
-//  "Choose 3 or more artists" grid of the Town's Places, schools and pages in rows of 3, those that fit
-//  the interests just picked first, busiest first. Following one pulls places like it up to right after
-//  it. The picks wait on the phone (`OnboardingStore.follows`) and go up once a signed-up account can
+//  Block Party — "Follow 3 or more places you like.", onboarding's step 8 (BP app onboarding 22, 26, 50): Spotify's
+//  "Choose 3 or more artists" grid of the Town's Places, schools and pages in rows of 3, on a night sky (measures in
+//  BP app `references/follow-spotify/SPEC.md`). The popular ones (`places.follow_spot`) lead, then those that fit
+//  the interests just picked, busiest first. Following one pulls places like it up to right after it. The picks wait on the phone (`OnboardingStore.follows`) and go up once a signed-up account can
 //  take them (`RealLifeActions.followOn`), as following needs one (follows spec).
 //
 
@@ -22,6 +22,12 @@ struct FollowSuggestion: Identifiable, Equatable {
     var logo: SearchLogo? = nil
     /// With no cut-out logo: a logo inset on white or a photo filling the circle.
     let picture: URL?
+    /// A photo that fills Follow 3's circle ahead of any logo: its spot's, or its saved photo when it has no logo.
+    var photo: URL? = nil
+    /// Its spot in line at the top, 1 first; nil for most.
+    var spot: Int? = nil
+    /// What following it follows too: a school that is also a Place (Kennedy), whose News comes with the Place.
+    var twin: FollowTarget? = nil
     var isLogo = true
     /// The Town's own page draws the app's Town logo.
     var isTown = false
@@ -33,6 +39,10 @@ struct FollowSuggestion: Identifiable, Equatable {
 
     var id: FollowTarget { target }
     var isSchool: Bool { categories.contains("school") }
+    /// "CS" of "City of St. Joseph": the first two capitals that start a word, so "of" is skipped.
+    var initials: String {
+        String(name.split(separator: " ").compactMap { $0.first }.filter(\.isUppercase).prefix(2))
+    }
 }
 
 enum FollowSuggestions {
@@ -79,11 +89,11 @@ enum FollowSuggestions {
         }
     }
 
-    /// Every Place, school and page, each with the interests its kind fits and its upcoming Events
+    /// Every Place, school and page (a school that is a Place too is one, the school's), each with the interests its kind fits and its upcoming Events
     /// bring (an Event is a Place's by its registry entry, a school's by its games and activities, a
     /// page's by the source it names), and how many Events it has.
-    static func build(places: [POI], schools: [LocalSchool], pages: [TownPageRow],
-                      events: [UpcomingTags]) -> [FollowSuggestion] {
+    static func build(places: [POI], photos: [String: [PlacePicture]] = [:], schools: [LocalSchool],
+                      pages: [TownPageRow], events: [UpcomingTags]) -> [FollowSuggestion] {
         var byPlace: [String: [UpcomingTags]] = [:], byTeam: [String: [UpcomingTags]] = [:],
             bySource: [String: [UpcomingTags]] = [:]
         for event in events {
@@ -98,20 +108,26 @@ enum FollowSuggestions {
             s.events = mine.count
             return s
         }
-        let fromPlaces = places.map { poi in
+        var fromPlaces = places.map { poi in
             let fit = interests(ofKind: poi.primaryType)
-            return with(FollowSuggestion(target: .init(type: .place, id: poi.id), name: SearchModel.shown(poi.name),
+            return with(FollowSuggestion(target: .init(type: .place, id: poi.id), name: placeName(poi.name),
                                          kind: poi.primaryType.flatMap(SearchModel.label),
                                          logo: poi.searchLogo.map { SearchLogo(placeId: poi.placeId ?? poi.id, row: $0) },
                                          picture: poi.logoURL,
+                                         photo: photo(of: poi, live: poi.entryId.flatMap { photos[$0] } ?? []),
+                                         spot: poi.followSpot?.spot,
                                          categories: Set(fit + (poi.primaryType.map { ["type:\($0)"] } ?? []))),
                         fit, poi.entryId.flatMap { byPlace[$0] } ?? [])
         }
         let fromSchools = schools.map { school in
-            let crest = school.logoUrl.flatMap(URL.init(string:))
-            return with(FollowSuggestion(target: .init(type: .team, id: school.uuid), name: school.schoolName ?? school.name,
-                                         key: school.id, kind: "School", logo: school.crest,
-                                         picture: crest, categories: ["school"]),
+            let crest = school.logoUrl.flatMap(URL.init(string:)), name = school.schoolName ?? school.name
+            let place = fromPlaces.firstIndex { $0.name == name }.map { fromPlaces.remove(at: $0) }
+            return with(FollowSuggestion(target: .init(type: .team, id: school.uuid), name: name,
+                                         key: school.id, kind: "School", logo: place?.logo ?? school.crest,
+                                         picture: crest, photo: place?.photo, spot: place?.spot,
+                                         twin: place?.target,
+                                         // A college is like a college too, not like a high school alone.
+                                         categories: (place?.categories ?? []).union(["school"])),
                         [], byTeam[school.id] ?? [])
         }
         let fromPages = pages.map { page in
@@ -127,15 +143,36 @@ enum FollowSuggestions {
         return fromPlaces + fromSchools + fromPages
     }
 
-    /// The grid before a search, every place in it: what fits the picks first, then the rest, each
+    /// The photo that fills a place's circle: its spot's, while it is still one of the place's live photos (one taken
+    /// down on request goes from here too), else the first of a place with no logo.
+    static func photo(of poi: POI, live: [PlacePicture]) -> URL? {
+        if let spot = poi.followSpot { return live.first { $0.url == spot.photo }?.url }
+        return poi.searchLogo == nil && poi.logoURL == nil ? live.first?.url : nil
+    }
+
+    /// A place's name as its tile says it: Search's, without a trailing "Inc".
+    static func placeName(_ name: String) -> String {
+        SearchModel.shown(name).replacing(/,? Inc\.?$/, with: "")
+    }
+
+    /// How many of the tiles are followed: one that follows two things counts once.
+    static func followed(_ all: [FollowSuggestion], _ follows: [FollowTarget]) -> Int {
+        all.count { follows.contains($0.target) }
+    }
+
+    /// The grid before a search, every place in it: the ones with a spot (Jesse, 2026-11-23: "put at the top the
+    /// ones that post the most or popular"), then what fits the picks, then the rest, each of those two
     /// busiest first (Jesse, 2026-11-02: "show popular ones first"), A to Z between equals. Schools
     /// lead only for somebody who opened Schools on the step before (onboarding 28).
     static func ordered(_ all: [FollowSuggestion], picked: [String], schoolsFirst: Bool = false) -> [FollowSuggestion] {
         let picks = Set(picked)
-        let rank = { (s: FollowSuggestion) in schoolsFirst && s.isSchool ? 0 : s.interests.isDisjoint(with: picks) ? 2 : 1 }
+        let rank = { (s: FollowSuggestion) in
+            schoolsFirst && s.isSchool ? 0 : s.spot != nil ? 1 : s.interests.isDisjoint(with: picks) ? 3 : 2
+        }
         return all.sorted { a, b in
             let ra = rank(a), rb = rank(b)
             if ra != rb { return ra < rb }
+            if ra == 1, let sa = a.spot, let sb = b.spot, sa != sb { return sa < sb }
             if a.events != b.events { return a.events > b.events }
             return a.name.localizedCaseInsensitiveCompare(b.name) == .orderedAscending
         }
@@ -196,8 +233,20 @@ enum FollowSuggestions {
     static func load(events: [UpcomingTags]) async throws -> [FollowSuggestion] {
         let api = CommunityAPI(auth: AuthStore.shared)
         async let places = api.getPlaces()
+        // Without them a place shows its logo, or its letters.
+        async let photos = try? api.getPlacePhotos()
         let (s, p) = try await api.followableSchoolsAndPages()
-        return build(places: try await places, schools: s, pages: p, events: events)
+        return build(places: try await places, photos: await photos ?? [:], schools: s, pages: p, events: events)
+    }
+
+    /// The first three rows' pictures, read while the steps before are up so the circles come with theirs.
+    static func readAhead(_ all: [FollowSuggestion], width: CGFloat, scale: CGFloat) {
+        let side = FollowCircleMetric.side(width)
+        let first = ordered(all, picked: []).prefix(9)
+        for url in first.compactMap(\.photo) {
+            FeedCardImageLoader.shared.readAhead(url, box: CGSize(width: side, height: side), scale: scale)
+        }
+        POILogoCache.shared.prefetch(first.filter { $0.photo == nil }.compactMap { $0.logo?.url })
     }
 
     /// The schools and pages alone, for Edit Profile's Schools: its tiles need no Place or Event.
@@ -207,22 +256,22 @@ enum FollowSuggestions {
     }
 }
 
-/// Step 8 under its question: the question scrolls away with the grid while the search stays pinned
-/// under the progress bar (Spotify's), and the grid holds every place in rows of 3 (Search's logo
-/// wall). Shimmering tiles while the read is out; a failed read says so and lets the Next bar go on
+/// Step 8: Spotify's question and white search box over rows of 3 large circles. The question scrolls away with
+/// the grid while the search stays pinned under the dashes. Shimmering circles while the read is out; a failed read says so and lets the Next bar go on
 /// (`OnboardingFlow.nextAllowed`).
-struct OnboardingFollowGrid<Heading: View>: View {
+struct OnboardingFollowGrid: View {
     /// nil while reading; empty when the read failed.
     let suggestions: [FollowSuggestion]?
     let interests: [String]
     /// Opened Schools on the step before, so schools lead.
     let schoolsFirst: Bool
     let follows: [FollowTarget]
+    @AccessibilityFocusState.Binding var focused: Bool
     let toggle: (FollowTarget) -> Void
-    @ViewBuilder let heading: Heading
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var query = ""
+    @State private var scroll = ScrollPosition()
     /// The grid's order once read, which follows rearrange.
     @State private var order: [FollowSuggestion]?
     /// Bumped for a place a follow pulls up, so it arrives as a new tile growing out of the one
@@ -231,47 +280,46 @@ struct OnboardingFollowGrid<Heading: View>: View {
     @State private var arrivals: [FollowTarget: Arrival] = [:]
     /// The search field's top in the scroll, read only down to just past the pin line (`scrollTop`), so
     /// scrolling further doesn't redraw the grid every frame.
-    @State private var searchTop: CGFloat = 255
+    @State private var searchTop: CGFloat = FollowGridMetric.scrollTop + FollowCircleMetric.heading
 
     /// One spring for every move (the mock's: 0.42 s, a little bounce), 44 ms between arrivals
     /// (Search's logo stagger).
-    // Computed: a generic type can't store statics.
-    private static var spring: Animation { .spring(response: 0.42, dampingFraction: 0.72) }
-    private static var stagger: Double { 0.044 }
-    private static var space: String { "follow-grid" }
+    private static let spring = Animation.spring(response: 0.42, dampingFraction: 0.72)
+    private static let stagger = 0.044
+    private static let space = "follow-grid"
 
     var body: some View {
         GeometryReader { geo in
-            let column = FollowGridMetric.column(geo.size.width)
+            let side = FollowCircleMetric.side(geo.size.width)
             let pinned = searchTop <= FollowGridMetric.scrollTop
             ZStack(alignment: .top) {
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 0) {
                         heading
-                        OnboardingSearchField(prompt: "Search places", query: $query)
+                        FollowSearchField(query: $query)
                             .opacity(pinned ? 0 : 1)
                             .onGeometryChange(for: CGFloat.self) {
-                                max($0.frame(in: .named(Self.space)).maxY - FollowGridMetric.search, FollowGridMetric.scrollTop - 16)
+                                max($0.frame(in: .named(Self.space)).minY, FollowGridMetric.scrollTop - 16)
                             } action: { searchTop = $0 }
-                        tiles(column)
-                            .padding(.top, 20)
+                        tiles(side)
+                            .padding(.top, FollowCircleMetric.gridGap)
                     }
-                    .padding(.horizontal, FollowGridMetric.gutter)
-                    .padding(.top, FollowGridMetric.headingTop - FollowGridMetric.scrollTop)
-                    .padding(.bottom, 200)
+                    .padding(.horizontal, FollowCircleMetric.margin)
+                    .padding(.bottom, 230)
                     // While searching, room to stay pinned however few the results, so the field never
                     // drops away under the typing.
                     .frame(minHeight: query.isEmpty ? 0 : geo.size.height + 240, alignment: .top)
                 }
+                .scrollPosition($scroll)
                 .scrollDismissesKeyboard(.immediately)
                 .padding(.top, FollowGridMetric.scrollTop)
 
                 // Once pinned, the backdrop closes over the tiles behind and just under the field.
-                OnboardingBackdrop()
+                OnboardingBackdrop(night: true)
                     .mask {
                         VStack(spacing: 0) {
                             Color.clear.frame(height: FollowGridMetric.scrollTop)
-                            Color.black.frame(height: FollowGridMetric.search + 8)
+                            Color.black.frame(height: FollowCircleMetric.search + 2)
                             LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom).frame(height: 20)
                             Spacer(minLength: 0)
                         }
@@ -282,9 +330,9 @@ struct OnboardingFollowGrid<Heading: View>: View {
 
                 if pinned {
                     // VoiceOver keeps the field in its slot, which it scrolls back to.
-                    OnboardingSearchField(prompt: "Search places", query: $query)
-                        .padding(.horizontal, FollowGridMetric.gutter)
-                        .offset(y: FollowGridMetric.scrollTop - 16)
+                    FollowSearchField(query: $query)
+                        .padding(.horizontal, FollowCircleMetric.margin)
+                        .offset(y: FollowGridMetric.scrollTop)
                         .accessibilityHidden(true)
                 }
             }
@@ -296,23 +344,44 @@ struct OnboardingFollowGrid<Heading: View>: View {
             showing = [:]
         }
         // A tile a search hid and brought back doesn't grow out of an old follow again.
-        .onChange(of: query) { arrivals = [:] }
+        .onChange(of: query) { old, new in
+            arrivals = [:]
+            // The first letter takes the field up under the dashes, so the results have the room. A point short of
+            // the pin: the field being typed in stays the one in sight, with its caret.
+            if old.isEmpty, !new.isEmpty, searchTop > FollowGridMetric.scrollTop {
+                withAnimation(reduceMotion ? nil : .smooth(duration: 0.3)) { scroll.scrollTo(y: FollowCircleMetric.heading - 1) }
+            }
+        }
     }
 
-    @ViewBuilder private func tiles(_ column: CGFloat) -> some View {
+    /// Spotify's question: two lines of 31 pt bold, 38.3 pt apart.
+    private var heading: some View {
+        Text(OnboardingStep.follow.question)
+            .appleFont(31, weight: .bold)
+            .tracking(FollowCircleMetric.titleTracking)
+            .lineSpacing(FollowCircleMetric.titleLead)
+            .foregroundStyle(Color.white)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityAddTraits(.isHeader)
+            .accessibilityFocused($focused)
+            .padding(.top, 1 + FollowCircleMetric.titleLead / 2)
+            .frame(maxWidth: .infinity, minHeight: FollowCircleMetric.heading, alignment: .topLeading)
+    }
+
+    @ViewBuilder private func tiles(_ side: CGFloat) -> some View {
         let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
         if let order, !order.isEmpty {
             let shown = q.isEmpty ? order : FollowSuggestions.search(order, q)
             if shown.isEmpty {
                 Text("No places found")
                     .font(.apple(15))
-                    .foregroundStyle(Hue.inkSecondary)
+                    .foregroundStyle(Hue.deepOffWords)
                     .padding(.top, 4)
             }
-            LazyVGrid(columns: FollowGridMetric.columns(column), alignment: .leading, spacing: FollowGridMetric.rowGap) {
+            LazyVGrid(columns: FollowCircleMetric.columns(side), alignment: .leading, spacing: FollowCircleMetric.rowGap) {
                 ForEach(shown.map { Tile(suggestion: $0, showing: showing[$0.target, default: 0]) }) { tile in
-                    FollowTile(suggestion: tile.suggestion, on: follows.contains(tile.suggestion.target)) {
-                        follow(tile.suggestion, column: column)
+                    FollowCircle(suggestion: tile.suggestion, on: follows.contains(tile.suggestion.target), side: side) {
+                        follow(tile.suggestion, side: side)
                     }
                     .transition(arrival(tile.suggestion.target))
                 }
@@ -321,17 +390,17 @@ struct OnboardingFollowGrid<Heading: View>: View {
             // The Town feed's words for a read that failed.
             Text("Check your connection and try again.")
                 .font(.apple(15))
-                .foregroundStyle(Hue.inkSecondary)
+                .foregroundStyle(Hue.deepOffWords)
                 .padding(.top, 4)
         } else {
-            LazyVGrid(columns: FollowGridMetric.columns(column), alignment: .leading, spacing: FollowGridMetric.rowGap) {
-                ForEach(0..<9, id: \.self) { _ in FollowTileSkeleton() }
+            LazyVGrid(columns: FollowCircleMetric.columns(side), alignment: .leading, spacing: FollowCircleMetric.rowGap) {
+                ForEach(0..<9, id: \.self) { _ in FollowCircleSkeleton(side: side) }
             }
         }
     }
 
     /// A tap on a tile: follow or unfollow, and a follow pulls places like it up to right after it.
-    private func follow(_ s: FollowSuggestion, column: CGFloat) {
+    private func follow(_ s: FollowSuggestion, side: CGFloat) {
         let following = follows.contains(s.target)
         toggle(s.target)
         guard !following, let order else { return }
@@ -340,7 +409,7 @@ struct OnboardingFollowGrid<Heading: View>: View {
         // Followed from a search: the grid behind it reorders unseen, and the results stay as they are.
         guard query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { self.order = next; return }
         // Each grows out of the tile followed: from its own new spot, how far that tile is.
-        let pitch = CGSize(width: column + FollowGridMetric.columnGap, height: FollowGridMetric.tile + FollowGridMetric.rowGap)
+        let pitch = CGSize(width: side + FollowCircleMetric.gap, height: FollowCircleMetric.tile(side) + FollowCircleMetric.rowGap)
         var arriving: [FollowTarget: Arrival] = [:]
         for (k, target) in moved.enumerated() {
             guard let i = next.firstIndex(where: { $0.target == target }) else { continue }
@@ -387,35 +456,208 @@ private struct Arrive: ViewModifier {
     }
 }
 
-/// The grid's sizes, mock v8's: 88 pt logos on white with a plus on each, three across the 20 pt gutters,
-/// 10 pt apart, 22 between rows (onboarding 36).
+/// Follow 3's sizes, Spotify's, at the share of the width they have on its 393 pt phone (`references/follow-spotify/`):
+/// 112 pt circles 17 apart on a 402 pt phone, 168 from row to row.
+private enum FollowCircleMetric {
+    static let margin: CGFloat = 16
+    static let gap: CGFloat = 17
+    /// The question's block, down to the search box.
+    static let heading: CGFloat = 88
+    /// SF's line at 31 pt is 37: the rest of Spotify's 38.3.
+    static let titleLead: CGFloat = 1.3
+    /// The mock's width: 321 pt for the first line.
+    static let titleTracking: CGFloat = -0.7
+    static let search: CGFloat = 44
+    static let gridGap: CGFloat = 28
+    static let check: CGFloat = 33
+    static let ring: CGFloat = 3
+    /// Two lines of 13 pt names, 19 pt apart, 8 under the circle.
+    static let nameGap: CGFloat = 8
+    static let nameLine: CGFloat = 19
+    static let nameLead: CGFloat = nameLine - 15.5
+    static let rowGap: CGFloat = 10
+    /// A logo's share of its white circle.
+    static let logo: CGFloat = 0.68
+
+    static func side(_ width: CGFloat) -> CGFloat { (width - 2 * margin - 2 * gap) / 3 }
+    static func tile(_ side: CGFloat) -> CGFloat { side + nameGap + 2 * nameLine }
+    static func columns(_ side: CGFloat) -> [GridItem] { Array(repeating: GridItem(.fixed(side), spacing: gap, alignment: .top), count: 3) }
+}
+
+/// Spotify's search box: white, 44 pt, barely rounded, black words.
+private struct FollowSearchField: View {
+    @Binding var query: String
+    @FocusState private var searching: Bool
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "magnifyingglass")
+                .font(.glyph(18, weight: .regular))
+                .frame(width: 19)
+                .accessibilityHidden(true)
+            TextField("Search places", text: $query, prompt: Text("Search").foregroundStyle(Hue.deepPillWords))
+                .font(.apple(16))
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
+                .submitLabel(.search)
+                .focused($searching)
+        }
+        .foregroundStyle(Hue.deepPillWords)
+        .tint(Hue.deepPillWords)
+        .padding(.leading, 6)
+        .padding(.trailing, 12)
+        // 44 pt, growing with large text so its words aren't cut.
+        .padding(.vertical, 6)
+        .frame(minHeight: FollowCircleMetric.search)
+        .background(Color.white, in: RoundedRectangle(cornerRadius: Radius.followSearch, style: .continuous))
+        // The whole box takes the tap, not only the line of text.
+        .contentShape(Rectangle())
+        .onTapGesture { searching = true }
+    }
+}
+
+/// One place: a large circle with its photo, or its logo on white, and its name under it in white. The press
+/// squashes the circle alone; following adds Interests' white ring and green check, at Spotify's 33 pt in the
+/// circle's top right corner.
+private struct FollowCircle: View {
+    let suggestion: FollowSuggestion
+    let on: Bool
+    let side: CGFloat
+    let tap: () -> Void
+
+    var body: some View {
+        Button {
+            Haptics.light()
+            tap()
+        } label: {
+            VStack(spacing: FollowCircleMetric.nameGap) {
+                FollowCircleArt(suggestion: suggestion, on: on, side: side)
+                Text(suggestion.name)
+                    .font(.apple(13, weight: .semibold))
+                    .lineSpacing(FollowCircleMetric.nameLead)
+                    .foregroundStyle(Color.white)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, FollowCircleMetric.nameLead / 2)
+                    .frame(width: side + 8)
+                    .frame(minHeight: 2 * FollowCircleMetric.nameLine, alignment: .top)
+                    // A caption a third of the width: past this size a word like "College" breaks in half
+                    // (picked, onboarding 36; the Welcome caps the same way).
+                    .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+            }
+            .frame(width: side)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(CirclePress())
+        // Read as before: what it does and whose it is, and Selected once followed.
+        .accessibilityLabel("\(on ? "Following" : "Follow"), \(suggestion.name)")
+        .accessibilityAddTraits(on ? .isSelected : [])
+    }
+}
+
+private struct FollowCircleArt: View {
+    let suggestion: FollowSuggestion
+    let on: Bool
+    let side: CGFloat
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.circlePressed) private var pressed
+    @ObservedObject private var logos = POILogoCache.shared
+    /// No picture came: its logo, else its letters.
+    @State private var photoFailed = false
+
+    private var photo: URL? { photoFailed ? nil : suggestion.photo }
+    private var logoSide: CGFloat { side * FollowCircleMetric.logo }
+
+    var body: some View {
+        // White behind a logo; a photo still loading is a faint disc on the night.
+        Circle().fill(photo == nil ? Color.white : Hue.deepTrack)
+            .overlay {
+                if let photo {
+                    FeedCardURLPhoto(url: photo, onFailure: { photoFailed = true }, loadingFill: .clear, centered: true)
+                } else if let logo = suggestion.logo, !logos.failed.contains(logo.url) {
+                    TrimmedLogo(logo: logo).frame(width: logoSide, height: logoSide)
+                } else if suggestion.isTown {
+                    Image(Town.logo).resizable().interpolation(.high).scaledToFit().frame(width: logoSide, height: logoSide)
+                } else if let url = suggestion.picture, suggestion.logo == nil {
+                    FeedCardURLPhoto(url: url, loadingFill: Color.white)
+                        .padding(suggestion.isLogo ? side * 0.16 : 0)
+                } else {
+                    Text(suggestion.initials)
+                        .font(.apple(28, weight: .bold))
+                        .foregroundStyle(Hue.deepPillWords)
+                }
+            }
+            .clipShape(Circle())
+            .overlay(Circle().strokeBorder(Color.white, lineWidth: on ? FollowCircleMetric.ring : 0))
+            .overlay(alignment: .topTrailing) { PickCheck(on: on, side: FollowCircleMetric.check, glyph: 14) }
+            .frame(width: side, height: side)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: on)
+            .press(.squish, down: pressed)
+            .accessibilityHidden(true)
+    }
+}
+
+/// A logo without the empty border its file carries, so every one fills its share of the circle. Kept only while
+/// its tile is up: `LogoFit`'s own cache never lets go, and the Town has 200 of them.
+private struct TrimmedLogo: View {
+    let logo: SearchLogo
+    @ObservedObject private var cache = POILogoCache.shared
+    @State private var trimmed: UIImage?
+
+    var body: some View {
+        ZStack {
+            if let trimmed {
+                Image(uiImage: trimmed).resizable().interpolation(.high).scaledToFit().transition(.opacity)
+            }
+        }
+        .animation(Motion.smooth, value: trimmed != nil)
+        .onChange(of: cache.image(for: logo.url), initial: true) { _, image in
+            if trimmed == nil { trimmed = image.map { LogoFit($0).image } }
+        }
+        // A logo whose fetch failed asks again when it is next on screen, as `CastLogo`'s.
+        .task(id: logo.url) { cache.prefetch([logo.url]) }
+    }
+}
+
+/// A place while they are read: a shimmering circle and a name.
+private struct FollowCircleSkeleton: View {
+    let side: CGFloat
+
+    var body: some View {
+        VStack(spacing: FollowCircleMetric.nameGap) {
+            SkeletonBlock(cornerRadius: side / 2, color: Hue.deepTrack).frame(width: side, height: side)
+            SkeletonBlock(cornerRadius: 6, color: Hue.deepTrack)
+                .frame(width: side * 0.7, height: 12)
+                .frame(height: 2 * FollowCircleMetric.nameLine, alignment: .top)
+        }
+        .shimmering()
+        .accessibilityHidden(true)
+    }
+}
+
+/// Sizes the question steps share, and Edit Profile's school tiles: 88 pt logos on white with a plus on each.
 enum FollowGridMetric {
     static let gutter: CGFloat = 20
-    static let columnGap: CGFloat = 10
     static let rowGap: CGFloat = 22
     static let art: CGFloat = 88
     /// Two lines of 13 pt names at the default text size.
     static let name: CGFloat = 34
-    static let tile: CGFloat = art + 8 + name
-    static let search: CGFloat = OnboardingSearchField.height
     /// The scroll's top, under the back chevron and progress line (mock v8's 98).
     static let scrollTop: CGFloat = 98
     /// The question's icon circle sits 110 pt down on every step (mock v8 `.screen`).
     static let headingTop: CGFloat = 110
-
-    /// 114 on a 402 pt phone.
-    static func column(_ width: CGFloat) -> CGFloat { (width - 2 * gutter - 2 * columnGap) / 3 }
-    static func columns(_ column: CGFloat) -> [GridItem] { Array(repeating: GridItem(.fixed(column), spacing: columnGap, alignment: .top), count: 3) }
 }
 
-/// One place: its logo on white with a small plus on it, its name under it (mock v8, onboarding 36). The
+/// One school in Edit Profile: its logo on white with a small plus on it, its name under it (mock v8, onboarding 36). The
 /// whole tile is the button and sinks under the finger; following turns the plus to an ink check that
 /// pops to 112% and back.
 struct FollowTile: View {
     let suggestion: FollowSuggestion
     let on: Bool
-    /// The ring around the plus, the colour behind the tile: the canvas, or white inside Interests' card.
-    var ring: Color = Hue.onboardingCanvas
+    /// The ring around the plus, the colour behind the tile.
+    let ring: Color
     let tap: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -505,7 +747,7 @@ private struct FollowTileArt: View {
                     FeedCardURLPhoto(url: url, loadingFill: Hue.surface)
                         .padding(suggestion.isLogo ? Self.side * 0.16 : 0)
                 } else {
-                    Text(initials)
+                    Text(suggestion.initials)
                         .font(.apple(22, weight: .bold))
                         .foregroundStyle(Hue.ink)
                 }
@@ -514,11 +756,6 @@ private struct FollowTileArt: View {
             .overlay(Circle().strokeBorder(Hue.hairline, lineWidth: 1))
             .frame(width: Self.side, height: Self.side)
             .accessibilityHidden(true)
-    }
-
-    /// "CS" of "City of St. Joseph": the first two capitals that start a word, so "of" is skipped.
-    private var initials: String {
-        String(suggestion.name.split(separator: " ").compactMap { $0.first }.filter(\.isUppercase).prefix(2))
     }
 }
 

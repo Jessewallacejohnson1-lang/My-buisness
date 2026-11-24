@@ -9,6 +9,9 @@ import Security
 struct AuthUser: Codable, Equatable {
     let id: String
     let email: String?
+    /// The number a texted code checked, as GoTrue keeps it: the country code and digits, no plus (BP app
+    /// onboarding 17). Absent from sessions stored before 2026-11-23, and empty for an account with none.
+    var phone: String? = nil
     /// GoTrue's `is_anonymous`: the quiet account every install gets before sign-in
     /// exists. Absent from sessions stored before 2026-10-09, which read as real.
     var isAnonymous: Bool? = nil
@@ -29,7 +32,7 @@ struct AuthUser: Codable, Equatable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, email
+        case id, email, phone
         case isAnonymous = "is_anonymous"
         case appMetadata = "app_metadata"
     }

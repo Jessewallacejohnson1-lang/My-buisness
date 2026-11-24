@@ -687,6 +687,8 @@ struct NeighborPage: View {
     @State private var extrasAnswered = false
     @State private var pushedEvent: FeedCardItem?
     @State private var pushedGroup: TownGroup?
+    /// For a Group page pushed from here: its New event's places.
+    @Environment(SearchModel.self) private var search: SearchModel?
 
     var body: some View {
         TimelineView(.everyMinute) { context in
@@ -714,7 +716,7 @@ struct NeighborPage: View {
             } openEvent: { pushedEvent = $0 } openGroup: { pushedGroup = $0 }
         }
         .navigationDestination(item: $pushedEvent) { EventPage(item: $0) }
-        .navigationDestination(item: $pushedGroup) { GroupPage(group: $0) }
+        .navigationDestination(item: $pushedGroup) { GroupPage(group: $0).environment(search) }
         // Blocked: back to where you came from, as on Facebook, once the sheet is down (ticket 04).
         .onChange(of: book.relation(neighbor) == .blocked && !book.menuOnScreen) { _, gone in
             if gone { dismiss() }

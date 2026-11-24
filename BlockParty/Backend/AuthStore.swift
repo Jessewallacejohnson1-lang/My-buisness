@@ -22,6 +22,8 @@ final class AuthStore: ObservableObject, TokenProviding {
     /// someone signed into, so there is nothing to sign out of.
     var isAnonymous: Bool { session?.user.isAnonymous == true }
     var email: String? { session?.user.email }
+    /// This account's checked number (BP app onboarding 17); nil when it has none. Only its own session says it.
+    var phone: String? { session?.user.phone.flatMap { $0.isEmpty ? nil : $0 } }
     var isAdmin: Bool { session?.user.appMetadata?.admin == true }
     var userId: String? { session?.user.id }
 
@@ -32,10 +34,20 @@ final class AuthStore: ObservableObject, TokenProviding {
     /// the ended session.
     private var sessionGeneration = 0
 
+    /// A test's fake server in place of the live one: what it answers is never kept on the phone.
+    private let send: Supabase.Send?
+
     /// Back after iOS shut the app down, the account is there from the first frame: the launch
     /// that hides the Welcome until `restore` lands isn't playing (`LeftOff`).
-    init() {
-        if LeftOff.current != nil { session = Keychain.load() }
+    init(send: Supabase.Send? = nil, session: Session? = nil) {
+        self.send = send
+        self.session = session
+        if send == nil, LeftOff.current != nil { self.session = Keychain.load() }
+    }
+
+    private func gotrue(_ path: String, method: String = "POST", body: [String: Any]? = nil,
+                        bearer: String? = nil) async throws -> Data {
+        try await SupabaseHTTP.auth(path, method: method, body: body, bearer: bearer, send: send)
     }
 
     /// Restore a persisted session on launch, refreshing if it's stale. A hard
@@ -66,7 +78,7 @@ final class AuthStore: ObservableObject, TokenProviding {
         // isn't a real account. Not for tests or sample data, which make no live account.
         if session == nil, LaunchFlags.has(.skipOnboarding) || LaunchFlags.has(.onboarding), !Self.isTestRun,
            LaunchFlags.backend == .live,
-           let data = try? await SupabaseHTTP.auth("signup", body: [:]) {
+           let data = try? await gotrue("signup", body: [:]) {
             try? setSession(from: data)
         }
         #endif
@@ -87,7 +99,7 @@ final class AuthStore: ObservableObject, TokenProviding {
 
     func signIn(email: String, password: String) async -> String? {
         do {
-            let data = try await SupabaseHTTP.auth("token?grant_type=password",
+            let data = try await gotrue("token?grant_type=password",
                                                    body: ["email": email, "password": password])
             try setSession(from: data)
             return nil
@@ -100,7 +112,7 @@ final class AuthStore: ObservableObject, TokenProviding {
     /// session yet — the user must confirm via email first.
     func signUp(email: String, password: String) async -> (error: String?, needsConfirm: Bool) {
         do {
-            let data = try await SupabaseHTTP.auth("signup",
+            let data = try await gotrue("signup",
                                                    body: ["email": email, "password": password])
             if (try? JSONDecoder().decode(Session.self, from: data)) != nil {
                 try setSession(from: data)
@@ -118,7 +130,7 @@ final class AuthStore: ObservableObject, TokenProviding {
     /// has that email, so nobody can learn who is on Block Party from it.
     func sendResetCode(email: String) async -> String? {
         do {
-            _ = try await SupabaseHTTP.auth("recover", body: ["email": email])
+            _ = try await gotrue("recover", body: ["email": email])
             return nil
         } catch {
             return Self.line(for: error)
@@ -128,7 +140,7 @@ final class AuthStore: ObservableObject, TokenProviding {
     /// The emailed code signs this phone in to that account, ready for its new password.
     func verifyResetCode(email: String, code: String) async -> String? {
         do {
-            let data = try await SupabaseHTTP.auth("verify",
+            let data = try await gotrue("verify",
                                                    body: ["type": "recovery", "email": email, "token": code])
             try setSession(from: data)
             return nil
@@ -141,10 +153,101 @@ final class AuthStore: ObservableObject, TokenProviding {
     func setPassword(_ password: String) async -> String? {
         do {
             let token = try await validAccessToken()
-            _ = try await SupabaseHTTP.auth("user", method: "PUT", body: ["password": password], bearer: token)
+            _ = try await gotrue("user", method: "PUT", body: ["password": password], bearer: token)
             return nil
         } catch {
             return Self.line(for: error)
+        }
+    }
+
+    // MARK: Phone sign-in (BP app onboarding 17): a texted 6-digit code is the whole sign-in.
+
+    /// What the server said to a texted code.
+    nonisolated enum CodeAnswer: Equatable {
+        case right
+        /// Wrong, or too late: GoTrue answers both the same.
+        case wrong
+        case refused(String)
+    }
+
+    /// The server texts one number this often (its `sms_max_frequency`), and the code it sent still works: sooner, a
+    /// second ask answers as if it had sent, from whichever screen (the pencil, or the X and back in).
+    static let resendWait: TimeInterval = 30
+    private var texted: [String: Date] = [:]
+
+    private func justTexted(_ phone: String) -> Bool {
+        texted[phone].map { Date().timeIntervalSince($0) < Self.resendWait } ?? false
+    }
+
+    /// Texts a code to `phone` (+ and the country code). A number nobody has makes its account here, so
+    /// the answer is the same whether or not it's on Block Party.
+    func sendCode(to phone: String) async -> String? {
+        if justTexted(phone) { return nil }
+        do {
+            _ = try await gotrue("otp", body: ["phone": phone])
+            texted[phone] = Date()
+            return nil
+        } catch {
+            return Self.phoneLine(for: error)
+        }
+    }
+
+    /// The texted code signs this phone in. Left while it was out (the X, the pencil), nothing is signed in.
+    func verifyCode(_ code: String, for phone: String) async -> CodeAnswer {
+        await answer {
+            let data = try await self.gotrue("verify", body: ["type": "sms", "phone": phone, "token": code])
+            try Task.checkCancellation()
+            try self.setSession(from: data)
+        }
+    }
+
+    /// Texts a code to the number this account changes to, or adds (Settings). The old one stays the
+    /// account's until that code is right.
+    func sendChangeCode(to phone: String) async -> String? {
+        if justTexted("change " + phone) { return nil }
+        do {
+            let token = try await validAccessToken()
+            _ = try await gotrue("user", method: "PUT", body: ["phone": phone], bearer: token)
+            texted["change " + phone] = Date()
+            return nil
+        } catch {
+            return Self.phoneLine(for: error)
+        }
+    }
+
+    /// The code makes `phone` this account's number. GoTrue finds the account by the number alone, so an
+    /// answer for any other account is thrown away.
+    func verifyChangeCode(_ code: String, for phone: String) async -> CodeAnswer {
+        await answer {
+            let me = self.userId
+            let data = try await self.gotrue("verify", body: ["type": "phone_change", "phone": phone, "token": code])
+            try Task.checkCancellation()
+            guard let me, try JSONDecoder().decode(Session.self, from: data).user.id == me else {
+                throw SupabaseError(message: "Another account's answer", status: 403)
+            }
+            try self.setSession(from: data)
+        }
+    }
+
+    private func answer(_ verify: () async throws -> Void) async -> CodeAnswer {
+        do {
+            try await verify()
+            texted = [:]   // the code is spent
+            return .right
+        } catch {
+            if (error as? SupabaseError)?.code == "otp_expired" { return .wrong }
+            return .refused(Self.phoneLine(for: error))
+        }
+    }
+
+    /// `line(for:)`, with the phone's own: a number that isn't one, or can't be texted, or someone else has.
+    nonisolated static func phoneLine(for error: Error) -> String {
+        switch (error as? SupabaseError)?.code {
+        case "validation_failed": Words.badPhone
+        // A number no text reaches, or texting is down: the server says the same for both.
+        case "sms_send_failed": Words.notTexted
+        case "phone_exists": Words.phoneTaken
+        default: line(for: error)
         }
     }
 
@@ -153,7 +256,7 @@ final class AuthStore: ObservableObject, TokenProviding {
     /// 19, 27). ponytail: signs out even when the delete didn't go through (offline); the account
     /// then stays on the server with no way back in. Retry it if that ever matters.
     func deleteAccount() async {
-        do { try await Supabase(auth: self).rpc("delete_my_account") } catch {
+        do { try await Supabase(auth: self, send: send ?? .live).rpc("delete_my_account") } catch {
             Log.network("AuthStore: account not deleted: \(error)")
         }
         await signOut()
@@ -169,7 +272,7 @@ final class AuthStore: ObservableObject, TokenProviding {
         case "user_already_exists", "email_exists": return Words.taken
         case "weak_password": return Words.short
         case "email_address_invalid", "validation_failed": return Words.badEmail
-        case "over_request_rate_limit", "over_email_send_rate_limit": return Words.tooMany
+        case "over_request_rate_limit", "over_email_send_rate_limit", "over_sms_send_rate_limit": return Words.tooMany
         case "otp_expired": return Words.badCode
         case "same_password": return Words.samePassword
         default: break
@@ -191,6 +294,12 @@ final class AuthStore: ObservableObject, TokenProviding {
         static let other = "Something went wrong. Try again."
         static let badCode = "That code didn't work. Check it, or send a new one."
         static let samePassword = "That's your old password. Pick a new one."
+        static let badPhone = "Check your phone number."
+        static let notTexted = "We couldn't text that number. Check it and try again."
+        static let phoneTaken = "That number is on another account."
+        static let samePhone = "That's already your number."
+        /// The Code step's, in the pencil line's place (BP app onboarding 45).
+        static let wrongCode = "That code didn't work. Try again."
     }
 
     func signOut() async {
@@ -203,7 +312,7 @@ final class AuthStore: ObservableObject, TokenProviding {
         let token = session?.accessToken
         clear()
         if let token {
-            _ = try? await SupabaseHTTP.auth("logout", bearer: token)
+            _ = try? await gotrue("logout", bearer: token)
         }
     }
 
@@ -248,7 +357,7 @@ final class AuthStore: ObservableObject, TokenProviding {
         let generation = sessionGeneration
         let task = Task { () throws -> Void in
             do {
-                let data = try await SupabaseHTTP.auth("token?grant_type=refresh_token",
+                let data = try await gotrue("token?grant_type=refresh_token",
                                                        body: ["refresh_token": refreshToken])
                 // A sign-out during the round trip bumps the generation — don't write
                 // a session the user has already ended.
@@ -290,6 +399,8 @@ final class AuthStore: ObservableObject, TokenProviding {
     /// Onboarding starts over on the Welcome (`RootView`).
     private func clear() {
         session = nil
+        // A test's fake server kept nothing on the phone.
+        guard send == nil else { return }
         Keychain.clear()
         ProfileModel.forget()
         TownFeedCache.clear()
@@ -298,6 +409,6 @@ final class AuthStore: ObservableObject, TokenProviding {
     private func setSession(from data: Data) throws {
         let s = try JSONDecoder().decode(Session.self, from: data)
         session = s
-        Keychain.save(s)
+        if send == nil { Keychain.save(s) }
     }
 }

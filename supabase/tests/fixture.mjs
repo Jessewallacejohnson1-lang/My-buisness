@@ -22,7 +22,7 @@ export async function realDatabase() {
     alter default privileges in schema public grant all on functions to anon, authenticated, service_role;
     alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
     create table auth.users (id uuid primary key, email text, phone text, is_anonymous boolean not null default false,
-      raw_app_meta_data jsonb,
+      encrypted_password text, raw_app_meta_data jsonb,
       banned_until timestamptz, email_confirmed_at timestamptz, phone_confirmed_at timestamptz,
       created_at timestamptz default now());
     create function auth.jwt() returns jsonb language sql stable as

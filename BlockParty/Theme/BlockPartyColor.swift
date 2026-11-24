@@ -230,6 +230,33 @@ nonisolated enum Hue {
     /// it reads as a hint and not as an answer.
     static let bigArtHint     = Color(light: 0xA9A9B0, dark: 0x6E6E6E)
 
+    // MARK: Onboarding's Phone and Code steps, copies of Hinge's (BP app onboarding 44 and 45)
+
+    /// Hinge's measured colours (`references/phone-hinge/SPEC.md`, `references/code-hinge/SPEC.md`). The same in the
+    /// dark, as the fade stays: dark mode's pass is parked (iOS MEMORY.md, 2026-09-24).
+    /// The fade's stops, by points down the mock's 874 pt screen.
+    static let hingeFade: [(y: CGFloat, color: Color)] = [
+        (2, Color(hex: 0xA1A9B0)), (60, Color(hex: 0xA6AEB4)), (120, Color(hex: 0xABB3B7)), (200, Color(hex: 0xB3B9BE)),
+        (300, Color(hex: 0xBCC3C5)), (420, Color(hex: 0xC9CDCE)), (500, Color(hex: 0xD0D4D5)), (583, Color(hex: 0xD4D9D7)),
+    ]
+    static let hingeInk    = Color(hex: 0x171A1B)
+    static let hingeSub    = Color(hex: 0x484D4E)
+    static let hingeSmall  = Color(hex: 0x737574)
+    static let hingeBox    = Color(hex: 0xEAECED)
+    static let hingeDigit  = Color(hex: 0xE8EAEC)
+    static let hingeRing   = Color(hex: 0xDCDED8)
+    static let hingeChevron = Color(hex: 0x6E7174)
+    static let hingePill   = Color(hex: 0x1A1A1A)
+    static let hingePillDown = Color(hex: 0x2B2B2E)
+    static let hingeCaret  = Color(hex: 0x2B7FFF)
+    /// The red line where the server said no.
+    static let hingeError  = Color(hex: 0xC4001A)
+    /// The pill's words, and the two sheets' white.
+    static let hingeWhite  = Color(hex: 0xFFFFFF)
+    /// The sheets' grey words: the country's code, and the link sheet's line.
+    static let hingeGrey   = Color(hex: 0x8A8A8E)
+    static let hingeSheetWords = Color(hex: 0x3C3C43)
+
     // MARK: Onboarding's deep step (BP app onboarding 48, mock v5)
 
     /// Interests' Dusk backdrop (Jesse's pick, 2026-11-19): the top colour held for the top third, then down to the
@@ -246,6 +273,11 @@ nonisolated enum Hue {
     static let deepPillWords = Color(hex: 0x111111)
     /// A picked circle's check (mock v5 `.bd`): Google's green, not Apple's `now`.
     static let pickCheck    = Color(hex: 0x34A853)
+    /// Follow 3's night, later the same evening (Jesse's pick, 2026-11-23, BP app onboarding 50): held and faded as
+    /// Dusk is. Its Next pill while not allowed is solid, white at 26% over the night there, as places scroll under it.
+    static let nightTop     = Color(hex: 0x171B30)
+    static let nightBottom  = Color(hex: 0x35263A)
+    static let nightOff     = Color(hex: 0x645D6C)
 
     // MARK: Onboarding in Luma's look (BP app onboarding 34, mock v8 `--canvas` and friends)
 

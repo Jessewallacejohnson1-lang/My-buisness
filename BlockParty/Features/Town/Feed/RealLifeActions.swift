@@ -149,8 +149,8 @@ final class RealLifeActions {
     /// A kept tap older than this is dropped at launch: its Event has most likely gone
     /// from the feed, so no read will ever agree with it.
     private static let keepFor: TimeInterval = 24 * 3600
-    /// A Join or a Leave landed: a Group's chat comes or goes with it (the shell sets this).
-    @ObservationIgnored var memberWritten: (() -> Void)?
+    /// A Join (true) or a Leave landed: a Group's chat comes or goes with it (the shell sets this).
+    @ObservationIgnored var memberWritten: ((_ member: Bool) -> Void)?
     /// Whose taps `chosen` holds, set only by `accountChanged`: until then nothing is
     /// kept or wiped, so a launch's first read can't erase taps not yet brought back,
     /// and one account's taps are never filed under the next.
@@ -731,7 +731,7 @@ final class RealLifeActions {
     /// answer at all waits and tries again; only the server's "no" turns back.
     private func write(_ key: Key) async {
         var written: Bool?
-        defer { if key.kind == .member, written != nil { memberWritten?() } }
+        defer { if key.kind == .member, let written { memberWritten?(written) } }
         var account = self.account
         var retries = 0
         while let choice = chosen[key] {
