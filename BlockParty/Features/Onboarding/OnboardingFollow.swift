@@ -347,6 +347,7 @@ struct OnboardingFollowGrid: View {
     private var heading: some View {
         Text(OnboardingStep.follow.question)
             .appleFont(31, weight: .bold)
+            .tracking(FollowCircleMetric.titleTracking)
             .lineSpacing(FollowCircleMetric.titleLead)
             .foregroundStyle(Color.white)
             .fixedSize(horizontal: false, vertical: true)
@@ -453,6 +454,8 @@ private enum FollowCircleMetric {
     static let heading: CGFloat = 88
     /// SF's line at 31 pt is 37: the rest of Spotify's 38.3.
     static let titleLead: CGFloat = 1.3
+    /// The mock's width: 321 pt for the first line.
+    static let titleTracking: CGFloat = -0.7
     static let search: CGFloat = 44
     static let gridGap: CGFloat = 28
     static let check: CGFloat = 33
@@ -494,7 +497,7 @@ private struct FollowSearchField: View {
         // 44 pt, growing with large text so its words aren't cut.
         .padding(.vertical, 6)
         .frame(minHeight: FollowCircleMetric.search)
-        .background(Color.white, in: RoundedRectangle(cornerRadius: Radius.followSearch, style: .circular))
+        .background(Color.white, in: RoundedRectangle(cornerRadius: Radius.followSearch, style: .continuous))
         // The whole box takes the tap, not only the line of text.
         .contentShape(Rectangle())
         .onTapGesture { searching = true }
