@@ -333,11 +333,11 @@ struct PhoneSignInScreen: View {
     private var countryBox: some View {
         Button { countryOpen = true } label: {
             HStack(spacing: 0) {
-                Text(form.country.flag).appleFont(20)
+                Text(form.country.flag).appleFont(20).fixedSize().frame(width: 20)
                 Text(PhoneCountry.code).appleFont(18).lineLimit(1).fixedSize().padding(.leading, 11)
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.down")
-                    .font(.glyph(17, weight: .bold))
+                    .font(.glyph(18.5, weight: .bold))
                     .foregroundStyle(Hue.hingeChevron)
             }
             .foregroundStyle(Hue.hingeInk)
@@ -389,7 +389,9 @@ struct PhoneSignInScreen: View {
                 Button { form.editNumber() } label: {
                     HStack(spacing: 9) {
                         underLine("Sent to \(PhoneNumber.spaced(form.digits)) •")
-                        Image(systemName: "pencil").font(.glyph(15, weight: .semibold)).foregroundStyle(Hue.hingeInk)
+                        HingePencil()
+                            .stroke(Hue.hingeInk, style: StrokeStyle(lineWidth: 1.4, lineCap: .round, lineJoin: .round))
+                            .frame(width: 13, height: 13)
                     }
                 }
                 .buttonStyle(.press(.dim))
@@ -476,6 +478,7 @@ struct PhoneSignInScreen: View {
             .foregroundStyle(Hue.hingeInk)
             .multilineTextAlignment(.center)
             .fixedSize(horizontal: false, vertical: true)
+            .offset(y: -2.6)   // SwiftUI sits a taller line's words lower than the mock's, measured
             .padding(.horizontal, gutter)
             .accessibilityAddTraits(.isHeader)
             .accessibilityFocused($heading)
@@ -515,7 +518,7 @@ struct PhoneSignInScreen: View {
             close()
         } label: {
             Image(systemName: "xmark")
-                .font(.glyph(15, weight: .bold))
+                .font(.glyph(15.75, weight: .bold))
                 .foregroundStyle(Hue.hingeInk)
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
@@ -600,6 +603,24 @@ struct PhoneSignInScreen: View {
         .presentationDetents([.height(height)])
         .presentationDragIndicator(.visible)
         .presentationBackground(Hue.hingeWhite)
+    }
+}
+
+/// Hinge's pencil, an outline (the mock's path, 13 pt): Apple's `pencil` is a filled stroke.
+struct HingePencil: Shape {
+    func path(in rect: CGRect) -> Path {
+        var pencil = Path()
+        pencil.move(to: CGPoint(x: 8.6, y: 1.6))
+        pencil.addLine(to: CGPoint(x: 11.4, y: 4.4))
+        pencil.move(to: CGPoint(x: 1.4, y: 11.6))
+        pencil.addLine(to: CGPoint(x: 2, y: 8.6))
+        pencil.addLine(to: CGPoint(x: 9.4, y: 1.2))
+        pencil.addQuadCurve(to: CGPoint(x: 11.2, y: 1.2), control: CGPoint(x: 10.3, y: 0.45))
+        pencil.addLine(to: CGPoint(x: 11.8, y: 1.8))
+        pencil.addQuadCurve(to: CGPoint(x: 11.8, y: 3.6), control: CGPoint(x: 12.55, y: 2.7))
+        pencil.addLine(to: CGPoint(x: 4.4, y: 11))
+        pencil.closeSubpath()
+        return pencil
     }
 }
 
