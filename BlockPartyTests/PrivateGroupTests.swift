@@ -80,5 +80,15 @@ final class PrivateGroupTests: XCTestCase {
         asked.asked = true
         asks.read([asked])
         XCTAssertTrue(asks.isAsked(group()), "a read sets it")
+
+        // Leaving reads the Groups again (start-a-group 09): one begun before a tap doesn't undo it.
+        asks.send = { _, _ in }
+        asks.read([group()])
+        let began = asks.taps
+        await asks.toggle(group())
+        asks.read([group()], asOf: began)
+        XCTAssertTrue(asks.isAsked(group()), "a read from before the tap says nothing of it")
+        asks.read([group()], asOf: asks.taps)
+        XCTAssertFalse(asks.isAsked(group()), "a newer one does")
     }
 }

@@ -14,12 +14,16 @@ final class GroupAsks {
     static let shared = GroupAsks()
 
     private(set) var asked: Set<String> = []
+    /// How many asks were tapped: a read begun before the last one says nothing of it.
+    @ObservationIgnored private(set) var taps = 0
     private(set) var failures: [String: Int] = [:]
     @ObservationIgnored var send: (String, Bool) async throws -> Void = { id, on in
         try await CommunityAPI(auth: AuthStore.shared).askToJoin(id, on: on)
     }
 
-    func read(_ groups: [TownGroup]) {
+    /// `asOf`: `taps` when the read began; nil for one that can't be behind.
+    func read(_ groups: [TownGroup], asOf: Int? = nil) {
+        guard asOf == nil || asOf == taps else { return }
         asked = Set(groups.filter(\.asked).map(\.id))
     }
 
@@ -28,6 +32,7 @@ final class GroupAsks {
     /// Ask, or take the ask back.
     func toggle(_ group: TownGroup) async {
         let on = !asked.contains(group.id)
+        taps += 1
         if on { asked.insert(group.id) } else { asked.remove(group.id) }
         Haptics.selection()
         do {

@@ -494,7 +494,7 @@ struct MainTabsView: View {
                     }
                 }
                 // A neighbour's page, from any name or face: the Friends page or Search.
-                .navigationDestination(for: Neighbor.self) { NeighborPage(neighbor: $0).timesOpen("profile") }
+                .navigationDestination(for: Neighbor.self) { NeighborPage(neighbor: $0).environment(searchModel).timesOpen("profile") }
                 // A local team's page, from its picture on a game card (hello-drop 03).
                 .navigationDestination(for: Game.Team.self) { TeamPage(team: $0).timesOpen("team") }
                 // A group's page, from Search's Groups shelf (rsvp-and-groups 05).
@@ -507,7 +507,7 @@ struct MainTabsView: View {
                 .navigationDestination(for: TownPageKind.self) { TownPageView(shown: $0).timesOpen("town-page") }
                 .navigationDestination(for: TownBoardRoute.self) { TownBoardPage(route: $0) }
                 // A person's page from a host row (follows 08).
-                .navigationDestination(for: FollowedPersonRoute.self) { FollowedNeighborPage(row: $0.row).timesOpen("profile") }
+                .navigationDestination(for: FollowedPersonRoute.self) { FollowedNeighborPage(row: $0.row).environment(searchModel).timesOpen("profile") }
                 // The bell's page (school-activities 04).
                 .navigationDestination(for: NotificationsRoute.self) { _ in
                     NotificationsPage().environment(townFeed).timesOpen("bell")

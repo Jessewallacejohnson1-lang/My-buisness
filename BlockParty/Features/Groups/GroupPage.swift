@@ -122,6 +122,7 @@ struct GroupPage: View {
             }
         }
         .animation(Motion.smooth, value: actions.canAct)
+        .animation(reduceMotion ? nil : Motion.smooth, value: shut)
         // Hidden, never `navigationBarBackButtonHidden`: `SwipeBack` (RootView) keeps the swipe.
         .toolbar(.hidden, for: .navigationBar)
         // A failed join shakes and buzzes only while the page is open.
@@ -157,9 +158,10 @@ struct GroupPage: View {
             }
         }
         .modifier(LeaveGroupQuestion(group: group, asking: $leaving, edit: { editing = true }, leave: flip))
-        // The leave landed and the Groups were read again without it.
-        .onChange(of: you?.groups?.contains { $0.id == group.id }) { _, listed in
-            if listed == false, shut { dismiss() }
+        // Its checks end while this is open; or, left, the Groups were read again without it.
+        .onChange(of: you?.groups.map { all in all.first { $0.id == group.id }?.status ?? "" }) { _, status in
+            guard let status else { return }
+            if !status.isEmpty { group.status = status } else if shut { dismiss() }
         }
         #if DEBUG
         // `-group-admin edit|hand|close`: Edit group open at launch.
