@@ -90,8 +90,9 @@ final class PhoneForm: Identifiable {
     private(set) var wrongs = 0
     /// The way the last move went, so the step slides in from the right side.
     private(set) var forward = true
-    /// The code was right: what's left is what comes after it, and a retry sends no code again.
-    private(set) var checked = false
+    /// The code that was right: what's left is what comes after it, and a retry sends no code again.
+    private(set) var right: String?
+    var checked: Bool { right != nil }
 
     private let calls: Calls
     /// The number this account has now, which a change can't be to.
@@ -171,7 +172,7 @@ final class PhoneForm: Identifiable {
                 }
                 switch answer {
                 case .right:
-                    checked = true
+                    right = typed
                 case .wrong:
                     return await wrong(typed)
                 case .refused(let words):
@@ -439,9 +440,12 @@ struct PhoneSignInScreen: View {
                 .tint(.clear)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .accessibilityLabel("Verification code")
-                .onChange(of: form.code) { was, typed in
-                    // A right code is spent: it stays, and the number pad with it, till the next step loads.
-                    if form.checked { form.code = was; return }
+                .onChange(of: form.code) { _, typed in
+                    // A right code stays, and the number pad with it, till the next step loads.
+                    if let right = form.right {
+                        if typed != right { form.code = right }
+                        return
+                    }
                     let kept = String(typed.filter { $0.isASCII && $0.isNumber }.prefix(PhoneForm.codeLength))
                     if kept != typed { form.code = kept }
                 }

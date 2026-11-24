@@ -240,7 +240,7 @@ final class AuthStore: ObservableObject, TokenProviding {
     /// 19, 27). ponytail: signs out even when the delete didn't go through (offline); the account
     /// then stays on the server with no way back in. Retry it if that ever matters.
     func deleteAccount() async {
-        do { try await Supabase(auth: self).rpc("delete_my_account") } catch {
+        do { try await Supabase(auth: self, send: send ?? .live).rpc("delete_my_account") } catch {
             Log.network("AuthStore: account not deleted: \(error)")
         }
         await signOut()
@@ -382,6 +382,8 @@ final class AuthStore: ObservableObject, TokenProviding {
     /// Onboarding starts over on the Welcome (`RootView`).
     private func clear() {
         session = nil
+        // A test's fake server kept nothing on the phone.
+        guard send == nil else { return }
         Keychain.clear()
         ProfileModel.forget()
         TownFeedCache.clear()

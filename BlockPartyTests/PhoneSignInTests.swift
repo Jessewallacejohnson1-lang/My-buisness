@@ -304,6 +304,17 @@ final class PhoneSignInTests: XCTestCase {
         XCTAssertEqual(auth.phone, "13205550142")
     }
 
+    /// Under 13's Close on a phone account: the server's delete, then out of it, even when the delete didn't go through.
+    func testUnder13sCloseDeletesAPhoneAccountAndSignsOutEitherWay() async throws {
+        for status in [200, 503] {
+            let server = GoTrue(), auth = AuthStore(send: server.send, session: try signedIn("u1", phone: "13205550142"))
+            server.status = status
+            await auth.deleteAccount()
+            XCTAssertEqual(server.asked.map(\.path), ["delete_my_account", "logout"], "\(status)")
+            XCTAssertFalse(auth.hasAccount, "\(status)")
+        }
+    }
+
     func testEachRefusalHasItsOwnLine() {
         func refused(_ code: String, _ status: Int) -> Error { SupabaseError(message: "Server English", status: status, code: code) }
         XCTAssertEqual(AuthStore.phoneLine(for: refused("validation_failed", 400)), AuthStore.Words.badPhone)
