@@ -3,9 +3,10 @@
 Every watched place in St. Joseph, read once a morning, becomes Events and News in the Town
 feed (BP app docs/plans/watch-every-place, ticket 05). You run it in the cloud, in a fresh copy
 of this repository. Scripts fetch, save and report; helpers read; you judge. Do the steps in
-order, each once. Give every command a 600000 ms timeout: while one prints `run again`, or is
-stopped at the timeout, run it again, and it carries on where it stopped. A source that fails
-is a line in the report; carry on with the rest.
+order, each once. Give every command a call of its own, never chained or looped with another
+script's, and a 600000 ms timeout: while one prints `run again`, or is stopped at the timeout,
+run it again, and it carries on where it stopped (moved to the background instead: Wait in the
+turn, below). A source that fails is a line in the report; carry on with the rest.
 
 ## Steps
 
@@ -141,11 +142,14 @@ dropped that a neighbour might have wanted, and why. Nothing else.
   the Agent tool's `run_in_background: false`. They work side by side and all answer in the same turn; write their lines
   then, every batch whole. More than 10 (a step's "at most 10 running at once" means at most 10 in a message): start the
   next message once the first 10 have answered. Your turn ends once, with the answer your file's last step asks for, or
-  where a step stops the run. Never end it to wait for a helper, and never sleep or poll for one. The cloud calls a run
+  where a step stops the run. Never end it to wait for a helper, and never sleep or poll for a helper. The cloud calls a run
   finished at its first ended turn, and from there only a helper's notice wakes it: on Nov 24 one wake was lost and
   nothing was saved (BP app smooth-mornings 18). When the cloud refuses that setting, or says a helper was launched in
   the background anyway, wait for every one of those helpers' notices as it asks (only then may a turn end early), go on
   when all their lines are in, and add a line to your answer: `[helpers] started in the background: <step>`.
+  A command the cloud moved to the background is still running: never start it again meanwhile, and never end your turn
+  to wait for it. Do what doesn't need it, then run `until ! pgrep -f '^python3 sources/scripts' >/dev/null; do sleep 5; done`
+  and read what it printed (Nov 24's hand run chained seven commands and outran the cloud's 10 minutes: BP app smooth-mornings 19).
 - Pages are fetched only by `morning.py`, `event_photos.py`, `team_logos.py`, `place_logos.py`, `event_parts.py` and `signups.py` (the registry's fetcher obeys robots
   rules and Crawl-delay). WebFetch, curl and the like stay unused: some sites refuse them.
 - The database is written only by `morning.py save` and `finish` (which includes `venue_spots.py keep`, `audience.py keep`, `event_parts.py keep` and `place_logos.py keep`, and on Sundays its `check`), and `event_photos.py keep`, `dig-keep` and `judge-keep`. SQL by

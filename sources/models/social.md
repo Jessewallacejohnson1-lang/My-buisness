@@ -138,7 +138,8 @@ carry on with the rest.
 
 ## Rules
 
-- Every helper, the Photos ones included, starts and is waited for by `sources/models/morning.md`'s **Wait in the turn** rule.
+- Every helper, the Photos ones included, starts and is waited for by `sources/models/morning.md`'s **Wait in the turn** rule,
+  and so is a command the cloud moved to the background. Each command has a call of its own.
 - Pictures are read for their facts only, except the one a Photos helper picks as an Event's or a News's photo:
   it is saved, credited to its place and taken down on request (Jesse, 2026-10-30 and 2026-11-08; ADR-020). No other
   picture is shown, uploaded or kept past this check. `.runs/` goes with the copy.
