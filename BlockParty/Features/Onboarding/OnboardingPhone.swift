@@ -342,7 +342,7 @@ struct PhoneSignInScreen: View {
             }
             .foregroundStyle(Hue.hingeInk)
             .padding(.leading, 17)
-            .padding(.trailing, 18)
+            .padding(.trailing, 16)
             .frame(width: 113)
             .frame(minHeight: 56)
             .background(Hue.hingeBox, in: Self.box)
