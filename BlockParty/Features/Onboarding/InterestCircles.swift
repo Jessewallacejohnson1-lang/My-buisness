@@ -180,24 +180,22 @@ struct InterestCircles: View {
     }
 }
 
-/// The press squashes the circle alone, as the Reference's does, never its label.
-private struct CirclePress: ButtonStyle {
+/// The press squashes the circle alone, as the Reference's does, never its label. Follow 3's circles take it too.
+struct CirclePress: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label.environment(\.circlePressed, configuration.isPressed)
     }
 }
 
-private extension EnvironmentValues {
+extension EnvironmentValues {
     @Entry var circlePressed = false
 }
 
-/// One photo circle: 92 pt, with a 3 pt white ring and the green check at its top right once picked. The ring
-/// fades in; the check pops .6 to 112% and back over 0.26 s, as the rows' check did.
+/// One photo circle: 92 pt, with a 3 pt white ring, which fades in, and the green check at its top right once picked.
 private struct InterestPhotoCircle: View {
     let photo: String
     let on: Bool
 
-    @State private var pop: CGFloat = 1
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.circlePressed) private var pressed
 
@@ -212,21 +210,35 @@ private struct InterestPhotoCircle: View {
         .clipShape(Circle())
         .overlay(Circle().strokeBorder(Color.white, lineWidth: on ? Metric.ring : 0))
         .overlay(alignment: .topTrailing) {
-            ZStack {
-                Circle().fill(Hue.pickCheck)
-                Circle().strokeBorder(Color.white, lineWidth: 2)
-                Image(systemName: "checkmark")
-                    .font(.glyph(12, weight: .bold))
-                    .foregroundStyle(Color.white)
-            }
-            .frame(width: Metric.check, height: Metric.check)
-            .scaleEffect(on ? pop : 0.6)
-            .opacity(on ? 1 : 0)
-            .offset(x: Metric.checkOut, y: -Metric.checkOut)
+            PickCheck(on: on, side: Metric.check, glyph: 12)
+                .offset(x: Metric.checkOut, y: -Metric.checkOut)
         }
         .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: on)
         .press(.squish, down: pressed)
         .accessibilityHidden(true)
+    }
+}
+
+/// A picked circle's green check in 2 pt of white, popping .6 to 112% and back over 0.26 s (Interests and Follow 3).
+struct PickCheck: View {
+    let on: Bool
+    let side: CGFloat
+    let glyph: CGFloat
+
+    @State private var pop: CGFloat = 1
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        ZStack {
+            Circle().fill(Hue.pickCheck)
+            Circle().strokeBorder(Color.white, lineWidth: 2)
+            Image(systemName: "checkmark")
+                .font(.glyph(glyph, weight: .bold))
+                .foregroundStyle(Color.white)
+        }
+        .frame(width: side, height: side)
+        .scaleEffect(on ? pop : 0.6)
+        .opacity(on ? 1 : 0)
         .onChange(of: on) { _, now in
             guard now, !reduceMotion else { return }
             pop = 0.6

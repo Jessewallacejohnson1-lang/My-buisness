@@ -203,7 +203,7 @@ struct OnboardingContactsList<Heading: View>: View {
 
     /// Mock v8's `.pin`: pinned, the box sits at the scroll's top on the canvas, 10 pt of it under the box.
     private var search: some View {
-        OnboardingSearchField(prompt: "Search contacts", query: $query, top: 0)
+        OnboardingSearchField(prompt: "Search contacts", query: $query)
             .padding(.bottom, 10)
             .padding(.horizontal, FollowGridMetric.gutter)
             .background(Hue.onboardingCanvas)
