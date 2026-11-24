@@ -26,6 +26,22 @@ final class PrivateGroupTests: XCTestCase {
         XCTAssertFalse(GroupAsks.locked(group(private: false), member: false), "a public Group")
     }
 
+    /// A Group you can't walk back into asks before you leave (start-a-group 09), and says what coming back takes.
+    func testLeavingAsksOnlyWhereYouCantWalkBackIn() {
+        XCTAssertNil(GroupAsks.leaveWarning(group(private: false)), "a public Group leaves at once")
+        XCTAssertFalse(GroupAsks.asksToLeave(group(private: false)))
+        XCTAssertEqual(GroupAsks.leaveWarning(group()), "To come back, you'll have to ask to join again.")
+        var waiting = group(private: false)
+        waiting.status = "pending"
+        XCTAssertEqual(GroupAsks.leaveWarning(waiting), "To come back, you'll need a new invite.")
+        waiting.isPrivate = true
+        XCTAssertEqual(GroupAsks.leaveWarning(waiting), "To come back, you'll need a new invite.", "waiting comes first: no one can ask yet")
+        XCTAssertTrue(GroupAsks.asksToLeave(group(private: false, requests: 0)), "its Admin hands over or closes first")
+        var turnedDown = group(private: false, requests: 0)
+        turnedDown.status = "rejected"
+        XCTAssertFalse(GroupAsks.asksToLeave(turnedDown), "a turned-down Group has no Admin")
+    }
+
     func testTheLockLineAndTheRowSayPrivate() {
         XCTAssertEqual(GroupPage.privateLine(12), "Private group · 12 members")
         XCTAssertEqual(GroupPage.privateLine(0), "Private group")
@@ -64,5 +80,15 @@ final class PrivateGroupTests: XCTestCase {
         asked.asked = true
         asks.read([asked])
         XCTAssertTrue(asks.isAsked(group()), "a read sets it")
+
+        // Leaving reads the Groups again (start-a-group 09): one begun before a tap doesn't undo it.
+        asks.send = { _, _ in }
+        asks.read([group()])
+        let began = asks.taps
+        await asks.toggle(group())
+        asks.read([group()], asOf: began)
+        XCTAssertTrue(asks.isAsked(group()), "a read from before the tap says nothing of it")
+        asks.read([group()], asOf: asks.taps)
+        XCTAssertFalse(asks.isAsked(group()), "a newer one does")
     }
 }

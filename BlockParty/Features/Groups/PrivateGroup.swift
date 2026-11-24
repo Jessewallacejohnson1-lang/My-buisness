@@ -14,12 +14,16 @@ final class GroupAsks {
     static let shared = GroupAsks()
 
     private(set) var asked: Set<String> = []
+    /// How many asks were tapped: a read begun before the last one says nothing of it.
+    @ObservationIgnored private(set) var taps = 0
     private(set) var failures: [String: Int] = [:]
     @ObservationIgnored var send: (String, Bool) async throws -> Void = { id, on in
         try await CommunityAPI(auth: AuthStore.shared).askToJoin(id, on: on)
     }
 
-    func read(_ groups: [TownGroup]) {
+    /// `asOf`: `taps` when the read began; nil for one that can't be behind.
+    func read(_ groups: [TownGroup], asOf: Int? = nil) {
+        guard asOf == nil || asOf == taps else { return }
         asked = Set(groups.filter(\.asked).map(\.id))
     }
 
@@ -28,6 +32,7 @@ final class GroupAsks {
     /// Ask, or take the ask back.
     func toggle(_ group: TownGroup) async {
         let on = !asked.contains(group.id)
+        taps += 1
         if on { asked.insert(group.id) } else { asked.remove(group.id) }
         Haptics.selection()
         do {
@@ -42,6 +47,38 @@ final class GroupAsks {
     /// A private Group you aren't in, weren't invited to and didn't start: Ask to join in Join's place.
     static func locked(_ group: TownGroup, member: Bool) -> Bool {
         group.isPrivate && !member && group.invitedBy == nil && group.requests == nil
+    }
+
+    /// What coming back takes, for a Group that asks before you leave (start-a-group 09): one still waiting on its
+    /// checks needs a new invite, a private one its Admin's yes. nil for a Group you can walk back into.
+    static func leaveWarning(_ group: TownGroup) -> String? {
+        if group.status == "pending" { return "To come back, you'll need a new invite." }
+        return group.isPrivate ? "To come back, you'll have to ask to join again." : nil
+    }
+
+    /// A tap on Leave asks first: your own Group (hand it over or close it), or one you can't walk back into.
+    static func asksToLeave(_ group: TownGroup) -> Bool { group.isAdmin || leaveWarning(group) != nil }
+}
+
+/// "Leave this group?" in Apple's alert, as Leave this chat? asks; your own Group says to hand it over or close it.
+struct LeaveGroupQuestion: ViewModifier {
+    let group: TownGroup
+    @Binding var asking: Bool
+    /// Edit group, where there is one to open: the Group page.
+    var edit: (() -> Void)? = nil
+    let leave: () -> Void
+
+    func body(content: Content) -> some View {
+        content.alert(group.isAdmin ? "You're the Admin" : "Leave this group?", isPresented: $asking) {
+            if !group.isAdmin {
+                Button("Leave", role: .destructive, action: leave)
+            } else if let edit {
+                Button("Edit group", action: edit)
+            }
+            Button(group.isAdmin && edit == nil ? "OK" : "Cancel", role: .cancel) {}
+        } message: {
+            Text(group.isAdmin ? "To leave, hand the group to a member or close it." : GroupAsks.leaveWarning(group) ?? "")
+        }
     }
 }
 

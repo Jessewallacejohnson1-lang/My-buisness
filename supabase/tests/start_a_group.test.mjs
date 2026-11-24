@@ -39,6 +39,8 @@ const reset = () => db.exec(`delete from public.clubs where submitted_by is not 
 
 test('start_group makes a pending Group with its starter in it, its photo and kind', async () => {
   const club = group(1);
+  // The photo goes up first, as the app sends it (start-a-group 09).
+  await db.query(`insert into storage.objects (bucket_id, name) values ('event-images', $1)`, [`${SAM}/group-${club}.jpg`]);
   await start(SAM, club, '  Joetown   Knitters ', { kind: 'Crafts', pic: photo(SAM, club) });
   const row = await seen(SAM, club);
   assert.deepEqual([row.name, row.kind, row.status, row.joined, row.member_count, row.image_url],

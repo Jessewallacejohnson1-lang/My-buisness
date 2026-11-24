@@ -119,10 +119,10 @@ final class YouModel {
     @discardableResult
     func refreshGroups() async -> [TownGroup]? {
         latestGroups += 1
-        let mine = latestGroups
+        let mine = latestGroups, asks = GroupAsks.shared.taps
         guard let read = try? await readGroups(), mine == latestGroups else { return nil }
         groups = read
-        GroupAsks.shared.read(read)
+        GroupAsks.shared.read(read, asOf: asks)
         return read
     }
 
