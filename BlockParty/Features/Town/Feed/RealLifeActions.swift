@@ -399,6 +399,11 @@ final class RealLifeActions {
         failures[Self.key(target)] ?? 0
     }
 
+    /// Back once no Going write for this Event is out: what the server gives only to those Going is asked for after.
+    func goingLanded(_ eventID: String) async {
+        await writers[Key(kind: .going, id: eventID)]?.value
+    }
+
     // MARK: What screens tell it
 
     /// Join or leave, shown at once. A tap while a failed write waits to turn back

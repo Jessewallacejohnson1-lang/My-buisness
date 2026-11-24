@@ -19,7 +19,7 @@ struct ProfileAPI {
     /// select to the caller, so no explicit user_id filter is needed.
     func getMyProfile() async throws -> TownProfile? {
         let rows: [TownProfile] = try Supabase.decode(await db.rest("town_profiles", [
-            ("select", "user_id,display_name,avatar_url,interests,onboarded_at,plans_to_friends,suggest_me,bio,cover_url,created_at"),
+            ("select", "user_id,display_name,avatar_url,interests,onboarded_at,plans_to_friends,plans_to_neighbors,suggest_me,bio,cover_url,created_at"),
             ("limit", "1"),
         ]))
         return rows.first
@@ -105,7 +105,7 @@ struct ProfileAPI {
                           prefer: "resolution=merge-duplicates,return=minimal")
     }
 
-    /// One of Profile's switches, "plans_to_friends" (town-feed 28) or "suggest_me" (daily-tab
+    /// One of Profile's switches, "plans_to_friends" (town-feed 28), "plans_to_neighbors" (inside-cards 36) or "suggest_me" (daily-tab
     /// 22): only that column of the caller's own row, so a tap never touches their name or photo.
     func setSwitch(_ column: String, _ on: Bool) async throws {
         let uid = try db.userID

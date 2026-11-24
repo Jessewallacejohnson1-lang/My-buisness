@@ -73,6 +73,7 @@ final class DynamicTypeAuditCoverageTests: XCTestCase {
         "ChatPage.swift:$sendingEvent": .notYetAudited(reason: "Send an Event, a chat's + (messages 02): a title and a list of Events, a one-line title and a one-line date each, which truncate at the largest sizes; the sheet's short height is set for the default size and it opens to large. The audit waits until chat has a seed of its own."),
         "ChatPage.swift:$open": .notYetAudited(reason: "A chat's photo, whole, with only a close button: no text to scale."),
         "ChatRoomRow.swift:$asking": .notYetAudited(reason: "A Going or Group chat's one birthday ask (five-tabs 06 and 07): a headline, a line, onboarding's own field and Apple's wheel, as its birthday step."),
+        "EventGoing.swift:$open": .notYetAudited(reason: "Who's going (inside-cards 36): a headline, a line and a button at Luma's measured height, then a scrolling list of first names. Text-size checks wait for Jesse (MEMORY.md, 2026-09-24)."),
         "EventPage.swift:$calendarShown": .notYetAudited(reason: "Apple's own add-to-Calendar sheet (EventKitUI), from the Event page's day row (event-page-formats 06) — system UI, scales on its own."),
     ]
 

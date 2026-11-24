@@ -37,6 +37,9 @@ final class ProfileModel {
     var plansToFriends: Bool?
     /// Counts writes that failed and flipped the switch back; each one shakes it.
     private(set) var plansFailures = 0
+    /// "Show me to neighbors going" (inside-cards 36), as `plansToFriends`.
+    var plansToNeighbors: Bool?
+    private(set) var neighborsFailures = 0
     /// "Suggest me to people I may know" (daily-tab 22), as `plansToFriends`.
     var suggestMe: Bool?
     private(set) var suggestFailures = 0
@@ -68,6 +71,7 @@ final class ProfileModel {
     @ObservationIgnored private let phone: UserDefaults
     @ObservationIgnored private let endSession: () async -> Void
     @ObservationIgnored private var writePlans: ((Bool) async throws -> Void)?
+    @ObservationIgnored private var writeNeighbors: ((Bool) async throws -> Void)?
     @ObservationIgnored private var writeSuggest: ((Bool) async throws -> Void)?
     /// The switches with a write out, so taps queue behind it.
     @ObservationIgnored private var writing: Set<PartialKeyPath<ProfileModel>> = []
@@ -85,11 +89,13 @@ final class ProfileModel {
     // `signOut` ends the session; `writePlans` stands in for the server in tests.
     init(supabase: Supabase? = nil, phone: UserDefaults = .standard, signOut: (() async -> Void)? = nil,
          writePlans: ((Bool) async throws -> Void)? = nil,
+         writeNeighbors: ((Bool) async throws -> Void)? = nil,
          writeSuggest: ((Bool) async throws -> Void)? = nil) {
         self.supabase = supabase ?? .app
         self.phone = phone
         endSession = signOut ?? { await AuthStore.shared.signOut() }
         self.writePlans = writePlans
+        self.writeNeighbors = writeNeighbors
         self.writeSuggest = writeSuggest
         account = self.supabase.auth.userId
         // From the phone's copy at once, so nothing opens on "Add your name" and fades to it.
@@ -104,6 +110,8 @@ final class ProfileModel {
             let offline = LaunchFlags.backend == .offline
             plansToFriends = true
             self.writePlans = { _ in if offline { throw URLError(.notConnectedToInternet) } }
+            plansToNeighbors = true
+            self.writeNeighbors = { _ in if offline { throw URLError(.notConnectedToInternet) } }
             suggestMe = true
             self.writeSuggest = { _ in if offline { throw URLError(.notConnectedToInternet) } }
         }
@@ -157,6 +165,7 @@ final class ProfileModel {
         bio = row.bio ?? ""
         coverUrl = row.coverUrl
         plansToFriends = row.plansToFriends ?? true
+        plansToNeighbors = row.plansToNeighbors ?? true
         suggestMe = row.suggestMe ?? true
         keep()
         return true
@@ -202,6 +211,7 @@ final class ProfileModel {
         extrasAnswered = false
         loaded = false
         if writePlans == nil { plansToFriends = nil }
+        if writeNeighbors == nil { plansToNeighbors = nil }
         if writeSuggest == nil { suggestMe = nil }
     }
 
@@ -477,6 +487,13 @@ final class ProfileModel {
     func setPlansToFriends(_ on: Bool) async {
         await flip(\.plansToFriends, to: on, failures: \.plansFailures) { [self] in
             if let writePlans { try await writePlans($0) } else { try await profiles.setSwitch("plans_to_friends", $0) }
+        }
+    }
+
+    /// "Show me to neighbors going": the same switch, its own column.
+    func setPlansToNeighbors(_ on: Bool) async {
+        await flip(\.plansToNeighbors, to: on, failures: \.neighborsFailures) { [self] in
+            if let writeNeighbors { try await writeNeighbors($0) } else { try await profiles.setSwitch("plans_to_neighbors", $0) }
         }
     }
 
