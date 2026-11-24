@@ -18,6 +18,9 @@ the Event or News it runs on: `title`, `dates`, `place` and `about` (a News's su
 picker found the photo on: most often the Event's own post or page, or its host's. `"news": true` marks a News,
 `"flyer": true` a flyer or graphic shown whole, and `"exhibit": true` an art show, gallery exhibit or museum show.
 
+A looks file has a `glance` for most of the photos on Events, by the same keys: what someone who saw the photo alone
+for one second, knowing nothing of the Event, took it for.
+
 ## Judge each photo
 
 1. **Story.** From the title and About, name who or what this is about in a few words: the poet reading, the parish's
@@ -30,7 +33,16 @@ picker found the photo on: most often the Event's own post or page, or its host'
    the person a talk or show is about, a piece of an exhibit's own show, or, for a News, what the post announces. A
    flyer or graphic made for this Event relates: its title card, its poster, a schedule that lists this date among
    others.
-4. **The story itself.** Reason it out the way a photo editor would: set the caption beside the story and ask
+4. **Glance.** For an Event people come to watch (a play, a musical, a concert, a dance show, a game, a film), set the
+   photo's `glance` beside the story. The title, a poster on the wall or a costume explain the photo to you; the
+   neighbour sees what the glance saw. The glance **clashes** when nothing in it is the show or its performers on a
+   stage, in rehearsal, posed together or in a portrait: the show's people off doing something else (reading to a class,
+   at a parade, selling cookies) clash, even in costume. A play's cast in costume reading to schoolchildren, the show's
+   poster behind them, glances as a story time (Jesse, 2026-11-23: "this photo is wrong"). One of several kinds it names
+   being a performance is a match only when that is what the photo shows, not where its people might go next. One
+   performance never clashes with another (a jazz band on an orchestra concert). Any other Event (a meeting, a class, a
+   sale, a club, a library day) never clashes: its host's people at another of its things stay.
+5. **The story itself.** Reason it out the way a photo editor would: set the caption beside the story and ask
    whether the photo shows exactly what the Event or post is about, clear at card size. A portrait of the person a
    talk or an honour is about is the story itself; so is the new flavour in its cup for a flavour of the week, the
    product a shop's post announces, the team holding the plaque it won, a piece of an exhibit's show, the people
@@ -38,12 +50,12 @@ picker found the photo on: most often the Event's own post or page, or its host'
    directly about just like how protrait of person works"). A photo beside the story shows something near it
    instead: the shop for its sale, the building for its class, an empty room, people too small or turned away to
    make out, a scene out of season (December to February is winter, Christmas from November 1 to January 6).
-5. **Verdict.**
+6. **Verdict.**
    - `run`: it shows the story itself, clear enough to make out at card size. A flyer or title card made for this
      Event runs too.
    - `weak`: it stays, and a better one is worth finding: it relates, but shows something beside the story.
-   - `down`: a neighbour would call it wrong at a glance, for one of these: it shows a different kind of event than
-     the title says (a football game on a choir concert); it is another place's photo, with none of this Event's
+   - `down`: a neighbour would call it wrong, for one of these: its glance clashes, or it shows a different kind of
+     event than the title says (a football game on a choir concert); it is another place's photo, with none of this Event's
      people or person; a flyer whose words name another show, performer, group or place, or dates that leave this one
      out, though it is the same host's (a "Band Concert" graphic on an Orchestra Concert); an ad, a watermark or
      another company's name laid over a photograph; a stock photo or a screenshot standing in for the Event; too dark

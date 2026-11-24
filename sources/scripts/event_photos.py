@@ -12,7 +12,8 @@ have a photo of event. dont worry about games for now"). A step of the morning j
   python3 sources/scripts/event_photos.py dig-sheets       the pages the finders named, read; their pictures on sheets
   python3 sources/scripts/event_photos.py dig-posts        the still-bare titles' places' own posts, read through Apify
   python3 sources/scripts/event_photos.py dig-keep [--dry-run]  the picks saved; every Event the dig finished marked
-  python3 sources/scripts/event_photos.py judge            the live picks no judge has seen, in batches for the judges
+  python3 sources/scripts/event_photos.py judge            the live picks no judge has seen, in batches for the lookers
+                                                           (the photo alone) and the judges
   python3 sources/scripts/event_photos.py judge-keep [--dry-run]  each judge's verdict saved; a photo sent down comes off
   python3 sources/scripts/event_photos.py --selftest
 
@@ -1187,13 +1188,15 @@ def judge_line(key, b, image):
 
 
 def judge(out, now=None, db=None, grab=None):
-    """The pictures to judge downloaded to judge/p<n>.png and laid out PER_JUDGE to a batch; the folder starts empty."""
+    """The pictures to judge downloaded to judge/p<n>.png and laid out PER_JUDGE to a batch; the folder starts empty.
+    look-N.txt lays the Events' photos out alone for a looker who never sees a title (event-photos 32); a News, a flyer
+    and an exhibit's work need no glance."""
     import place_photos
     grab = grab or place_photos.download
     folder = out / "judge"
     shutil.rmtree(folder, ignore_errors=True)
     folder.mkdir(parents=True)
-    laid, lines, failed = {}, [], []
+    laid, lines, looks, failed = {}, [], [], []
     for i, b in enumerate(to_judge(db or Supabase(), now or datetime.now(timezone.utc)), 1):
         key, dest = f"p{i}", folder / f"p{i}.png"
         try:
@@ -1204,9 +1207,12 @@ def judge(out, now=None, db=None, grab=None):
         line = judge_line(key, b, str(dest))
         laid[key] = {"ids": b["ids"], "title": line["title"]}
         lines.append(json.dumps(line, ensure_ascii=False))
+        if not any(line.get(k) for k in ("news", "flyer", "exhibit")):
+            looks.append(json.dumps({"photo": key, "image": str(dest)}))
     (folder / "laid.json").write_text(json.dumps(laid, indent=1, ensure_ascii=False))
-    for n, i in enumerate(range(0, len(lines), PER_JUDGE), 1):
-        (folder / f"batch-{n}.txt").write_text("\n".join(lines[i:i + PER_JUDGE]) + "\n")
+    for name, rows in (("batch", lines), ("look", looks)):
+        for n, i in enumerate(range(0, len(rows), PER_JUDGE), 1):
+            (folder / f"{name}-{n}.txt").write_text("\n".join(rows[i:i + PER_JUDGE]) + "\n")
     said = (f"[judge] laid out {len(lines)} photos in {-(-len(lines) // PER_JUDGE)} batches" if lines
             else "[judge] nothing to judge")
     print("\n".join([said] + failed))
@@ -2110,8 +2116,11 @@ def selftest():
         check([x["title"] for x in lines] == ["Senior Art Show", "Fish Fry", "New winter menu"]
               and lines[0].get("flyer") and lines[0].get("exhibit") and lines[1]["dates"] == ["2026-12-04", "2026-12-11"]
               and lines[2].get("news") and laid["p2"]["ids"] == [1, 2] and not any("why" in x or "shows" in x for x in lines)
-              and lines[1]["found_on"] == "https://facebook.com/parish/posts/1",
+              and lines[1]["found_on"] == "https://facebook.com/parish/posts/1"
+              and [json.loads(x) for x in (out / "judge" / "look-1.txt").read_text().splitlines()]
+              == [{"photo": "p2", "image": str(out / "judge" / "p2.png")}],
               "judge: one line per picture with what it runs on and none of the picker's reasons, the soonest Event first, "
+              "the photo alone for the looker (no flyer, exhibit or News), "
               f"one picture's dates together, a flyer and an exhibit marked, then the News ({lines})")
         check(all("judged=is.null" in p and "position=eq.0" in p and "status=eq.live" in p for m, p, b in db.calls),
               "judge: only live pictures no judge has seen, each card's lead")

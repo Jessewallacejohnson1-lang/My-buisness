@@ -8,7 +8,7 @@
 --      its members' Events (item 3). Close group is theirs.
 --   3. "moderate events": a waiting Event is moved only to a Group its poster may add to (item 4), as "submit events"
 --      says for a new one.
---   4. listed_for_writer from 20261117183412_writer_sees_running_shows.sql: an Event of a Group the Town can't see is
+--   4. listed_for_writer from 20261123202252_signups_closed.sql: an Event of a Group the Town can't see is
 --      never the one a found Event repeats (item 5). It runs as its caller, so the Watch key may now read clubs.private
 --      (status it has since 20261113203347_date_walks.sql), which the morning's standouts also ask (morning.py).
 --   5. edit_group from 20261122174712_admin_and_edit_group.sql: with no name it leaves an edit that waits or is being
@@ -105,7 +105,7 @@ as $$
   select coalesce(jsonb_agg(to_jsonb(x)), '[]'::jsonb)
   from (
     select e.id, e.status, e.title, e.event_date, e.start_time, e.end_at, e.all_day, e.location,
-           e.source_name, e.source_uid, e.category, e.shows_from, e.review_reason, e.cancelled_at,
+           e.source_name, e.source_uid, e.category, e.shows_from, e.review_reason, e.cancelled_at, e.signups_closed_by,
            e.club_id is null and e.submitted_by is null as found,
            coalesce((select jsonb_agg(jsonb_build_object('source_name', m.source_name,
              'source_url', m.source_url, 'source_uid', m.source_uid, 'trust', m.trust, 'sure', m.sure))
