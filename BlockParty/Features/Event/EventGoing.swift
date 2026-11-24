@@ -258,7 +258,7 @@ private struct EventGoingCard: View {
     private var known: Int { people.count + (isGoing ? 1 : 0) }
     private var total: Int { max(actions.going(item).count, known) }
     private var left: Int { total - known }
-    /// The list isn't in yet: Apple's spinner in place of "and 37 more".
+    /// The list isn't in yet: a row's shape in place of "and 37 more".
     private var loading: Bool { readFor != isGoing }
 
     private var foot: CGFloat { max(0, GoingMetric.foot - safeBottom) }
@@ -351,6 +351,8 @@ private struct EventGoingCard: View {
                 .accessibilityAddTraits(.isHeader)
                 .padding(.horizontal, GoingMetric.inset)
                 .frame(height: GoingMetric.listTop)
+                // Level with the X.
+                .offset(y: GoingMetric.closeInset + GoingMetric.close / 2 - GoingMetric.listTop / 2)
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     row(yourPhoto, "You")
@@ -365,9 +367,7 @@ private struct EventGoingCard: View {
                         }
                     }
                     if loading {
-                        ProgressView()
-                            .frame(maxWidth: .infinity)
-                            .frame(height: GoingMetric.row)
+                        loadingRow
                     } else if left > 0 {
                         Text("and \(left) more")
                             .contentTransition(.numericText())
@@ -383,6 +383,19 @@ private struct EventGoingCard: View {
             .scrollIndicators(.hidden)
             .scrollBounceBehavior(.basedOnSize)
         }
+    }
+
+    private var loadingRow: some View {
+        HStack(spacing: GoingMetric.rowGap) {
+            SkeletonBlock(cornerRadius: GoingMetric.rowFace * Radius.faceShare, color: ink.opacity(GoingMetric.closeFill))
+                .frame(width: GoingMetric.rowFace, height: GoingMetric.rowFace)
+            SkeletonBlock(cornerRadius: FriendsMetric.loadingLine / 2, color: ink.opacity(GoingMetric.closeFill))
+                .frame(width: FriendsMetric.loadingName, height: FriendsMetric.loadingLine)
+        }
+        .padding(.horizontal, GoingMetric.inset)
+        .frame(height: GoingMetric.row)
+        .shimmering()
+        .accessibilityHidden(true)
     }
 
     private func row(_ photo: URL?, _ name: String) -> some View {
