@@ -272,7 +272,9 @@ struct PhoneSignInScreen: View {
         .animation(reduceMotion ? .easeOut(duration: 0.2) : Motion.outQuint(0.34), value: form.stage)
         // Dark words and a dark clock on the fade, whatever the phone is set to.
         .environment(\.colorScheme, .light)
-        .onAppear { focus() }
+        // iOS 26 inks the clock white over the grey fade; Hinge's is black.
+        .onAppear { AppearanceStore.shared.holdClock("phone", true); focus() }
+        .onDisappear { AppearanceStore.shared.holdClock("phone", false) }
         .onChange(of: form.stage) { focus() }
         .sheet(isPresented: $countryOpen, onDismiss: focus) { countrySheet }
         .sheet(isPresented: $whyOpen, onDismiss: focus) { whySheet }
@@ -288,7 +290,7 @@ struct PhoneSignInScreen: View {
     private var numberStep: some View {
         VStack(spacing: 0) {
             lead(Self.numberTop)
-            question("What's your phone number?", gutter: 40)
+            question("What's your phone\nnumber?", gutter: 40)
             Text("We only ask to verify it's you. It won't show up anywhere, including your profile.")
                 .appleFont(14)
                 .lineHeight(.multiple(factor: 17 / 14))
@@ -331,7 +333,7 @@ struct PhoneSignInScreen: View {
                 Text(PhoneCountry.code).appleFont(18).padding(.leading, 11)
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.down")
-                    .font(.glyph(15, weight: .semibold))
+                    .font(.glyph(17, weight: .bold))
                     .foregroundStyle(Hue.hingeChevron)
             }
             .foregroundStyle(Hue.hingeInk)
@@ -375,7 +377,7 @@ struct PhoneSignInScreen: View {
     private var codeStep: some View {
         VStack(spacing: 0) {
             lead(Self.codeTop)
-            question("Enter your verification code", gutter: 30)
+            question("Enter your verification\ncode", gutter: 30)
             boxes
                 .padding(.top, 64)
             underBoxes {
