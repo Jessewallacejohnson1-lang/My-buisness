@@ -18,22 +18,23 @@ Git hooks are per-clone, not per-repo — no worktree in this workspace has the 
 hook until you run it there. `[prose]` Run `bash scripts/install-git-hooks.sh` once per
 checkout. It refuses a commit whose generated `AGENTS.md`/`CLAUDE.md` have drifted from
 `rules/`, and installs a pre-push hook shared by every worktree that refuses a push to main outside
-the line below. CI checks the same thing and is not bypassable, so skipping this install is
+the line (*Pushing to main*, below). CI checks the same thing and is not bypassable, so skipping this install is
 survivable but slower — the drift surfaces at push time instead of commit time.
-
-## Pushing to main
-
-Every push to main from this Mac goes through `python3 scripts/push_main.py`, after Jesse's yes, from the
-worktree whose branch holds the change, as background Bash. `[hook]` It waits its turn behind the other
-chats' pushes, merges main, runs GitHub's quick checks (`scripts/ci_checks.sh`) and reads GitHub's main
-back; its last line says what to do next and its docstring lists its exits. A typed `git push` to main is
-refused with that command. `git push --no-verify` is for an emergency only. `[prose]`
 
 A new worktree has no `BlockParty/Config/` (ignored; it holds the Mapbox token), so its
 first build fails with `cannot find 'MAPBOX_ACCESS_TOKEN' in scope`. `[prose]`
 Copy it from a checkout that has it: `ditto ~/Documents/bp-build/BlockParty/Config <new>/BlockParty/Config`.
 A branch from before 2026-11-01 still has `GooglePlacesService.swift` and fails with
 `cannot find 'GOOGLE_PLACES_API_KEY' in scope`: merge `main` into it.
+
+## Pushing to main
+
+Every push to main from this Mac goes through `python3 scripts/push_main.py`, after Jesse's yes or a
+standing one (`MEMORY.md`), from the worktree whose branch holds the change, as background Bash. `[prose]`
+It waits its turn behind the other chats' pushes, merges main, runs GitHub's quick checks
+(`scripts/ci_checks.sh`) and reads GitHub's main back; its last line says what to do next and its docstring
+lists its exits. A typed `git push` to main is refused with that command. `[hook]` `BP_GUARD_OFF` doesn't
+reach that hook; its way out is `git push --no-verify`, for an emergency only. `[prose]`
 
 ## The traps
 
@@ -67,6 +68,6 @@ A branch from before 2026-11-01 still has `GooglePlacesService.swift` and fails 
   that registered a test file in `project.pbxproj` takes main's side of that conflict, since the
   test folders now add their files by themselves.
 
-Every `[hook]` guard above (and `sim-guard.sh`, `token-guard.sh` in the other leaves) honours
-`BP_GUARD_OFF=1` as an escape hatch — set it and say why when a guard is genuinely wrong for
-what you're doing, not just when it's inconvenient. `[prose]`
+Every `[hook]` guard above but the pre-push hook (and `sim-guard.sh`, `token-guard.sh` in the other
+leaves) honours `BP_GUARD_OFF=1` as an escape hatch — set it and say why when a guard is genuinely
+wrong for what you're doing, not just when it's inconvenient. `[prose]`

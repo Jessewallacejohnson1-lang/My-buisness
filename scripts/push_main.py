@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Pushes this branch to GitHub's main, after Jesse's yes: the one way to push there from this Mac.
+"""Pushes this branch to GitHub's main, after Jesse's yes or a standing one (`MEMORY.md`): the one way to
+push there from this Mac.
 
     python3 scripts/push_main.py     from the worktree whose branch holds the change; as background Bash,
                                      since it waits its turn
@@ -15,9 +16,11 @@ and refuses any other push to main. The last line always says what to do next.
 Exits:
   0  landed: GitHub's main was read back and holds the commit, and local main moved to it. Or it was
      there already
-  2  nothing started: uncommitted files, no branch, an open merge, or not the branch the session started on
+  2  nothing pushed, something is in the way: uncommitted files, no branch, an open merge, not the branch the
+     session started on, or a lock or a record of passed commits that can't be written
   3  waited 30 minutes in line
-  4  main doesn't merge: the merge is undone, the branch as it was
+  4  main doesn't merge: the merge is undone, the branch as it was. Once you have merged it by hand the next
+     run can't tell, so test app code first
   5  app code (*.swift, *.xcassets, *.pbxproj) changed both in what main brought and in this branch:
      merged, not pushed, so it can be tested merged
   6  a check failed
@@ -101,26 +104,40 @@ def app_code(across):
 
 def merge(main):
     """Merges GitHub's main into the branch, when the branch lacks it."""
-    if holds("HEAD", main):
+    if contains("HEAD", main):
         return
     untested = app_code(f"HEAD...{main}") and app_code(f"{main}...HEAD")
     out = git("merge", "-q", "--no-edit", main)
     if out.returncode:
-        files = git("diff", "--name-only", "--diff-filter=U").stdout.split("\n")[:-1]
+        files = git("diff", "--name-only", "--diff-filter=U", "-z").stdout.split("\0")[:-1]
         if rev("MERGE_HEAD"):
             git("merge", "--abort")
         why = f"conflicts in {', '.join(files)}" if files else f"failed: {(out.stderr or out.stdout).strip()}"
         raise Stop(4, f"merging main {main[:7]} {why}. The merge was undone and nothing was pushed.",
-                   "Merge origin/main, resolve and commit it, then run this again.")
+                   "Merge origin/main, resolve and commit it; app code then needs xc.sh test; then run this again.")
     if untested:
         raise Stop(5, f"main moved in app code, and this branch changes app code too. "
                       f"Main {main[:7]} is merged here and nothing was pushed.",
                    "Test it merged (xc.sh test), then run this again.")
 
 
+def passed(sha=""):
+    """The commits that passed the checks, sha added when there is one: the hook lets through no other."""
+    try:
+        CACHE.mkdir(parents=True, exist_ok=True)
+        with PASSED.open("a+") as f:
+            if sha:
+                f.write(f"{sha}\n")
+            f.seek(0)
+            return f.read().split()
+    except OSError as e:
+        raise Stop(2, f"the record of passed commits can't be written, so nothing was pushed: {e}",
+                   f"Make {PASSED} writable, then run this again.")
+
+
 def check(sha):
     """Runs the checks on the commit, unless it passed them before, and records that it passed."""
-    if PASSED.exists() and sha in PASSED.read_text().split():
+    if sha in passed():
         return
     tree = tempfile.mkdtemp(prefix="bp-push-check.", dir="/tmp")
     say(f"running GitHub's quick checks on {sha[:7]} (about a minute)")
@@ -135,9 +152,7 @@ def check(sha):
         raise Stop(6, f"a check failed, so {sha[:7]} was not pushed. The end of {log}:\n{end}",
                    "Fix it (bash scripts/ci_checks.sh runs them all) and commit, then run this again.")
     log.unlink()
-    CACHE.mkdir(parents=True, exist_ok=True)
-    with PASSED.open("a") as f:
-        f.write(f"{sha}\n")
+    passed(sha)
 
 
 def github_main():
@@ -149,8 +164,8 @@ def github_main():
                "When the network is back, run this again: it says so if the commit landed.")
 
 
-def holds(main, sha):
-    return not git("merge-base", "--is-ancestor", sha, main).returncode
+def contains(commit, sha):
+    return not git("merge-base", "--is-ancestor", sha, commit).returncode
 
 
 def push(sha):
@@ -194,7 +209,7 @@ def move_local_main(main, branch):
     old = rev("refs/heads/main")
     if branch == "main" or old == main:
         return
-    if old and not holds(main, old):
+    if old and not contains(main, old):
         say(f"local main stays at {old[:7]}: it holds commits GitHub's main doesn't")
     elif git("update-ref", "refs/heads/main", main, old).returncode:
         say(f"local main stays at {old[:7]}: git update-ref refused")
@@ -210,14 +225,14 @@ def land(branch):
         main = github_main()
         merge(main)
         sha = rev("HEAD")
-        if holds(main, sha):
+        if contains(main, sha):
             move_local_main(main, branch)
             say(f"{sha[:7]} is already on main, so there was nothing to push.")
             return
         check(sha)
         out = push(sha)
         now = github_main()
-        if holds(now, sha):
+        if contains(now, sha):
             move_local_main(now, branch)
             say(f"landed {sha[:7]}: GitHub's main holds it. Next, GitHub's verdict: BP app's ci_wait.sh {sha}")
             return
@@ -233,7 +248,12 @@ def main():
     os.chdir(git("rev-parse", "--show-toplevel").stdout.strip() or ".")
     try:
         branch = ready()
-        with in_line(branch):
+        try:
+            lock = in_line(branch)
+        except OSError as e:
+            raise Stop(2, f"the lock can't be used, so nothing was pushed: {e}",
+                       f"Make {LOCK} writable, then run this again.")
+        with lock:
             land(branch)
     except Stop as stop:
         code, what, then = stop.args

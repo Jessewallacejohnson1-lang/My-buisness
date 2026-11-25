@@ -203,8 +203,15 @@ class PushMainTests(unittest.TestCase):
         a = self.worktree("a", {"notes.txt": "ours"})
         self.cloud({"notes.txt": "theirs"})
         head = self.head(a)
-        self.stopped(a, 4, "notes.txt")
+        out = self.stopped(a, 4, "notes.txt")
         self.assertEqual(self.head(a), head)
+        self.assertIn("xc.sh test", out.strip().splitlines()[-1])  # resolved by hand, app code is untested
+
+    def test_a_conflict_in_a_name_with_spaces_and_accents_prints_it_as_it_is(self):
+        name = "a b \u00e9.txt"
+        a = self.worktree("a", {name: "ours"})
+        self.cloud({name: "theirs"})
+        self.stopped(a, 4, f"conflicts in {name}.")
 
     def test_app_code_on_both_sides_stops_merged(self):
         for ours, theirs in (({"App.swift": "1"}, {"Other.swift": "1"}),
@@ -329,6 +336,33 @@ class PushMainTests(unittest.TestCase):
         code, out, _ = self.push(a)
         self.assertEqual((code, self.git(self.repo, "rev-parse", "main")), (0, theirs), out)
         self.assertIn("local main", out)
+
+    def test_a_lock_that_cannot_be_written_is_a_stop(self):
+        a = self.worktree("a", {"a.txt": "a"})
+        lock = self.tmp / "push.lock"
+        lock.touch(0o444)
+        out = self.stopped(a, 2, str(lock))
+        self.assertNotIn("Traceback", out)
+        lock.unlink()
+        self.assertEqual(self.push(a)[0], 0)
+
+    def test_a_passed_record_that_cannot_be_written_stops_before_the_checks(self):
+        a = self.worktree("a", {"a.txt": "a"})
+        passed = self.tmp / "Library/Caches/bp-ci/passed"
+        passed.parent.mkdir(parents=True, exist_ok=True)
+        passed.touch()
+        for mode in (0o444, 0o000):
+            passed.chmod(mode)
+            out = self.stopped(a, 2, str(passed))
+            self.assertNotIn("Traceback", out)
+        passed.chmod(0o644)
+        self.assertEqual(self.push(a)[0], 0)
+
+    def test_a_passed_record_lost_during_the_checks_is_a_stop(self):
+        a = self.worktree("a", {"a.txt": "a"})
+        passed = self.tmp / "Library/Caches/bp-ci/passed"
+        out = self.stopped(a, 2, str(passed), checks=1, DURING=f"chmod 444 {passed}")
+        self.assertNotIn("Traceback", out)
 
     def test_works_from_a_branch_whose_folder_is_not_the_top(self):
         a = self.worktree("a", {"a.txt": "a"})
