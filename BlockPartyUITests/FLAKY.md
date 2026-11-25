@@ -15,6 +15,8 @@ flake moves to Fixed, dated, and stays there.
   way, 3 of 40 repeats (the branch 1 of 40), at load 2 to 12 · no fix yet: a lost double tap, not a slow one
 - 2026-11-22 · `EventCardPhotoTapTests.testSingleTapOnPhotoPushesTheEventPage` · red once on the Mac in a full run on
   feat/new-tab-pops-in (the tap pushed nothing) · passed alone straight after and in the next full runs · no fix yet
+  · red again 2026-11-25 in a full run on feat/follow3-rating (onboarding's Follow 3; no Town card code) at load about 36,
+  passed alone straight after
 - 2026-11-18 · `AppSessionTests.testLaunchRunsEachJobOnceAndStopsWithTheShell` · red once on the Mac in a full run on
   feat/player-stats (a game page's player stats; no launch or Search code) at load about 19: XCTAssertTrue failed at
   line 225 · passed alone straight after · no fix yet · red again 2026-11-19 in a full run on
@@ -57,7 +59,8 @@ flake moves to Fixed, dated, and stays there.
   e5d335e4: "a tap on the poster's heart didn't like it" (the like's wait timed out) · passed alone straight after,
   at load 33 to 40 · no fix yet · red again 2026-11-13 in a full run on feat/game-logo-lift (game card logos; no
   poster or heart code) just after merging f9d31a9e, the same timed-out like, at load 45 to 57 · passed alone straight
-  after, at load 10 to 29
+  after, at load 10 to 29 · red again 2026-11-25 in a full run on feat/follow3-rating (onboarding's Follow 3; no Town
+  card code) at load about 36, passed alone straight after
 - 2026-11-13 · `EventCardPhotoTapTests.testDoubleTapOnPhotoLikesAndDoesNotPush` · red once on the Mac in that alone
   run, at load 40: "a double tap on the photo pushed the event page" (the two taps read as one) · passed in the full
   run just before · no fix yet: on a loaded Mac the double tap's gap can outlast the single-tap wait
