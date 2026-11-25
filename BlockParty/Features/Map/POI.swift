@@ -7,25 +7,37 @@
 
 import CoreLocation
 
-/// A popular place's spot in line at the top of Follow 3, 1 first, and the photo that fills its circle (its logo
-/// shows without one).
+/// Where a place or page stands in line in Follow 3, 1 first: its `spot`, and its `fit`, where it stands for somebody
+/// who picked an interest it fits. With only a `fit` it is in line for them alone. And the photo that fills its
+/// circle (its logo shows without one).
 struct FollowSpot: Decodable, Hashable {
-    let spot: Int
+    let spot: Int?
+    let fit: Int?
+    /// What it is in the first circles' mix ("food", "shop", "help", "outdoors", "learn"); nil for anything else.
+    let group: String?
+    /// Never among the first circles.
+    let late: Bool
     let photo: URL?
 
-    init(spot: Int, photo: URL?) {
+    init(spot: Int?, fit: Int? = nil, group: String? = nil, late: Bool = false, photo: URL? = nil) {
         self.spot = spot
+        self.fit = fit
+        self.group = group
+        self.late = late
         self.photo = photo
     }
 
-    /// Never throws: one odd row would fail the whole read of the places, Search's and the map's too. It goes last.
+    /// Never throws: one odd row would fail the whole read of the places, Search's and the map's too. It is in no line.
     init(from decoder: Decoder) throws {
         let row = try? decoder.container(keyedBy: CodingKeys.self)
-        spot = (try? row?.decode(Int.self, forKey: .spot)) ?? .max
+        spot = try? row?.decode(Int.self, forKey: .spot)
+        fit = try? row?.decode(Int.self, forKey: .fit)
+        group = try? row?.decode(String.self, forKey: .group)
+        late = (try? row?.decode(Bool.self, forKey: .late)) ?? false
         photo = try? row?.decode(URL.self, forKey: .photo)
     }
 
-    private enum CodingKeys: String, CodingKey { case spot, photo }
+    private enum CodingKeys: String, CodingKey { case spot, fit, group, late, photo }
 }
 
 struct POI: Identifiable, Decodable, Hashable {
@@ -56,8 +68,10 @@ struct POI: Identifiable, Decodable, Hashable {
     /// The word it uses for itself (`places.category`): the category its owner picked on Google Maps ("Nutrition
     /// club"), live once a second check against its own site agreed (BP app search-helpful 09). nil until then.
     var category: String? = nil
-    /// Its spot at the top of onboarding's Follow 3 (`places.follow_spot`, BP app onboarding 50); nil for most places.
+    /// Its spot in line in onboarding's Follow 3 (`places.follow_spot`, BP app community-value 04); nil for many places.
     var followSpot: FollowSpot? = nil
+    /// 18 and over (`places.adults_only`): not in onboarding.
+    var adultsOnly: Bool? = nil
 
     var coordinate: CLLocationCoordinate2D { .init(latitude: lat, longitude: lon) }
 

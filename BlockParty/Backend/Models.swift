@@ -607,6 +607,8 @@ struct TownPageRow: Decodable, Equatable {
     let sourceName: String?
     let picture: String?
     let pictureKind: String?
+    /// Its spot in line in Follow 3 (`town_pages.follow_spot`); nil for most.
+    var followSpot: FollowSpot? = nil
 }
 
 /// A local team's page (`team_page`, hello-drop 03).

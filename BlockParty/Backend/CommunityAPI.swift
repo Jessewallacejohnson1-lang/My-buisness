@@ -835,7 +835,7 @@ struct CommunityAPI {
         // Schools only: a town team is no school (BP app school-search 12).
         async let schools = db.rest("teams", [("select", "id,uuid,name,school_name,logo_url"), ("local", "eq.true"),
                                               ("town", "is.null")], anon: true)
-        async let pages = db.rest("town_pages", [("select", "id,slug,name,kind,source_name,picture,picture_kind"),
+        async let pages = db.rest("town_pages", [("select", "id,slug,name,kind,source_name,picture,picture_kind,follow_spot"),
                                                  ("town", "eq.\(Town.slug)")], anon: true)
         return (try Supabase.decode(await schools), try Supabase.decode(await pages))
     }

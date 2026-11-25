@@ -51,7 +51,7 @@ layout (ticket 25). Interests is one white card of
 rows with check circles, its chips grey until picked; Follow 3 is Spotify's artist grid on a
 night sky (onboarding 50, 2026-11-23; BP app `references/follow-spotify/SPEC.md`): a white 31 pt bold question at the left
 and a white search box, 112 pt circles (a photo, or a logo on white) with Interests' ring and green check once
-followed, the popular places first (`places.follow_spot`), no icon circle, no plus, no Follow pills; its Next pill is
+followed, the places that give the Town the most first (`follow_spot`, BP app community-value 04), no icon circle, no plus, no Follow pills; its Next pill is
 Interests' white one. Duolingo's
 chunky bar, glint and raised button and chips are gone. Everything below this
 section still holds, except where the spec says otherwise: between steps only the question slides

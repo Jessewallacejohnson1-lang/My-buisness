@@ -417,14 +417,84 @@ final class OnboardingStoreTests: XCTestCase {
                        ["Flour & Flower", "Sal's", "The Middy", "Apollo"])
         XCTAssertEqual(FollowSuggestions.ordered(all, picked: ["bars"], schoolsFirst: true).first?.name, "Apollo")
         XCTAssertEqual(all.first { $0.name == "Flour & Flower" }?.photo, live[1].url, "the one picked, not the cover")
-        XCTAssertNil(FollowSuggestions.photo(of: first, live: [live[0]]), "taken down, it shows here no more")
+        XCTAssertEqual(FollowSuggestions.photo(of: first, live: [live[0]]), live[0].url,
+                       "taken down, it shows here no more: a place with no logo shows another")
+        first.followSpot = FollowSpot(spot: 1)
+        XCTAssertEqual(FollowSuggestions.photo(of: first, live: live), live[0].url, "no photo picked and no logo: its cover")
     }
 
-    /// An odd `follow_spot` can't fail the read of every place: it goes last.
+    /// The line (community-value 04): a place that fits a pick stands at its `fit`, one with only a `fit` is in line
+    /// for who picked it alone, and a page stands in it too.
+    private func line(_ name: String, _ type: String = "storage", spot: Int?, fit: Int? = nil, group: String? = nil,
+                      late: Bool = false) -> POI {
+        var poi = poi(name, name, type)
+        poi.followSpot = FollowSpot(spot: spot, fit: fit, group: group, late: late)
+        return poi
+    }
+
+    private func order(_ places: [POI], pages: [TownPageRow] = [], picked: [String] = [], under18: Bool = false) -> [String] {
+        FollowSuggestions.ordered(FollowSuggestions.build(places: places, schools: [], pages: pages, events: []),
+                                  picked: picked, under18: under18).map(\.name)
+    }
+
+    func testAPickLiftsAPlaceToItsFit() {
+        let places = [line("One", spot: 1, fit: 1), line("Five", spot: 4, fit: 2), line("Cafe", "coffee_shop", spot: 6, fit: 3),
+                      line("Two", "coffee_shop", spot: nil, fit: 7), line("Four", spot: 8, fit: 5), poi("plain", "Plain", "coffee_shop")]
+        let city = TownPageRow(id: "c", slug: "city", name: "City", kind: "City government", sourceName: nil, picture: nil,
+                               pictureKind: nil, followSpot: FollowSpot(spot: 9, fit: 2))
+        XCTAssertEqual(order(places, pages: [city]), ["One", "Five", "Cafe", "Four", "City", "Plain", "Two"])
+        XCTAssertEqual(order(places, pages: [city], picked: ["coffee"]), ["One", "Cafe", "Five", "Two", "Four", "City", "Plain"],
+                       "Two joins the line, under Five; Plain, in no line, stays after it")
+        XCTAssertEqual(order(places, pages: [city], picked: ["town_meetings"]).prefix(3), ["One", "City", "Five"])
+    }
+
+    func testTheFirstTwelveHoldTheMixAndFiveFood() {
+        var places = (1...9).map { line("Food \($0)", spot: $0, fit: $0, group: "food") }
+        places += (10...20).map { line("Other \($0)", spot: $0, fit: $0) }
+        places += [line("Bingo", spot: 21, fit: 21, group: "learn", late: true), line("Shelf", spot: 22, fit: 22, group: "help"),
+                   line("Park", spot: 23, fit: 23, group: "outdoors"), line("Shop", spot: 24, fit: 24, group: "shop"),
+                   line("Library", spot: 25, fit: 25, group: "learn")]
+        let names = order(places)
+        XCTAssertEqual(Array(names.prefix(12)), (1...5).map { "Food \($0)" } + (10...12).map { "Other \($0)" }
+                       + ["Shelf", "Park", "Shop", "Library"])
+        XCTAssertEqual(Array(names[12..<14]), ["Food 6", "Food 7"], "what was passed over leads what follows")
+        XCTAssertEqual(Set(names).count, places.count, "nobody is hidden")
+        XCTAssertFalse(names.prefix(12).contains("Bingo"))
+    }
+
+    func testUnder18NoBarIsInTheFirstTwentyFour() {
+        let places = [line("Grill", "bar_and_grill", spot: 1, fit: 1), line("Brewery", "brewery", spot: 2, fit: 2), line("Bar", "bar", spot: 4, fit: 3)]
+            + (5...34).map { line("P\($0)", spot: $0, fit: $0) }
+        XCTAssertEqual(order(places).prefix(3), ["Grill", "Brewery", "Bar"])
+        let teen = order(places, picked: ["bars"], under18: true)
+        XCTAssertEqual(teen.first, "Grill", "a bar and grill stays")
+        XCTAssertEqual(Array(teen[22...26]), ["P26", "P27", "Brewery", "Bar", "P28"])
+        XCTAssertEqual(teen.count, places.count)
+    }
+
+    func testAnAdultsOnlyPlaceIsNotInOnboarding() {
+        var adult = poi("p", "The Middy", "bar")
+        adult.adultsOnly = true
+        XCTAssertEqual(order([adult, poi("q", "Blend", "coffee_shop")]), ["Blend"])
+    }
+
+    func testUnder18IsReadFromTheBirthday() {
+        let store = OnboardingStore(defaults: defaults)
+        XCTAssertFalse(store.under18)
+        store.birthday = Calendar.current.date(byAdding: .year, value: -15, to: .now)
+        XCTAssertTrue(store.under18)
+        store.birthday = Calendar.current.date(byAdding: .year, value: -30, to: .now)
+        XCTAssertFalse(store.under18)
+    }
+
+    /// An odd `follow_spot` can't fail the read of every place: it is in no line.
     func testAnOddSpotNeverFailsTheRead() throws {
         let read = { (json: String) in try JSONDecoder().decode(FollowSpot.self, from: Data(json.utf8)) }
         XCTAssertEqual(try read(#"{"spot": 4, "photo": "https://x.co/a.webp"}"#).spot, 4)
-        for odd in ["{}", #"{"photo": ""}"#, #"{"spot": 1.5}"#, "[]", "7"] { XCTAssertEqual(try read(odd).spot, .max, odd) }
+        let full = try read(#"{"spot": 4, "fit": 2, "group": "food", "late": true, "photo": null}"#)
+        XCTAssertEqual(full, FollowSpot(spot: 4, fit: 2, group: "food", late: true))
+        XCTAssertEqual(try read(#"{"fit": 9}"#), FollowSpot(spot: nil, fit: 9))
+        for odd in ["{}", #"{"photo": ""}"#, #"{"spot": 1.5}"#, "[]", "7"] { XCTAssertNil(try read(odd).spot, odd) }
     }
 
     /// A place with no logo shows its saved photo; one with a logo keeps the logo unless its spot names a photo.
@@ -451,7 +521,7 @@ final class OnboardingStoreTests: XCTestCase {
         let school = all.first { $0.isSchool }
         XCTAssertEqual(school?.target, .init(type: .team, id: "k1"))
         XCTAssertEqual(school?.twin, .init(type: .place, id: "p1"))
-        XCTAssertEqual(school?.spot, 3)
+        XCTAssertEqual(school?.line?.spot, 3)
     }
 
     /// A tile that follows two things counts once toward the 3.

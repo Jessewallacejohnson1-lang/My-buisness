@@ -91,6 +91,9 @@ final class OnboardingStore {
     private(set) var arrivedBefore = false
     /// The way the last move went, so the next question slides in from the right side.
     private(set) var forward = true
+    /// Under 18 by the birthday on the wheel; nobody with none.
+    var under18: Bool { birthday.map { OnboardingAge.years(from: $0, to: .now) < 18 } ?? false }
+
     /// The birthday the wheel is on, nil until it turns (ticket 19). Kept on the device, and saved to
     /// the account with the onboarded stamp, so an under-13 who stops here leaves nothing behind.
     var birthday: Date? {
@@ -637,7 +640,7 @@ struct OnboardingFlow: View {
             } else if store.step == .follow {
                 // Follow 3's question scrolls away with its grid (onboarding 26); Spotify's look (50).
                 OnboardingFollowGrid(suggestions: suggestions, interests: store.interests,
-                                     schoolsFirst: store.schoolsPicked, follows: store.follows,
+                                     schoolsFirst: store.schoolsPicked, under18: store.under18, follows: store.follows,
                                      focused: $questionFocused, toggle: { toggleFollow($0) })
             } else if on(.interests) {
                 // 12 photo circles on the deep backdrop (onboarding 48).

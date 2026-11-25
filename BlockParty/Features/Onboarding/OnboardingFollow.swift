@@ -2,8 +2,8 @@
 //  OnboardingFollow.swift
 //  Block Party — "Follow 3 or more places you like.", onboarding's step 8 (BP app onboarding 22, 26, 50): Spotify's
 //  "Choose 3 or more artists" grid of the Town's Places, schools and pages in rows of 3, on a night sky (measures in
-//  BP app `references/follow-spotify/SPEC.md`). The popular ones (`places.follow_spot`) lead, then those that fit
-//  the interests just picked, busiest first. Following one pulls places like it up to right after it. The picks wait on the phone (`OnboardingStore.follows`) and go up once a signed-up account can
+//  BP app `references/follow-spotify/SPEC.md`). The ones with a spot in line (`follow_spot`) lead, further up when they
+//  fit the interests just picked; then the rest that fit, busiest first. Following one pulls places like it up to right after it. The picks wait on the phone (`OnboardingStore.follows`) and go up once a signed-up account can
 //  take them (`RealLifeActions.followOn`), as following needs one (follows spec).
 //
 
@@ -24,8 +24,8 @@ struct FollowSuggestion: Identifiable, Equatable {
     let picture: URL?
     /// A photo that fills Follow 3's circle ahead of any logo: its spot's, or its saved photo when it has no logo.
     var photo: URL? = nil
-    /// Its spot in line at the top, 1 first; nil for most.
-    var spot: Int? = nil
+    /// Where it stands in line; nil for many.
+    var line: FollowSpot? = nil
     /// What following it follows too: a school that is also a Place (Kennedy), whose News comes with the Place.
     var twin: FollowTarget? = nil
     var isLogo = true
@@ -39,6 +39,8 @@ struct FollowSuggestion: Identifiable, Equatable {
 
     var id: FollowTarget { target }
     var isSchool: Bool { categories.contains("school") }
+    /// A bar, brewery or distillery by its kind, not a bar and grill.
+    var isBar: Bool { categories.contains("bars") && !categories.contains("dining") }
     /// "CS" of "City of St. Joseph": the first two capitals that start a word, so "of" is skipped.
     var initials: String {
         String(name.split(separator: " ").compactMap { $0.first }.filter(\.isUppercase).prefix(2))
@@ -108,14 +110,14 @@ enum FollowSuggestions {
             s.events = mine.count
             return s
         }
-        var fromPlaces = places.map { poi in
+        var fromPlaces = places.filter { $0.adultsOnly != true }.map { poi in
             let fit = interests(ofKind: poi.primaryType)
             return with(FollowSuggestion(target: .init(type: .place, id: poi.id), name: placeName(poi.name),
                                          kind: poi.primaryType.flatMap(SearchModel.label),
                                          logo: poi.searchLogo.map { SearchLogo(placeId: poi.placeId ?? poi.id, row: $0) },
                                          picture: poi.logoURL,
                                          photo: photo(of: poi, live: poi.entryId.flatMap { photos[$0] } ?? []),
-                                         spot: poi.followSpot?.spot,
+                                         line: poi.followSpot,
                                          categories: Set(fit + (poi.primaryType.map { ["type:\($0)"] } ?? []))),
                         fit, poi.entryId.flatMap { byPlace[$0] } ?? [])
         }
@@ -124,7 +126,7 @@ enum FollowSuggestions {
             let place = fromPlaces.firstIndex { $0.name == name }.map { fromPlaces.remove(at: $0) }
             return with(FollowSuggestion(target: .init(type: .team, id: school.uuid), name: name,
                                          key: school.id, kind: "School", logo: place?.logo ?? school.crest,
-                                         picture: crest, photo: place?.photo, spot: place?.spot,
+                                         picture: crest, photo: place?.photo, line: place?.line,
                                          twin: place?.target,
                                          // A college is like a college too, not like a high school alone.
                                          categories: (place?.categories ?? []).union(["school"])),
@@ -136,7 +138,7 @@ enum FollowSuggestions {
             return with(FollowSuggestion(target: .init(type: .page, id: page.id), name: page.name, key: page.slug, kind: page.kind,
                                          // A page's logo (the City's) bare with its shadow, as a place's.
                                          logo: logo.map { SearchLogo(placeId: "page-\(page.id)", row: .init(url: $0, hue: 0, chroma: false)) },
-                                         picture: picture, isLogo: logo != nil, isTown: page.slug == "town",
+                                         picture: picture, line: page.followSpot, isLogo: logo != nil, isTown: page.slug == "town",
                                          categories: [page.kind == "College" ? "campus" : page.kind == "School" ? "school" : "town"]),
                         interests(ofPage: page), page.sourceName.flatMap { bySource[$0] } ?? [])
         }
@@ -146,7 +148,7 @@ enum FollowSuggestions {
     /// The photo that fills a place's circle: its spot's, while it is still one of the place's live photos (one taken
     /// down on request goes from here too), else the first of a place with no logo.
     static func photo(of poi: POI, live: [PlacePicture]) -> URL? {
-        if let spot = poi.followSpot { return live.first { $0.url == spot.photo }?.url }
+        if let chosen = live.first(where: { $0.url == poi.followSpot?.photo }) { return chosen.url }
         return poi.searchLogo == nil && poi.logoURL == nil ? live.first?.url : nil
     }
 
@@ -160,22 +162,54 @@ enum FollowSuggestions {
         all.count { follows.contains($0.target) }
     }
 
-    /// The grid before a search, every place in it: the ones with a spot (Jesse, 2026-11-23: "put at the top the
-    /// ones that post the most or popular"), then what fits the picks, then the rest, each of those two
-    /// busiest first (Jesse, 2026-11-02: "show popular ones first"), A to Z between equals. Schools
-    /// lead only for somebody who opened Schools on the step before (onboarding 28).
-    static func ordered(_ all: [FollowSuggestion], picked: [String], schoolsFirst: Bool = false) -> [FollowSuggestion] {
+    /// The first circles, which hold the mix, and the most food among them (a guess; BP app community-value spec).
+    static let mixed = 12
+    static let mostFood = 5
+    /// What the mix has one at least of.
+    static let mix: Set = ["food", "shop", "help", "outdoors", "learn"]
+    /// The first circles no bar is among for somebody under 18 (Jesse, 2026-11-24).
+    static let noBars = 24
+
+    /// The grid before a search, every place in it: the line first (`follow_spot`; the places that give the Town the
+    /// most, BP app community-value 04), one that fits a pick at its `fit`, the rest at their `spot`; then what fits
+    /// the picks, then the rest, each of those two busiest first (Jesse, 2026-11-02: "show popular ones first"), A to
+    /// Z between equals. Schools lead only for somebody who opened Schools on the step before (onboarding 28).
+    static func ordered(_ all: [FollowSuggestion], picked: [String], schoolsFirst: Bool = false,
+                        under18: Bool = false) -> [FollowSuggestion] {
         let picks = Set(picked)
-        let rank = { (s: FollowSuggestion) in
-            schoolsFirst && s.isSchool ? 0 : s.spot != nil ? 1 : s.interests.isDisjoint(with: picks) ? 3 : 2
-        }
-        return all.sorted { a, b in
+        let fits = { (s: FollowSuggestion) in !s.interests.isDisjoint(with: picks) }
+        let spot = { (s: FollowSuggestion) in (fits(s) ? s.line?.fit : nil) ?? s.line?.spot }
+        let rank = { (s: FollowSuggestion) in schoolsFirst && s.isSchool ? 0 : spot(s) != nil ? 1 : fits(s) ? 2 : 3 }
+        let sorted = all.sorted { a, b in
             let ra = rank(a), rb = rank(b)
             if ra != rb { return ra < rb }
-            if ra == 1, let sa = a.spot, let sb = b.spot, sa != sb { return sa < sb }
+            if ra == 1, let sa = spot(a), let sb = spot(b), sa != sb { return sa < sb }
             if a.events != b.events { return a.events > b.events }
             return a.name.localizedCaseInsensitiveCompare(b.name) == .orderedAscending
         }
+        let line = sorted.drop { rank($0) == 0 }.prefix { rank($0) == 1 }
+        return Array(sorted[..<line.startIndex]) + mixing(Array(line), under18: under18) + Array(sorted[line.endIndex...])
+    }
+
+    /// The line with its mix: the first 12 hold one at least of each group there is, five food at most and none that is
+    /// `late`. Under 18 no bar is among the first 24. Whatever it passes over follows in its order.
+    private static func mixing(_ line: [FollowSuggestion], under18: Bool) -> [FollowSuggestion] {
+        var rest = line.filter { !(under18 && $0.isBar) }, first: [FollowSuggestion] = []
+        while first.count < mixed {
+            let here = Set(first.compactMap(\.line?.group))
+            let missing = mix.intersection(rest.filter { $0.line?.late != true }.compactMap(\.line?.group)).subtracting(here)
+            let fullOfFood = first.count { $0.line?.group == "food" } >= mostFood
+            let tight = mixed - first.count <= missing.count
+            guard let i = rest.firstIndex(where: {
+                let group = $0.line?.group
+                return $0.line?.late != true && !(fullOfFood && group == "food") && (!tight || missing.contains(group ?? ""))
+            }) else { break }
+            first.append(rest.remove(at: i))
+        }
+        guard under18 else { return first + rest }
+        let more = min(rest.count, max(0, noBars - first.count))
+        let left = Set(rest.dropFirst(more).map(\.id)).union(line.filter(\.isBar).map(\.id))
+        return first + rest.prefix(more) + line.filter { left.contains($0.id) }
     }
 
     /// Following `target` pulls up to `likeIt` places like it (sharing a category, most in common first,
@@ -265,6 +299,7 @@ struct OnboardingFollowGrid: View {
     let interests: [String]
     /// Opened Schools on the step before, so schools lead.
     let schoolsFirst: Bool
+    let under18: Bool
     let follows: [FollowTarget]
     @AccessibilityFocusState.Binding var focused: Bool
     let toggle: (FollowTarget) -> Void
@@ -340,7 +375,8 @@ struct OnboardingFollowGrid: View {
         }
         .ignoresSafeArea(.container)
         .onChange(of: suggestions, initial: true) { _, new in
-            order = new.map { FollowSuggestions.ordered($0, picked: interests, schoolsFirst: schoolsFirst) }
+            order = new.map { FollowSuggestions.ordered($0, picked: interests, schoolsFirst: schoolsFirst,
+                                                                under18: under18) }
             showing = [:]
         }
         // A tile a search hid and brought back doesn't grow out of an old follow again.
