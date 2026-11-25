@@ -17,9 +17,17 @@ duplicating it. `[prose]`
 Git hooks are per-clone, not per-repo — no worktree in this workspace has the pre-commit
 hook until you run it there. `[prose]` Run `bash scripts/install-git-hooks.sh` once per
 checkout. It refuses a commit whose generated `AGENTS.md`/`CLAUDE.md` have drifted from
-`rules/`, and installs a pre-push hook shared by every worktree that runs GitHub's quick checks
-(`scripts/ci_checks.sh`) on whatever is pushed to main. CI checks the same thing and is not bypassable, so skipping this install is
+`rules/`, and installs a pre-push hook shared by every worktree that refuses a push to main outside
+the line below. CI checks the same thing and is not bypassable, so skipping this install is
 survivable but slower — the drift surfaces at push time instead of commit time.
+
+## Pushing to main
+
+Every push to main from this Mac goes through `python3 scripts/push_main.py`, after Jesse's yes, from the
+worktree whose branch holds the change, as background Bash. `[hook]` It waits its turn behind the other
+chats' pushes, merges main, runs GitHub's quick checks (`scripts/ci_checks.sh`) and reads GitHub's main
+back; its last line says what to do next and its docstring lists its exits. A typed `git push` to main is
+refused with that command. `git push --no-verify` is for an emergency only. `[prose]`
 
 A new worktree has no `BlockParty/Config/` (ignored; it holds the Mapbox token), so its
 first build fails with `cannot find 'MAPBOX_ACCESS_TOKEN' in scope`. `[prose]`

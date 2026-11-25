@@ -4,7 +4,7 @@
 The tests are skipped only when every changed file is on the known-safe list below. Anything
 else, or any doubt about what changed, runs them. Prints `tests=run` or `tests=skip` for
 $GITHUB_OUTPUT and the reason on stderr. Its self-check is test_ci_scope.py, which ci_checks.sh
-runs, so GitHub and the pre-push hook both run it.
+runs, so GitHub and push_main.py both run it.
 
 What changed: for a PR, everything the PR changes against its base (GitHub tests a merge commit
 whose first parent is the base); for a push to main, everything since the commit before the push.

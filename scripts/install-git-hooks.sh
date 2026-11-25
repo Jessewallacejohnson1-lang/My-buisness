@@ -65,9 +65,10 @@ HOOK
 chmod +x "$target"
 echo "installed $target"
 
-# The pre-push hook: every push to main first runs the checks GitHub's quick jobs run
-# (scripts/ci_checks.sh), on the exact commit being pushed. It lives in the common dir, shared
-# by every worktree; this machine's global hook (core.hooksPath) chains to it there.
+# The pre-push hook: a push to main goes through scripts/push_main.py, which runs the checks GitHub's
+# quick jobs run (scripts/ci_checks.sh) on the exact commit before it opens the connection; any other
+# is refused. It lives in the common dir, shared by every worktree; this machine's global hook
+# (core.hooksPath) chains to it there.
 push_target="$(git rev-parse --path-format=absolute --git-common-dir)/hooks/pre-push"
 if [ -e "$push_target" ] && ! grep -q '# bp-ci-managed-hook' "$push_target" 2>/dev/null; then
     echo "refusing to overwrite an existing pre-push hook at $push_target" >&2
@@ -77,9 +78,11 @@ mkdir -p "$(dirname "$push_target")"
 cat > "$push_target" <<'HOOK'
 #!/bin/bash
 # bp-ci-managed-hook
-# A push to main runs the checks GitHub's quick jobs run (scripts/ci_checks.sh) on the commit
-# being pushed, in a scratch copy, and stops the push when one fails (BP app retro, 2026-10-17).
-# Commits from before the script existed pass through. Emergency only: git push --no-verify.
+# A push to main goes through scripts/push_main.py, where the pushes of this Mac's chats wait in one
+# line: a commit it recorded as passed goes straight on, any other that holds the script is refused
+# (BP app agent-guardrails 30). A commit from before the script runs the checks GitHub's quick jobs run
+# (scripts/ci_checks.sh) here, in a scratch copy, and the push stops when one fails (BP app retro,
+# 2026-10-17); one from before those passes through. Emergency only: git push --no-verify.
 set -uo pipefail
 zero=0000000000000000000000000000000000000000
 cache="${HOME}/Library/Caches/bp-ci"
@@ -87,6 +90,13 @@ status=0
 while read -r local_ref local_sha remote_ref remote_sha; do
     [ "$remote_ref" = "refs/heads/main" ] || continue
     [ "$local_sha" = "$zero" ] && continue
+    grep -qx "$local_sha" "$cache/passed" 2>/dev/null && continue
+    if git cat-file -e "$local_sha:scripts/push_main.py" 2>/dev/null; then
+        echo "pre-push: pushes to main wait in one line, so ${local_sha:0:7} was not pushed. From its worktree, run:" >&2
+        echo "    python3 scripts/push_main.py" >&2
+        status=1
+        continue
+    fi
     git cat-file -e "$local_sha:scripts/ci_checks.sh" 2>/dev/null || continue
     tree=$(mktemp -d /tmp/bp-push-check.XXXXXX)
     git archive "$local_sha" | tar -x -C "$tree"
