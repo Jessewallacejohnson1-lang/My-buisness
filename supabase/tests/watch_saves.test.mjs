@@ -422,14 +422,14 @@ test('the Watch key never reaches a post: read, change, approve, write, or an Ev
   const post = await row('post', 'approved', 'Anyone seen a gray cat?');
   const waiting = await row('post', 'pending', 'Waits for the check');
   const event = await row('event', 'approved', 'Garage Sale');
-  const posts = async () => (await db.query(`select id, status, title, draw from public.club_events
+  const posts = async () => (await db.query(`select id, status, title, importance from public.club_events
     where kind = 'post' order by id`)).rows;
   const before = await posts();
 
   assert.deepEqual(await asJob('read a post', 'select id from public.club_events where id = $1', [post]), []);
   assert.deepEqual(await asJob('read the whole table', `select id from public.club_events where kind = 'post'`), []);
   assert.deepEqual(await asJob('change a post', `update public.club_events set title = 'x' where id = $1 returning id`, [post]), []);
-  await asJob('change every row it can', 'update public.club_events set draw = 3');
+  await asJob('change every row it can', 'update public.club_events set importance = 4');
   assert.deepEqual(await asJob('approve a post', `update public.club_events set status = 'approved' where id = $1 returning id`,
     [waiting]), []);
   const refused = async (what, sql, params) => {

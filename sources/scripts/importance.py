@@ -20,7 +20,6 @@ left out waits for tomorrow. A level once saved is never written again here.
 import argparse
 import collections
 import json
-import re
 import shutil
 import sys
 from datetime import date, datetime, timedelta
@@ -38,7 +37,6 @@ SAVE = 100  # Events to a save: their ids are in its address
 LEVELS = (1, 2, 3, 4, 5)
 WEEKLY_MOST, CITY_LEAST = 3, 2
 READINGS = ("importance.jsonl", "importance-2.jsonl")  # the two helpers' answers, in the run's folder
-MEETING = re.compile(r"\b(council|board|commission|committee|authority|meeting|work session|hearing)\b", re.I)
 
 
 def series_key(r):
@@ -68,10 +66,11 @@ def pages(db, path):
 
 
 def weekly_series(db, today):
-    """The series with dates every week, from 4 weeks back to 4 weeks ahead (BP app town-feed 74)."""
+    """The series with dates every week, from 4 weeks back to the last date listed (BP app town-feed 74): a summer's market is
+    weekly in March too."""
     days = collections.defaultdict(list)
     for r in pages(db, "club_events?select=title,club_id,source_name,submitted_by,event_date&status=eq.approved&kind=eq.event"
-                       f"&event_date=gte.{today - timedelta(days=28)}&event_date=lte.{today + timedelta(days=28)}&order=id"):
+                       f"&event_date=gte.{today - timedelta(days=28)}&order=id"):
         if r.get("event_date"):
             days[series_key(r)].append(date.fromisoformat(r["event_date"][:10]))
     return {k for k, d in days.items() if is_weekly(d)}
@@ -139,23 +138,34 @@ def answers_in(text):
     return out
 
 
-def held(level, event, interests=()):
+def held(level, event, meeting=True):
     """A level within what always holds: weekly at most WEEKLY_MOST, a City's at least CITY_LEAST unless it's a meeting."""
     if event.get("weekly"):
         level = min(level, WEEKLY_MOST)
-    if event.get("city") and level < CITY_LEAST and "town_meetings" not in interests and not MEETING.search(event["title"]):
-        level = CITY_LEAST
-    return level
+    return max(level, CITY_LEAST) if event.get("city") and not meeting else level
 
 
-def decide(events, first, second, interests=None):
-    """{Event id: level}, each line's other dates too: the lower of the two helpers' levels, held. A line either helper left
-    out isn't there."""
+def is_meeting(row):
+    """A City's Event the tagger calls a meeting; None while it hasn't read it."""
+    if not row or not row.get("interests_tagged_at"):
+        return None
+    return "town_meetings" in (row.get("interests") or []) or "meeting" in (row.get("what") or "").lower()
+
+
+def decide(events, first, second, city=None):
+    """{Event id: level}, each line's other dates too: the lower of the two helpers' levels, held. `city`: the City's Events as
+    the tagger left them, by id; without it (before they are tagged) a City's 1 stands. A line either helper left out isn't
+    there, nor is a City's 1 the tagger hasn't read: both wait."""
     out = {}
     for e in events:
-        if e["id"] in first and e["id"] in second:
-            level = held(min(first[e["id"]], second[e["id"]]), e, (interests or {}).get(e["id"]) or ())
-            out.update({i: level for i in (e["id"], *e["same"])})
+        if e["id"] not in first or e["id"] not in second:
+            continue
+        level, meeting = min(first[e["id"]], second[e["id"]]), True
+        if city is not None and e.get("city") and level < CITY_LEAST:
+            meeting = is_meeting(city.get(e["id"]))
+            if meeting is None:
+                continue
+        out.update({i: held(level, e, meeting) for i in (e["id"], *e["same"])})
     return out
 
 
@@ -208,15 +218,15 @@ def kept_lines(run_, dry_run):
         return done.saved
     first, second = readings(run_.folder)
     cities = [e["id"] for e in events if e.get("city")]
-    rows = run_.db.rest("GET", f"club_events?select=id,interests&id=in.({','.join(cities)})") or [] if cities else []
-    by_id = decide(events, first, second, {r["id"]: r.get("interests") for r in rows})
+    rows = run_.db.rest("GET", f"club_events?select=id,interests,interests_tagged_at,what&id=in.({','.join(cities)})") or [] if cities else []
+    by_id = decide(events, first, second, {r["id"]: r for r in rows})
     if not dry_run:
         save(run_.db, by_id)
     n = collections.Counter(by_id.values())
     both, same = agreement(events, first, second)
     lines = [f"[importance] rated {len(by_id)} Events (5/4/3/2/1: {'/'.join(str(n[v]) for v in reversed(LEVELS))}); the helpers "
              f"agreed on {same} of {both} lines" + (f" ({same / both:.0%})" if both else "")
-             + f", {len(events) - both} wait for tomorrow" + (" (dry run: nothing written)" if dry_run else "")]
+             + f", {sum(e['id'] not in by_id for e in events)} wait for tomorrow" + (" (dry run: nothing written)" if dry_run else "")]
     lines += [f"- {e['title']}: {by_id[e['id']]}" for e in events if by_id.get(e["id"], 0) >= 4]
     done.save(lines)
     return lines
@@ -228,6 +238,8 @@ def selftest():
     checks = []
     ok = lambda good, why: checks.append((bool(good), why))
 
+    far = FakeDb(answers={"club_events?": [{"title": "Market", "source_name": "Farm", "event_date": f"2027-05-{n:02}"} for n in (1, 8, 15, 22)]})
+    ok(weekly_series(far, date(2026, 11, 17)) == {("market", "Farm")} and "event_date=lte" not in far.calls[0][1], "a summer's market is weekly in November")
     d = lambda *off: [date(2026, 11, 1) + timedelta(days=o) for o in off]
     ok(is_weekly(d(0, 7, 14, 21)) and is_weekly(d(0, 3, 7, 10, 14, 17, 21, 24)) and not is_weekly(d(0, 1, 7, 8))
        and not is_weekly(d(0, 28, 56)) and not is_weekly(d(0, 7, 14)), "weekly: 3 dates or more over 3 weeks, a week apart")
@@ -240,11 +252,13 @@ def selftest():
     ok(got == {"a": 4, "b": 5, "c": 2, "c2": 2, "w": 3},
        f"the lower level wins, a 5 needs both, weekly holds at 3, other dates too, one left out waits: {got}")
     ok(agreement(events, first, second) == (4, 1), "agreement is on the lines both rated")
-    city = [ev("Pilates Class", city=True), ev("Planning Commission", city=True), ev("Joint Powers", city=True), ev("Mass")]
-    ones = {e["id"]: 1 for e in city}
-    ok(decide(city, ones, ones, {"Joint Powers": ["town_meetings"]})
-       == {"Pilates Class": 2, "Planning Commission": 1, "Joint Powers": 1, "Mass": 1},
-       "a City's own class is never a 1; its meeting is, by its title or its interests; another host's 1 stays")
+    city = [ev("Pilates Class", city=True), ev("EDA", city=True), ev("Board Game Night", city=True), ev("Late", city=True), ev("Mass")]
+    ones, row = {e["id"]: 1 for e in city}, lambda *i, what="": {"interests": list(i), "interests_tagged_at": "x", "what": what}
+    tagged = {"Pilates Class": row("health"), "EDA": row("town_meetings"), "Board Game Night": row("games", what="Game night"),
+              "Late": {"interests": None, "interests_tagged_at": None}}
+    ok(decide(city, ones, ones, tagged) == {"Pilates Class": 2, "EDA": 1, "Board Game Night": 2, "Mass": 1},
+       "a City's own class is never a 1, its meeting is; one the tagger hasn't read waits; another host's 1 stays")
+    ok(decide(city, ones, ones) == {i: 1 for i in ones}, "before the tags are in, a City's 1 stands for the standouts")
     ok(answers_in('{"id": "a", "importance": 4}\nprose\n{"id": "b", "importance": 6}\n{"id": "c", "importance": true}\n'
                   '{"id": "d", "importance": "3"}\n{"id": "e"},\n{"id": "f", "importance": 1},') == {"a": 4, "f": 1},
        "only a whole level from 1 to 5 is an answer")
@@ -256,7 +270,7 @@ def selftest():
         db = FakeDb(answers={"club_events?select=id,title": [
             raffle[2], raffle[3], row("s", "Secret", "2026-11-18", clubs={"name": "Hush", "private": True}),
             row("p", "Pilates Class", "2026-11-19", source_name="City of St. Joseph")],
-            "club_events?select=title,club_id": raffle, "club_events?select=id,interests": [{"id": "p", "interests": ["health"]}]})
+            "club_events?select=title,club_id": raffle, "club_events?select=id,interests": [{"id": "p", "interests": ["health"], "interests_tagged_at": "x"}]})
         r = Run(Path(tmp), date(2026, 11, 17), db)
         prepare(r)
         laid = given(r.folder)
@@ -267,7 +281,7 @@ def selftest():
         ok(keep(r, dry_run=True)[0].startswith("[importance] rated 0 Events") and not db.writes("club_events"), "no answers, nothing rated")
         (r.folder / READINGS[0]).write_text('{"id": "r3", "importance": 4}\n{"id": "p", "importance": 1}\n')
         (r.folder / READINGS[1]).write_text('{"id": "r3", "importance": 4}\n{"id": "p", "importance": 1}\n')
-        ok(levels(r.folder) == {"r3": 3, "r4": 3, "p": 2}, "the standouts read the levels before they are saved")
+        ok(levels(r.folder) == {"r3": 3, "r4": 3, "p": 1}, "the standouts read the levels before they are saved")
         lines = keep(r)
         w = db.writes("club_events")
         ok([(c[1], c[2]) for c in w] == [("club_events?id=in.(p)&importance=is.null", {"importance": 2}),

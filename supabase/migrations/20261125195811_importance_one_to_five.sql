@@ -1291,7 +1291,7 @@ as $$
   -- up a little bit too. Each time"). Real happenings from today to 7 days ahead, not on top as live already. Big first:
   -- importance, a friend Going and the Going count, each a doubling; yours (an interest, or a kind you went Going to) two
   -- steps more (town-feed 76; Jesse, 2026-11-17: "doesn't necessarily have to be a big event. just meant for that
-  -- person"), so what you like comes before what's big; soonest a little; one that repeats (a weekly class, bingo night) counts half, as no big night out.
+  -- person"), so what you like comes before what's big, and a 5 the whole Town turns out for ties a 3 you like; soonest a little; one that repeats (a weekly class, bingo night) counts half, as no big night out.
   -- Going, seen, Not interested and a meeting sink it as they sink the rest.
   top_pool as (
     select t.id, x.mine,

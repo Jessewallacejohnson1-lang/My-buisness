@@ -113,6 +113,16 @@ test('yours counts two steps and comes first, at most 4 of the 5, the fifth the 
   const weight = Object.fromEntries(rows.map((r) => [r.title, r.weight]));
   near(weight['Poetry 1'], 4 * weight['Concert 1'], 'yours weighs two steps more');
   near(weight['Poetry 1'], 2 * weight['Brewery night'], 'yours comes before big');
+  // feed-learns 04: a 5 the whole Town turns out for ties a 3 you like; a 2 you like ties a 4.
+  await add('Parade', '2026-10-10', { importance: 5 });
+  await add('Poetry club', '2026-10-10', { importance: 2, tags: ['books'] });
+  await signIn(['books']);
+  const now = Object.fromEntries((await rolled(1)).map((r) => [r.title, r.weight]));
+  near(now.Parade, now['Poetry 1'], 'a 5 ties a 3 you like');
+  near(now['Poetry club'], now['Brewery night'], 'a 2 you like ties a 4');
+  await db.exec('reset role');
+  await db.query(`delete from public.club_events where title in ('Parade', 'Poetry club')`);
+  await signIn(['books']);
   for (const seed of seeds(30)) {
     const top = topOf(await rolled(seed));
     assert.equal(top.length, 5, `five, though the best 8 are all yours: ${top}`);

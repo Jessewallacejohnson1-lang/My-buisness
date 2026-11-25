@@ -3106,8 +3106,8 @@ def whole_morning():
                     else {"id": e["id"], "about": "", "check": "Starts at 7:30, not 7."}
                     for e in given("describe")]
             # Both helpers rate each Event; they differ on one market, and the lower level counts (feed-learns 04).
-            (out / "importance").mkdir()
-            (out / "importance" / "events.json").write_text(json.dumps([{"id": e["id"], "title": e["title"], "same": []} for e in given("tag")]))
+            with contextlib.redirect_stdout(io.StringIO()):
+                importance.prepare(Run(out, date(2026, 11, 3), Db()))
             rated = [[{"id": e["id"], "importance": 4 if is_supper(e) else n if e["title"] == "Holiday Market" else 3}
                       for e in given("tag")] for n in (4, 3)]
             for name, lines in (("tags.jsonl", tags), ("describe.jsonl", told), *zip(importance.READINGS, rated)):
