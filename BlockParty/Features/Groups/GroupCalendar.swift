@@ -467,7 +467,7 @@ struct GroupMeetsSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     if saving {
-                        ProgressView().accessibilityLabel("Checking")
+                        ProgressView().accessibilityLabel("Saving")
                     } else {
                         Button("Save") { Task { await save() } }
                             .disabled(!draft.ready)
