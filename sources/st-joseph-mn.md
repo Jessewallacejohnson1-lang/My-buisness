@@ -96,7 +96,7 @@ tier: watched
 category: brewery
 added_by: agent:claude
 sources:
-  - url: http://www.badhabitbeer.com/events
+  - url: https://www.badhabitbeer.com/events
     kind: website
     method: fetch
     trust: official
@@ -105,9 +105,7 @@ venue_at:
   "bad habit": [45.56557, -94.31863]
 ```
 Notes: Taproom on E Minnesota St with a real events calendar page — trivia, live music,
-rentals. **Quirk: the URL is `http`, not `https`, and that is deliberate.** The https
-version refuses the connection outright; only http answers. Do not "fix" it to https
-without re-testing, and re-check occasionally in case they add a certificate.
+rentals. `https` since 2026-11-24: the site refused it when first listed, and has a valid certificate now.
 
 ## Milk & Honey Ciders
 ```yaml

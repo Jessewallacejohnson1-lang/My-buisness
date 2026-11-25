@@ -937,10 +937,9 @@ struct OnboardingWelcome: View {
     let start: () -> Void
     let logIn: () -> Void
 
-    /// Nextdoor's spacing, measured on its screen (BP app `references/welcome-dogs/SPEC.md`, onboarding 54):
-    /// the wordmark's letters end 30 pt over the headline's caps, as Nextdoor's house does, and the
-    /// headline is its size, 32 on a 37 pt line.
-    static let markTop: CGFloat = 98
+    /// The headline is Nextdoor's size, 32 on a 37 pt line (BP app `references/welcome-dogs/SPEC.md`,
+    /// onboarding 54); the wordmark's letters end 20 pt over its caps (Jesse, 2026-11-22: "20").
+    static let markTop: CGFloat = 109
     static let headlineTop: CGFloat = 150
     static let headlineSize: CGFloat = 32
     static let headlineLine: CGFloat = 37
@@ -981,7 +980,7 @@ struct OnboardingWelcome: View {
         .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
     }
 
-    /// The white wordmark at 98 pt and the headline at 150 pt, 24 pt from the left.
+    /// The white wordmark over the headline, 24 pt from the left.
     private var header: some View {
         let mark = 180 / BlockPartyWordmark.aspect
         let up = shown && launch.headerUp

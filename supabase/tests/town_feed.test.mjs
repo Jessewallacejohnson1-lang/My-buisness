@@ -3447,13 +3447,15 @@ test('later Events: past their show-from day, soonest first, 20 at a time, under
   await db.exec('reset role');
 });
 
-test('places to try: those Search opens, no services, what you follow first, then the most followed', async () => {
+test('places to try: those Search opens, any kind, what you follow first, then the most followed', async () => {
   await reset();
   await noPlaces();
   const cafe = await place('Cafe');
   const bakery = await place('Bakery', 'bakery');
   const shop = await place('Shop', 'clothing_store');
   await place('Bank', 'bank');
+  const gone = await place('Gone', 'bar');
+  await db.query(`update public.places set closed_at = now() where id = $1`, [gone]);
   await place('No logo', 'bar', false);
   await place('Muted bar', 'bar');
   await place('Quiet deli', 'sandwich_shop');
@@ -3467,14 +3469,15 @@ test('places to try: those Search opens, no services, what you follow first, the
   await db.query(`insert into public.town_follows (follower_id, target_type, target_id) values ($1, 'place', $2)`, [ME, shop]);
   await db.query(`insert into public.feed_mutes (user_id, host, name) values ($1, 'Muted bar', 'Muted bar')`, [ME]);
   await db.exec('set role authenticated');
-  assert.deepEqual(await more(0), ['place:Shop', 'place:Cafe', 'place:Bakery', 'place:Quiet deli'],
-                   'round 0 has no repeats');
+  const mine = await more(0);
+  assert.deepEqual(mine.slice(0, 3), ['place:Shop', 'place:Cafe', 'place:Bakery'], 'round 0 has no repeats');
+  assert.deepEqual(mine.slice(3).sort(), ['place:Bank', 'place:Quiet deli'], 'any kind of place, never a closed one');
   await db.exec('reset role; reset request.jwt.claim.sub; set role anon');
   const out = await more(0);
   assert.deepEqual(out.slice(0, 3), ['place:Cafe', 'place:Bakery', 'place:Shop'],
                    'signed out: the most followed first, your own follow counted as any neighbour\'s');
-  assert.deepEqual(out.slice(3).sort(), ['place:Muted bar', 'place:Quiet deli'],
-                   'nothing muted; never a service or a place Search can\'t open');
+  assert.deepEqual(out.slice(3).sort(), ['place:Bank', 'place:Muted bar', 'place:Quiet deli'],
+                   'nothing muted; never a place Search can\'t open');
   await db.exec('reset role');
   await noPlaces();
 });
