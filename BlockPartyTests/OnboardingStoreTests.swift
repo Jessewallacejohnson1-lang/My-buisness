@@ -449,8 +449,8 @@ final class OnboardingStoreTests: XCTestCase {
     }
 
     func testTheFirstTwelveHoldTheMixAndFiveFood() {
-        var places = (1...9).map { line("Food \($0)", spot: $0, fit: $0, group: "food") }
-        places += (10...20).map { line("Other \($0)", spot: $0, fit: $0) }
+        var places = (1...9).map { (n: Int) in line("Food \(n)", spot: n, fit: n, group: "food") }
+        places += (10...20).map { (n: Int) in line("Other \(n)", spot: n, fit: n) }
         places += [line("Late", spot: 21, fit: 21, group: "learn", late: true), line("Shelf", spot: 22, fit: 22, group: "help"),
                    line("Park", spot: 23, fit: 23, group: "outdoors"), line("Shop", spot: 24, fit: 24, group: "shop"),
                    line("Library", spot: 25, fit: 25, group: "learn")]
@@ -470,7 +470,7 @@ final class OnboardingStoreTests: XCTestCase {
 
     func testUnder18NoBarIsInTheFirstTwentyFour() {
         let places = [line("Grill", "bar_and_grill", spot: 1, fit: 1), line("Brewery", "brewery", spot: 2, fit: 2), line("Bar", "bar", spot: 4, fit: 3)]
-            + (5...34).map { line("P\($0)", spot: $0, fit: $0) }
+            + (5...34).map { (n: Int) in line("P\(n)", spot: n, fit: n) }
         XCTAssertEqual(order(places).prefix(3), ["Grill", "Brewery", "Bar"])
         let teen = order(places, picked: ["bars"], under18: true)
         XCTAssertEqual(teen.first, "Grill", "a bar and grill stays")
