@@ -27,6 +27,9 @@ Read these first:
 2. **Event or News.** An Event is something a neighbour can go to, at a time and a place;
    anything else worth knowing is News.
 3. **Write the item** (the contract is in `write_judged.py`'s docstring):
+   - `page`: the flag's page id, copied. On a social check the item links to that page's post whatever `source_url` you
+     write, and save stops on an item with no word of its own on it: the Black Friday News of Nov 23 was typed beside
+     another post's link, and showed that post's words (BP app watch-every-place 52).
    - `kind`, `title`, `place` (the skill's rules), `town` ("St. Joseph" or the town it is in).
    - `start` and `end`: ISO 8601 with Chicago's offset, `-05:00` through Nov 1, 2026 and
      `-06:00` from Nov 1, 2026 to Mar 14, 2027; a date alone with `all_day: true` when the page

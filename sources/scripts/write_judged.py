@@ -410,7 +410,9 @@ def one_facebook_event(g, row, facts):
     whatever the titles (Jesse, 2026-11-05). The judge words a title anew on each read, and two names that don't fit
     inside each other showed as two Events: Stone Road's "Stone Road Live" and "Stone Road at The La Playette".
     A host under two spellings is one host (Jeanne B's Tours, and Tours & Shoppe). Times must agree because one
-    event page can list a matinee and an evening show. Another host's listing of it stays a question for the review."""
+    event page can list a matinee and an evening show, and plan asks only when the read gives the number one start:
+    the WinterWalk's page is a festival's acts, and Groovy Shoes (6 PM) took the harp ensemble's 5:30 (BP app
+    watch-every-place 52). Another host's listing of it stays a question for the review."""
     number = facebook_event(row["source_url"])
     return bool(number) and g["facts"]["day"] == facts["day"] and within_hour(g["facts"], facts) and any(
         facebook_event(m.get("source_url")) == number
@@ -1408,6 +1410,17 @@ def repeat_key(n):
     return f"{n['source_name']}\n{n['title'].lower()}"
 
 
+def page_key(n):
+    """A News by its host and the post the judge read it on (`page`, judge.md), or None: the same whatever the title. On Nov 23 the
+    judge shortened three titles after their questions were laid out, and their answers were lost (BP app watch-every-place 52)."""
+    return n.get("page") and f"{n['source_name'].strip()}\npage:{n['page']}"
+
+
+def answer_key(n, asked):
+    """The key of a News's answer in `asked`: its title's, else its page's, kept only for a page with one News (repeat_answers)."""
+    return next((k for k in (repeat_key(n), page_key(n)) if k in asked), None)
+
+
 # A new Event the word rules leave on its own, beside another that day it may be (BP app watch-every-place 42): a model
 # says (sources/models/repeat.md, "Events"). No rule can: of 41 such pairs live on 2026-11-22 only 3 were one event, and
 # one host's two at one start were the Church of Saint Joseph's Mass and its Children's Liturgy. EVENT_ASK_MOST a question.
@@ -1568,9 +1581,9 @@ def plan(items, existing, today, interests, town=TOWNS[DEFAULT], titles=None, te
                 continue
             # The word rules leave it: a model reads it beside what its place has (smooth-mornings 16).
             # An Event from its place on its days telling the same thing (event_told) goes first in the question.
-            mine = {**n, "title": read}
-            if repeat_key(mine) in asked:
-                if same := asked[repeat_key(mine)]:
+            mine = {**n, "title": read, "page": it.get("page")}
+            if (key := answer_key(mine, asked)) is not None:
+                if same := asked[key]:
                     out["outcomes"][i] = ("repeat", f"{read!r}, the same story as {same['title']!r} (the model says)")
                     continue
             else:
@@ -1584,7 +1597,8 @@ def plan(items, existing, today, interests, town=TOWNS[DEFAULT], titles=None, te
             out["outcomes"][i] = ("news", "")
         else:
             number = facebook_event(ev["row"]["source_url"])
-            if number and not it.get("source_uid") and len(starts.get((ev["row"]["source_name"], number), ())) == 1:
+            one_start = number and len(starts.get((ev["row"]["source_name"], number), ())) == 1
+            if one_start and not it.get("source_uid"):
                 ev["row"]["source_uid"] = f"fb:{number}"
             key = (ev["row"]["source_name"], ev["row"]["source_uid"])
             # A shown, timed listing first: a no-time mention joins it, not a hidden copy.
@@ -1592,7 +1606,7 @@ def plan(items, existing, today, interests, town=TOWNS[DEFAULT], titles=None, te
             # weeks ago, outside the listed days, and a day's old copy must not take it (town-feed 62).
             run = key[1].startswith("run:")
             g = by_uid.get(key) or (None if run else min((g for g in groups if (joins(g, ev["facts"])
-                                                              or one_facebook_event(g, ev["row"], ev["facts"])
+                                                              or one_start and one_facebook_event(g, ev["row"], ev["facts"])
                                                               or same_show(g["facts"], ev["facts"]))
                                         and not own_ids_differ(g, *key, ev["facts"])),
                                        key=lambda g: ((g["old"] or {}).get("status") == "rejected",
@@ -2214,6 +2228,14 @@ def t_a_repeat_is_asked_about():
     r = plan(items, [], today, INTERESTS, recent_news=[soon], history=history, asked=asked)
     assert [outcome(r, i) for i in range(4)] == ["repeat", "repeat", "repeat", "news"] and not r["ask"], r["outcomes"]
     assert "the same story as 'Closing for the Season Soon' (the model says)" in r["outcomes"][1][1], r["outcomes"][1]
+    # Titles shortened in judged.jsonl after the questions were laid out keep their answers by the post (watch-every-place 52).
+    paged = [dict(it, page=f"instagram-{i}") for i, it in enumerate(items)]
+    asks = plan(paged, [], today, INTERESTS, recent_news=[soon], history=history)["ask"]
+    asked = {page_key(n): got.get(i) for i, (n, _) in enumerate(asks, 1)}
+    r = plan([dict(it, title=it["title"].split(",")[0] + "!") for it in paged], [], today, INTERESTS, recent_news=[soon],
+             history=history, asked=asked)
+    assert [outcome(r, i) for i in range(4)] == ["repeat", "repeat", "repeat", "news"] and not r["ask"], r["outcomes"]
+    assert page_key({"source_name": "Sal's"}) is None and not any("page" in n for n in r["news"]), "page is never written"
     assert not plan(items, [], today, INTERESTS)["ask"], "no history, nothing asked"
 
 
@@ -3249,6 +3271,14 @@ def t_one_facebook_event_is_one():
     r = run([item(title="The Curious Incident, matinee", **dict(show, start="2026-11-07T14:00:00-06:00")),
              item(title="The Curious Incident, evening", **dict(show, start="2026-11-07T19:00:00-06:00"))])
     assert len(r["events"]) == 2, r["events"]
+    # a festival's page with acts an hour apart (watch-every-place 52: Groovy Shoes took the harp ensemble's listing),
+    acts = [dict(show, start="2026-11-07T17:30:00-06:00", place="Heritage Hall"), dict(show, start="2026-11-07T18:00:00-06:00", place="Tap Room")]
+    r = run([item(title="Harp Ensemble", **acts[0]), item(title="Groovy Shoes", **acts[1])])
+    assert len(r["events"]) == 2, r["outcomes"]
+    harp = listed(title="Harp Ensemble", event_date="2026-11-07", start_time="5:30 PM", location="Heritage Hall", source_name="Stone Road",
+                  source_uid="page:2026-11-07T1730:ensemble-harp", mentions=[dict(seen, source_uid="page:2026-11-07T1730:ensemble-harp")])
+    r = run([item(title="Harp Ensemble", **acts[0]), item(title="Groovy Shoes", **acts[1])], [harp])
+    assert outcome(r, 0) == "merged" and outcome(r, 1) == "published", r["outcomes"]
     # its other days,
     r = run([item(title="Stone Road Encore", **dict(show, start="2026-11-08T20:30:00-06:00"))], [old])
     assert r["events"][0]["id"] is None, r["events"]

@@ -447,6 +447,69 @@ test('the Watch key never reaches a post: read, change, approve, write, or an Ev
     lat = 45.56, lng = -94.32, interests_tagged_at = now() where id = $1 returning draw`, [event]), [{ draw: 2 }]);
 });
 
+// BP app watch-every-place 52: after an Apify check, what both judges said of an item (sources/scripts/feed_judge.py keep).
+test('the feed judge: a fix is no move, what a neighbour is Going to is never taken out, and each verdict is kept', async () => {
+  const row = async (title, more = {}) => (await db.query(`insert into public.club_events (status, kind, title, event_date, start_time,
+    end_at, all_day, location, source_name, source_uid, sport, submitted_by) values ('approved', 'event', $1, $2, $3, null, $4,
+    'Rock Ridge Intermediate', 'RIS', $1, $5, $6) returning id`, [title, day(9), more.allDay ? null : '6 PM', !!more.allDay, more.sport ?? null,
+    more.by ?? null])).rows[0].id;
+  const judge = async (r) => (await asJob('feed judge: a verdict saved', 'select public.feed_judge($1) as said',
+    [JSON.stringify({ title: 'x', read_as: 'abc', why: 'the post', ...r })]))[0].said;
+  const read = async (id) => (await db.query(`select title, status, review_reason, start_time, all_day, event_date::text as day, location,
+    lat, moved_at is not null as moved, place_entry_id from public.club_events where id = $1`, [id])).rows[0];
+  const band = await row('Band');
+  await db.query('update public.club_events set lat = 45.5, lng = -94.2 where id = $1', [band]);
+  assert.equal(await judge({ event_id: band, outcome: 'fixed', fix: { location: 'Riverview Intermediate School, Sartell',
+    place_entry_id: null, start_time: '5 PM', end_at: `${day(9)}T19:00:00-06:00` } }), 'fixed');
+  assert.deepEqual(await read(band), { title: 'Band', status: 'approved', review_reason: null, start_time: '5 PM', all_day: false,
+    day: day(9), location: 'Riverview Intermediate School, Sartell', lat: null, moved: false, place_entry_id: null });
+  // Someone is Going: they hear the right day, as with any move.
+  const going = await row('Concert');
+  const fan = '33333333-3333-3333-3333-333333333333';
+  await db.query('insert into auth.users (id) values ($1) on conflict do nothing', [fan]);
+  await db.query('insert into public.event_rsvps (event_id, user_id) values ($1, $2)', [going, fan]);
+  assert.equal(await judge({ event_id: going, outcome: 'fixed', fix: { event_date: day(10) } }), 'fixed');
+  assert.equal((await read(going)).moved, true, 'a right day for someone Going');
+  assert.equal(await judge({ event_id: going, outcome: 'taken out', reason: 'other' }), 'left', 'someone is Going');
+  assert.equal(await judge({ event_id: going, outcome: 'fixed', fix: { moved_at: null } }), 'fixed');
+  assert.equal((await read(going)).moved, false, 'a moved mark comes off');
+  const dress = await row('Dress Up', { allDay: true });
+  assert.equal(await judge({ event_id: dress, outcome: 'taken out', reason: 'not_event' }), 'taken out');
+  assert.deepEqual([(await read(dress)).status, (await read(dress)).review_reason], ['rejected', 'not_event']);
+  assert.equal(await judge({ event_id: dress, outcome: 'fixed', fix: { title: 'Back' } }), 'left', 'one taken out stays as it is');
+  const game = await row('Volleyball', { sport: 'Volleyball' });
+  const theirs = await row('Garage Sale Day', { by: fan });
+  for (const id of [game, theirs]) {
+    assert.equal(await judge({ event_id: id, outcome: 'fixed', fix: { title: 'Mine' } }), 'left', 'a game, a neighbour\'s own');
+    assert.equal(await judge({ event_id: id, outcome: 'taken out', reason: 'other' }), 'left');
+    assert.equal((await read(id)).status, 'approved');
+  }
+  const { rows: [{ id: story }] } = await db.query(`insert into public.board_items (title, blurb, category, source_name, source_url,
+    tier, status, published_at) values ('Weckstrom Goalie of Week', 'A save.', 'campus', 'SJU', 'https://www.instagram.com/p/w/', 1, 'published',
+    now()) returning id`);
+  assert.equal(await judge({ news_id: story, outcome: 'fixed', fix: { title: 'Weckstrom: Defensive Player', ends_on: day(3) } }), 'fixed');
+  assert.deepEqual((await db.query('select title, blurb, ends_on::text as ends from public.board_items where id = $1', [story])).rows[0],
+    { title: 'Weckstrom: Defensive Player', blurb: 'A save.', ends: day(3) });
+  assert.equal(await judge({ news_id: story, outcome: 'fine' }), 'fine');
+  assert.equal(await judge({ news_id: story, outcome: 'taken out' }), 'taken out');
+  assert.equal((await db.query('select status from public.board_items where id = $1', [story])).rows[0].status, 'archived');
+  assert.equal(await judge({ news_id: '44444444-4444-4444-4444-444444444444', outcome: 'fine' }), 'gone');
+  // Kept with what it was, to put it back by hand, and read by the next check and the morning report.
+  assert.deepEqual((await asJob('feed judge: what was said', `select title, outcome, why, read_as from public.feed_judgments
+    where news_id = $1 and judged_at > now() - interval '1 day' order by id`, [story])).map((r) => r.outcome), ['fixed', 'fine', 'taken out']);
+  assert.deepEqual((await db.query('select was from public.feed_judgments where event_id = $1', [dress])).rows[0].was, { status: 'approved' });
+  assert.equal((await db.query('select was from public.feed_judgments where event_id = $1', [band])).rows[0].was.location, 'Rock Ridge Intermediate');
+  for (const role of ['anon', 'authenticated']) {
+    await db.exec(`set role ${role}`);
+    await assert.rejects(db.query('select * from public.feed_judgments'), /permission denied/, role);
+    await assert.rejects(db.query(`select public.feed_judge('{}')`), /permission denied/, role);
+    await db.exec('reset role');
+  }
+  await db.exec('set role watch');
+  await assert.rejects(db.query(`insert into public.feed_judgments (event_id, title, read_as, outcome) values ($1, 'x', 'x', 'fine')`, [band]), /permission denied/);
+  await db.exec('reset role');
+});
+
 // Ticket 12's proof: a page that talks the job into trying any of these gets a refusal.
 test('the Watch key is refused: deleting an Event, the waitlist, sign-in accounts, stored files, comments', async () => {
   const refused = async (what, sql) => {
