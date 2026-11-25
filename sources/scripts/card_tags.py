@@ -38,7 +38,8 @@ AGENTS = ("card-tag.md", "new-tag.md")  # the two that agree on a new word, by t
 RULE = ("game rule", "Jesse, 2026-11-24")  # and on a game's words
 NEWS_KINDS = ("business", "announcement", "campus", "school", "road")  # as the Town feed shows (supabase/town_feed.sql)
 SHOW = 5  # cards a new word is shown on
-WORD = re.compile(r"[^\W_](?:[^\W_]|[ '&-]){0,28}[^\W_]")  # as private.tags takes
+LETTER = "A-Za-z0-9À-ÖØ-öø-ÿ"
+WORD = re.compile(rf"[{LETTER}][{LETTER} '&.-]{{0,28}}[{LETTER}]")  # as private.is_tag takes
 SAVE = 400  # cards to a save
 
 
@@ -48,26 +49,28 @@ def tidy(word):
     return w if WORD.fullmatch(w) else None
 
 
-LEVELS = {"jv": "junior varsity", "c-squad": "c-squad", "c2-squad": "c-squad", "b-squad": "b-squad", "ms": "middle school sports",
-          "7th grade": "middle school sports", "8th grade": "middle school sports"}
-WHO = {"girls": "girls", "women's": "women's", "boys": "boys", "men's": "men's"}
+LEVELS = {r"jv": "junior varsity", r"c2?[- ]squad": "c-squad", r"b[- ]squad": "b-squad", r"(?:ms|[678]th grade)": "middle school sports",
+          r"(?:9th grade|varsity|coed)": None}
+WHO = ("girls", "women's", "boys", "men's")
+# The sports a schedule plays between two teams. Any other is the tagger's, so no word joins the list unread.
+SPORTS = {"basketball", "hockey", "floor hockey", "adapted floor hockey", "swimming", "wrestling", "gymnastics", "football",
+          "flag football", "volleyball", "soccer", "adapted soccer", "baseball", "softball", "adapted softball", "tennis", "golf",
+          "lacrosse", "rugby", "curling", "cross country", "track and field", "Nordic skiing", "alpine skiing"}
 
 
 def sport_words(sport):
     """A game's words from its sport and level as the schedule writes them: "Girls Basketball · JV" is basketball, girls
     basketball, junior varsity."""
-    text = " ".join(str(sport or "").replace("·", " ").replace("’", "'").lower().split())
-    words = []
+    text, words = " ".join(str(sport or "").replace("·", " ").replace("’", "'").lower().split()), []
     for level, word in LEVELS.items():
-        if re.search(rf"(?<!\w){re.escape(level)}(?!\w)", text):
-            text = re.sub(rf"(?<!\w){re.escape(level)}(?!\w)", " ", text)
-            words.append(word)
-    who = next((w for w in WHO if re.search(rf"(?<!\w){w}(?!\w)", text)), None)
-    game = " ".join(t for t in text.split() if t not in (*WHO, "coed", "varsity"))
-    game = "swimming" if re.match(r"swim", game) else game
-    if not tidy(game):
-        return []
-    return list(dict.fromkeys([game, *([f"{who} {game}"] if who and tidy(f"{who} {game}") else []), *words]))
+        text, found = re.subn(rf"(?<!\S){level}(?!\S)", " ", text)
+        words += [word] if found and word else []
+    parts = [t.replace("girls'", "girls").replace("boys'", "boys") for t in text.split()]
+    who = next((w for w in WHO if w in parts), None)
+    game = " ".join(t for t in parts if t not in WHO)
+    game = {"swim": "swimming", "swim and dive": "swimming", "swimming and diving": "swimming", "nordic": "Nordic skiing",
+            "nordic skiing": "Nordic skiing", "track": "track and field"}.get(game, game)
+    return [game, *([f"{who} {game}"] if who and tidy(f"{who} {game}") else []), *words] if game in SPORTS else []
 
 
 def lay(work, now):
@@ -87,6 +90,11 @@ def lay(work, now):
                                 for n in work["news"] if n["category"] in NEWS_KINDS and write_judged.news_lasts_until(n) > now)], games
 
 
+def rule_words(games, live):
+    have = {w.lower() for w in live}
+    return [w for w in dict.fromkeys(w for g in games for w in g["words"]) if w.lower() not in have]
+
+
 def message(words, cards):
     line = lambda c: {**{k: v for k, v in c.items() if k not in ("kind", "same")}, **({"news": True} if c["kind"] == "news" else {})}
     return ("Tags: " + (", ".join(words) or "none yet") + "\n\nCards:\n"
@@ -103,24 +111,30 @@ def prepare(run, now=None):
     try:
         work = run.db.rest("POST", "rpc/tag_work", {})
     except DbError as e:  # the morning goes on without tags
-        return print(f"[tags] skipped: {' '.join(str(e).split())[:150]}")
+        (folder / "skipped.txt").write_text(why := f"[tags] skipped: {' '.join(str(e).split())[:150]}")
+        return print(why)
     cards, games = lay(work, now or datetime.now(write_judged.LOCAL))
-    (folder / "cards.json").write_text(json.dumps({"words": work["words"], "cards": cards, "games": games}, indent=1, ensure_ascii=False))
+    # The list both helpers see has the games' words too: they go on it with this morning's save.
+    live = work["words"]
+    words = sorted([*live, *rule_words(games, live)], key=str.lower)
+    (folder / "cards.json").write_text(json.dumps({"live": live, "words": words, "cards": cards, "games": games}, indent=1, ensure_ascii=False))
     for i in range(0, len(cards), BATCH):
-        (folder / f"batch-{i // BATCH + 1}.txt").write_text(message(work["words"], cards[i:i + BATCH]))
+        (folder / f"batch-{i // BATCH + 1}.txt").write_text(message(words, cards[i:i + BATCH]))
     print(f"[tags] {sum(1 + len(c['same']) for c in cards)} cards to tag in {len(cards)} lines, "
-          f"{len(list(folder.glob('batch-*.txt')))} batches ({folder}); {len(games)} games by rule; {len(work['words'])} words on the list")
+          f"{len(list(folder.glob('batch-*.txt')))} batches ({folder}); {len(games)} games by rule; {len(live)} words on the list")
 
 
 def given_in(lines, cards):
-    """{card id: its words} from the tagger's lines, for the cards laid out: each tidy word once, its last answer."""
+    """{card id: its words} from the tagger's lines, for the cards laid out: each tidy word once, its last answer. One
+    whose words are all unfit to be a tag is no answer."""
     ids, out = {c["id"] for c in cards}, {}
     for ln in lines:
-        if isinstance(ln, dict) and ln.get("id") in ids and isinstance(ln.get("tags"), list):
+        if isinstance(ln, dict) and isinstance(ln.get("id"), str) and ln["id"] in ids and isinstance(ln.get("tags"), list):
             words = {}
             for w in filter(None, map(tidy, ln["tags"])):
                 words.setdefault(w.lower(), w)
-            out[ln["id"]] = list(words.values())
+            if words or not ln["tags"]:
+                out[ln["id"]] = list(words.values())
     return out
 
 
@@ -156,15 +170,14 @@ def settle(new, lines, listed):
 
 
 def plan(given, listed, settled):
-    """({card id: its words}, card ids that wait): every new word on a card must have an answer."""
-    have, out, wait = {w.lower(): w for w in listed}, {}, []
+    """{card id: its words}. A card with a new word the second helper hasn't answered isn't there: it waits."""
+    have, out = {w.lower(): w for w in listed}, {}
     for card, words in given.items():
         if any(w.lower() not in have and w.lower() not in settled for w in words):
-            wait.append(card)
             continue
         got = [have.get(w.lower()) or settled.get(w.lower()) for w in words]
         out[card] = list(dict.fromkeys(w for w in got if w))
-    return out, wait
+    return out
 
 
 def lines_in(path):
@@ -202,18 +215,17 @@ def lay_words(run):
 def decided(laid, given, new, verdicts):
     """(the words to make, the cards to save, the lines of the report) from both helpers' answers."""
     settled, agreed = settle(new, verdicts, laid["words"])
-    words, wait = plan(given, laid["words"], settled)
+    words = plan(given, laid["words"], settled)
     cards = [{"kind": c["kind"], "id": i, "words": words[c["id"]]} for c in laid["cards"] if c["id"] in words
              for i in (c["id"], *c["same"])]
-    rule = list(dict.fromkeys(w for g in laid["games"] for w in g["words"]))
     make = ([{"word": w, "first_by": AGENTS[0], "second_by": AGENTS[1]} for w in agreed]
-            + [{"word": w, "first_by": RULE[0], "second_by": RULE[1]} for w in rule
-               if w.lower() not in {x.lower() for x in [*laid["words"], *agreed]}])
+            + [{"word": w, "first_by": RULE[0], "second_by": RULE[1]} for w in rule_words(laid["games"], laid["live"])])
     count = lambda kind, rows: sum(r["kind"] == kind for r in rows)
     of = lambda kind: sum(1 + len(c["same"]) for c in laid["cards"] if c["kind"] == kind)
     have = [c for c in cards if c["words"]]
     lines = [f"[tags] tagged {count('event', have)} of {of('event')} Events, {count('news', have)} of {of('news')} News, "
-             f"{len(laid['games'])} games by rule; {len(cards) - len(have)} fit no tag, {len(wait)} wait for tomorrow"]
+             f"{len(laid['games'])} games by rule; {len(cards) - len(have)} fit no tag, "
+             f"{sum(1 + len(c['same']) for c in laid['cards']) - len(cards)} wait for tomorrow"]
     if new:
         lines.append(f"[tags] new words: the second helper agreed to {len(agreed)} of {len(settled)} "
                      f"({len(agreed) / max(1, len(settled)):.0%}), {len(new) - len(settled)} not answered")
@@ -224,9 +236,17 @@ def decided(laid, given, new, verdicts):
 
 
 def keep(run, dry_run=False):
-    got = worked(run)
+    """Saves the agreed words and the cards; its report lines. Anything that breaks is one line."""
+    try:
+        return kept_lines(run, dry_run)
+    except Exception as e:
+        return [f"[tags] failed: {' '.join(str(e).split())[:200]}"]
+
+
+def kept_lines(run, dry_run):
+    got, skipped = worked(run), run.folder / "card-tags" / "skipped.txt"
     if not got:
-        return []
+        return [skipped.read_text()] if skipped.exists() else []
     done = run.part(f"card-tags/kept{'-dry-run' if dry_run else ''}.json")
     if done.saved is not None:
         return done.saved
@@ -234,12 +254,12 @@ def keep(run, dry_run=False):
     if dry_run:
         lines[0] += " (dry run: nothing written)"
     else:
-        # The words go with the first cards; a save that breaks leaves the rest for finish run again.
-        listed = None
+        # The words go with the first cards. A save that breaks leaves its cards for tomorrow.
+        saved, listed = 0, 0
         for i in range(0, max(len(cards), 1 if make else 0), SAVE):
-            saved = run.db.rest("POST", "rpc/save_card_tags", {"p_words": make if i == 0 else [], "p_cards": cards[i:i + SAVE]})
-            listed = saved.get("list") if isinstance(saved, dict) else None
-        lines[0] += f"; {listed} words on the list" if listed is not None else ""
+            r = run.db.rest("POST", "rpc/save_card_tags", {"p_words": make if i == 0 else [], "p_cards": cards[i:i + SAVE]})
+            saved, listed = saved + r["events"] + r["news"], r["list"]
+        lines[0] += f"; {saved} of {len(cards)} saved" + (f", {listed} words on the list" if cards or make else "")
     done.save(lines)
     return lines
 
@@ -251,12 +271,15 @@ def selftest():
     checks = []
     ok = lambda good, why: checks.append((bool(good), why))
 
-    ok([tidy(w) for w in ("  poetry ", "Saint John’s", "#jazz", "x", "a" * 31, "jazz; drop", "hip-hop", "R&B", None, "café")]
-       == ["poetry", "Saint John's", "jazz", None, None, None, "hip-hop", "R&B", None, "café"], "a word is tidied, or it isn't one")
+    ok([tidy(w) for w in ("  poetry ", "Saint John’s", "#jazz", "x", "a" * 31, "jazz; drop", "hip-hop", "R&B", None, "café", "St. Patrick's Day", "½ price")]
+       == ["poetry", "Saint John's", "jazz", None, None, None, "hip-hop", "R&B", None, "café", "St. Patrick's Day", None], "a word is tidied, or it isn't one")
     said = {s: sport_words(s) for s in ("Girls Basketball · JV", "Boys Hockey", "Wrestling · Boys MS", "Swimming and Diving", "Boys Swim",
                                         "MS Coed Wrestling", "Boys Basketball · C2-squad", "Adapted Floor Hockey", "Men's Hockey",
-                                        "Girls Basketball · 7th Grade", "Football", "", None)}
+                                        "Girls Basketball · 7th Grade", "Football", "", None, "Boys' Basketball",
+                                        "B Squad Football · 9th Grade", "Buy Crypto Now", "#4 Football")}
     ok(said == {"Girls Basketball · JV": ["basketball", "girls basketball", "junior varsity"], "Boys Hockey": ["hockey", "boys hockey"],
+                "Boys' Basketball": ["basketball", "boys basketball"], "B Squad Football · 9th Grade": ["football", "b-squad"],
+                "Buy Crypto Now": [], "#4 Football": [],
                 "Wrestling · Boys MS": ["wrestling", "boys wrestling", "middle school sports"], "Swimming and Diving": ["swimming"],
                 "Boys Swim": ["swimming", "boys swimming"], "MS Coed Wrestling": ["wrestling", "middle school sports"],
                 "Boys Basketball · C2-squad": ["basketball", "boys basketball", "c-squad"],
@@ -268,7 +291,7 @@ def selftest():
              {"id": "b", "title": "Polka Mass", "host": "Church", "about": "", "same": [], "kind": "event"},
              {"id": "n", "title": "Soup", "host": "Cafe", "about": "", "same": [], "kind": "news"}]
     given = given_in([{"id": "a", "tags": ["Poetry", "poems", "poetry", 7, "##"]}, {"id": "b", "tags": ["polka", "Mass"]},
-                      {"id": "zz", "tags": ["polka"]}, {"id": "n"}, "x"], cards)
+                      {"id": "zz", "tags": ["polka"]}, {"id": "n"}, "x", {"id": ["a"], "tags": ["x1"]}, {"id": "n", "tags": ["a/b"]}], cards)
     ok(given == {"a": ["Poetry", "poems"], "b": ["polka", "Mass"]}, f"only cards laid out, each tidy word once: {given}")
     new = new_in(given, ["poetry"])
     ok({k: v[1] for k, v in new.items()} == {"poems": ["a"], "polka": ["b"], "mass": ["b"]}, f"a word on the list, in any spelling, isn't new: {new}")
@@ -279,9 +302,9 @@ def selftest():
                                    {"word": "mass", "ok": False, "use": "worship"}, {"word": "made up", "ok": True}, {"word": "polka"}], ["poetry"])
     ok(settled == {"poems": "poetry", "polka": "polka", "mass": None} and agreed == ["polka"],
        f"a new word needs the second helper's yes; a near-copy becomes the word it copies; one off the list is no answer: {settled}")
-    ok(plan(given, ["poetry"], settled) == ({"a": ["poetry"], "b": ["polka"]}, []), "a word turned down leaves the card its other tags, as the list spells them")
-    ok(plan(given, ["poetry"], {"poems": "poetry"}) == ({"a": ["poetry"]}, ["b"]), "a card whose new word has no answer waits for tomorrow")
-    ok(plan({"b": ["mass"]}, [], {"mass": None}) == ({"b": []}, []), "a card left with no word is done")
+    ok(plan(given, ["poetry"], settled) == {"a": ["poetry"], "b": ["polka"]}, "a word turned down leaves the card its other tags, as the list spells them")
+    ok(plan(given, ["poetry"], {"poems": "poetry"}) == {"a": ["poetry"]}, "a card whose new word has no answer waits for tomorrow")
+    ok(plan({"b": ["mass"]}, [], {"mass": None}) == {"b": []}, "a card left with no word is done")
 
     now = datetime.now(write_judged.LOCAL)
     stamp = lambda days: (now - timedelta(days=days)).isoformat()
@@ -293,13 +316,13 @@ def selftest():
                                             event("g", "ROCORI vs Sartell", sport="Boys Hockey · JV")],
             "news": [story("n1"), story("gone", created_at=stamp(9), published_at=stamp(9)), story("job", category="jobs")]}
     with tempfile.TemporaryDirectory() as tmp:
-        db = FakeDb(answers={"rpc/tag_work": work, "rpc/save_card_tags": {"words": 1, "events": 3, "news": 1, "list": 5}})
+        db = FakeDb(answers={"rpc/tag_work": work, "rpc/save_card_tags": {"words": 1, "events": 4, "news": 1, "list": 5}})
         run = Run(Path(tmp), date(2026, 11, 24), db)
         (run.folder / "card-tags.jsonl").write_text("yesterday's")
         prepare(run, now)
         batch = (run.folder / "card-tags" / "batch-1.txt").read_text()
         asked = [json.loads(x) for x in batch.splitlines() if x.startswith("{")]
-        ok(batch.startswith("Tags: poetry\n\nCards:\n") and [(x["id"], x.get("news")) for x in asked]
+        ok(batch.startswith("Tags: boys hockey, hockey, junior varsity, poetry\n\nCards:\n") and [(x["id"], x.get("news")) for x in asked]
            == [("new", None), ("t1", None), ("t3", None), ("n1", True)] and "kind" not in asked[0]
            and not (run.folder / "card-tags.jsonl").exists(),
            f"each thing is asked about once, a game never, News only while it shows, on the list: {batch}")
@@ -319,20 +342,24 @@ def selftest():
         ok({w["word"]: (w["first_by"], w["second_by"]) for w in sent["p_words"]}
            == {"author talk": AGENTS, "trivia": AGENTS, "hockey": RULE, "boys hockey": RULE, "junior varsity": RULE},
            f"a new word names the two that agreed: {sent['p_words']}")
-        ok(lines == ["[tags] tagged 3 of 4 Events, 0 of 1 News, 1 games by rule; 1 fit no tag, 0 wait for tomorrow; 5 words on the list",
+        ok(lines == ["[tags] tagged 3 of 4 Events, 0 of 1 News, 1 games by rule; 1 fit no tag, 1 wait for tomorrow; 5 of 5 saved, 5 words on the list",
                      "[tags] new words: the second helper agreed to 2 of 3 (67%), 0 not answered",
                      "- New tag: author talk, trivia", "- Turned down: soup"], f"the report counts cards, words and the agreement: {lines}")
         ok(keep(run) == lines and len(db.writes("rpc/save_card_tags")) == 1, "a finish run again neither writes nor reports twice")
         (run.folder / "new-tags.jsonl").unlink()
         (run.folder / "card-tags" / "kept.json").unlink()
-        ok("3 wait for tomorrow" in keep(run)[0] and [c["id"] for c in db.writes("rpc/save_card_tags")[1][2]["p_cards"]] == ["g"],
+        ok("5 wait for tomorrow" in keep(run)[0] and [c["id"] for c in db.writes("rpc/save_card_tags")[1][2]["p_cards"]] == ["g"],
            "with no second helper, no new word goes live and its cards wait")
 
         def refuse(*_):
             raise DbError("POST", "rpc/tag_work", 404, "no function")
         down = Run(Path(tmp), date(2026, 11, 24), FakeDb(answers={"rpc/tag_work": refuse}))
         prepare(down)
-        ok(keep(down) == [] and not list((down.folder / "card-tags").iterdir()), "with no answer from the database the morning goes on without tags")
+        ok(keep(down) == ["[tags] skipped: Supabase POST rpc/tag_work failed 404: no function"],
+           "with no answer from the database the morning goes on without tags, and the report says so")
+        prepare(run, now)
+        (run.folder / "card-tags" / "cards.json").write_text("{cut o")
+        ok(keep(run)[0].startswith("[tags] failed: "), "anything that breaks is one line, so the report still comes")
     failed = [why for good, why in checks if not good]
     for why in failed:
         print(f"FAIL {why}")

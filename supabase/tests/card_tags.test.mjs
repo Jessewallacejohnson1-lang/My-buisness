@@ -40,6 +40,20 @@ test('the work is the upcoming Events and the last month of News, never a post',
   assert.deepEqual(w.news.map((n) => n.id), [story]);
 });
 
+test("a Group the Town can't see, and an Event for friends alone, are not the job's", async () => {
+  const [hidden, open, secret, shown, friends] = [uuid(41), uuid(42), uuid(51), uuid(52), uuid(53)];
+  await db.exec(`
+    insert into public.clubs (id, name, kind, status, private) values
+      ('${hidden}', 'Secret', 'club', 'approved', true), ('${open}', 'Open', 'club', 'approved', false);
+    insert into public.club_events (id, title, status, kind, event_date, club_id) values
+      ('${secret}', 'Secret night', 'approved', 'event', '${townDay(4)}', '${hidden}'),
+      ('${shown}', 'Open night', 'approved', 'event', '${townDay(4)}', '${open}');
+    insert into public.club_events (id, title, status, kind, event_date, friends_only) values
+      ('${friends}', 'Friends night', 'approved', 'event', '${townDay(4)}', true);`);
+  assert.deepEqual((await work()).events.map((e) => e.id), [reading, shown]);
+  await db.exec(`delete from public.club_events where id in ('${secret}', '${shown}', '${friends}')`);
+});
+
 test('a card keeps only words on the list, as the list spells them, once each and in order', async () => {
   const got = await save([word('poetry'), word("Saint John's")], [
     { kind: 'event', id: reading, words: ["saint john's", 'Poetry', 'poetry', 'never agreed'] },
@@ -59,9 +73,10 @@ test('a word is never on the list twice, in any spelling, and never with one age
   assert.deepEqual((await work()).words, ['poetry', 'polka', "Saint John's"]);
   await assert.rejects(save([word('jazz', { second_by: 'card-tag.md' })], []), /check constraint/, 'one agent twice');
   await assert.rejects(save([word('jazz', { second_by: null })], []), /not-null/);
-  for (const bad of ['#jazz', 'two  spaces', ' jazz', 'a'.repeat(31), 'jazz; drop', '']) {
-    await assert.rejects(save([word(bad)], []), /check constraint/, bad);
-  }
+  const bad = ['#jazz', 'two  spaces', ' jazz', 'a'.repeat(31), 'jazz; drop', '', '½ price', 'x²', 'hockey,'];
+  assert.equal((await save([...bad.map((w) => word(w)), word("St. Patrick's Day"), word('café')], [])).words, 2,
+    'a bad word is left out and never keeps the rest from being saved');
+  for (const b of bad) await assert.rejects(db.query(`insert into private.tags values ($1, now(), 'a', 'b')`, [b]), /check constraint/, b);
 });
 
 test('a card tagged again takes the new words, and one that goes takes its tags with it', async () => {

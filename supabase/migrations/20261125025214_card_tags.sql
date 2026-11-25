@@ -11,10 +11,20 @@
 -- Only the cloud routines (watch) and the service key may call the two public functions. Neither reaches a post: the
 -- Watch key is closed to those (watch_never_posts), and these see only kind = 'event'.
 --
--- Roll back: drop function public.save_card_tags(jsonb, jsonb), public.tag_work(); drop table private.card_tags, private.tags.
+-- Roll back: drop function public.save_card_tags(jsonb, jsonb), public.tag_work(); drop table private.card_tags, private.tags;
+-- drop function private.is_tag(text).
+
+-- What may be a tag, as card_tags.py's WORD.
+create function private.is_tag(p_word text)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $$ select coalesce(p_word ~ '^[A-Za-z0-9À-ÖØ-öø-ÿ][A-Za-z0-9À-ÖØ-öø-ÿ ''&.-]{0,28}[A-Za-z0-9À-ÖØ-öø-ÿ]$' and p_word !~ '  ', false) $$;
+revoke all on function private.is_tag(text) from public, anon, authenticated, watch;
 
 create table private.tags (
-  word text primary key check (word ~ '^[[:alnum:]][[:alnum:] ''&-]{0,28}[[:alnum:]]$' and word !~ '  '),
+  word text primary key check (private.is_tag(word)),
   made_at timestamptz not null default now(),
   first_by text not null check (btrim(first_by) <> ''),
   second_by text not null check (btrim(second_by) <> ''),
@@ -50,7 +60,9 @@ as $$
     from public.club_events e
     cross join town
     left join public.clubs c on c.id = e.club_id
-    where e.status = 'approved' and e.kind = 'event' and e.cancelled_at is null
+    where e.status = 'approved' and e.kind = 'event' and e.cancelled_at is null and not coalesce(e.friends_only, false)
+      -- Not of a Group the Town can't see (morning.town_sees): its words would join a list everyone's Events share.
+      and (e.club_id is null or (c.status = 'approved' and not coalesce(c.private, false)))
       and (e.event_date >= town.today or (e.end_at at time zone 'America/Chicago')::date >= town.today)
       and not exists (select 1 from private.card_tags t where t.event_id = e.id)
   ),
@@ -84,6 +96,7 @@ declare
 begin
   insert into private.tags (word, first_by, second_by)
   select x ->> 'word', x ->> 'first_by', x ->> 'second_by' from jsonb_array_elements(p_words) x
+  where private.is_tag(x ->> 'word')  -- one bad word never keeps the rest from being saved
   on conflict do nothing;
   get diagnostics made = row_count;
 
