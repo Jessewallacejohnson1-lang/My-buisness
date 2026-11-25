@@ -97,6 +97,7 @@ import place_logos
 import team_logos
 import venue_spots
 import audience
+import card_tags
 import event_parts
 import signups
 import nothing_scheduled
@@ -1323,6 +1324,7 @@ def finish(run, dry_run):
                        ("place logos", lambda: place_logos.keep(run, dry_run)),
                        ("venue spots", lambda: venue_spots.keep(run, dry_run)),
                        ("who it's for", lambda: audience.keep(run, dry_run)),
+                       ("card tags", lambda: card_tags.keep(run, dry_run)),
                        ("event parts", lambda: event_parts.keep(run, dry_run)),
                        ("sign-ups", lambda: signups.keep(run, dry_run)),
                        ("since the last report", lambda: since_lines(db, today)),
