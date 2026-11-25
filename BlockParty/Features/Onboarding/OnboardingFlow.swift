@@ -970,7 +970,7 @@ struct OnboardingWelcome: View {
         .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
     }
 
-    /// The white wordmark at 109 pt and the headline at 150 pt, 24 pt from the left.
+    /// The white wordmark over the headline, 24 pt from the left.
     private var header: some View {
         let mark = 180 / BlockPartyWordmark.aspect
         let up = shown && launch.headerUp
