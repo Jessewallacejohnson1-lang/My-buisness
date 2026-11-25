@@ -99,6 +99,7 @@ import venue_spots
 import audience
 import card_tags
 import event_parts
+import feed_judge
 import signups
 import nothing_scheduled
 import meeting_times
@@ -1385,6 +1386,7 @@ def finish(run, dry_run):
                        ("since the last report", lambda: since_lines(db, today)),
                        ("event photos", lambda: photo_lines(db, today)),
                        ("photo judge", lambda: judged_lines(run.folder)),
+                       ("feed judge", lambda: feed_judge.report_lines(db, today)),
                        ("map spots", lambda: map_spots(run, dry_run)),
                        ("places", lambda: place_lines(db)),
                        ("busy places", lambda: busy_lines(db, load(find_root(SCRIPTS))[0], today)),

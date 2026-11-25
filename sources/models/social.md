@@ -119,12 +119,20 @@ carry on with the rest.
    each new News from a post gets the real photo from its own post that draws the eye most, else its post's own
    flyer, or none (BP app town-feed 53).
 
+**Feed judge.** Two judges read what this check put in the feed beside its own posts, and the Events this morning's
+   `[check]` lines named (BP app watch-every-place 52). Run `python3 sources/scripts/feed_judge.py prepare`; `nothing to
+   judge` skips to Mark it read. For each `.runs/morning/feed-judge/batch-N.json`, start two helpers on your own model, at
+   most 10 at once, each on its own and with the same words: "Read `sources/models/feed-judge.md` and follow it for
+   `.runs/morning/feed-judge/batch-N.json`. Answer with the JSON lines only." The first's lines go to
+   `.runs/morning/feed-judge/a.jsonl`, the second's to `b.jsonl` there. What both say is done (Jesse, 2026-11-25); never
+   answer for them. Then run `python3 sources/scripts/feed_judge.py keep`. A failure here is a line: go on to Mark it read.
+
 **Mark it read.** Only after `morning.py save` has printed its summary, run
    `python3 sources/scripts/social.py done`. It marks this check's Apify runs read, so the next
    one starts after them; runs a check stopped before this line on (a usage limit, a failure)
    are read by the next. Run it once, at the end, and never before the write.
 
-**Answer** with the summary as `save` printed it, keep's `[photos]` line, `done`'s lines (the pictures line is what
+**Answer** with the summary as `save` printed it, keep's `[photos]` line, the `[feed judge]` lines, `done`'s lines (the pictures line is what
    reading pictures added to the cost), every `[social] FAILED`, `[social] Events tab lists events` and `[social] Hosts a found Event` line
    from Prepare, any `[helpers]` line (Wait in the turn), then one line per flag you dropped that a neighbour might have wanted, and why. After Prepare's
    `[social] stories:` line, say what each `stories-` page became: the Event or News title it gave (or the one it
@@ -145,5 +153,5 @@ carry on with the rest.
   picture is shown, uploaded or kept past this check. `.runs/` goes with the copy.
 - Apify's own schedules start every paid run, each task with its own spending cap; the routine
   starts none. A run that failed or is still going is a line in the answer.
-- The database is written only by `morning.py save` and `event_photos.py keep`. SQL by hand stays unused.
+- The database is written only by `morning.py save`, `event_photos.py keep` and `feed_judge.py keep`. SQL by hand stays unused.
 - Nothing is committed or pushed; `.runs/` is scratch.
