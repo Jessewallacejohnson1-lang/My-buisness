@@ -78,7 +78,7 @@ town, part's clock and database). Every command needs SUPABASE_URL and a key in 
 --town names a sources/towns/ file (default st-joseph-mn, towns.DEFAULT).
 """
 
-import argparse, collections, contextlib, io, json, math, re, shutil, subprocess, sys, time, urllib.error
+import argparse, collections, contextlib, io, json, math, re, shutil, subprocess, sys, time, unicodedata, urllib.error
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import quote, urlparse
@@ -622,7 +622,11 @@ def repeat_questions(run):
     for b in range(0, len(event_asks), size):  # the Events' own numbers, in the batches after the News's
         (folder / f"batch-{first + b // size}.txt").write_text(
             write_judged.event_questions(event_asks[b:b + size], run.today, abouts, b + 1))
-    (out / "repeats-asked.json").write_text(json.dumps([[write_judged.repeat_key(n), c] for n, c in asks], default=str))
+    # Beside its title's key, its page's where the page gave one News: a title shortened after this keeps its answer.
+    per_page = collections.Counter(write_judged.page_key(it) for it in items if isinstance(it, dict) and it.get("kind") == "news"
+                                   and isinstance(it.get("source_name"), str))
+    keys = [[write_judged.repeat_key(n)] + [k for k in [write_judged.page_key(n)] if k and per_page[k] == 1] for n, _ in asks]
+    (out / "repeats-asked.json").write_text(json.dumps([[k, c] for k, (_, c) in zip(keys, asks)], default=str))
     (out / "events-asked.json").write_text(json.dumps(
         [[write_judged.event_key(row), [[c.get("id") or write_judged.event_key(c), c["title"]] for c in cands]]
          for row, cands in event_asks]))
@@ -635,7 +639,48 @@ def repeat_questions(run):
 def save_items(out):
     """The items save writes (write), in its order: a Facebook event's fb: id hangs on how many starts the read gave it."""
     feeds, judged = read_items(out / "feeds.jsonl"), read_items(out / "judged.jsonl")
-    return feeds + [x for x in judged if not (isinstance(x, dict) and x.get("kind") == "hours")]
+    return feeds + tied([x for x in judged if not (isinstance(x, dict) and x.get("kind") == "hours")], out)
+
+
+def judged_pages(out):
+    """{page id: (its page in pages.json, the flags the cheap model raised on it)}."""
+    path = out / "pages.json"
+    pages = {page_id(p["file"]): (p, []) for p in (json.loads(path.read_text()) if path.exists() else []) if p.get("file")}
+    for f in read_items(out / "flags.jsonl"):
+        if isinstance(f, dict) and (got := pages.get(page_id(f.get("page") or ""))):
+            got[1].append(f)
+    return pages
+
+
+def tied(judged, out):
+    """Each item judged on a post (`page`, judge.md) links to that post, or to a link its flag named, whatever the judge typed:
+    the Black Friday News of Nov 23 took another post's link, and so its words and its time (BP app watch-every-place 52).
+    A website's page has many items with links of their own, so those stay."""
+    pages = judged_pages(out)
+    for it in judged:
+        page, flags = pages.get(page_id(it.get("page") or ""), (None, ())) if isinstance(it, dict) else (None, ())
+        if page and page.get("url") and write_judged.own_link(page["url"]) and isinstance(it.get("source_url"), str) and not any(
+                write_judged.same_link(it["source_url"], u) for u in [page["url"], *(f["link"] for f in flags if isinstance(f.get("link"), str))]):
+            it["source_url"] = page["url"]
+    return judged
+
+
+NOT_A_WORD = "not a word of it"
+
+
+def stray(it, pages):
+    """Why an item of a social check can't be its page's, or None: no page it names, or not one word of its title or blurb on it
+    (the post's own words and what the cheap model flagged there)."""
+    page, flags = pages.get(page_id(it.get("page") or ""), (None, ()))
+    if not page:
+        return f"no page: give the flag's page id ({it.get('page') or 'none'!r} is none)"
+    plain = lambda text: write_judged.words(unicodedata.normalize("NFKC", text), write_judged.STOP | write_judged.FILLER)
+    said = plain(" ".join(str(x) for x in [page.get("words") or "", *(f.get(k) or "" for f in flags
+                                                                     for k in ("title", "when", "place", "note"))]))
+    mine = plain(f"{it.get('title') or ''} {it.get('blurb') or ''}") - write_judged.words(it.get("source_name"))
+    if mine and said and not mine & said:
+        return f"{NOT_A_WORD} is on its page {it['page']} ({'; '.join(str(f.get('title')) for f in flags)[:120] or 'nothing flagged'}): give the page it was read on"
+    return None
 
 
 def listed_abouts(event_asks, db):
@@ -661,17 +706,17 @@ def told_before(items, today, db):
 
 
 def repeat_answers(out):
-    """{repeat_key: the row it repeats, or None} from the helper's repeats.jsonl, for the questions in
-    repeats-asked.json, and how many were asked. No answer file: nothing is answered, and every News goes up."""
+    """{repeat_key or page_key: the row it repeats, or None} from the helper's repeats.jsonl, for the questions in
+    repeats-asked.json, how many were asked and how many answered. No answer file: nothing is answered, and every News goes up."""
     try:
         asked = json.loads((out / "repeats-asked.json").read_text())
     except (OSError, ValueError):
-        return {}, 0
+        return {}, 0, 0
     path = out / "repeats.jsonl"
     if not path.exists():
-        return {}, len(asked)
+        return {}, len(asked), 0
     got = write_judged.same_story(path.read_text(), [({}, cands) for _, cands in asked])
-    return {key: got.get(i) for i, (key, _) in enumerate(asked, 1) if i in got}, len(asked)
+    return {key: got[i] for i, (keys, _) in enumerate(asked, 1) if i in got for key in keys}, len(asked), len(got)
 
 
 def event_answers(out):
@@ -721,17 +766,23 @@ def write(run, dry_run):
     out, today, db = run.folder, run.today, run.db
     prep = run.summary()
     hours = [x for x in read_items(out / "judged.jsonl") if isinstance(x, dict) and x.get("kind") == "hours"]
-    items = made_with(save_items(out), out)
+    items, strays = made_with(save_items(out), out), []
+    if prep.get("run"):  # still on the wrong page after the fix it was asked for: never up with another post's link and words
+        pages = judged_pages(out)
+        strays = [it for it in items if isinstance(it, dict) and it.get("page") and not write_judged.skip_reason(it, TOWNS[run.town])
+                  and (stray(it, pages) or "").startswith(NOT_A_WORD)]
+        items = [it for it in items if not any(it is s for s in strays)]
     existing = write_judged.listed_in_db(db)
-    asked, questions = repeat_answers(out)
+    asked, questions, answered = repeat_answers(out)
     asked_events, event_questions = event_answers(out)
     result = write_judged.plan(items, existing, today, write_judged.interest_ids(), TOWNS[run.town], titles=short_titles(out),
                                teams=write_judged.known_teams(db), recent_news=write_judged.news_in_db(db=db),
                                history=(history := told_before(items, today, db)), asked=asked, asked_events=asked_events)
-    result["repeat_check"] = (questions, len(asked))
+    result["repeat_check"] = (questions, answered)
     result["event_check"] = (event_questions, len(asked_events))
     if history is None:
         result["notes"].append("repeat check skipped: what the News's places have couldn't be read (see the [repeats] line)")
+    result["notes"] += [f"left out, not a word of it on its page: {it['title']!r} ({it['source_name']}, {it['page']})" for it in strays]
     write_judged.report(items, result)
     try:
         written = None if dry_run else write_judged.apply(result, db)
@@ -1291,10 +1342,14 @@ def to_fix(run):
     asked = run.part("fix-asked.json")
     if asked.saved:
         return []
+    pages = judged_pages(run.folder) if run.summary().get("run") else None  # a social check's page is one post
+
+    def wrong(it):
+        why = write_judged.skip_reason(it, TOWNS[run.town])
+        return why if why and why.startswith("invalid") else stray(it, pages) if pages and not why else None
     bad = [f"- line {n}: {why}: {json.dumps(it, ensure_ascii=False)[:160]}"
            for n, it in enumerate(read_items(run.folder / "judged.jsonl"), 1)
-           if not (isinstance(it, dict) and it.get("kind") == "hours")
-           and (why := write_judged.skip_reason(it, TOWNS[run.town])) and why.startswith("invalid")]
+           if not (isinstance(it, dict) and it.get("kind") == "hours") and (why := wrong(it))]
     if bad:
         asked.save(True)
     return bad
@@ -1593,7 +1648,7 @@ def selftest():
         folder = Path(folder)
         soon = {"title": "Closing for the Season Soon", "source_name": "The North Table"}
         none_yet = repeat_answers(folder)
-        (folder / "repeats-asked.json").write_text(json.dumps([["The North Table\nclosing", [soon]], ["A\nb", [soon]]]))
+        (folder / "repeats-asked.json").write_text(json.dumps([[["The North Table\nclosing", "The North Table\npage:instagram-1"], [soon]], [["A\nb"], [soon]]]))
         unanswered = repeat_answers(folder)
         (folder / "repeats.jsonl").write_text('{"news": 1, "same_as": 1, "title": "Closing for the Season Soon"}\n')
         answered = repeat_answers(folder)
@@ -1630,8 +1685,8 @@ def selftest():
                          ("repeat", "of 'x' (already in the app)"), ("news", "")],
             "ask": [({"title": "Bingo"}, [soon])], "repeat_check": (3, 2)}
     checks += [
-        (none_yet == ({}, 0) and unanswered == ({}, 2), "no questions, or no answers: nothing held back"),
-        (answered == ({"The North Table\nclosing": soon}, 2), "an answer names the row; an unanswered question is left out"),
+        (none_yet == ({}, 0, 0) and unanswered == ({}, 2, 0), "no questions, or no answers: nothing held back"),
+        (answered == ({"The North Table\nclosing": soon, "The North Table\npage:instagram-1": soon}, 2, 1), "an answer names the row; an unanswered question is left out"),
         (repeat_check_lines(held) == ["- Repeat check: 2 of 3 News read by the model, 1 held back",
                                       "- Held back as a repeat: 'Closing', the same story as 'Closing for the Season Soon' (the model says)",
                                       "- Repeat check not answered for 1 News: Bingo (they went up)"],
@@ -1995,7 +2050,7 @@ def selftest():
     # Who it's for by age, only as a source says it, in the app's one shape (inside-cards 30); "all ages" writes nothing.
     writes, _ = plan_descriptions([{"id": "b", "about": "", "ages": "adults 21+ only"}, {"id": "a", "about": "", "ages": "all ages"}], given)
     checks.append((writes == {"b": {"ages": "21+"}}, "an age a source says is written in the app's shape; all ages is not"))
-    checks += games_aside() + described_once() + sign_up_pages() + live_games_told() + photos_told() + credits_told()
+    checks += tied_to_their_posts() + games_aside() + described_once() + sign_up_pages() + live_games_told() + photos_told() + credits_told()
     asked = []
 
     def get(url):
@@ -2172,6 +2227,63 @@ def fingerprints_wait_for_write():
                     and prepare_fetch() == [])
     finally:
         runner.read_page, runner.validate, runner.find_root, write_judged.interest_ids = saved
+
+
+def tied_to_their_posts():
+    """A social check's items go up with their own post's link and words (BP app watch-every-place 52). Nov 23's Black Friday News
+    of Bad Habit's came with the link of its post about opening early on Wednesday, so it showed that post's words."""
+    from tempfile import TemporaryDirectory
+    early, friday = "https://www.instagram.com/p/DgF0BMrnFzo/", "https://www.instagram.com/p/DgFriday/"
+    pages = [{"file": "instagram-4036861421762141416", "url": early, "name": "Bad Habit Brewing Company",
+              "words": "Gobble! Gobble! We're opening early on Wednesday, November 25th to celebrate early. Grab a bottle of Blessed Harvest."},
+             {"file": "instagram-2", "url": friday, "name": "Bad Habit Brewing Company", "words": "𝐁𝐥𝐚𝐜𝐤 deals all weekend"},
+             {"file": "instagram-3", "url": "https://www.instagram.com/p/DgPic/", "name": "Sal's"}]
+    flags = [{"page": "instagram-4036861421762141416", "kind": "news", "title": "Opening early on Wednesday", "link": early},
+             {"page": "instagram-3.txt", "kind": "news", "title": "", "note": "From the picture: wings half off Monday", "link": "https://tickets.example/x"}]
+    news = lambda **kw: write_judged.item(kind="news", start=None, end=None, blurb=None, category="business", **{
+        "source_name": "Bad Habit Brewing Company", "source_url": early, **kw})
+    wrong = news(title="Black Friday weekend", page="instagram-4036861421762141416")
+    with TemporaryDirectory() as folder:
+        out = Path(folder)
+        (out / "pages.json").write_text(json.dumps(pages))
+        (out / "flags.jsonl").write_text("".join(json.dumps(f) + "\n" for f in flags))
+        laid = judged_pages(out)
+        why = [stray(it, laid) for it in (
+            wrong, news(title="Opening early Wednesday", page="instagram-4036861421762141416"),
+            news(title="Black Friday weekend", page="instagram-2"), news(title="Half-off wings", page="instagram-3", source_name="Sal's"),
+            news(title="Black Friday weekend"), news(title="Black Friday weekend", page="instagram-9"))]
+        links = [it["source_url"] for it in tied([
+            news(title="Black Friday weekend", page="instagram-2"),                                          # another post's link typed
+            news(title="Opening early Wednesday", page="instagram-4036861421762141416", source_url=early + "?igsh=x"),  # its own
+            news(title="Half-off wings", page="instagram-3", source_url="https://tickets.example/x"),        # the one its flag named
+            news(title="No page named")], out)]
+        # The save: the stray is asked about once, then left out; what is on its page goes up.
+        said = []
+        db = FakeDb(answers={"rpc/listed_for_writer": [], "rpc/apply_judged": lambda m, p, b: said.append(b) or {
+            "events": 0, "news": len(b["p_news"]), "mentions": 0, "published_by_mention": 0, "cancelled": 0, "restored": 0,
+            "added": {"events": [], "news": list(range(len(b["p_news"])))}}})
+        run = Run(out, date(2026, 11, 23), db)
+        run.prepared({"today": "2026-11-23", "run": "busy", "fetched": 2, "changed": 2, "to_read": 2, "failed": [], "readers": []})
+        (out / "judged.jsonl").write_text("".join(json.dumps(i) + "\n" for i in (wrong, news(title="Black deals", page="instagram-2", source_url=friday))))
+        real, write_judged.interest_ids = write_judged.interest_ids, lambda: ["bars"]
+        try:
+            stops = []
+            for _ in range(2):
+                with contextlib.redirect_stdout(io.StringIO()) as printed:
+                    try:
+                        save(run, False)
+                    except SystemExit as e:
+                        stops.append(str(e))
+        finally:
+            write_judged.interest_ids = real
+    return [(why[0] and why[0].startswith(NOT_A_WORD) and why[1:4] == [None] * 3 and all(w.startswith("no page") for w in why[4:]),
+             f"an item not a word of which is on its post stops, and one naming no page; bold letters and a picture's words count: {why}"),
+            (links == [friday, early + "?igsh=x", "https://tickets.example/x", early],
+             f"an item's link is its post's, or the one its flag named: {links}"),
+            (len(stops) == 1 and "Black Friday weekend" in stops[0] and "Black deals" not in stops[0]
+             and [[n["title"] for n in b["p_news"]] for b in said] == [["Black deals"]]
+             and "- left out, not a word of it on its page: 'Black Friday weekend'" in printed.getvalue(),
+             f"save asks once, then leaves the stray out and names it: {stops} {said}")]
 
 
 def games_aside():
@@ -3058,8 +3170,9 @@ def whole_morning():
             (out / "prepare.json").write_text(json.dumps({**prep, "run": "busy"}))
             (out / "report.json").unlink(missing_ok=True)
             shutil.rmtree(out / "tag", ignore_errors=True), shutil.rmtree(out / "describe", ignore_errors=True)
-            with (out / "judged.jsonl").open("a") as f:  # and the judge read new lasting hours in a post
+            with (out / "judged.jsonl").open("w") as f:  # each item names its post, and the judge read new lasting hours in one
                 p0 = next(p["file"] for p in json.loads((out / "pages.json").read_text()) if p["entry_id"] == "p0")
+                f.write("".join(json.dumps({**i, "page": p0}) + "\n" for i in judged))
                 f.write(json.dumps({"kind": "hours", "page": p0, "days": {"mon": "9 AM to 5 PM"}}) + "\n")
             evening = command("save")
             evening_laid = (out / "tag").exists() or (out / "describe").exists()
