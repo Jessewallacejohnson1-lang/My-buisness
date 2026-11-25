@@ -19,6 +19,7 @@ for (const [who, name] of [[SAM, 'Sam Rivera'], [ANA, 'Ana Lee'], [BO, 'Bo Dale'
 
 async function as(who, sql, params = []) {
   if (who === null) await db.exec('set role anon');
+  else if (who === 'service') await db.exec('set role service_role');
   else await db.exec(`set role authenticated; set request.jwt.claims = '${JSON.stringify({ sub: who, is_anonymous: false })}'`);
   try {
     return (await db.query(sql, params)).rows;
@@ -119,8 +120,17 @@ test('a found Event of a private Group shows a stranger no Group to join', async
   await reset();
 });
 
-const meets = (who, club, days, weeks, time, where) =>
-  as(who, 'select public.set_group_meets($1, $2, $3, $4, $5) as schedule', [club, days, weeks, time, where]);
+// A new Place goes to moderate-post, whose two checks say yes here (group_meets_place_check.test.mjs).
+async function meets(who, club, days, weeks, time, where) {
+  const picks = [days, weeks, time, where];
+  try {
+    return await as(who, 'select public.set_group_meets($1, $2, $3, $4, $5) as schedule', [club, ...picks]);
+  } catch (e) {
+    if (e.code !== 'PT409') throw e;
+  }
+  const [{ was }] = await as('service', `select public.claim_group_meets($1, $2)->'was' as was`, [club, who]);
+  return as('service', 'select public.apply_group_meets($1, $2, $3, $4, $5, $6, $7) as schedule', [club, who, was, ...picks]);
+}
 const calendar = async (who, club) => (await as(who, 'select public.get_group_calendar($1) as c', [club]))[0].c;
 
 test('Add when you meet writes the repeats the Calendar reads, 4 months ahead', async () => {
