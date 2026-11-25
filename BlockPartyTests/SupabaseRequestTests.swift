@@ -180,6 +180,39 @@ final class SupabaseRequestTests: XCTestCase {
         XCTAssertTrue(server.requests.allSatisfy { $0.httpMethod == "DELETE" && $0.httpBody == nil })
     }
 
+    // When you meet (start-a-group 08): the server alone says a Place is new, and only then do the checks read it.
+    private var meets: GroupMeetsDraft {
+        GroupMeetsDraft(.init(days: ["tue"], weeks: [1, 3], time: "18:30"), place: "Millstream Park")
+    }
+
+    func testWhenYouMeetSavesAPlaceTheServerKnowsWithNoCheck() async throws {
+        server.answers["rpc/set_group_meets"] = .init(body: #""1st & 3rd Tuesdays at 6:30 PM""#)
+        let answer = try await community.setGroupMeets("c1", meets)
+        XCTAssertEqual(answer, .saved("1st & 3rd Tuesdays at 6:30 PM"))
+        XCTAssertEqual(server.requests.count, 1)
+    }
+
+    func testWhenYouMeetSendsANewPlaceToTheChecksWithItsDaysAndTime() async throws {
+        server.answers["rpc/set_group_meets"] = .init(status: 409, body: #"{"code": "PT409", "message": "a new Place goes through the checks"}"#)
+        server.answers["moderate-post"] = .init(body: #"{"ok": false, "reason": "Please leave out the phone number."}"#)
+        let answer = try await community.setGroupMeets("c1", meets)
+        XCTAssertEqual(answer, .held("Please leave out the phone number."))
+        XCTAssertEqual(server.requests.count, 2)
+        let body = try XCTUnwrap(server.lastBody as? [String: Any])
+        XCTAssertEqual(body["group"] as? String, "c1")
+        XCTAssertEqual(body["meets"] as? [String: AnyHashable],
+                       ["days": ["tue"], "weeks": [1, 3], "time": "18:30", "place": "Millstream Park"])
+    }
+
+    func testWhenYouMeetRefusedForAnotherReasonAsksNoCheck() async throws {
+        server.answers["rpc/set_group_meets"] = .init(status: 403, body: #"{"code": "42501", "message": "only the Admin sets when it meets"}"#)
+        do {
+            _ = try await community.setGroupMeets("c1", meets)
+            XCTFail("a refusal throws")
+        } catch {}
+        XCTAssertEqual(server.requests.count, 1)
+    }
+
     func testProfileSaveSendsNullToClearANameAndLeavesTheBioAlone() async throws {
         try await profiles.upsert(displayName: nil, avatarUrl: nil, interests: ["music"], onboarded: false)
         XCTAssertEqual(last.url!.absoluteString, "\(rest)/town_profiles?on_conflict=user_id")

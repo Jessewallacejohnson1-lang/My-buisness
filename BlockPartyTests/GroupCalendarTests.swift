@@ -125,6 +125,16 @@ final class GroupCalendarTests: XCTestCase {
         XCTAssertFalse(none.ready, "nothing to clear: a day first")
     }
 
+    /// The checks' answer on a new Place (start-a-group 08): saved with the when line, or held with the reason.
+    func testTheChecksAnswerOnAPlace() throws {
+        func answer(_ json: String) throws -> GroupMeetsDraft.Answer { try .from(Data(json.utf8)) }
+        XCTAssertEqual(try answer(#"{"ok": true, "reason": "", "schedule": "Tuesdays at 6:30 PM"}"#), .saved("Tuesdays at 6:30 PM"))
+        XCTAssertEqual(try answer(#"{"ok": false, "reason": "Please leave out the phone number."}"#),
+                       .held("Please leave out the phone number."))
+        XCTAssertEqual(try answer(#"{"ok": false}"#), .held(""))
+        XCTAssertThrowsError(try answer("null"))
+    }
+
     /// `get_group_calendar` as the page reads it: the get-togethers, whether you add, the Group's rule for Edit when you
     /// meet, and the Events its Admin may take off.
     func testCalendarRead() throws {

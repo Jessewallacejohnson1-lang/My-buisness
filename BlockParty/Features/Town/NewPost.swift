@@ -1560,6 +1560,8 @@ private nonisolated enum NewPostMetric {
 struct NewEventPlace: View {
     let places: [SearchItem]
     @Binding var place: String
+    /// None first, to take the Place off.
+    var offersNone = false
     @State private var words = ""
     @Environment(\.dismiss) private var dismiss
 
@@ -1590,6 +1592,12 @@ struct NewEventPlace: View {
 
     private var list: some View {
         List {
+            if offersNone, typed.isEmpty {
+                Button { choose("") } label: {
+                    placeRow(name: "None", sub: nil) { tile(glyph: "xmark") }
+                }
+                .listRowInsets(NewEventMetric.placeInsets)
+            }
             if !typed.isEmpty, !places.contains(where: { $0.name.localizedCaseInsensitiveCompare(typed) == .orderedSame }) {
                 Button { choose(typed) } label: {
                     placeRow(name: typed, sub: "Use this name") { tile(glyph: "plus") }

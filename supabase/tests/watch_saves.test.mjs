@@ -111,6 +111,10 @@ test('tag, describe and standouts write onto the Event', async () => {
     returning id`, [day(8)]);
   await asJob('tag', `update public.club_events set interests = $2, draw = $3, what = $4, interests_tagged_at = now()
     where id = $1`, [id, ['outdoors', 'trails_hiking'], 3, 'Hayride']);
+  await asJob('card tags: the work', 'select public.tag_work()');
+  await asJob('card tags', 'select public.save_card_tags($1, $2)', [
+    JSON.stringify([{ word: 'hayride', first_by: 'card-tag.md', second_by: 'new-tag.md' }]),
+    JSON.stringify([{ kind: 'event', id, words: ['hayride'] }])]);
   await asJob('describe', `update public.club_events set description = $2, price = $3, described_at = now(),
     about_written_at = now() where id = $1`,
               [id, 'A tractor-pulled ride through the haunted woods, with cider and a bonfire after. Dress warm.', '$15, kids $8']);

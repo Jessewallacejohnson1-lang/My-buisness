@@ -330,6 +330,18 @@ nonisolated struct GroupMeetsDraft: Equatable {
         var time: String?
     }
 
+    /// What Save came to (start-a-group 08): the when line the server wrote, or why the checks held the Place.
+    enum Answer: Equatable {
+        case saved(String?), held(String)
+
+        /// The checks' answer (`moderate-post`).
+        static func from(_ data: Data) throws -> Answer {
+            struct Said: Decodable { let ok: Bool; let reason: String?; let schedule: String? }
+            let said = try JSONDecoder().decode(Said.self, from: data)
+            return said.ok ? .saved(said.schedule) : .held(said.reason ?? "")
+        }
+    }
+
     var days: Set<String> = []
     var often = Often.weekly
     /// Once a month: which week of the month, 1st to 4th.
@@ -434,14 +446,19 @@ struct GroupMeetsSheet: View {
                     }
                     DatePicker("Time", selection: $draft.time, displayedComponents: .hourAndMinute)
                     NavigationLink {
-                        NewEventPlace(places: places, place: $draft.place)
+                        NewEventPlace(places: places, place: $draft.place, offersNone: true)
                     } label: {
                         LabeledContent(NewEventCopy.place, value: draft.sentPlace ?? NewEventCopy.addPlace)
+                            // Not Save: it comes back in the spinner's place as the shake is asked for, so none plays.
+                            .turnBackShake(failures: failures, shakes: !reduceMotion)
                     }
                 } footer: {
-                    if let problem { Text(problem) }
+                    if let problem { Text(problem).foregroundStyle(Hue.ink) }
                 }
             }
+            // What lands on the page is what was sent.
+            .disabled(saving)
+            .onChange(of: draft.place) { problem = nil }
             .navigationTitle("When you meet")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -450,11 +467,10 @@ struct GroupMeetsSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     if saving {
-                        ProgressView()
+                        ProgressView().accessibilityLabel("Saving")
                     } else {
                         Button("Save") { Task { await save() } }
                             .disabled(!draft.ready)
-                            .turnBackShake(failures: failures, shakes: !reduceMotion)
                     }
                 }
             }
@@ -466,15 +482,29 @@ struct GroupMeetsSheet: View {
 
     private func save() async {
         saving = true
+        problem = nil
         defer { saving = false }
         do {
-            let schedule = try await CommunityAPI(auth: AuthStore.shared).setGroupMeets(group.id, draft)
-            saved(schedule, draft.savedPlace)
-            dismiss()
+            switch try await CommunityAPI(auth: AuthStore.shared).setGroupMeets(group.id, draft) {
+            case .saved(let schedule):
+                saved(schedule, draft.savedPlace)
+                dismiss()
+            case .held(let reason):
+                fail(reason.isEmpty ? Self.notChecked : reason)
+            }
         } catch {
-            problem = NewEventCopy.offline
-            failures += 1
-            Haptics.error()
+            Log.network("GroupMeetsSheet: couldn't save \(group.id): \(error)")
+            fail(Self.notChecked)
         }
+    }
+
+    private static let notChecked = "Couldn't check that. Try again."
+
+    /// Nothing was saved: the sheet stays open and says why, as Edit group's does.
+    private func fail(_ reason: String) {
+        problem = reason
+        failures += 1
+        Haptics.error()
+        AccessibilityNotification.Announcement(reason).post()
     }
 }
