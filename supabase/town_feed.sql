@@ -144,7 +144,7 @@ set search_path = public
 as $$
   with weights as (
     -- The recipe's weights (town-feed 36, 41). Changing one is a migration.
-    select '{"interest":3,"friend":3,"follow":3,"new":2,"draw":1.5,"soonHalf":7,"newHalf":24,"acted":0.4,"notInterested":0.3,"repeatHost":0.5,"repeatCampus":0.8,"repeatKind":0.8,"seen":0.6,"seenFloor":0,"town":1.5,"townMiles":4.5,"meeting":0.3,"liveMax":3,"liveHours":12,"newsEvery":5,"top":5,"topFrom":8,"topMine":4,"topYours":2,"topDays":7,"topSoonHalf":14,"topRepeat":0.5,"noAbout":0.5,"noPlace":0.5,"aboutMin":30}'::jsonb as w
+    select '{"interest":3,"friend":3,"follow":3,"new":2,"importance":0.75,"soonHalf":7,"newHalf":24,"acted":0.4,"notInterested":0.3,"repeatHost":0.5,"repeatCampus":0.8,"repeatKind":0.8,"seen":0.6,"seenFloor":0,"town":1.5,"townMiles":4.5,"meeting":0.3,"liveMax":3,"liveHours":12,"newsEvery":5,"top":5,"topFrom":8,"topMine":4,"topYours":2,"topDays":7,"topSoonHalf":14,"topRepeat":0.5,"noAbout":0.5,"noPlace":0.5,"aboutMin":30}'::jsonb as w
   ),
   town as (
     select 'America/Chicago'::text as zone,
@@ -176,7 +176,7 @@ as $$
   -- The caller's own taps in the 90 days before p_now (ticket 30): Going, Heart or Save, each
   -- Event once, read straight from club_events so an older or called-off Event still counts. Only
   -- a club's or a source's Events, never a neighbour's own posting (the card doesn't show who
-  -- posted it), and never routine business (draw 1): a heart on a council meeting lifts nothing.
+  -- posted it), and never routine business (importance 1): a heart on a council meeting lifts nothing.
   my_taps as (
     select e.id, e.event_date, coalesce(e.club_id::text, e.source_name) as host, e.team_ids, e.sport
     from (select r.event_id from public.event_rsvps r
@@ -188,7 +188,7 @@ as $$
           select s.event_id from public.event_saves s
           where s.user_id = auth.uid() and s.created_at > p_now - interval '90 days') t
     join public.club_events e on e.id = t.event_id
-    where coalesce(e.club_id::text, e.source_name) is not null and coalesce(e.draw, 2) > 1
+    where coalesce(e.club_id::text, e.source_name) is not null and coalesce(e.importance, 3) > 1
   ),
   -- The kinds of Events the caller went Going to in those 90 days (town-feed 73): their tagger's interests, not where
   -- they were (a campus or a school says where, not what). They make the top five's Events of that kind yours.
@@ -198,7 +198,7 @@ as $$
     join public.club_events e on e.id = r.event_id
     cross join lateral unnest(case when e.interests_tagged_at is not null then e.interests
                                    else array[e.category] end) as k
-    where r.user_id = auth.uid() and r.created_at > p_now - interval '90 days' and coalesce(e.draw, 2) > 1
+    where r.user_id = auth.uid() and r.created_at > p_now - interval '90 days' and coalesce(e.importance, 3) > 1
       and k not in ('campus', 'college', 'high_school', 'middle_school')
   ),
   -- A school's or a club's own Events: a game you tapped isn't one of them (town-feed 39).
@@ -315,7 +315,7 @@ as $$
     join public.city_boards b on b.id = f.target_id
     where f.follower_id = auth.uid() and f.target_type = 'board'
   ),
-  -- Each City's name on its Events: a draw 1 Event of one is a meeting (follows 03).
+  -- Each City's name on its Events: an importance 1 Event of one is a meeting (follows 03).
   cities as (
     select lower(pg.source_name) as source from public.town_pages pg where pg.slug = 'city'
   ),
@@ -376,7 +376,7 @@ as $$
       offset 0) t
     -- A City meeting, and the board it belongs to (null for one that matches no board).
     cross join lateral (select m.is_meeting, case when m.is_meeting then public.meeting_board(e) end as board
-                        from (select coalesce(e.draw = 1, false)
+                        from (select coalesce(e.importance = 1, false)
                                      and exists (select 1 from cities c where c.source = lower(e.source_name))
                                      as is_meeting) m) mt
     cross join town
@@ -411,8 +411,7 @@ as $$
       -- A City meeting reaches only those who follow that City or the meeting's board (town-feed 05, 27),
       -- or are Going to it or Hearted it, which always stay (ticket 05, inside-cards 16).
       and (not mt.is_meeting
-           -- Or picked Town meetings, for one the tagger calls a meeting (onboarding 21): the City's
-           -- compost site hours are draw 1 too.
+           -- Or picked Town meetings, for one the tagger calls a meeting (onboarding 21).
            or ('town_meetings' = any(e.interests) and (select 'town_meetings' = any(me.interests) from me))
            or exists (select 1 from my_pages p where p.source = lower(e.source_name))
            or exists (select 1 from my_boards b where b.id = mt.board)
@@ -607,17 +606,17 @@ as $$
            -- For the caller's gender (town-feed 52): up to an interest's points, and never a reason on the card.
            (w->>'interest')::float8 * c.gender_lean as gender_pts,
            -- Something you follow (school-activities 03, town-feed 37), or a host you've been into (ticket 30),
-           -- never routine business (draw 1). A Sports pick follows the town's own teams' games (BP app onboarding
+           -- never routine business (importance 1). A Sports pick follows the town's own teams' games (BP app onboarding
            -- 48, Jesse 2026-11-19: "yes add fix"); their followers-only games stay followers only.
            case when c.followed is not null
-                     or (coalesce(c.draw, 2) <> 1
+                     or (coalesce(c.importance, 3) <> 1
                          and (c.tapped_n > 0
                               or ('watch_sports' = any(c.matched) and c.team_ids && (select t.own_teams from town t))))
                 then (w->>'follow')::float8 else 0 end as follow_pts,
            case when c.is_new then (w->>'new')::float8 else 0 end as new_pts,
-           -- How much it draws a town out, the tagger's 1-3 (ticket 34): everyone's starting point,
-           -- 0, 1.5 or 3 points; one not rated yet counts as 2.
-           (w->>'draw')::float8 * (coalesce(c.draw, 2) - 1) as draw_pts,
+           -- Importance, the two agents' 1 to 5 (feed-learns 04): everyone's starting point, 0 to 3 points; one not
+           -- rated yet counts as 3.
+           (w->>'importance')::float8 * (coalesce(c.importance, 3) - 1) as importance_pts,
            power(0.5, c.days_away / (w->>'soonHalf')::float8) as soon,
            -- Going sinks it; a Heart doesn't (inside-cards 16): you hearted it to keep it in sight.
            case when c.going then (w->>'acted')::float8 else 1 end as acted,
@@ -645,15 +644,15 @@ as $$
     where (not c.young
        or 'middle_school' = any(c.matched)
        or c.followed is not null or c.friends_n > 0 or c.going or c.hearted)
-      -- Routine business (draw 1: a church's own round, a club's meeting) reaches only those who follow its place,
+      -- Routine business (importance 1: a church's own round, a club's meeting) reaches only those who follow its place,
       -- host or page, have a friend Going, or are Going or Hearted it; its page still lists it (town-feed 78). A City
       -- meeting has its own rule above.
-      and (coalesce(c.draw, 2) <> 1 or c.is_meeting
+      and (coalesce(c.importance, 3) <> 1 or c.is_meeting
            or c.followed is not null or c.friends_n > 0 or c.going or c.hearted)
   ),
   totals as (
     select c.*,
-           (1 + c.friend_pts + c.follow_pts + c.interest_pts + c.gender_pts + c.new_pts + c.draw_pts)
+           (1 + c.friend_pts + c.follow_pts + c.interest_pts + c.gender_pts + c.new_pts + c.importance_pts)
              * c.soon * c.acted * c.hidden_x * c.meeting_x * c.town_x * c.seen_x * c.facts_x as base,
            -- Which pool it is in, for the Score line: yours or discovery; your own Going in neither.
            case when c.going then null
@@ -680,7 +679,7 @@ as $$
            -- Going, a host you've been into, New, an interest. A Sports pick's own-team game says its interest.
            case when c.followed is not null then 'follow'
                 when c.friends_n > 0 then 'friend'
-                when c.tapped_n > 0 and coalesce(c.draw, 2) <> 1 then 'tapped'
+                when c.tapped_n > 0 and coalesce(c.importance, 3) <> 1 then 'tapped'
                 when c.is_new then 'new'
                 when c.interest_pts > 0 then 'interest' end as lift
     from scored c
@@ -771,26 +770,26 @@ as $$
           from posts p) p, weights, last_visit lv
   ),
   -- Live first (town-feed 41, 56): up to 3, what you're Going to, then the most yours (interests, friends Going,
-  -- following, gender, your town), then most Going, then the draw, then the latest to start. Then what starts
+  -- following, gender, your town), then most Going, then importance, then the latest to start. Then what starts
   -- within the hour, soonest first, then the same (happening-now 02).
   live_now as (
     select t.id, row_number() over (order by t.live_ok desc, case when not t.live_ok then case when p_now < t.part_start then t.part_start else t.starts_at end end,
                                              t.going desc,
                                              (1 + t.friend_pts + t.follow_pts + t.interest_pts + t.gender_pts) * t.town_x desc,
-                                             t.going_n desc, coalesce(t.draw, 2) desc, t.starts_at desc, t.id) as nth
+                                             t.going_n desc, coalesce(t.importance, 3) desc, t.starts_at desc, t.id) as nth
     from totals t
     where t.live_ok or t.soon_ok
   ),
   -- The top five (town-feed 73; Jesse, 2026-11-17: "feel like there's big events going on", "make it personable", "mixed
   -- up a little bit too. Each time"). Real happenings from today to 7 days ahead, not on top as live already. Big first:
-  -- the draw, a friend Going and the Going count, each a doubling; yours (an interest, or a kind you went Going to) two
-  -- draw steps more (town-feed 76; Jesse, 2026-11-17: "doesn't necessarily have to be a big event. just meant for that
-  -- person"), so what you like comes before what's big; soonest a little; one that repeats (a weekly class, bingo night) counts half, as no big night out.
+  -- importance, a friend Going and the Going count, each a doubling; yours (an interest, or a kind you went Going to) two
+  -- steps more (town-feed 76; Jesse, 2026-11-17: "doesn't necessarily have to be a big event. just meant for that
+  -- person"), so what you like comes before what's big, and a 5 the whole Town turns out for ties a 3 you like; soonest a little; one that repeats (a weekly class, bingo night) counts half, as no big night out.
   -- Going, seen, Not interested and a meeting sink it as they sink the rest.
   top_pool as (
     select t.id, x.mine,
            lower(btrim(coalesce(nullif(t.card->>'club_name', ''), nullif(t.card->>'source_name', ''), t.host))) as creator,
-           power(2, coalesce(t.draw, 2) + case when x.mine then (w->>'topYours')::float8 else 0 end + case when t.friends_n > 0 then 1 else 0 end
+           power(2, coalesce(t.importance, 3) + case when x.mine then (w->>'topYours')::float8 else 0 end + case when t.friends_n > 0 then 1 else 0 end
                     + coalesce(t.going_n, 0)::float8 / (coalesce(t.going_n, 0) + 10))
              * power(0.5, t.days_away / (w->>'topSoonHalf')::float8)
              * t.acted * t.hidden_x * t.meeting_x * t.town_x * t.seen_x * t.facts_x
@@ -929,10 +928,10 @@ as $$
            'interest', e.interest_pts, 'gender', e.gender_pts, 'yours', e.friend_pts + e.follow_pts, 'new', e.new_pts,
            'friend', e.friend_pts,
            -- A Sports pick's own-team game counts as a follow (onboarding 48), never as tapped.
-           'follow', case when e.followed is null and e.tapped_n > 0 and coalesce(e.draw, 2) <> 1 then 0 else e.follow_pts end,
-           'tapped', case when e.followed is null and e.tapped_n > 0 and coalesce(e.draw, 2) <> 1 then e.follow_pts else 0 end,
+           'follow', case when e.followed is null and e.tapped_n > 0 and coalesce(e.importance, 3) <> 1 then 0 else e.follow_pts end,
+           'tapped', case when e.followed is null and e.tapped_n > 0 and coalesce(e.importance, 3) <> 1 then e.follow_pts else 0 end,
            'town', e.town_x, 'seen', e.seen_x, 'facts', e.facts_x, 'live', e.live_ok,
-           'popular', 0, 'size', 0, 'sizeStep', 1, 'draw', e.draw_pts,
+           'popular', 0, 'size', 0, 'sizeStep', 1, 'importance', e.importance_pts,
            'daysAway', round(e.days_away::numeric, 2), 'soon', round(e.soon::numeric, 4),
            'acted', e.acted, 'notInterested', e.hidden_x, 'spacing', p.spacing,
            'newSpot', e.is_new, 'pool', case when e.yours then 'yours' when not e.yours then 'discovery' end,

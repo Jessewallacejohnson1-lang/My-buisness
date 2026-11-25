@@ -109,8 +109,12 @@ test('tag, describe and standouts write onto the Event', async () => {
   const { rows: [{ id }] } = await db.query(`insert into public.club_events (status, title, event_date, location,
     source_name, source_uid) values ('approved', 'Haunted Hayride', $1, 'Hayloft Farm', 'Hayloft Farm', 'h1')
     returning id`, [day(8)]);
-  await asJob('tag', `update public.club_events set interests = $2, draw = $3, what = $4, interests_tagged_at = now()
-    where id = $1`, [id, ['outdoors', 'trails_hiking'], 3, 'Hayride']);
+  await asJob('tag', `update public.club_events set interests = $2, what = $3, interests_tagged_at = now()
+    where id = $1`, [id, ['outdoors', 'trails_hiking'], 'Hayride']);
+  assert.deepEqual(await asJob('importance', `update public.club_events set importance = 4 where id = any($1) and importance is null
+    returning importance`, [[id]]), [{ importance: 4 }]);
+  assert.deepEqual(await asJob('importance again', `update public.club_events set importance = 1 where id = any($1) and importance is null
+    returning importance`, [[id]]), [], 'a level it has is left alone');
   await asJob('card tags: the work', 'select public.tag_work()');
   await asJob('card tags', 'select public.save_card_tags($1, $2)', [
     JSON.stringify([{ word: 'hayride', first_by: 'card-tag.md', second_by: 'new-tag.md' }]),
@@ -123,8 +127,8 @@ test('tag, describe and standouts write onto the Event', async () => {
   await asJob('standouts', `insert into public.daily_standouts (town, day, event_id, rank, why)
     select town, day, event_id, rank, why from jsonb_populate_recordset(null::public.daily_standouts, $1)`,
               [JSON.stringify([{ town: 'st-joseph-mn', day: day(8), event_id: id, rank: 1, why: 'The last hayride of the season.' }])]);
-  assert.deepEqual(await asJob('read back', `select e.interests, e.draw, e.price, s.rank from public.club_events e
-    join public.daily_standouts s on s.event_id = e.id`), [{ interests: ['outdoors'], draw: 3, price: '$15, kids $8', rank: 1 }]);
+  assert.deepEqual(await asJob('read back', `select e.interests, e.importance, e.price, s.rank from public.club_events e
+    join public.daily_standouts s on s.event_id = e.id`), [{ interests: ['outdoors'], importance: 4, price: '$15, kids $8', rank: 1 }]);
 });
 
 test('finish: the morning report is one row a morning, the last finish kept, and no one in the app reads it', async () => {
@@ -418,14 +422,14 @@ test('the Watch key never reaches a post: read, change, approve, write, or an Ev
   const post = await row('post', 'approved', 'Anyone seen a gray cat?');
   const waiting = await row('post', 'pending', 'Waits for the check');
   const event = await row('event', 'approved', 'Garage Sale');
-  const posts = async () => (await db.query(`select id, status, title, draw from public.club_events
+  const posts = async () => (await db.query(`select id, status, title, importance from public.club_events
     where kind = 'post' order by id`)).rows;
   const before = await posts();
 
   assert.deepEqual(await asJob('read a post', 'select id from public.club_events where id = $1', [post]), []);
   assert.deepEqual(await asJob('read the whole table', `select id from public.club_events where kind = 'post'`), []);
   assert.deepEqual(await asJob('change a post', `update public.club_events set title = 'x' where id = $1 returning id`, [post]), []);
-  await asJob('change every row it can', 'update public.club_events set draw = 3');
+  await asJob('change every row it can', 'update public.club_events set importance = 4');
   assert.deepEqual(await asJob('approve a post', `update public.club_events set status = 'approved' where id = $1 returning id`,
     [waiting]), []);
   const refused = async (what, sql, params) => {
@@ -442,9 +446,9 @@ test('the Watch key never reaches a post: read, change, approve, write, or an Ev
     on conflict (id) do update set title = excluded.title`, [post]);
   assert.deepEqual(await posts(), before, 'every post is as the neighbour left it');
 
-  // What the job does write on a neighbour's own Event still saves: its Interests, draw and map spot.
-  assert.deepEqual(await asJob("tag a neighbour's own Event", `update public.club_events set interests = '{outdoors}', draw = 2,
-    lat = 45.56, lng = -94.32, interests_tagged_at = now() where id = $1 returning draw`, [event]), [{ draw: 2 }]);
+  // What the job does write on a neighbour's own Event still saves: its Interests, importance and map spot.
+  assert.deepEqual(await asJob("tag a neighbour's own Event", `update public.club_events set interests = '{outdoors}', importance = 3,
+    lat = 45.56, lng = -94.32, interests_tagged_at = now() where id = $1 returning importance`, [event]), [{ importance: 3 }]);
 });
 
 // BP app watch-every-place 52: after an Apify check, what both judges said of an item (sources/scripts/feed_judge.py keep).

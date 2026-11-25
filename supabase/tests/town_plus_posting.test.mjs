@@ -53,7 +53,7 @@ test('nobody claims another neighbour\'s Event', async () => {
 
 test('an Event dressed as a found one, a Group\'s, a team\'s or a business\'s is never claimed', async () => {
   for (const extra of [{ source_name: 'Bad Habit Brewing' }, { club_id: GROUP },
-    { place_entry_id: 'bad-habit-brewing' }, { team_ids: ['sju', 'csb'] }, { draw: 3 }, { shows_from: '2026-11-02' },
+    { place_entry_id: 'bad-habit-brewing' }, { team_ids: ['sju', 'csb'] }, { importance: 4 }, { shows_from: '2026-11-02' },
     { kind: 'trail' }, { category: 'music' }, { followers_only: true }, { lat: 45.56 }, { interests: ['college'] }]) {
     assert.equal(await claim(await posted(ME, extra), ME), false, JSON.stringify(extra));
   }

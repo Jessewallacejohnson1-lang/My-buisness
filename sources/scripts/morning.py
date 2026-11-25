@@ -30,7 +30,7 @@ docs/plans/watch-every-place, ticket 05). The routine's steps are sources/models
             the same", and the morning's also tells yesterday's SJU and CSB games: how far each live score got
             and where its final came from (Jesse, 2026-10-29). The summary waits in report.json for finish, and a second save the same morning
             writes nothing again (Oct 22's job wrote twice). Then it lays out the helpers' work: the Events
-            no tagger has read yet (or that have no draw, or no words saying what they are), upcoming or
+            no tagger has read yet (or that have no words saying what they are), upcoming or
             still running, in batches of 40 for the cheap model (town-feed tickets 33 and 34, BP app
             event-card 05; sources/models/tag.md), and the upcoming Events found in the last two days whose
             About is empty or under a sentence (feed and catalog events skip the judge), at most 30, in
@@ -43,7 +43,7 @@ docs/plans/watch-every-place, ticket 05). The routine's steps are sources/models
             helpers' tags and Abouts not saved yet, for the routine's model to pick the day's standouts (BP
             app docs/plans/daily-tab, ticket 14; sources/models/standouts.md)
   finish    once every helper has answered: write the cheap model's tags (.runs/morning/tags.jsonl)
-            onto those Events: only ids from the shared interest list, a draw of 1, 2 or 3, an Event's
+            onto those Events: only ids from the shared interest list, an Event's
             first interest becomes its category when it has none, and what it is in one to three words; an
             Event tagged before only gets its words, so nobody's feed reshuffles. One write per Event (901
             on 2026-10-27), so it works in parts like prepare. Then the helpers' Abouts
@@ -98,6 +98,7 @@ import team_logos
 import venue_spots
 import audience
 import card_tags
+import importance
 import event_parts
 import feed_judge
 import signups
@@ -913,53 +914,16 @@ def save_fingerprints(run):
 
 
 def to_tag(db, today):
-    """Approved Events no tagger has read or rated, or with no words saying what they are, still to
-    come or still running, as the tagger reads them. `tagged`: read and rated before, so only its
-    words are written."""
+    """Approved Events no tagger has read, or with no words saying what they are, still to come or still
+    running, as the tagger reads them. `tagged`: read before, so only its words are written."""
     rows = db.rest("GET", "club_events?select=id,title,location,description,category,source_name,club_id,submitted_by,"
-                          "interests_tagged_at,draw,clubs(name)"
+                          "interests_tagged_at,clubs(name)"
                    "&status=eq.approved&kind=eq.event"
-                   f"&and={quote(f'(or(interests_tagged_at.is.null,draw.is.null,what.is.null),or(event_date.gte.{today},end_at.gte.{today}))')}"
+                   f"&and={quote(f'(or(interests_tagged_at.is.null,what.is.null),or(event_date.gte.{today},end_at.gte.{today}))')}"
                    "&order=event_date&limit=1000")
-    weeks = weekly_series(db, today) if rows else set()
     return [{"id": r["id"], "title": r["title"], "host": (r.get("clubs") or {}).get("name") or r.get("source_name") or "",
              "place": r.get("location") or "", "about": " ".join((r.get("description") or "").split())[:300],
-             "category": r.get("category"), **({"weekly": True} if series_key(r) in weeks else {}),
-             "tagged": bool(r.get("interests_tagged_at") and r.get("draw"))} for r in rows]
-
-
-def series_key(r):
-    """An Event's series as the Town feed keys it: its title and who puts it on."""
-    return (" ".join((r.get("title") or "").split()).lower(),
-            r.get("club_id") or r.get("source_name") or r.get("submitted_by") or "")
-
-
-def is_weekly(days):
-    """A series that comes back every week (a weekly class, bingo night): 3 or more dates over 3 weeks or more, most of
-    them a week or less apart. A show's run of nights spans less; a monthly meeting's dates are further apart."""
-    days = sorted(set(days))
-    if len(days) < 3 or (days[-1] - days[0]).days < 21:
-        return False
-    gaps = sorted((b - a).days for a, b in zip(days, days[1:]))
-    return gaps[len(gaps) // 2] <= 9
-
-
-def weekly_series(db, today):
-    """The series with dates every week, from 4 weeks back to 4 weeks ahead, so the tagger rates a weekly class 1 (BP
-    app town-feed 74). Read in pages: the window holds about 1,000 Events."""
-    path = ("club_events?select=title,club_id,source_name,submitted_by,event_date&status=eq.approved&kind=eq.event"
-            f"&event_date=gte.{today - timedelta(days=28)}&event_date=lte.{today + timedelta(days=28)}&order=id")
-    rows = []
-    while True:
-        got = db.rest("GET", f"{path}&limit=1000&offset={len(rows)}") or []
-        rows += got
-        if len(got) < 1000:
-            break
-    days = collections.defaultdict(list)
-    for r in rows:
-        if r.get("event_date"):
-            days[series_key(r)].append(date.fromisoformat(r["event_date"][:10]))
-    return {k for k, d in days.items() if is_weekly(d)}
+             "category": r.get("category"), "tagged": bool(r.get("interests_tagged_at"))} for r in rows]
 
 
 def tag_message(events, interests):
@@ -996,15 +960,14 @@ def untagged(run):
 
 def plan_tags(lines, events, known):
     """The cheap model's lines as writes: only Events it was given, only known interests, each
-    once, in the model's order, at most TAG_MAX, and a draw of 1, 2 or 3. An Event it didn't answer stays untagged
-    for tomorrow; one with no usable draw is read again tomorrow for it."""
+    once, in the model's order, at most TAG_MAX. An Event it didn't answer stays untagged for tomorrow."""
     given, known, writes = {e["id"]: e for e in events}, set(known), {}
     for ln in lines:
         if not isinstance(ln, dict) or ln.get("id") not in given:
             continue
         what = what_words(ln.get("what"))
         if given[ln["id"]].get("tagged"):
-            # Read and rated before: only its words, so its interests and draw stay as they were.
+            # Read before: only its words, so its interests stay as they were.
             # ponytail: one with no usable words is asked again each morning; mark it if that grows.
             if what:
                 writes[ln["id"]] = {"what": what}
@@ -1013,8 +976,6 @@ def plan_tags(lines, events, known):
             continue
         tags = list(dict.fromkeys(t for t in ln["interests"] if t in known))[:TAG_MAX]
         write = {"interests": tags}
-        if ln.get("draw") in (1, 2, 3):
-            write["draw"] = ln["draw"]
         if not given[ln["id"]].get("category") and tags:
             write["category"] = tags[0]
         if what:
@@ -1038,9 +999,7 @@ def tag(run, dry_run):
             return [f"[morning] run again: {len(writes) - left} of {len(writes)} events tagged"]
     empty = sum(1 for w in writes.values() if "interests" in w and not w["interests"])
     words = sum(1 for w in writes.values() if "what" in w)
-    draws = {d: sum(1 for w in writes.values() if w.get("draw") == d) for d in (3, 2, 1)}
-    return [f"[morning] tagged {len(writes)} events ({empty} with no interest; draw 3/2/1: "
-            f"{draws[3]}/{draws[2]}/{draws[1]}), {words} with what they are in words, "
+    return [f"[morning] tagged {len(writes)} events ({empty} with no interest), {words} with what they are in words, "
             f"{len(events) - len(writes)} left for tomorrow" + (" (dry run: nothing written)" if dry_run else "")]
 
 
@@ -1219,13 +1178,13 @@ def describe(run, dry_run):
             + [f"[check] {c}" for c in checks])
 
 
-def todays_events(db, today, tags=None, abouts=None):
+def todays_events(db, today, tags=None, abouts=None, levels=None):
     """Today's Events as the Town feed takes them (approved, posted by a neighbour or found by a
-    source, not called off), with what the model weighs: interests, draw, Going and hearts. The
-    feed's function itself reads private helpers the service key can't reach. `tags` and `abouts`: the
+    source, not called off), with what the model weighs: interests, importance, Going and hearts. The
+    feed's function itself reads private helpers the service key can't reach. `tags`, `abouts` and `levels`: the
     helpers' answers finish has yet to save, so an Event found this morning carries them too."""
     rows = db.rest("GET", "club_events?select=id,title,start_time,all_day,location,source_name,description,"
-                          "interests,interests_tagged_at,category,draw,club_id,clubs(name,status,private)"
+                          "interests,interests_tagged_at,category,importance,club_id,clubs(name,status,private)"
                           f"&status=eq.approved&kind=eq.event&event_date=eq.{today}&cancelled_at=is.null&signups_closed_by=is.null"
                           "&or=(submitted_by.not.is.null,source_name.not.is.null)&order=start_time") or []
     rows = [r for r in rows if town_sees(r)]
@@ -1243,6 +1202,7 @@ def todays_events(db, today, tags=None, abouts=None):
         t = (tags or {}).get(r["id"]) or {}
         r.update(t, **({"interests_tagged_at": str(today)} if "interests" in t else {}))
         r["description"] = (abouts or {}).get(r["id"]) or r.get("description")
+        r["importance"] = r.get("importance") or (levels or {}).get(r["id"])
     ids = ",".join(r["id"] for r in rows)
     count = lambda table: [x["event_id"] for x in db.rest("GET", f"{table}?select=event_id&event_id=in.({ids})") or []]
     going, hearts = count("event_rsvps"), count("event_likes")
@@ -1269,7 +1229,7 @@ def event_line(row, going, hearts):
     return {"id": row["id"], "title": row["title"],
             "start": "all day" if row.get("all_day") else (row.get("start_time") or "no time given"),
             "place": row.get("location") or "", "host": (row.get("clubs") or {}).get("name") or row.get("source_name") or "",
-            "interests": interests or [], "draw": row.get("draw"), "going": going, "hearts": hearts,
+            "interests": interests or [], "importance": row.get("importance"), "going": going, "hearts": hearts,
             "about": " ".join((row.get("description") or "").split())[:300]}
 
 
@@ -1280,7 +1240,7 @@ def lay_out_today(run):
     tags = plan_tags(read_items(out / "tags.jsonl"), given("tag"), write_judged.interest_ids())
     writes, _ = plan_descriptions(read_items(out / "describe.jsonl"), given("describe"))
     abouts = {i: w["description"] for i, w in writes.items() if "description" in w}
-    events = todays_events(run.db, today, tags, abouts)
+    events = todays_events(run.db, today, tags, abouts, importance.levels(out))
     (out / "today.txt").write_text(f"Today: {today}\n\nEvents:\n"
                                    + "".join(json.dumps(e, ensure_ascii=False) + "\n" for e in events))
     print(f"[morning] {len(events)} events today for the standouts ({out / 'today.txt'})")
@@ -1380,6 +1340,7 @@ def finish(run, dry_run):
                        ("place logos", lambda: place_logos.keep(run, dry_run)),
                        ("venue spots", lambda: venue_spots.keep(run, dry_run)),
                        ("who it's for", lambda: audience.keep(run, dry_run)),
+                       ("importance", lambda: importance.keep(run, dry_run)),
                        ("card tags", lambda: card_tags.keep(run, dry_run)),
                        ("event parts", lambda: event_parts.keep(run, dry_run)),
                        ("sign-ups", lambda: signups.keep(run, dry_run)),
@@ -1967,40 +1928,29 @@ def selftest():
                    and fingerprint("Trivia Oct 24 7:00 PM") != fingerprint("Trivia Oct 24 8:00 PM"),
                    "a page's own clock doesn't change its fingerprint; an event's time does"))
     events = [{"id": "e1", "category": None}, {"id": "e2", "category": "live_music"}, {"id": "e3", "category": None}]
-    writes = plan_tags([{"id": "e1", "interests": ["dining", "faith", "dining", "made_up"], "draw": 3},
-                        {"id": "e2", "interests": ["bars", "live_music"], "draw": 7}, {"id": "zz", "interests": ["dining"]},
+    writes = plan_tags([{"id": "e1", "interests": ["dining", "faith", "dining", "made_up"]},
+                        {"id": "e2", "interests": ["bars", "live_music"]}, {"id": "zz", "interests": ["dining"]},
                         "unreadable line: {", {"id": "e3"}], events, ["dining", "faith", "bars", "live_music"])
-    checks.append((writes == {"e1": {"interests": ["dining", "faith"], "draw": 3, "category": "dining"},
+    checks.append((writes == {"e1": {"interests": ["dining", "faith"], "category": "dining"},
                               "e2": {"interests": ["bars", "live_music"]}},
-                   "tags keep known interests once each and a draw of 1-3, fill an empty category, and skip Events not given or not answered"))
-    checks.append((plan_tags([{"id": "e1", "interests": [], "draw": 1}], events, ["dining"]) == {"e1": {"interests": [], "draw": 1}},
+                   "tags keep known interests once each, fill an empty category, and skip Events not given or not answered"))
+    checks.append((plan_tags([{"id": "e1", "interests": []}], events, ["dining"]) == {"e1": {"interests": []}},
                    "an Event nothing fits is tagged with none, so it isn't read again"))
     checks.append((plan_tags([{"id": "e2", "interests": ["bars", "live_music", "dining", "faith", "games", "talks"]}], events,
                              ["bars", "live_music", "dining", "faith", "games", "talks"])["e2"]["interests"]
                    == ["bars", "live_music", "dining", "faith", "games"], "an Event keeps 5 interests at most, the model's first"))
-    words = plan_tags([{"id": "e1", "interests": ["dining"], "draw": 2, "what": "  cross  country meet. "},
-                       {"id": "t1", "interests": ["faith"], "draw": 3, "what": "Lecture"},
-                       {"id": "t2", "interests": ["faith"], "draw": 3, "what": "A talk about a lot of things"},
-                       {"id": "e3", "interests": [], "draw": 1, "what": 7}],
+    words = plan_tags([{"id": "e1", "interests": ["dining"], "what": "  cross  country meet. "},
+                       {"id": "t1", "interests": ["faith"], "what": "Lecture"},
+                       {"id": "t2", "interests": ["faith"], "what": "A talk about a lot of things"},
+                       {"id": "e3", "interests": [], "what": 7}],
                       events + [{"id": "t1", "tagged": True}, {"id": "t2", "tagged": True}], ["dining", "faith"])
-    checks.append((words == {"e1": {"interests": ["dining"], "draw": 2, "category": "dining", "what": "Cross country meet"},
-                             "t1": {"what": "Lecture"}, "e3": {"interests": [], "draw": 1}},
+    checks.append((words == {"e1": {"interests": ["dining"], "category": "dining", "what": "Cross country meet"},
+                             "t1": {"what": "Lecture"}, "e3": {"interests": []}},
                    "what it is: one to three words, tidied; an Event tagged before only gets its words"))
     checks.append(('"tagged"' not in tag_message([{"id": "e1", "tagged": True}], ["dining"]),
                    "the model never sees the tagged mark"))
     checks.append(("Interests: dining, faith" in tag_message([{"id": "e1"}], ["dining", "faith"]),
                    "each batch carries the interest list"))
-    d = lambda *n: [date(2026, 11, 1) + timedelta(days=k) for k in n]
-    checks.append((is_weekly(d(0, 7, 14, 21)) and is_weekly(d(0, 3, 7, 10, 14, 17, 21, 24))
-                   and not is_weekly(d(0, 1, 7, 8)) and not is_weekly(d(0, 28, 56)) and not is_weekly(d(0, 7, 14)),
-                   "weekly: 3 or more dates over 3 weeks, mostly a week apart; not a show's run, a monthly meeting or 2 weeks"))
-    rows = [{"id": "b", "title": "Bingo  Night", "source_name": "Sal's", "event_date": "2026-11-17"},
-            {"id": "f", "title": "Fall Festival", "club_id": "c1", "event_date": "2026-11-18"}]
-    series = [{"title": "bingo night", "source_name": "Sal's", "event_date": f"2026-11-{n:02}"} for n in (3, 10, 17, 24)]
-    tagdb = FakeDb(answers={"club_events?select=id,": rows, "club_events?select=title,": series})
-    checks.append(([e.get("weekly") for e in to_tag(tagdb, date(2026, 11, 17))] == [True, None]
-                   and '"weekly": true' in tag_message(to_tag(tagdb, date(2026, 11, 17)), ["games"]),
-                   "the tagger is told which Events come back every week"))
     today = [{"id": "g"}, {"id": "t"}, {"id": "b"}]
     rows = plan_standouts([{"id": "g", "why": " Rivals,  under the lights "}, {"id": "zz", "why": "not today"},
                            {"id": "t", "why": ""}, "unreadable line: {", {"id": "g", "why": "again"},
@@ -2022,15 +1972,15 @@ def selftest():
                    "nine standouts at most"))
     line = event_line({"id": "g", "title": "Home game", "all_day": False, "start_time": "7 PM", "location": "Field",
                        "clubs": None, "source_name": "Sartell High School", "description": "  Rivals\n night  ",
-                       "interests": [], "interests_tagged_at": None, "category": "watch_sports", "draw": 3}, 3, 1)
+                       "interests": [], "interests_tagged_at": None, "category": "watch_sports", "importance": 4}, 3, 1)
     checks.append((line["interests"] == ["watch_sports"] and line["host"] == "Sartell High School"
-                   and line["start"] == "7 PM" and line["about"] == "Rivals night" and line["draw"] == 3
+                   and line["start"] == "7 PM" and line["about"] == "Rivals night" and line["importance"] == 4
                    and (line["going"], line["hearts"]) == (3, 1),
                    "an untagged Event's interest is its category, as the feed matches it"))
     checks.append((event_line({"id": "x", "title": "Fair", "all_day": True, "interests": ["festivals"],
                                "interests_tagged_at": "2026-10-20", "clubs": {"name": "Fair board"}}, 0, 0)
                    == {"id": "x", "title": "Fair", "start": "all day", "place": "", "host": "Fair board",
-                       "interests": ["festivals"], "draw": None, "going": 0, "hearts": 0, "about": ""},
+                       "interests": ["festivals"], "importance": None, "going": 0, "hearts": 0, "about": ""},
                    "an all-day Event says so, and a group's name is its host"))
     given = [{"id": "a", "title": "Pilates", "date": "2026-10-26", "about": "$10."},
              {"id": "b", "title": "Game", "date": "2026-10-27", "about": "A long About already here."}]
@@ -2609,7 +2559,7 @@ def in_parts():
                      and len(asked) == n and (out / "flags.jsonl").exists())
             (out / "tag").mkdir()
             (out / "tag" / "events.json").write_text(json.dumps([{"id": f"e{i}", "category": None} for i in range(5)]))
-            (out / "tags.jsonl").write_text("".join(json.dumps({"id": f"e{i}", "interests": ["dining"], "draw": 2}) + "\n"
+            (out / "tags.jsonl").write_text("".join(json.dumps({"id": f"e{i}", "interests": ["dining"]}) + "\n"
                                                     for i in range(5)))
             tagged, n = [], len(asked)
             while len(tagged) < 3 and "[morning] tagged" not in "".join(tagged):
@@ -2667,7 +2617,7 @@ def steps_alone():
     day = date(2026, 10, 20)
     rows = [{"id": f"e{i}", "title": f"Supper {i}", "event_date": str(day), "start_time": "7 PM", "location": "Hall",
              "description": "", "category": None, "source_name": "Hall", "source_url": "https://hall.example/", "sport": None,
-             "team_ids": None, "clubs": None, "interests_tagged_at": None, "draw": None, "end_at": None, "all_day": False}
+             "team_ids": None, "clubs": None, "interests_tagged_at": None, "importance": None, "end_at": None, "all_day": False}
             for i in range(3)]
     added = {"events": 1, "news": 0, "mentions": 0, "published_by_mention": 0, "cancelled": 0, "restored": 0,
              "added": {"events": [0], "news": []}}
@@ -2733,7 +2683,7 @@ def steps_alone():
             applied, moved = len(db.writes("rpc/apply_judged")), db.rows["milk|https://m/events"]["last_hash"]
             laid = [len(json.loads((out / d / "events.json").read_text())) for d in ("tag", "describe")]
 
-            (out / "tags.jsonl").write_text("".join(json.dumps({"id": r["id"], "interests": ["dining"], "draw": 2, "what": "Supper"}) + "\n"
+            (out / "tags.jsonl").write_text("".join(json.dumps({"id": r["id"], "interests": ["dining"], "what": "Supper"}) + "\n"
                                                     for r in rows))
             (out / "describe.jsonl").write_text(json.dumps({"id": "e0", "about": about}) + "\n" + json.dumps({"id": "e1", "about": ""}) + "\n")
             n = len(db.writes())
@@ -3039,12 +2989,17 @@ def whole_morning():
             if path.startswith("places?select=entry_id,hours") or path.startswith("places?entry_id"):  # a post's week: p0 closed all week
                 return self.hours.append((method, path, body)) if method == "PATCH" else [{"entry_id": "p0", "hours": {d: [] for d in accounts.DAY_KEYS}}]
             kind = ("standouts" if method == "POST" and path.startswith("daily_standouts")
-                    else "describe" if method == "PATCH" and "described_at" in body else "tag" if method == "PATCH" else None)
+                    else "describe" if method == "PATCH" and "described_at" in body else "tag" if method == "PATCH" and set(body) != {"importance"} else None)
             if kind:
                 self.tries[kind] += 1
                 if self.breaks.get(kind) == self.tries[kind]:
                     raise DbError(method, path, None, "timed out")
                 self.writes.append((kind, path))
+            if method == "PATCH" and set(body) == {"importance"}:
+                for e in self.events:
+                    if e["id"] in path and e["importance"] is None:
+                        e.update(body)
+                return []
             if method == "PATCH":
                 clock.t += 150  # a write takes long enough that finish's tags take two parts
                 next(e for e in self.events if path == f"club_events?id=eq.{e['id']}").update(body)
@@ -3062,7 +3017,7 @@ def whole_morning():
     def save_items(p):  # apply_judged: every Event and News new
         Db.saves.append(p)
         Db.events += [dict(row, id=f"e{len(Db.events) + i}", status="approved", clubs=None, interests=None,
-                               interests_tagged_at=None, draw=None, what=None, described_at=None)
+                               interests_tagged_at=None, importance=None, what=None, described_at=None)
                           for i, row in enumerate(p["p_events"])]
         return {"events": len(p["p_events"]), "news": len(p["p_news"]), "mentions": 0, "published_by_mention": 0,
                 "cancelled": 0, "restored": 0, "added": {"events": list(range(len(p["p_events"]))),
@@ -3143,14 +3098,19 @@ def whole_morning():
             given = lambda d: json.loads((out / d / "events.json").read_text()) if (out / d / "events.json").exists() else []
             is_supper = lambda e: e["title"] == "Harvest Supper"
             about = "A harvest supper of roast turkey and pie, open to all; $12 a plate, kids under 10 free."
-            tags = [{"id": e["id"], "interests": ["dining"], "draw": 3 if is_supper(e) else 2, "what": "Supper"}
+            tags = [{"id": e["id"], "interests": ["dining"], "what": "Supper"}
                     for e in given("tag")]
             # The supper's About, the markets' Abouts with their "free" moved to the price (inside-cards 14), a check.
             told = [{"id": e["id"], "about": about} if is_supper(e)
                     else {"id": e["id"], "about": e["about"].replace("; free to walk through", ""), "price": "Free"} if e["about"]
                     else {"id": e["id"], "about": "", "check": "Starts at 7:30, not 7."}
                     for e in given("describe")]
-            for name, lines in (("tags.jsonl", tags), ("describe.jsonl", told)):
+            # Both helpers rate each Event; they differ on one market, and the lower level counts (feed-learns 04).
+            with contextlib.redirect_stdout(io.StringIO()):
+                importance.prepare(Run(out, date(2026, 11, 3), Db()))
+            rated = [[{"id": e["id"], "importance": 4 if is_supper(e) else n if e["title"] == "Holiday Market" else 3}
+                      for e in given("tag")] for n in (4, 3)]
+            for name, lines in (("tags.jsonl", tags), ("describe.jsonl", told), *zip(importance.READINGS, rated)):
                 (out / name).write_text("".join(json.dumps(x) + "\n" for x in lines))
             laid = command("today")
             today_txt = [e for e in read_items(out / "today.txt") if isinstance(e, dict)]
@@ -3199,9 +3159,9 @@ def whole_morning():
         (not dry_wrote and "Morning watch, 2026-11-03" in dry[0] and dry[1].startswith("Morning watch, 2026-11-03")
          and "(dry run: nothing written)" in dry[1] and "Apify: $4.20" in dry[1],
          f"a dry save and a dry finish chain, write nothing, and leave the real save to write: {dry}"),
-        (laid.startswith("[morning] 1 events today") and [(e["title"], e["interests"], e["draw"], e["about"][:16]) for e in today_txt]
-         == [("Harvest Supper", ["dining"], 3, "A harvest supper")],
-         f"today's Events carry the helpers' tags and Abouts before finish saves them: {today_txt}"),
+        (laid.startswith("[morning] 1 events today") and [(e["title"], e["interests"], e["importance"], e["about"][:16]) for e in today_txt]
+         == [("Harvest Supper", ["dining"], 4, "A harvest supper")],
+         f"today's Events carry the helpers' tags, levels and Abouts before finish saves them: {today_txt}"),
         (len(broken) == 2 and broken[0] == "[morning] run again: 3 of 4 events tagged\n"
          and broken[1].startswith("Morning watch, 2026-11-03\n") and "New Events:" in broken[1]
          and all(f"[morning] {w} failed: Supabase " in broken[1] for w in ("tags", "Abouts", "standouts"))
@@ -3236,12 +3196,14 @@ def whole_morning():
                     "Notes:",
                     "- interest 'bars' is not on the list ('Holiday Market'): left empty",
                     "- interest 'bars' is not on the list ('Holiday Market Bake Sale'): left empty",
-                    "[morning] tagged 4 events (0 with no interest; draw 3/2/1: 1/3/0), 4 with what they are in words, "
+                    "[morning] tagged 4 events (0 with no interest), 4 with what they are in words, "
                     "0 left for tomorrow",
                     "[morning] described 3 of 4 events given",
                     "[check] Sacred Heart Chapel Anniversary (2026-11-21): Starts at 7:30, not 7.",
                     "[morning] standouts: 1 of 1 events today",
                     "[morning] #1 Harvest Supper (5 PM): A church supper open to all",
+                    "[importance] rated 4 Events (5/4/3/2/1: 0/1/3/0/0); the helpers agreed on 3 of 4 lines (75%), 0 wait for tomorrow",
+                    "- Harvest Supper: 4",
                     "- Sign-up pages: 1 of 1 read",
                     "No event photo yet:",
                     "- Tue Nov 3 · 5 PM · Harvest Supper · Milk & Honey Ciders",
