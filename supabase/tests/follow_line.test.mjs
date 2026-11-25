@@ -36,6 +36,10 @@ test('a photo stays until a row names another, and whoever leaves the line has n
   await save('watch', line(105));
   assert.equal((await spot(1)).photo, 'https://x.co/a.webp');
   assert.equal(await spot(110), null);
+  await save('watch', line().slice(1).map((r) => (r.spot === 2 ? { ...r, spot: 1 } : r)));
+  assert.deepEqual(await spot(1), { photo: 'https://x.co/a.webp' }, 'out of the line, its photo waits');
+  await save('watch', line());
+  assert.equal((await spot(1)).photo, 'https://x.co/a.webp');
   assert.equal((await db.query('select count(*)::int n from public.town_pages where follow_spot is not null')).rows[0].n, 0);
   await save('watch', line(105, { 1: { photo: null } }));
   assert.equal((await spot(1)).photo, null);
@@ -51,7 +55,8 @@ test('a closed Place is in no line', async () => {
 test('a broken run changes nothing: too short, two on one spot, no first, or an odd value', async () => {
   const before = await all();
   for (const rows of [line(40), [], line(110, { 2: { spot: 1 } }), line(110, { 1: { spot: 99 } }), line(110, { 4: { spot: 'x' } }),
-    line(110, { 4: { group: 7 } })]) {
+    line(110, { 4: { group: 7 } }), line(110, { 4: { fit: 2.5 } }), line(110, { 4: { fit: -3 } }), [...line(), { id: uuid(1), spot: 111, fit: 111 }],
+    line(110, { 4: { id: uuid(999) } }), line().map(({ id, ...r }) => r), [...line(), { page: 'nowhere', spot: 111, fit: 111 }]]) {
     await assert.rejects(save('watch', rows));
     assert.equal(await all(), before);
   }
@@ -76,5 +81,5 @@ test('nobody in the app saves a line, signed out or in', async () => {
 
 test('the spots already live keep their shape', async () => {
   await db.exec(`update public.places set follow_spot = '{"spot": 1, "photo": "https://x.co/b.webp"}' where id = '${uuid(1)}'`);
-  await assert.rejects(db.exec(`update public.places set follow_spot = '{"level": 5}' where id = '${uuid(1)}'`), /check constraint/);
+  await assert.rejects(db.exec(`update public.places set follow_spot = '{"rank": 5}' where id = '${uuid(1)}'`), /check constraint/);
 });

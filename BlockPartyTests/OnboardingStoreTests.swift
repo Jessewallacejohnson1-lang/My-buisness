@@ -438,20 +438,20 @@ final class OnboardingStoreTests: XCTestCase {
     }
 
     func testAPickLiftsAPlaceToItsFit() {
-        let places = [line("One", spot: 1, fit: 1), line("Five", spot: 4, fit: 2), line("Cafe", "coffee_shop", spot: 6, fit: 3),
-                      line("Two", "coffee_shop", spot: nil, fit: 7), line("Four", spot: 8, fit: 5), poi("plain", "Plain", "coffee_shop")]
+        let places = [line("A", spot: 1, fit: 1), line("B", spot: 4, fit: 2), line("Cafe", "coffee_shop", spot: 6, fit: 3),
+                      line("D", "coffee_shop", spot: nil, fit: 7), line("C", spot: 8, fit: 5), poi("e", "E", "coffee_shop")]
         let city = TownPageRow(id: "c", slug: "city", name: "City", kind: "City government", sourceName: nil, picture: nil,
                                pictureKind: nil, followSpot: FollowSpot(spot: 9, fit: 2))
-        XCTAssertEqual(order(places, pages: [city]), ["One", "Five", "Cafe", "Four", "City", "Plain", "Two"])
-        XCTAssertEqual(order(places, pages: [city], picked: ["coffee"]), ["One", "Cafe", "Five", "Two", "Four", "City", "Plain"],
-                       "Two joins the line, under Five; Plain, in no line, stays after it")
-        XCTAssertEqual(order(places, pages: [city], picked: ["town_meetings"]).prefix(3), ["One", "City", "Five"])
+        XCTAssertEqual(order(places, pages: [city]), ["A", "B", "Cafe", "C", "City", "D", "E"])
+        XCTAssertEqual(order(places, pages: [city], picked: ["coffee"]), ["A", "Cafe", "B", "D", "C", "City", "E"],
+                       "D joins the line at its fit; E, in no line, stays after it")
+        XCTAssertEqual(order(places, pages: [city], picked: ["town_meetings"]).prefix(3), ["A", "City", "B"])
     }
 
     func testTheFirstTwelveHoldTheMixAndFiveFood() {
         var places = (1...9).map { line("Food \($0)", spot: $0, fit: $0, group: "food") }
         places += (10...20).map { line("Other \($0)", spot: $0, fit: $0) }
-        places += [line("Bingo", spot: 21, fit: 21, group: "learn", late: true), line("Shelf", spot: 22, fit: 22, group: "help"),
+        places += [line("Late", spot: 21, fit: 21, group: "learn", late: true), line("Shelf", spot: 22, fit: 22, group: "help"),
                    line("Park", spot: 23, fit: 23, group: "outdoors"), line("Shop", spot: 24, fit: 24, group: "shop"),
                    line("Library", spot: 25, fit: 25, group: "learn")]
         let names = order(places)
@@ -459,7 +459,13 @@ final class OnboardingStoreTests: XCTestCase {
                        + ["Shelf", "Park", "Shop", "Library"])
         XCTAssertEqual(Array(names[12..<14]), ["Food 6", "Food 7"], "what was passed over leads what follows")
         XCTAssertEqual(Set(names).count, places.count, "nobody is hidden")
-        XCTAssertFalse(names.prefix(12).contains("Bingo"))
+        // A group with only a late place can't be had, and a line of fewer than 12 shows all it has.
+        XCTAssertEqual(order([line("Late", spot: 1, fit: 1, group: "learn", late: true), line("A", spot: 2, fit: 2, group: "food")]),
+                       ["A", "Late"])
+        // Schools lead, then the mix.
+        let school = LocalSchool(id: "kennedy", uuid: "k1", name: "Kennedy", schoolName: nil, logoUrl: nil)
+        let all = FollowSuggestions.build(places: places, schools: [school], pages: [], events: [])
+        XCTAssertEqual(FollowSuggestions.ordered(all, picked: [], schoolsFirst: true).map(\.name), ["Kennedy"] + names)
     }
 
     func testUnder18NoBarIsInTheFirstTwentyFour() {
@@ -470,11 +476,17 @@ final class OnboardingStoreTests: XCTestCase {
         XCTAssertEqual(teen.first, "Grill", "a bar and grill stays")
         XCTAssertEqual(Array(teen[22...26]), ["P26", "P27", "Brewery", "Bar", "P28"])
         XCTAssertEqual(teen.count, places.count)
+        // Following the grill pulls up no bar.
+        let all = FollowSuggestions.build(places: places, schools: [], pages: [], events: [])
+        let grid = FollowSuggestions.ordered(all, picked: [], under18: true), grill = grid[0].target
+        XCTAssertEqual(FollowSuggestions.pull(grid, after: grill, follows: [grill], under18: true).moved, [])
+        XCTAssertEqual(FollowSuggestions.pull(grid, after: grill, follows: [grill]).moved.count, 2)
     }
 
-    func testAnAdultsOnlyPlaceIsNotInOnboarding() {
-        var adult = poi("p", "The Middy", "bar")
-        adult.adultsOnly = true
+    func testAnAdultsOnlyPlaceIsNotInOnboarding() throws {
+        let adult = try Supabase.decode(Data(#"""
+        {"id": "p", "name": "The Middy", "lat": 0, "lon": 0, "family": "food", "primary_type": "bar", "types": [], "adults_only": true}
+        """#.utf8), as: POI.self)
         XCTAssertEqual(order([adult, poi("q", "Blend", "coffee_shop")]), ["Blend"])
     }
 

@@ -213,16 +213,17 @@ enum FollowSuggestions {
     }
 
     /// Following `target` pulls up to `likeIt` places like it (sharing a category, most in common first,
-    /// then busiest) from below the two rows in sight to right after it, as Spotify adds artists after
+    /// then busiest; no bar under 18) from below the two rows in sight to right after it, as Spotify adds artists after
     /// the one you pick. Places above it, in sight and already followed stay put. `moved` is what was
     /// pulled.
     static func pull(_ order: [FollowSuggestion], after target: FollowTarget,
-                     follows: Set<FollowTarget>) -> (order: [FollowSuggestion], moved: [FollowTarget]) {
+                     follows: Set<FollowTarget>, under18: Bool = false) -> (order: [FollowSuggestion], moved: [FollowTarget]) {
         guard let i = order.firstIndex(where: { $0.target == target }) else { return (order, []) }
         let tapped = order[i].categories
         // From the row after the rows in sight under the followed one's row (3 to a row).
         let picks = order.indices.dropFirst((i / 3 + 1 + rowsInSight) * 3)
-            .filter { !follows.contains(order[$0].target) && !order[$0].categories.isDisjoint(with: tapped) }
+            .filter { !follows.contains(order[$0].target) && !order[$0].categories.isDisjoint(with: tapped)
+                && !(under18 && order[$0].isBar) }
             .sorted { a, b in
                 let sa = order[a].categories.intersection(tapped).count, sb = order[b].categories.intersection(tapped).count
                 if sa != sb { return sa > sb }
@@ -274,9 +275,9 @@ enum FollowSuggestions {
     }
 
     /// The first three rows' pictures, read while the steps before are up so the circles come with theirs.
-    static func readAhead(_ all: [FollowSuggestion], width: CGFloat, scale: CGFloat) {
+    static func readAhead(_ all: [FollowSuggestion], picked: [String], under18: Bool, width: CGFloat, scale: CGFloat) {
         let side = FollowCircleMetric.side(width)
-        let first = ordered(all, picked: []).prefix(9)
+        let first = ordered(all, picked: picked, under18: under18).prefix(9)
         for url in first.compactMap(\.photo) {
             FeedCardImageLoader.shared.readAhead(url, box: CGSize(width: side, height: side), scale: scale)
         }
@@ -440,7 +441,7 @@ struct OnboardingFollowGrid: View {
         let following = follows.contains(s.target)
         toggle(s.target)
         guard !following, let order else { return }
-        let (next, moved) = FollowSuggestions.pull(order, after: s.target, follows: Set(follows + [s.target]))
+        let (next, moved) = FollowSuggestions.pull(order, after: s.target, follows: Set(follows + [s.target]), under18: under18)
         guard !moved.isEmpty, let at = next.firstIndex(where: { $0.target == s.target }) else { return }
         // Followed from a search: the grid behind it reorders unseen, and the results stay as they are.
         guard query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { self.order = next; return }

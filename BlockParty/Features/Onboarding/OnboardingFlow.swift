@@ -484,6 +484,8 @@ struct OnboardingFlow: View {
             if step == .follow { readAgain() }
             bursting = false
         }
+        // A pick lifts places into the first rows.
+        .onChange(of: store.interests) { readAhead() }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
             withAnimation(Motion.sheet) { keyboardUp = true }
         }
@@ -495,7 +497,12 @@ struct OnboardingFlow: View {
     private func readSuggestions() async {
         let events = try? await CommunityAPI(auth: AuthStore.shared).upcomingTags()
         suggestions = (try? await FollowSuggestions.load(events: events ?? [])) ?? []
-        FollowSuggestions.readAhead(suggestions ?? [], width: screenWidth, scale: displayScale)
+        readAhead()
+    }
+
+    private func readAhead() {
+        FollowSuggestions.readAhead(suggestions ?? [], picked: store.interests, under18: store.under18,
+                                    width: screenWidth, scale: displayScale)
     }
 
     /// Nothing read (no signal back then): read again.
