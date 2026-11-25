@@ -228,13 +228,22 @@ struct CommunityAPI {
         _ = try await db.rpc("take_off_group_event", ["p_event": eventID])
     }
 
-    /// Add when you meet (`set_group_meets`, the Admin's): the when line it wrote, nil with no days.
-    func setGroupMeets(_ groupID: String, _ draft: GroupMeetsDraft) async throws -> String? {
-        let data = try await db.rpc("set_group_meets", [
-            "p_club": groupID, "p_days": draft.sentDays, "p_weeks": draft.weeks ?? NSNull(),
-            "p_time": draft.clock, "p_where": draft.sentPlace ?? NSNull(),
-        ])
-        return try JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed) as? String
+    /// Add when you meet (`set_group_meets`, the Admin's): the when line it wrote, nil with no days. The server sends a
+    /// new Place to the two checks (`moderate-post` `group`, start-a-group 08) with a 409: then the days, time and Place
+    /// are saved together, or nothing is and the reason comes back.
+    func setGroupMeets(_ groupID: String, _ draft: GroupMeetsDraft) async throws -> GroupMeetsDraft.Answer {
+        do {
+            let data = try await db.rpc("set_group_meets", [
+                "p_club": groupID, "p_days": draft.sentDays, "p_weeks": draft.weeks ?? NSNull(),
+                "p_time": draft.clock, "p_where": draft.sentPlace ?? NSNull(),
+            ])
+            return .saved(try JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed) as? String)
+        } catch let error as SupabaseError where error.status == 409 {
+            return try GroupMeetsDraft.Answer.from(await db.invoke("moderate-post", ["group": groupID, "meets": [
+                "days": draft.sentDays, "weeks": draft.weeks ?? NSNull(), "time": draft.clock,
+                "place": draft.sentPlace ?? NSNull(),
+            ] as [String: Any]]))
+        }
     }
 
     func joinClub(_ clubId: String) async throws {
