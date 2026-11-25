@@ -60,7 +60,9 @@ takes the place lines of upcoming Events that have no spot, at most 8, into `.ru
 inside-cards 20; `skipped` or no batch: nothing to do). Then run `python3 sources/scripts/audience.py prepare`: it lays out the upcoming Events with no age that no helper has judged
 for who they're for, games aside, in `.runs/morning/audience/batch-N.txt` (BP app inside-cards 35; none: nothing to do). Then run
 `python3 sources/scripts/card_tags.py prepare`: it lays out the Events and News with no fine tags yet in
-`.runs/morning/card-tags/batch-N.txt` (BP app feed-learns 03; `skipped` or no batch: nothing to do). Then run `python3 sources/scripts/event_parts.py prepare`: it reads
+`.runs/morning/card-tags/batch-N.txt` (BP app feed-learns 03; `skipped` or no batch: nothing to do). Then run `python3 sources/scripts/importance.py prepare`: it lays out
+the upcoming Events with no importance in `.runs/morning/importance/batch-N.txt` (BP app feed-learns 04; `skipped` or no batch:
+nothing to do). Then run `python3 sources/scripts/event_parts.py prepare`: it reads
 the pages of every Event in the next 7 days, and puts each whose pages state a time besides its own start and end, at most
 25, into `.runs/morning/parts/batch.txt` (BP app happening-now 03, event-schedule 01; `skipped` or no batch: nothing to do).
 Its `[parts]` line (candidates, passed, sent, left by the cap) reaches the report through finish. Then start the helpers
@@ -101,10 +103,14 @@ together, at most 10 running at once:
   nothing to do). Then one helper on your own model with: "Read `sources/models/new-tag.md` and follow it for
   `.runs/morning/card-tags/new-words.txt`. Answer with the JSON lines only." Its lines go to
   `.runs/morning/new-tags.jsonl`. A new tag goes live only on its yes: never answer for it yourself.
+- for each `.runs/morning/importance/batch-N.txt`, two helpers on your own model (Jesse, 2026-11-25: Sonnet), each on its
+  own and with the same words: "Read `sources/models/importance.md` and follow it for `.runs/morning/importance/batch-N.txt`. Answer with
+  the JSON lines only." The first's lines go to `.runs/morning/importance.jsonl`, the second's to
+  `.runs/morning/importance-2.jsonl`. The lower of the two levels counts: never answer for them yourself.
 - Once every helper's lines are in, run `python3 sources/scripts/event_photos.py keep` (it saves the picked
   photos), then `python3 sources/scripts/morning.py today`, then read
   `sources/models/standouts.md` and follow it yourself for `.runs/morning/today.txt` (today's
-  Events with the helpers' tags and Abouts), writing your lines to `.runs/morning/standouts.jsonl`.
+  Events with the helpers' tags, levels and Abouts), writing your lines to `.runs/morning/standouts.jsonl`.
 
 **Dig.** The Events keep left with no photo look further (BP app dig-deeper 22). Run
 `python3 sources/scripts/event_photos.py dig`; `no Event left bare` skips to Judge. On Sundays it is the weekly pass
@@ -161,6 +167,6 @@ dropped that a neighbour might have wanted, and why. Nothing else.
   and read what it printed (Nov 24's hand run chained seven commands and outran the cloud's 10 minutes: BP app smooth-mornings 19).
 - Pages are fetched only by `morning.py`, `event_photos.py`, `team_logos.py`, `place_logos.py`, `event_parts.py` and `signups.py` (the registry's fetcher obeys robots
   rules and Crawl-delay). WebFetch, curl and the like stay unused: some sites refuse them.
-- The database is written only by `morning.py save` and `finish` (which includes `venue_spots.py keep`, `audience.py keep`, `card_tags.py keep`, `event_parts.py keep` and `place_logos.py keep`, and on Sundays its `check`), and `event_photos.py keep`, `dig-keep` and `judge-keep`. SQL by
+- The database is written only by `morning.py save` and `finish` (which includes `venue_spots.py keep`, `audience.py keep`, `card_tags.py keep`, `importance.py keep`, `event_parts.py keep` and `place_logos.py keep`, and on Sundays its `check`), and `event_photos.py keep`, `dig-keep` and `judge-keep`. SQL by
   hand stays unused.
 - Nothing is committed or pushed; `.runs/` is scratch.

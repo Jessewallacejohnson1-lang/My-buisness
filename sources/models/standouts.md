@@ -7,16 +7,16 @@ each part of the day you cover (morning before noon, afternoon from noon to 5 PM
 else your highest-ranked one there. Someone who told us nothing gets your highest-ranked ones.
 
 `.runs/morning/today.txt` lists today's Events, one JSON line each: its id, title, start (the
-organizer's words), place, host, interests (from the shared list), draw (the tagger's 1 to 3: how
-much it draws the Town out), Going and hearts so far, and a few words about it.
+organizer's words), place, host, interests (from the shared list), importance (1 to 5: how
+much of the Town it draws out; null for one not rated yet), Going and hearts so far, and a few words about it.
 
 ## What stands out
 
 - What a neighbour would make a point of going to, or tell a friend about: a home game against a
   rival, a festival, a concert, a talk worth hearing, a dinner or fundraiser open to all, a market.
 - Popularity counts once there is some (Going, hearts). Until then your judgment carries it; read
-  the draw as a hint, not a rule.
-- Never routine business (a council or board meeting, draw 1), anything for members, staff or
+  importance as a hint, not a rule.
+- Never routine business (a council or board meeting, importance 1), anything for members, staff or
   students only, or a deadline. Never a standing thing that happens every week (weekly trivia or
   bingo) unless today's is special.
 - Far is fine when it's worth the drive, but given two alike, take the one nearer St. Joseph.

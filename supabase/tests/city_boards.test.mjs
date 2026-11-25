@@ -6,13 +6,13 @@ import assert from 'node:assert/strict';
 import { realDatabase } from './fixture.mjs';
 
 const db = await realDatabase();
-async function boardOf(title, source = 'City of St. Joseph', draw = 1) {
+async function boardOf(title, source = 'City of St. Joseph', importance = 1) {
   await db.exec('set role anon');
   const { rows } = await db.query(
     `select b.name from (select jsonb_populate_record(null::public.club_events,
-       jsonb_build_object('title', $1::text, 'source_name', $2::text, 'draw', $3::smallint)) e) r
+       jsonb_build_object('title', $1::text, 'source_name', $2::text, 'importance', $3::smallint)) e) r
      left join public.city_boards b on b.id = public.meeting_board(r.e)`,
-    [title, source, draw]);
+    [title, source, importance]);
   await db.exec('reset role');
   return rows[0].name;
 }
@@ -32,7 +32,7 @@ test('a City meeting matching no board belongs to the City only', async () => {
 
 test("only the City's own meetings belong to its boards", async () => {
   assert.equal(await boardOf('City Council Meeting', 'Kennedy Community School'), null);
-  assert.equal(await boardOf('Park Board Meeting', 'City of St. Joseph', 2), null);
+  assert.equal(await boardOf('Park Board Meeting', 'City of St. Joseph', 3), null);
 });
 
 test('anyone can read the boards, and nobody can change them', async () => {

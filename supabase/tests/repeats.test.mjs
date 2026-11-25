@@ -19,9 +19,9 @@ async function reset() {
 }
 
 const event = (title, days, o = {}) => db.query(
-  `insert into public.club_events (title, status, kind, source_name, draw, event_date, start_time, cancelled_at)
+  `insert into public.club_events (title, status, kind, source_name, importance, event_date, start_time, cancelled_at)
    values ($1, $2, 'event', $3, $4, $5, '6 PM', $6) returning id`,
-  [title, o.status ?? 'approved', o.source ?? CITY, o.draw ?? 2, townDay(days), o.cancelled ?? null])
+  [title, o.status ?? 'approved', o.source ?? CITY, o.importance ?? 3, townDay(days), o.cancelled ?? null])
   .then((r) => r.rows[0].id);
 
 /// Each Event's card's repeat, read signed out, as the app reads the Town feed.
@@ -65,8 +65,8 @@ test('only the last 60 days count, as in the Town feed', async () => {
 
 test("a Town page's and a City board's Event rows say how they repeat", async () => {
   await reset();
-  for (const days of [1, 8, 15]) await event('Planning Commission', days, { draw: 1 });
-  await event('Park Board Meeting', 3, { draw: 1 });
+  for (const days of [1, 8, 15]) await event('Planning Commission', days, { importance: 1 });
+  await event('Park Board Meeting', 3, { importance: 1 });
   await db.exec('set role anon');
   const city = (await db.query(`select public.town_page('st-joseph-mn', 'city') p`)).rows[0].p;
   const meetings = (await db.query('select public.board_meetings($1) m', [PLANNING])).rows[0].m;

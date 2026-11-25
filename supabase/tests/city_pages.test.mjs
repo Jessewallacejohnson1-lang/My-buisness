@@ -43,9 +43,9 @@ const follow = async (who, type, target, o) => (await as(who, 'select public.fol
 const unfollow = async (who, type, target) => (await as(who, 'select public.unfollow_target($1, $2) as r', [type, target]))[0].r;
 const card = async (who, type, target) => (await as(who, 'select * from public.follow_card($1, $2)', [type, target]))[0];
 const event = (title, source, days, o = {}) => db.query(
-  `insert into public.club_events (title, status, source_name, draw, event_date, start_time, location, cancelled_at)
+  `insert into public.club_events (title, status, source_name, importance, event_date, start_time, location, cancelled_at)
    values ($1, 'approved', $2, $3, $4, $5, $6, $7) returning id`,
-  [title, source, o.draw ?? 1, soon(days), o.time ?? '18:00', o.location ?? null, o.cancelled ?? null])
+  [title, source, o.importance ?? 1, soon(days), o.time ?? '18:00', o.location ?? null, o.cancelled ?? null])
   .then((r) => r.rows[0].id);
 
 test('the City, Joetown and a board each round-trip as a follow, twice each way', async () => {
@@ -88,7 +88,7 @@ test("the City's page lists its boards A to Z, each with its next meeting and yo
   await event('City Council Meeting', 'City of St. Joseph', 1, { cancelled: new Date().toISOString() });
   await event('Park Board Meeting', 'City of St. Joseph', 5);
   await event('Board of Appeal and Equalization', 'City of St. Joseph', 4);
-  await event('Winterwalk', 'JoeTown', 6, { draw: 2, location: 'Downtown' });
+  await event('Winterwalk', 'JoeTown', 6, { importance: 3, location: 'Downtown' });
   await follow(ANA, 'board', PARKS);
 
   const [{ p: city }] = await as(ANA, `select public.town_page('st-joseph-mn', 'city') p`);
@@ -156,8 +156,8 @@ test("a campus calendar is a page: a follow round-trips, it lists its own Events
   const LIBRARIES = await page('csbsju-libraries');
   assert.equal(await follow(ANA, 'page', LIBRARIES), true);
   assert.equal((await card(BEN, 'page', LIBRARIES)).followers, 1);
-  const clinic = await event('Fix-It Clinic', 'CSB SJU Libraries', 2, { draw: 2, time: '3 PM' });
-  await event('Women in Politics', 'CSB SJU Campus Events', 2, { draw: 2 });
+  const clinic = await event('Fix-It Clinic', 'CSB SJU Libraries', 2, { importance: 3, time: '3 PM' });
+  await event('Women in Politics', 'CSB SJU Campus Events', 2, { importance: 3 });
   const read = (await as(CAL, `select public.town_page('st-joseph-mn', 'csbsju-libraries') as p`))[0].p;
   assert.deepEqual([read.name, read.kind, read.picture_kind, read.picture_credit, read.events.map((e) => e.title), read.boards],
                    ['CSB SJU Libraries', 'College', 'photo', 'csbsju.edu', ['Fix-It Clinic'], []]);
@@ -245,8 +245,8 @@ const heart = (who, e) => db.query('insert into public.event_likes (event_id, us
 
 test("a Town page's Events each send the Event card, with your heart and its count", async () => {
   await reset();
-  const winterwalk = await event('Winterwalk', 'JoeTown', 40, { draw: 2, location: 'Downtown' });
-  await event('Shop Small Crawl', 'JoeTown', 3, { draw: 2 });
+  const winterwalk = await event('Winterwalk', 'JoeTown', 40, { importance: 3, location: 'Downtown' });
+  await event('Shop Small Crawl', 'JoeTown', 3, { importance: 3 });
   await heart(ANA, winterwalk);
   await heart(BEN, winterwalk);
   const [{ p }] = await as(ANA, `select public.town_page('st-joseph-mn', 'town') p`);
@@ -265,9 +265,9 @@ test("a Town page's Events each send the Event card, with your heart and its cou
 
 test("a Town page leaves out an Event whose sign-ups closed, but for whoever is Going or Hearted it, until they open", async () => {
   await reset();
-  const going = await event('Paint night', 'JoeTown', 3, { draw: 2 });
-  const hearted = await event('Retreat', 'JoeTown', 4, { draw: 2 });
-  await event('Winterwalk', 'JoeTown', 5, { draw: 2 });
+  const going = await event('Paint night', 'JoeTown', 3, { importance: 3 });
+  const hearted = await event('Retreat', 'JoeTown', 4, { importance: 3 });
+  await event('Winterwalk', 'JoeTown', 5, { importance: 3 });
   await db.query(`update public.club_events set signups_closed_by = 'catalog' where id = any($1)`, [[going, hearted]]);
   await db.query('insert into public.event_rsvps (event_id, user_id) values ($1, $2)', [going, ANA]);
   await heart(ANA, hearted);

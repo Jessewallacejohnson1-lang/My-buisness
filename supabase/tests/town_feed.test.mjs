@@ -432,21 +432,27 @@ test("every interest the tagger gave an Event matches, and a second adds nothing
                     ['Council meeting', 'tomorrow', null, 0]]);
 });
 
-test("how much an Event draws the town out is everyone's starting point: 0, 1.5 or 3 points, 2 when not rated", async () => {
+test("importance is everyone's starting point: 0.75 a step above 1, a 5 worth 3, one not rated yet a 3 (feed-learns 04)", async () => {
   await reset();
-  const fair = await add('Art fair', '2026-10-09', { start_time: '10 AM', source_name: 'Arts council' });
-  const council = await add('Council meeting', '2026-10-09', { start_time: '9 AM', source_name: 'City' });
-  await add('Book sale', '2026-10-09', { start_time: '11 AM', source_name: 'Library' });
-  await db.query(`update public.club_events set draw = 3 where id = $1`, [fair]);
-  await db.query(`update public.club_events set draw = 1 where id = $1`, [council]);
-  await db.exec(`set request.jwt.claims = '${ADMIN}'`);
-  await tap('event_likes', council, YOU, '2026-10-07 12:00');
+  const at = { Parade: 5, 'Craft market': 4, Trivia: 3, Bingo: 2, 'Council meeting': 1, 'Book sale': null };
+  const ids = {};
+  for (const [n, title] of Object.keys(at).entries())
+    ids[title] = await add(title, '2026-10-09', { start_time: `${9 + n}:00`, source_name: `Host ${n}` });
+  for (const [title, level] of Object.entries(at))
+    await db.query(`update public.club_events set importance = $2 where id = $1`, [ids[title], level]);
+  await signIn(YOU);
+  await tap('event_likes', ids['Council meeting'], YOU, '2026-10-07 12:00');  // routine business you Hearted
   await signIn(YOU);
   await db.exec(`set request.jwt.claims = '${ADMIN}'`);
   const rows = await feed('2026-10-08 12:00');
-  assert.deepEqual(rows.map((r) => [r.title, r.score.draw]),
-                   [['Art fair', 3], ['Book sale', 1.5], ['Council meeting', 0]], 'routine business you Hearted');
-  assert.ok(rows.every((r) => r.reason !== 'draw'), 'the draw is never the reason a card gives');
+  assert.deepEqual(Object.fromEntries(rows.map((r) => [r.title, r.score.importance])),
+                   { Parade: 3, 'Craft market': 2.25, Trivia: 1.5, Bingo: 0.75, 'Council meeting': 0, 'Book sale': 1.5 });
+  assert.deepEqual(rows.slice(0, 2).map((r) => r.title), ['Parade', 'Craft market']);
+  assert.ok(rows.every((r) => r.score.draw === undefined), 'the Score line says importance, not the draw');
+  assert.ok(rows.every((r) => r.reason !== 'importance'), 'importance is never the reason a card gives');
+  await db.exec('reset role');
+  await assert.rejects(db.query(`update public.club_events set importance = 6 where id = $1`, [ids.Parade]),
+                       /importance/, 'five is the most');
 });
 
 // Hosts you've been into (ticket 30): your own taps, `at` a Town time, before you sign in.
@@ -464,7 +470,7 @@ test("a host you've been into lifts its other Events and is named; routine busin
   const council = await add('Council meeting', '2026-10-09', { start_time: '9 AM', source_name: 'School board' });
   const meetingLastWeek = await add('Planning commission', '2026-10-01', { start_time: '6 PM', source_name: 'School board' });
   await add('Bingo', '2026-10-09', { start_time: '11 AM', source_name: "Sal's" });
-  await db.query(`update public.club_events set draw = 1 where id in ($1, $2)`, [council, meetingLastWeek]);
+  await db.query(`update public.club_events set importance = 1 where id in ($1, $2)`, [council, meetingLastWeek]);
   await tap('event_likes', fair, YOU, '2026-10-04 12:00');
   await tap('event_likes', meetingLastWeek, YOU, '2026-10-01 19:00');
   await tap('event_likes', council, YOU, '2026-10-07 12:00');  // routine business shows only to whoever's into it
@@ -559,10 +565,10 @@ test("a Sports pick follows the town's own teams' games and says its interest; a
   assert.equal(withSports['Augsburg Soccer vs Bethel'].score.yours, 0);
   // A followers-only game stays for its followers.
   assert.equal(withSports['SJU JV Soccer at Bethel'], undefined);
-  // Routine business (draw 1) gets no follow points, own team or not: it shows here only through your own Heart.
+  // Routine business (importance 1) gets no follow points, own team or not: it shows here only through your own Heart.
   await db.exec('reset role');
   const routine = await game('SJU Soccer scrimmage', '2026-10-10', 'Soccer', ['saint-johns', 'augsburg'], sports);
-  await set(routine, { draw: 1 });
+  await set(routine, { importance: 1 });
   await db.query(`insert into public.event_likes (event_id, user_id) values ($1, $2)`, [routine, YOU]);
   assert.equal((await read(['watch_sports']))['SJU Soccer scrimmage'].score.follow, 0);
 });
@@ -953,7 +959,7 @@ test('the score breakdown is filled for the admin and null for everyone else', a
   const { score } = (await feed('2026-10-08 12:00'))[0];
   assert.deepEqual(score, {
     interest: 3, gender: 0, yours: 0, new: 0, friend: 0, follow: 0, tapped: 0, town: 1, seen: 1, facts: 1, live: false,
-    popular: 0, size: 0, sizeStep: 1, draw: 1.5, daysAway: 1,
+    popular: 0, size: 0, sizeStep: 1, importance: 1.5, daysAway: 1,
     soon: 0.9057, acted: 1, notInterested: 1, spacing: 1, newSpot: false, pool: 'discovery', total: 4.9815, spot: 1, of: 1,
     // No roll, no top five (town-feed 73).
     top: null, topWeight: null,
@@ -2199,10 +2205,10 @@ async function standouts(day, ids) {
     await db.query(`insert into public.daily_standouts (town, day, event_id, rank, why) values ('st-joseph-mn', $1, $2, $3, 'why')`,
                    [day, id, i + 1]);
 }
-async function tagged(id, interests, draw = 2) {
+async function tagged(id, interests, importance = 3) {
   await db.exec('reset role');
-  await db.query(`update public.club_events set interests = $2, interests_tagged_at = now(), draw = $3 where id = $1`,
-                 [id, interests, draw]);
+  await db.query(`update public.club_events set interests = $2, interests_tagged_at = now(), importance = $3 where id = $1`,
+                 [id, interests, importance]);
 }
 const ofTheDay = async (at) => (await db.query(
   `select title, rsvpd from public.flat_event_of_the_day(($1::timestamp at time zone 'America/Chicago'))`, [at])).rows;
@@ -2273,7 +2279,7 @@ test("Event of the day: a day the job wrote nothing is the feed's top Event, nev
   await tagged(council, [], 1);
   for (const d of ['2026-10-09', '2026-10-16', '2026-10-23']) await add('Trivia', d, { start_time: '7 PM', source_name: 'Taproom' });
   const fair = await add('Fall fair', '2026-10-09', { start_time: '5 PM', source_name: 'Fair board' });
-  await tagged(fair, ['festivals'], 3);
+  await tagged(fair, ['festivals'], 4);
   const bake = await add('Bake sale', '2026-10-09', { start_time: '10 AM', source_name: 'Church' });
   await tagged(bake, ['dining']);
   // Yesterday's standouts don't count for today.
@@ -3059,13 +3065,13 @@ test('a Place you follow lifts its Events and says so', async () => {
   await noPlaces();
 });
 
-// A church's own round (town-feed 78; Jesse, 2026-11-19): a draw 1 Event reaches only those who follow its place, have
+// A church's own round (town-feed 78; Jesse, 2026-11-19): an importance 1 Event reaches only those who follow its place, have
 // a friend Going, or are Going or Hearted it; its special days reach everyone.
 test("routine business reaches only its place's followers; the rest of its Events reach everyone", async () => {
   await reset();
   const mass = await atPlace('Weekday Mass', '2026-10-09', { start_time: '8 AM' });
   await atPlace('Christmas Eve Mass', '2026-10-10');
-  await db.query('update public.club_events set draw = 1 where id = $1', [mass]);
+  await db.query('update public.club_events set importance = 1 where id = $1', [mass]);
   await signIn(ME);
   assert.deepEqual(await titles('2026-10-08 12:00'), ['Christmas Eve Mass'], 'not followed: its special day only');
   await followPlace(ME);
@@ -3256,7 +3262,7 @@ test('a place you follow and a friend Going add up, and the Score line names bot
 });
 
 // The City, its boards and Joetown (town-feed 27): a page you follow lifts the Events carrying its name, a
-// board its meetings; a City meeting (draw 1) reaches only the City's or that board's followers, lower.
+// board its meetings; a City meeting (importance 1) reaches only the City's or that board's followers, lower.
 async function followPage(who, slug) {
   await db.exec('reset role');
   await people(db, who);
@@ -3271,7 +3277,7 @@ async function followBoard(who, name) {
 }
 async function meeting(title, date) {
   const id = await add(title, date, { start_time: '6 PM' });
-  await db.query('update public.club_events set draw = 1 where id = $1', [id]);
+  await db.query('update public.club_events set importance = 1 where id = $1', [id]);
   return id;
 }
 const reasons = async (at) => (await feed(at)).map((r) => [r.title, r.reason, r.reason_name]);
@@ -3520,9 +3526,9 @@ const SHE = '00000000-0000-0000-0000-0000000000c1';
 async function busyWeekend() {
   await reset();
   const e = {};
-  const on = async (title, day, start, host, interests = null, draw = 2) => {
+  const on = async (title, day, start, host, interests = null, importance = 3) => {
     e[title] = await add(title, day, { start_time: start, source_name: host });
-    if (interests) await tagged(e[title], interests, draw);
+    if (interests) await tagged(e[title], interests, importance);
     return e[title];
   };
   // Friday Oct 9, with the morning's picks.
@@ -3530,21 +3536,21 @@ async function busyWeekend() {
   await on('Pancake breakfast', '2026-10-09', '9 AM', 'Legion', ['dining']);
   await on('Quilt show', '2026-10-09', '1 PM', 'Quilters', ['arts']);
   await on('Fix-It Clinic', '2026-10-09', '2 PM', 'Library', ['books']);
-  await on('Parade', '2026-10-09', '3 PM', 'JoeTown', ['festivals'], 3);
+  await on('Parade', '2026-10-09', '3 PM', 'JoeTown', ['festivals'], 4);
   await on('Campus lecture', '2026-10-09', '4 PM', 'CSB', ['campus', 'books']);
-  await on('Fall fair', '2026-10-09', '5 PM', 'Fair board', ['festivals'], 3);
+  await on('Fall fair', '2026-10-09', '5 PM', 'Fair board', ['festivals'], 4);
   await on('Loud night', '2026-10-09', '9 PM', 'Loud bar', ['bars']);
   await on('Halloween party', '2026-10-09', '8 PM', 'Taproom', ['bars', 'live_music']);
   await on('Council meeting', '2026-10-09', '6 PM', 'City', [], 1);
   // The rest of each host's Events, which the feed's spacing reads, and a weekly regular.
   for (const d of ['2026-10-09', '2026-10-16', '2026-10-23']) await add('Trivia', d, { start_time: '7 PM', source_name: 'Taproom' });
   await on('Taproom brunch', '2026-10-10', '10 AM', 'Taproom', ['dining']);
-  await on('Taproom show', '2026-10-10', '7 PM', 'Taproom', ['live_music'], 3);
+  await on('Taproom show', '2026-10-10', '7 PM', 'Taproom', ['live_music'], 4);
   await on('Rummage sale', '2026-10-10', '9 AM', 'Church', ['dining']);
-  await on('Campus concert', '2026-10-10', '2 PM', 'SJU', ['campus', 'live_music'], 3);
-  await on('Campus play', '2026-10-12', '7 PM', 'CSB', ['campus', 'arts'], 3);
+  await on('Campus concert', '2026-10-10', '2 PM', 'SJU', ['campus', 'live_music'], 4);
+  await on('Campus play', '2026-10-12', '7 PM', 'CSB', ['campus', 'arts'], 4);
   await on('Fair cleanup', '2026-10-10', '8 AM', 'Fair board', ['outdoors']);
-  await on('Legion fish fry', '2026-10-10', '5 PM', 'Legion', ['dining'], 3);
+  await on('Legion fish fry', '2026-10-10', '5 PM', 'Legion', ['dining'], 4);
   await on('Second quilt show', '2026-10-13', '1 PM', 'Quilters', ['arts']);
   // Called off, and Hearted: out of the feed all the same, so never a pick.
   await db.query(`update public.club_events set cancelled_at = now() where id = $1`, [e.Parade]);
@@ -4034,13 +4040,13 @@ test("a friend's Going since you saw it brings a card back, until you see it aga
   await db.query('delete from auth.users where id = $1', [friend]);
 });
 
-test('live: up to 3 on right now lead, your Going first, then the most yours, then most Going, then the draw (town-feed 56)', async () => {
+test('live: up to 3 on right now lead, your Going first, then the most yours, then most Going, then importance (town-feed 56)', async () => {
   await reset();
   const LIVE = ['Concert', 'Game', 'Talk', 'Bingo'];
   const ids = {};
   for (const t of LIVE) ids[t] = await add(t, '2026-10-08', { start_time: t === 'Game' ? '6:15 PM' : '6 PM', source_name: `Host ${t}` });
   await add('Later tonight', '2026-10-08', { start_time: '9 PM', source_name: 'Late' });
-  await set(ids.Game, { draw: 3 });
+  await set(ids.Game, { importance: 4 });
   await set(ids.Talk, { lat: 45.56, lng: -94.32 });
   await signIn(YOU);
   await goes(ids.Bingo, YOU);
@@ -4048,7 +4054,7 @@ test('live: up to 3 on right now lead, your Going first, then the most yours, th
   await goes(ids.Concert, ME);
   await signIn(YOU);
   const rows = await titles('2026-10-08 18:30');
-  assert.deepEqual(rows.slice(0, 3), ['Bingo', 'Talk', 'Concert'], 'your Going, then your town, then most Going; the draw only after');
+  assert.deepEqual(rows.slice(0, 3), ['Bingo', 'Talk', 'Concert'], 'your Going, then your town, then most Going; importance only after');
   await db.exec('reset role');
 });
 
@@ -4067,7 +4073,7 @@ test('live: a card stays on top while it is on, however often you have seen it (
   await reset();
   const concert = await add('Concert', '2026-10-08', { start_time: '6 PM', source_name: 'A' });
   await add('Festival', '2026-10-09', { start_time: '6 PM', source_name: 'B' });
-  await set(concert, { draw: 1 + 1 });
+  await set(concert, { importance: 3 });
   await signIn(YOU);
   assert.equal((await titles('2026-10-08 18:30'))[0], 'Concert');
   await viewed(concert, YOU, '2026-10-08 18:31');
@@ -4109,7 +4115,7 @@ test('starting soon: after what is on now, what starts within the hour takes the
   await add('In 40', '2026-10-08', { start_time: '7:10 PM', source_name: 'C' });
   await add('In 20', '2026-10-08', { start_time: '6:50 PM', source_name: 'D' });
   const fav = await add('Favourite', '2026-10-09', { start_time: '6 PM', source_name: 'E' });
-  await set(fav, { draw: 3 });
+  await set(fav, { importance: 4 });
   await db.query(`update public.club_events set interests = '{wellness}', category = 'wellness', interests_tagged_at = now()
                   where id = $1`, [fav]);
   await signIn(YOU, ['wellness']);
@@ -4124,7 +4130,7 @@ test('starting soon: not 61 minutes out, not a meeting, not a host you said Not 
   const setup = async () => {
     await reset();
     const fav = await add('Favourite', '2026-10-09', { start_time: '6 PM', source_name: 'E' });
-    await set(fav, { draw: 3 });
+    await set(fav, { importance: 4 });
     await db.query(`update public.club_events set interests = '{wellness}', category = 'wellness', interests_tagged_at = now()
                     where id = $1`, [fav]);
   };
@@ -4137,7 +4143,7 @@ test('starting soon: not 61 minutes out, not a meeting, not a host you said Not 
   assert.equal(await first(), 'Favourite', '61 minutes out stays out');
   await setup();
   const council = await add('Council', '2026-10-08', { start_time: '6:40 PM', source_name: CITY });
-  await set(council, { what: 'Meeting', draw: 1 });
+  await set(council, { what: 'Meeting', importance: 1 });
   assert.equal(await first(), 'Favourite', 'a meeting in 10 minutes stays out');
   await setup();
   const other = await add('Other night', '2026-10-01', { start_time: '6 PM', source_name: 'A' });
@@ -4153,7 +4159,7 @@ test('starting soon: not 61 minutes out, not a meeting, not a host you said Not 
 async function exhibitWithTalk({ ends = null, title = 'Artist talk', sameAs = false } = {}) {
   await reset();
   const fav = await add('Favourite', '2026-10-09', { start_time: '6 PM', source_name: 'E' });
-  await set(fav, { draw: 3 });
+  await set(fav, { importance: 4 });
   await db.query(`update public.club_events set interests = '{wellness}', category = 'wellness', interests_tagged_at = now()
                   where id = $1`, [fav]);
   const exhibit = await add('Fall exhibit', '2026-10-01', { start_time: '10 AM', end_at: '2026-10-31 17:00-05', source_name: 'Gallery' });
@@ -4253,20 +4259,20 @@ test('an Event the caller may not read shows none of its parts, nor does the raw
 test('what can be live: a real happening with a start, never a place being open, nor routine business', async () => {
   await reset();
   const kinds = [
-    ['Concert', 'Concert', 2, true], ['Talk', 'Talk', 2, true], ['Gallery reception', 'Gallery reception', 2, true],
-    ['Basketball', 'Basketball game', 2, true], ['Market', 'Holiday market', 2, true], ['Bingo', 'Bingo night', 2, true],
-    ['Bréagán', 'Art exhibit', 2, false], ['Treasure sale', 'Church sale', 2, false], ['Open house', 'Open house', 2, false],
-    ['Dysport', 'Promotion', 2, false], ['Hooplah', 'Holiday shopping', 2, false], ['Board', 'Board meeting', 2, false],
-    ['Saleh talk', 'Talk', 2, true], ['Council', 'Meeting', 1, false], ['Trivia', 'Trivia', 1, false],
+    ['Concert', 'Concert', 3, true], ['Talk', 'Talk', 3, true], ['Gallery reception', 'Gallery reception', 3, true],
+    ['Basketball', 'Basketball game', 3, true], ['Market', 'Holiday market', 3, true], ['Bingo', 'Bingo night', 3, true],
+    ['Bréagán', 'Art exhibit', 3, false], ['Treasure sale', 'Church sale', 3, false], ['Open house', 'Open house', 3, false],
+    ['Dysport', 'Promotion', 3, false], ['Hooplah', 'Holiday shopping', 3, false], ['Board', 'Board meeting', 3, false],
+    ['Saleh talk', 'Talk', 3, true], ['Council', 'Meeting', 1, false], ['Trivia', 'Trivia', 1, false],
   ];
-  for (const [title, what, draw, want] of kinds) {
-    const { rows: [{ live }] } = await db.query(`select private.is_live_kind($1, $2, $3, false, '7 PM', '2026-10-08', null) as live`, [what, title, draw]);
+  for (const [title, what, importance, want] of kinds) {
+    const { rows: [{ live }] } = await db.query(`select private.is_live_kind($1, $2, $3, false, '7 PM', '2026-10-08', null) as live`, [what, title, importance]);
     assert.equal(live, want, title);
   }
   const q = (args) => db.query(`select private.is_live_kind(${args}) as live`);
-  assert.equal((await q(`null, 'Sidewalk Sale', 2, false, '7 PM', '2026-10-08', null`)).rows[0].live, false, 'its title until tagged');
-  assert.equal((await q(`'Concert', 'x', 2, true, null, '2026-10-08', null`)).rows[0].live, false, 'all day');
-  assert.equal((await q(`'Concert', 'x', 2, false, null, '2026-10-08', null`)).rows[0].live, false, 'no start');
+  assert.equal((await q(`null, 'Sidewalk Sale', 3, false, '7 PM', '2026-10-08', null`)).rows[0].live, false, 'its title until tagged');
+  assert.equal((await q(`'Concert', 'x', 3, true, null, '2026-10-08', null`)).rows[0].live, false, 'all day');
+  assert.equal((await q(`'Concert', 'x', 3, false, null, '2026-10-08', null`)).rows[0].live, false, 'no start');
   assert.equal((await q(`'Festival', 'x', 2, false, '7 PM', '2026-10-08', '2026-10-09 01:00-05'`)).rows[0].live, true, 'past midnight');
   assert.equal((await q(`'Festival', 'x', 2, false, '7 PM', '2026-10-08', '2026-10-13 21:00-05'`)).rows[0].live, false, 'over days');
 });

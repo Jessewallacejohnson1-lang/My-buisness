@@ -15,8 +15,8 @@ await db.exec(`
   update auth.users set is_anonymous = true where id = '${guest}';
   insert into public.places (id, name, lat, lon, family, entry_id) values
     ('${cafe}', 'Cafe', 45.5, -94.3, 'food', 'cafe'), ('${church}', 'Church', 45.5, -94.3, 'business', 'church');
-  insert into public.club_events (id, title, status, place_entry_id, event_date, submitted_by, draw) values
-    ('${night}', 'Trivia', 'approved', 'cafe', current_date + 3, '${host}', 2);
+  insert into public.club_events (id, title, status, place_entry_id, event_date, submitted_by, importance) values
+    ('${night}', 'Trivia', 'approved', 'cafe', current_date + 3, '${host}', 3);
   insert into public.board_items (id, title, blurb, category, source_name, status, tier, place_entry_id) values
     ('${story}', 'New soup', 'Soup.', 'business', 'Cafe', 'published', 1, 'cafe');
 `);
@@ -91,7 +91,7 @@ test("love counts people: one person's many taps once, a guest's and the poster'
 test('the facts name every open Place, with its Events and News and no rating', async () => {
   const facts = (await as('watch', 'select public.place_facts() as f'))[0].f;
   const its = Object.fromEntries(facts.map((f) => [f.id, f]));
-  assert.deepEqual(its[cafe].events, [{ title: 'Trivia', dates: 1, draw: 2, upcoming: true }]);
+  assert.deepEqual(its[cafe].events, [{ title: 'Trivia', dates: 1, importance: 3, upcoming: true }]);
   assert.deepEqual([its[cafe].news.length, its[cafe].follows, its[cafe].love], [1, 1, 1]);
   assert.deepEqual([its[church].events, its[church].news, its[church].love], [[], [], 0]);
   assert.ok(!facts.some((f) => 'level' in f || 'judged' in f));

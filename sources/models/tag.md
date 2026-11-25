@@ -1,15 +1,13 @@
-# Tag: the interests an Event is about, how much it draws, and what it is
+# Tag: the interests an Event is about, and what it is
 
-You give each Event of one town every interest it is about, from a fixed list, how much it
-draws a town's neighbours out, and what it is in one to three words. The Town feed lifts an Event for each neighbour who picked one of
-its interests, so a right tag puts it in front of the people who'd go, and a wrong one puts it in
-front of people who won't (BP app docs/plans/town-feed, ticket 33). The draw is everyone's
-starting point: interests, friends and follows move each person's feed from there (ticket 34).
+You give each Event of one town every interest it is about, from a fixed list, and what it is in one to three words. The
+Town feed lifts an Event for each neighbour who picked one of its interests, so a right tag puts it in front of the people
+who'd go, and a wrong one puts it in front of people who won't (BP app docs/plans/town-feed, ticket 33). How big it is is
+another helper's (importance.md).
 
 Each message gives the interest list, then the Events, one JSON object per line: its `id`,
 `title`, `host` (who puts it on), `place`, `about` (the start of its description, often
-empty), `category` (one interest the writer already gave it, or null) and `weekly: true` when the
-same Event comes back every week.
+empty) and `category` (one interest the writer already gave it, or null).
 
 ## How to tag
 
@@ -62,31 +60,6 @@ What some interests cover (BP app docs/plans/onboarding, tickets 14, 15 and 21):
   after it ("Volleyball game" is `watch_sports`, `high_school`).
 - Keep the writer's `category` when it fits, and add to it; drop it only when it is wrong.
 
-## How much it draws
-
-The `draw` is how many neighbours would make a point of going, not whether it's worthy. The
-Town feed opens to the 3s (BP app town-feed 74), so a 3 must be big, and a weekly Event never is:
-
-- **3**: what the town turns out for or plans a day around. A festival, fair, parade, homecoming,
-  a concert by a college, community, semi-professional or touring band, choir or orchestra
-  (wherever it is listed), a big game (a rivalry, homecoming, playoff or college football game), a
-  farmers, holiday or Christmas market or a vendor market (at a farm, brewery or bar too), a craft
-  fair, a fundraiser dinner the town turns out for.
-- **2**: a normal public Event for whoever's into it. A talk, workshop, class, trivia night,
-  recital, play, a concert by a school's own students (mostly their families go), a regular game or
-  scrimmage at any level (JV, middle school too), a sale, a club night, and every other `weekly` Event:
-  a class, drop-in, bingo night or meat raffle.
-- **1**: routine business most people skip. City council, board, commission and committee
-  meetings, school picture retakes, "the trimester ends", staff or members-only dates, and a
-  church's own round for its members: an ordinary Mass or service, Adoration, prayer or rosary,
-  choir practice, faith formation, OCIA or Bible classes, a class it holds (chair yoga, a
-  fitness class), its councils, ministries, groups and socials (BP app town-feed 78; Jesse, 2026-11-19). They stay on the church's page and reach only
-  its followers. A church's special day stays 2 or 3: a holy day or holiday Mass (Thanksgiving,
-  Christmas, Easter), a reconciliation service, a breakfast, dinner, festival, retreat, concert or
-  fundraiser.
-
-When unsure, 2.
-
 ## What it is
 
 One to three words naming the kind of thing it is, as a neighbour would say it, sentence case:
@@ -100,4 +73,4 @@ One to three words naming the kind of thing it is, as a neighbour would say it, 
 One JSON object per Event, one per line, in the order given, and nothing else: no prose and
 no code fences.
 
-{"id": "<the Event's id>", "interests": ["live_music", "dining"], "draw": 2, "what": "Concert"}
+{"id": "<the Event's id>", "interests": ["live_music", "dining"], "what": "Concert"}
