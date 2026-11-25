@@ -457,6 +457,8 @@ struct GroupMeetsSheet: View {
             // What lands on the page is what was sent.
             .disabled(saving)
             .onChange(of: draft.place) { problem = nil }
+            // Once Save is back in the spinner's place: a shake asked for before that plays on nothing.
+            .onChange(of: saving) { if !saving, problem != nil { failures += 1 } }
             .navigationTitle("When you meet")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -502,7 +504,6 @@ struct GroupMeetsSheet: View {
     /// Nothing was saved: the sheet stays open and says why, as Edit group's does.
     private func fail(_ reason: String) {
         problem = reason
-        failures += 1
         Haptics.error()
         AccessibilityNotification.Announcement(reason).post()
     }
