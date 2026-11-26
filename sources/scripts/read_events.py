@@ -224,13 +224,14 @@ def plays_for(team, school):
     return name == team or name in team.split("-")
 
 
-def game_about(level, sport, home, away, hosted=True, occasion=None):
+def game_about(level, sport, home, away, hosted=True, occasion=None, many=False):
     """A game's About from its schedule alone: its level and sport, who hosts whom (or who plays
     whom, on ground that is neither's), and the night or playoff round the schedule names. Never
     where: the page's place line says that (inside-cards 14, Jesse 2026-11-08). Nothing here to
-    research, so the describe layout leaves games out."""
+    research, so the describe layout leaves games out. `many`: the home side is a nickname, which names the players,
+    "Norsemen host" (a school's name, "Little Falls hosts", is one; watch-every-place 50)."""
     what = f"{level} {sport.lower()}".strip()
-    who = f"{home} hosts {away}" if hosted else f"{home} and {away} play"
+    who = f"{home} {'host' if many else 'hosts'} {away}" if hosted else f"{home} and {away} play"
     return f"{what[:1].upper()}{what[1:]}: {who}." + (f" {occasion}." if occasion else "")
 
 
@@ -1564,7 +1565,7 @@ def team_game(entry, src, uid, start, all_day, home, away, place, town, sport):
     return {"kind": "event", "title": game_title(teams, sport, ours=0 if home == me else 1), "start": start, "end": None, "all_day": all_day,
             "place": place, "town": town, "area": "game", "source_name": entry["_name"], "source_url": src["url"],
             "source_uid": uid, "trust": "official", "sure": True, "size": "everyday", "interest": "watch_sports",
-            "blurb": game_about("", sport, teams[0], teams[1]), "game": {"sport": sport, "teams": [home, away]}}
+            "blurb": game_about("", sport, teams[0], teams[1], many=True), "game": {"sport": sport, "teams": [home, away]}}
 
 
 def hto_items(page, entry, src, today):
@@ -2900,7 +2901,7 @@ def t_town_teams():
     first = games[0]
     assert (first["title"], first["start"], first["place"], first["town"], first["blurb"]) == (
         "Joes Baseball vs Gussies", "2026-05-13T18:30:00-05:00", "Schneider Field", "St. Joseph",
-        "Baseball: Joes hosts Gussies."), first
+        "Baseball: Joes host Gussies."), first
     assert first["game"] == {"sport": "Baseball", "teams": ["St. Joseph Joes", "St. Augusta Gussies"]}
     assert all(g["town"] in NEAR_TOWNS for g in games), "an away game past 20 miles stays out"
     both = [i for i in one_each([dict(i) for i in a + b]) if i["kind"] == "event"
@@ -2924,6 +2925,9 @@ def t_town_teams():
                     "town": "Sauk Rapids"}, nov)
     assert len(lj) == 9 and (lj[0]["title"], lj[0]["start"]) == ("Lumberjacks Hockey vs MN Vulcans",
                                                                  "2026-11-25T19:30:00-06:00"), lj[0]
+    # A nickname names the players (watch-every-place 50: 25 Abouts said "Norsemen hosts").
+    assert (n[0]["blurb"], lj[0]["blurb"]) == ("Hockey: Norsemen host Austin Bruins.", "Hockey: Lumberjacks host MN Vulcans."), \
+        (n[0]["blurb"], lj[0]["blurb"])
     assert all(i["game"]["teams"][0] == "Granite City Lumberjacks" for i in lj)
 
 
