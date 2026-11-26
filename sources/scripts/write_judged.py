@@ -574,7 +574,7 @@ def tidy_title(title, host="", event=True):
     head, *rest = re.split(r"(?<!\d)\s+[-–—]\s+(?!\d)", t)                            # one colon, then commas
     t = head + (": " + ", ".join(rest) if rest else "")
     t = re.sub(r"\s*@\s*(?:The\b)?", lambda m: " at the" if "The" in m[0] else " at ", t)
-    t = re.sub(r"\s*[/+]\s*", " ", t)                                                # no slash in a title
+    t = re.sub(r"\s*(?<!\b[wW])[/+]\s*", " ", t)                                     # no slash in a title but "w/"
     t = re.sub(r"\s+:", ":", re.sub(r"\s{2,}", " ", t)).strip(" :,-–")
     if event and len(t) > TITLE_MAX and ": " in t and len(t.split(": ", 1)[0]) >= 12:
         t = t.split(": ", 1)[0]  # the name, not its subtitle
@@ -2980,6 +2980,9 @@ WORDING = [  # (title, host, place) as read on 2026-10-14 -> (title, place) on t
      "CSB Figure Skating Club Performance", "Municipal Athletic Complex, St. Cloud"),
     ("Free Art Prints from The Saint John's Bible", "CSB SJU Campus Events", "Liturgical Press, Saint John's Road, Collegeville, MN, USA",
      "Free Art Prints from The Saint John's Bible", "Liturgical Press, Collegeville"),
+    # "w/" is "with", and a band's name: "Stuck w Vee" was no one's (watch-every-place 50).
+    ("Stuck w/Vee Acoustic", "La Playette", "", "Stuck w/Vee Acoustic", ""),
+    ("6-8 Wrestling w/ Pierz and SRR", "Kennedy Community School", "", "6-8 Wrestling w/ Pierz and SRR", ""),
     ("Park Commission Meeting", "Stearns County", "29709 Kipper Road, St Joseph", "Park Commission Meeting", "29709 Kipper Road"),
     ("Fare for All", "City of St. Joseph", "610 County Rd 2 St. Joseph MN 56374", "Fare for All", "610 County Rd 2"),
     ("Christmas Treasure Sale", "Church of Saint Joseph", "Church of Saint Joseph", "Christmas Treasure Sale",
@@ -2994,7 +2997,7 @@ def t_wording():
         got = (tidy_title(title, host), tidy_place(place))
         assert got == (want_title, want_place), (title, got)
         assert (tidy_title(got[0], host), tidy_place(got[1])) == got, f"tidying twice changes {title!r}"
-        assert "/" not in got[0], got
+        assert "/" not in got[0].replace("w/", ""), got
     r = run([item(title="Advent Sacred Pause • Virtual", place="104 Chapel Lane, Saint Joseph, MN"),
              item(title="College of Saint Benedict Soccer vs Hamline", place="St. Joseph, Minn., CSB Stadium",
                   start="2026-10-25T16:00:00-05:00", source_name="CSB Athletics")])
