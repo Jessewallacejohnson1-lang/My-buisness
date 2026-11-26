@@ -1179,6 +1179,11 @@ def bound_items(text, entry, src, today):
                     activity_name=get("X-BND-ACTIVITYNAME") or calendar_activity(title, entry).get("activity_name"),
                     source_url=page_url(ev, src["url"]), source_uid=uid)
         if key in BOUND_ARTS or (not key and BOUND_SHOW.search(title)):
+            # A meet of two schools names its activity, the home school first, as a game does: "North Branch vs Sartell"
+            # read as a game (watch-every-place 50).
+            if " vs " in name and get("X-BND-ACTIVITYNAME"):
+                away, home = name.split(" vs ", 1)
+                name = f"{home} {get('X-BND-ACTIVITYNAME')} vs {away}"
             out.append(judged(entry, src, title=name, start=start_at, all_day=all_day, place=place,
                               followers_only=far or bool(SCHOOL_ONLY.search(title)),
                               same=(start_at, key or name, level, place[:25]), **mark))
@@ -2696,6 +2701,8 @@ def t_gobound():
             ("Dance: Junior Varsity Jazz Dance (Jazz JV)", "Dance", "Jazz JV", "Junior Varsity Jazz Dance"),
             ("Wrestling: Wrestling Invitational (Girls JH)", "Wrestling", "Girls JH", "Wrestling Invitational")]:
         assert one(summary, name.split("\\")[0].split()[0].lower(), level, name)["title"] == want, summary
+    kb = one("Knowledge Bowl: North Branch vs Sartell (Varsity)", "knowledgebowl", "Varsity", "Knowledge Bowl")
+    assert (kb["title"], kb["interest"], "game" in kb) == ("Sartell Knowledge Bowl vs North Branch", None, False), kb
     game = one("Basketball\\, Boys: Osseo vs St. Cloud Tech (B) (Time TBA)", "basketball", "B", "Basketball\\, Boys")
     assert game["game"]["teams"][0] == "Tech" and "TBA" not in game["title"], game["title"]
     assert one("Nordic Ski Racing\\, Girls: (JV) (Time TBA)", "nordic", "JV", "Nordic Ski Racing\\, Girls") is None, \
