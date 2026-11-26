@@ -257,6 +257,37 @@ test('a re-read fills an About only researched, and never one we wrote', async (
   assert.equal(await about(), 'Wreaths and feeders to take home.', 'written by us: a longer re-read leaves it');
 });
 
+test('a game that moves says who hosts now (watch-every-place 50)', async () => {
+  const db = await realDatabase();
+  const apply = (items) => db.query('select public.apply_judged($1, $2, $3, $4)', [JSON.stringify(items), '[]', '[]', '[]']);
+  const about = async (uid) => (await db.query('select description as d from public.club_events where source_uid = $1', [uid])).rows[0].d;
+  const game = (location, description) => [{ status: 'approved', title: 'Basketball vs Prince of Peace Lutheran',
+    event_date: '2026-12-04', start_time: '4 PM', end_at: null, all_day: false, location, description,
+    source_name: 'Kennedy Community School', source_url: 'u', source_uid: 'bound:g', category: 'watch_sports',
+    shows_from: '2026-11-20', sport: 'Girls Basketball · MS' }];
+  await apply(game('Prince of Peace Lutheran School', 'Middle school girls basketball: Prince of Peace Lutheran hosts Kennedy.'));
+  await db.exec(`update public.club_events set about_written_at = now()`);
+  await apply(game('Kennedy Community School Kennedy Gym', 'Middle school girls basketball: Kennedy hosts Prince of Peace Lutheran.'));
+  assert.equal(await about('bound:g'), 'Middle school girls basketball: Kennedy hosts Prince of Peace Lutheran.', 'moved: the new host');
+  await db.exec(`update public.club_events set description = 'Kennedy plays at home.'`);
+  await apply(game('Kennedy Community School Kennedy Gym', 'Middle school girls basketball: Kennedy hosts Prince of Peace Lutheran.'));
+  assert.equal(await about('bound:g'), 'Kennedy plays at home.', 'not moved: an About we wrote stays');
+});
+
+test('the host\'s words that give a time fill an About nobody wrote (watch-every-place 50)', async () => {
+  const db = await realDatabase();
+  const apply = (items) => db.query('select public.apply_judged($1, $2, $3, $4)', [JSON.stringify(items), '[]', '[]', '[]']);
+  const about = async (uid) => (await db.query('select description as d from public.club_events where source_uid = $1', [uid])).rows[0].d;
+  const bee = (description) => [{ status: 'approved', title: 'Kennedy Spelling Bee', event_date: '2026-12-03',
+    start_time: '8 AM', end_at: null, all_day: false, location: 'Kennedy Community School', description,
+    source_name: 'Kennedy Community School', source_url: 'u', source_uid: 'bee', category: 'families_kids', shows_from: '2026-11-19' }];
+  await apply(bee('Kennedy Community School holds its spelling bee.'));
+  await apply(bee('5th/6th grade 8am-10am\n7th/8th grade 10-noon'));
+  assert.equal(await about('bee'), '5th/6th grade 8am-10am\n7th/8th grade 10-noon', 'the host\'s times fill it');
+  await apply(bee('Spelling bee.'));
+  assert.equal(await about('bee'), '5th/6th grade 8am-10am\n7th/8th grade 10-noon', 'a shorter line with no time does not');
+});
+
 test('a Facebook event read again: the newest About when its words change, a new cover asks for a photo look (watch-every-place 24)', async () => {
   const db = await realDatabase();
   const listing = (description, source_words, day = '2026-12-03') => [{ status: 'approved', title: 'Winter Wreath Class',
