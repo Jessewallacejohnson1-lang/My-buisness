@@ -356,6 +356,11 @@ nonisolated enum Hue {
     static let open          = Color(uiColor: .systemGreen)
     static let closesSoon    = Color(uiColor: .systemOrange)
     static let closed        = Color(uiColor: .systemRed)
+    /// A place's Events list (BP app profile-left 05, the approved mock): the price tag's green on its pale wash, and
+    /// the grey of a day's weekday and a row's small glyphs. Dark values are the agent's pick, unchecked.
+    static let priceTag      = Color(light: 0x2E9E4B, dark: 0x5CCB78)
+    static let priceTagWash  = Color(light: 0xEAF6EC, dark: 0x1D3323)
+    static let weekday       = Color(light: 0x9A9A96, dark: 0x77756F)
     /// The Town's Event of the day poster, DICE's dark card (the approved Round 3 page, BP app
     /// event-card 03), which its photo fades into. The same in both appearances: a poster.
     static let poster        = Color(hex: 0x1A1A1A)

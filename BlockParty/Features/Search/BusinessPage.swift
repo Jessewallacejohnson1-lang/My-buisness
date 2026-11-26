@@ -501,11 +501,6 @@ private struct BusinessPageContent: View {
                     .padding(.top, SearchMetric.bizCardsTop)
             }
 
-            // Its Events, folded under its hours (place-pages 05): no row when nothing is coming up.
-            if let entry = item.entryId {
-                PlaceEventsPill(entryId: entry)
-            }
-
             if let street = item.street {
                 InfoPill(glyph: "mappin", text: street, url: Directions.url(forPlace: street),
                          hint: "Opens in Maps", glyphBox: SearchMetric.bizGlyphBox)
@@ -526,6 +521,11 @@ private struct BusinessPageContent: View {
                 }
                 .padding(.top, item.about != nil ? SearchMetric.bizLinksTop
                          : item.street != nil ? SearchMetric.bizLinkGap : SearchMetric.bizCardsTop)
+            }
+
+            // Its Events, last on the page (profile-left 05): no section when nothing is coming up.
+            if let entry = item.entryId {
+                PlaceEventsSection(entryId: entry, place: item.name)
             }
         }
         .padding(.horizontal, Metric.inset)

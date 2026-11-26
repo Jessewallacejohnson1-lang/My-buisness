@@ -1,30 +1,26 @@
 //
 //  PlaceEvents.swift
-//  Block Party — a place's Events on its business page (BP app place-pages 05): a row under its hours, "8 Events
-//  coming up", that opens in place as the hours row does to show the place's month, Search's Event calendar made
-//  small (40 pt discs, past days faded, the next Event's day picked, only months with Events), and the picked day's
-//  Events. No row when nothing is coming up.
+//  Block Party — a place's Events on its business page, under its About (BP app profile-left 05): each day's title
+//  ("Today / Wednesday") and its Events with picture, title, time and price tag, the next ten and then See all. The
+//  calendar button beside "Events" puts the place's month in the list's place (place-pages 05's month, Search's
+//  Event calendar made small: 40 pt discs, past days faded, the next Event's day picked, only months with Events),
+//  and the picked day's Events. No section when nothing is coming up.
 //
-//  Reference: the hours row's fold (`HoursPill`) and Search's Event calendar (`EventCalendarView`), in the mock
-//  Jesse approved (https://claude.ai/artifact/D8ovBahnQ9FAbTScTb4xTh, 2026-11-16: "yes"). The Events are the
+//  Reference: the approved mock (https://www.figma.com/design/a0MSz1SJyLe704coW2x8lc?node-id=3-2, Jesse,
+//  2026-11-25) and, for the month, place-pages 05's (2026-11-16: "yes"). The Events are the
 //  Event calendar's own (`get_town_calendar`), so who sees what stays the calendar's rule; the place's are those
 //  found at it (`club_events.place_entry_id`).
 //
 
 import SwiftUI
 
-/// The row's rules, pure so the tests drive them with fixed dates.
+/// The list's and the month's rules, pure so the tests drive them with fixed dates.
 enum PlaceEvents {
     static var calendar: Calendar { EventCalendar.calendar }
 
     /// The calendar's Events found at the place, in the calendar's order.
     static func events(_ all: [DailyEvent], ids: Set<String>) -> [DailyEvent] {
         EventCalendar.ordered(all.filter { ids.contains($0.id) })
-    }
-
-    /// How many are on today or later: the row's number.
-    static func coming(_ events: [DailyEvent], today: Date) -> Int {
-        events.count(where: { $0.starts >= today })
     }
 
     /// The months with an Event, from this month on: the arrows go only to these (the mock's).
@@ -44,18 +40,95 @@ enum PlaceEvents {
             .first { $0 >= today && EventCalendar.month(of: $0) == month }
     }
 
-    /// "8 Events coming up"; "1 Event coming up". The approved mock's words.
-    static func words(_ count: Int) -> (count: String, rest: String) {
-        (count == 1 ? "1 Event" : "\(count) Events", " coming up")
+    // MARK: The list (profile-left 05)
+
+    /// The rows before "See all".
+    static let shown = 10
+
+    /// The list's rows: the place's Events not over by `now`, in the calendar's order.
+    /// A repeat folds into its next date here (profile-left 06).
+    static func rows(_ events: [DailyEvent], now: Date) -> [PlaceEventRow] {
+        events.filter { $0.ends > now }.map { PlaceEventRow(event: $0) }
+    }
+
+    /// The rows under their days, the first `limit` of them: a day cut short keeps the ones that fit.
+    static func days(_ rows: [PlaceEventRow], limit: Int = .max) -> [PlaceEventDay] {
+        var days: [PlaceEventDay] = []
+        for row in rows.prefix(limit) {
+            let day = calendar.startOfDay(for: row.event.starts)
+            if days.last?.day == day {
+                days[days.count - 1].rows.append(row)
+            } else {
+                days.append(PlaceEventDay(day: day, rows: [row]))
+            }
+        }
+        return days
+    }
+
+    /// More rows than `shown`: the list ends on "See all".
+    static func seeAll(_ rows: [PlaceEventRow]) -> Bool { rows.count > shown }
+
+    /// A day's title, "Today", "Tomorrow", then "Nov 28", and its weekday, which follows a slash in grey.
+    static func title(_ day: Date, now: Date) -> (day: String, weekday: String) {
+        let title = switch Town.days(from: now, to: day) {
+        case 0: "Today"
+        case 1: "Tomorrow"
+        default: Town.format(day, "MMMd")
+        }
+        return (title, Town.format(day, "EEEE"))
+    }
+
+    /// The row's price tag: "Free", "No cover", or one dollar amount ten letters at most ("$50", "$5 cover");
+    /// nil for anything else, so a long or unclear price never crowds the row.
+    static func priceTag(_ price: String?) -> String? {
+        guard let price = price?.trimmingCharacters(in: .whitespacesAndNewlines), !price.isEmpty else { return nil }
+        switch price.lowercased() {
+        case "free": return "Free"
+        case "no cover": return "No cover"
+        default: return price.count <= 10 && price.wholeMatch(of: /\$\d+(\.\d\d)?( [A-Za-z]+)*/) != nil ? price : nil
+        }
+    }
+
+    /// Where the Event is, said only when it isn't this place: nil when either name holds the other once both are
+    /// folded (letter case, accents, "&" for "and", "St." for "Saint"), so a room in the place counts as here.
+    static func elsewhere(_ location: String?, place: String) -> String? {
+        guard let location = location?.trimmingCharacters(in: .whitespacesAndNewlines), !location.isEmpty else {
+            return nil
+        }
+        let here = folded(place), there = folded(location)
+        return there.contains(here) || here.contains(there) ? nil : location
+    }
+
+    /// A name's words, folded and spaced at both ends so "contains" matches whole words.
+    private static func folded(_ name: String) -> String {
+        let words = name.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil).lowercased()
+            .replacingOccurrences(of: "&", with: " and ")
+            .split { !$0.isLetter && !$0.isNumber }
+            .map { $0 == "st" ? "saint" : String($0) }
+        return " " + words.joined(separator: " ") + " "
     }
 }
 
-/// Sizes from the approved mock, 1 pt to the CSS pixel: the month made to fit inside the row, 40 pt in from the
-/// screen's sides.
+/// One row of a place's list: an Event at its date.
+struct PlaceEventRow: Identifiable {
+    let event: DailyEvent
+    var id: String { event.id }
+}
+
+/// A day of the list, under its title.
+struct PlaceEventDay: Identifiable {
+    let day: Date
+    var rows: [PlaceEventRow]
+    var id: Date { day }
+}
+
+/// Sizes from the approved mocks, 1 pt to the CSS pixel: the month made to fit inside a grey card 20 pt in from the
+/// screen's sides, and the list.
 enum PlaceEventsMetric {
     static let day: CGFloat = 40
     static let dayNumber: CGFloat = 16
-    static let monthTop: CGFloat = 2
+    /// The month's name under its grey card's top edge.
+    static let monthTop: CGFloat = 14
     static let monthLead: CGFloat = 15
     static let monthTrail: CGFloat = 10
     static let tool: CGFloat = 32
@@ -75,15 +148,47 @@ enum PlaceEventsMetric {
     static let bottom: CGFloat = 8
     /// The heart's circle on the grey row: ink at 6%, the mock's.
     static let heartWash: Double = 0.06
+
+    // The list (profile-left 05), the approved mock's CSS (`.eh`, `.dh`, `.er`, `.et`, `.t1`, `.ln`, `.see`).
+    /// Above the section's hairline, and from it to "Events".
+    static let sectionTop: CGFloat = 26
+    static let headerTop: CGFloat = 20
+    static let headerHeight: CGFloat = 25
+    static let hairline: CGFloat = 1
+    /// The calendar button's glyph, and the grey disc behind it while the month is open (agent's pick).
+    static let calendarGlyph: CGFloat = 20
+    static let calendarDisc: CGFloat = 36
+    /// A day's title under the one before it.
+    static let dayTop: CGFloat = 18
+    /// A row under its day's title or the row before, and the month under "Events".
+    static let listRowTop: CGFloat = 12
+    static let listPhoto: CGFloat = 80
+    static let listPhotoGap: CGFloat = 12
+    static let listTextTop: CGFloat = 4
+    static let tagGap: CGFloat = 10
+    static let tagInset: CGFloat = 7
+    static let tagHeight: CGFloat = 20
+    static let tagCorner: CGFloat = 6
+    static let lineTop: CGFloat = 6
+    static let lineGap: CGFloat = 6
+    static let seeAll: CGFloat = 44
+    static let seeAllTop: CGFloat = 20
 }
 
-/// The row itself. Its Events come from Search's calendar read; it asks for the place's ids once.
-struct PlaceEventsPill: View {
+/// A place's Events on its page, under its About (profile-left 05): "Events" with a calendar button, then each day's
+/// title and its Events, the next ten and then "See all". The button puts the place's month in the list's place and
+/// takes it away. No section at all with nothing coming up or no read.
+struct PlaceEventsSection: View {
     let entryId: String
+    /// The place's name: a row says where its Event is only when it isn't here.
+    let place: String
 
     @Environment(SearchModel.self) private var model: SearchModel?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var expanded = false
+    /// Set where the page sits outside a navigation stack (opened over the whole app): a row's tap goes here.
+    @Environment(\.openEvent) private var openEvent
+    @State private var all = false
+    @State private var monthOpen = false
     @State private var shown: Date?
     @State private var picked: Date?
     @Namespace private var ring
@@ -93,60 +198,165 @@ struct PlaceEventsPill: View {
 
     var body: some View {
         TimelineView(.everyMinute) { context in
-            let today = PlaceEvents.calendar.startOfDay(for: context.date)
+            let now = context.date
             let events = model.flatMap { model in
                 model.placeEventIDs[entryId].map { PlaceEvents.events(model.calendar ?? [], ids: $0) }
             } ?? []
-            let count = PlaceEvents.coming(events, today: today)
-            if count > 0 {
+            let rows = PlaceEvents.rows(events, now: now)
+            if !rows.isEmpty {
                 VStack(alignment: .leading, spacing: 0) {
-                    // Only the row takes the fold's tap: the days, arrows and Events under it are buttons of their own.
-                    Button {
-                        withAnimation(reduceMotion ? nil : Motion.bentoExpand) { expanded.toggle() }
-                    } label: {
-                        row(count).contentShape(Rectangle())
-                    }
-                    .buttonStyle(.press(.squish))
-                    .accessibilityLabel(PlaceEvents.words(count).count + PlaceEvents.words(count).rest)
-                    .accessibilityHint(expanded ? "Hides the calendar" : "Shows the calendar")
-                    if expanded {
-                        // Fades in place as the row grows, as the hours' week does.
-                        month(events, today: today, now: context.date)
+                    header
+                    if monthOpen {
+                        month(events, today: PlaceEvents.calendar.startOfDay(for: now), now: now)
+                            .background(Hue.fill)
+                            .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+                            .padding(.top, Size.listRowTop)
+                            .transition(.opacity)
+                    } else {
+                        list(rows, now: now)
                             .transition(.opacity)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Hue.fill)
-                .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
-                .padding(.top, SearchMetric.bizLinkGap)
-                // Its read lands after the page opens: it fades in and the rows under it ease down, never a jump.
+                // Its read lands after the page opens, at the page's foot: it fades in, and nothing above it moves.
                 .transition(.opacity)
             }
         }
-        .animation(reduceMotion ? nil : Motion.bentoExpand, value: model?.placeEventIDs[entryId] != nil)
+        .animation(reduceMotion ? nil : Motion.smooth, value: model?.placeEventIDs[entryId] != nil)
         .task(id: entryId) { await model?.loadPlaceEvents(entryId) }
     }
 
-    private func row(_ count: Int) -> some View {
-        let words = PlaceEvents.words(count)
-        return HStack(spacing: Metric.pinGap) {
-            Image(systemName: "calendar")
-                .font(.sans(14))
-                .foregroundStyle(Hue.ink)
-                .frame(width: SearchMetric.bizGlyphBox)
-            Text("\(Text(words.count).font(.sansSemibold(15)))\(words.rest)")
-                .font(.sans(15))
-                .foregroundStyle(Hue.ink)
-                .lineLimit(1)
-                .contentTransition(.numericText())
-            Spacer(minLength: 0)
-            Image(systemName: "chevron.down")
-                .font(.sans(12))
-                .foregroundStyle(Hue.inkSecondary)
-                .rotationEffect(.degrees(expanded ? 180 : 0))
+    /// "Events" and the calendar button, 20 pt under a hairline.
+    private var header: some View {
+        VStack(spacing: 0) {
+            Hue.hairline.frame(height: Size.hairline)
+            HStack(spacing: 0) {
+                Text("Events")
+                    .font(.display(20))
+                    .foregroundStyle(Hue.ink)
+                    .accessibilityAddTraits(.isHeader)
+                Spacer(minLength: 0)
+                Button {
+                    Haptics.selection()
+                    withAnimation(reduceMotion ? nil : Motion.smooth) { monthOpen.toggle() }
+                } label: {
+                    Image(systemName: "calendar")
+                        .font(.glyph(Size.calendarGlyph, weight: .regular))
+                        .foregroundStyle(Hue.ink)
+                        .frame(width: Size.calendarDisc, height: Size.calendarDisc)
+                        .background(Circle().fill(Hue.fill).opacity(monthOpen ? 1 : 0))
+                        .frame(width: PageMetric.tapMin, height: PageMetric.tapMin)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.press(.squish))
+                // The glyph's right edge on the page's, its 44 pt tap box past it.
+                .padding(.trailing, -(PageMetric.tapMin - Size.calendarGlyph) / 2)
+                .accessibilityLabel("Calendar")
+                .accessibilityAddTraits(monthOpen ? .isSelected : [])
+                .accessibilityHint(monthOpen ? "Shows the list" : "Shows the month")
+            }
+            .frame(height: Size.headerHeight)
+            .padding(.top, Size.headerTop)
         }
-        .padding(.horizontal, Metric.pillInset)
-        .frame(height: Metric.pillHeight)
+        .padding(.top, Size.sectionTop)
+    }
+
+    // MARK: The list
+
+    private func list(_ rows: [PlaceEventRow], now: Date) -> some View {
+        LazyVStack(alignment: .leading, spacing: 0) {
+            ForEach(PlaceEvents.days(rows, limit: all ? .max : PlaceEvents.shown)) { day in
+                dayTitle(day.day, now: now)
+                    .padding(.top, Size.dayTop)
+                ForEach(day.rows) { row($0.event, now: now).padding(.top, Size.listRowTop) }
+            }
+            if PlaceEvents.seeAll(rows) {
+                Button {
+                    withAnimation(reduceMotion ? nil : Motion.smooth) { all.toggle() }
+                } label: {
+                    Text(all ? "Show less" : "See all")
+                        .font(.displaySemi(15))
+                        .foregroundStyle(Hue.ink)
+                        .frame(maxWidth: .infinity, minHeight: Size.seeAll)
+                        .background(Capsule().fill(Hue.fill))
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.press(.squish))
+                .padding(.top, Size.seeAllTop)
+            }
+        }
+    }
+
+    /// "Today / Wednesday": the day in ink, the slash and weekday in grey.
+    private func dayTitle(_ day: Date, now: Date) -> some View {
+        let title = PlaceEvents.title(day, now: now)
+        return Text("\(Text(title.day).font(.sansSemibold(17)).foregroundStyle(Hue.ink))\(Text(" / " + title.weekday).foregroundStyle(Hue.weekday))")
+            .font(.sans(17))
+            .lineLimit(1)
+            .accessibilityLabel("\(title.day), \(title.weekday)")
+            .accessibilityAddTraits(.isHeader)
+    }
+
+    /// The Event's picture, its title and price tag, its time and, when it's somewhere else, where. A tap opens its
+    /// Event page as the month's rows do.
+    private func row(_ event: DailyEvent, now: Date) -> some View {
+        let tag = PlaceEvents.priceTag(event.item.price)
+        let elsewhere = PlaceEvents.elsewhere(event.item.location, place: place)
+        let label = HStack(alignment: .top, spacing: Size.listPhotoGap) {
+            Hue.fill
+                .frame(width: Size.listPhoto, height: Size.listPhoto)
+                .overlay { if let url = event.photo { FeedCardURLPhoto(url: url, loadingFill: Hue.fill) } }
+                .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(alignment: .top, spacing: Size.tagGap) {
+                    Text(event.item.title)
+                        .font(.sansSemibold(17))
+                        .foregroundStyle(Hue.ink)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if let tag {
+                        Text(tag)
+                            .font(.sansSemibold(13))
+                            .foregroundStyle(Hue.priceTag)
+                            .padding(.horizontal, Size.tagInset)
+                            .frame(height: Size.tagHeight)
+                            .background(RoundedRectangle(cornerRadius: Size.tagCorner, style: .continuous)
+                                .fill(Hue.priceTagWash))
+                            .fixedSize()
+                    }
+                }
+                line("clock", event.startTime(now: now))
+                if let elsewhere { line("mappin", elsewhere) }
+            }
+            .padding(.top, Size.listTextTop)
+        }
+        .contentShape(Rectangle())
+
+        return Group {
+            if let openEvent {
+                Button { openEvent.open(event.item) } label: { label }
+            } else {
+                NavigationLink(value: event.item) { label }
+            }
+        }
+        .buttonStyle(.press(.row))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel([event.item.title, event.startSpoken(now: now), tag, elsewhere].compactMap { $0 }
+            .joined(separator: ", "))
+    }
+
+    private func line(_ glyph: String, _ text: String) -> some View {
+        HStack(spacing: Size.lineGap) {
+            Image(systemName: glyph)
+                .font(.sans(13))
+                .foregroundStyle(Hue.weekday)
+            Text(text)
+                .font(.sans(15))
+                .foregroundStyle(Hue.inkSecondary)
+                .lineLimit(1)
+        }
+        .padding(.top, Size.lineTop)
     }
 
     // MARK: The month
