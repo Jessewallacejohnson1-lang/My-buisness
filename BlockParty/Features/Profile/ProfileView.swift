@@ -2,10 +2,10 @@
 //  ProfileView.swift
 //  Block Party — the You tab: your Profile (five-tabs 03), the profile page (`ProfilePage`, BP app
 //  references/profile-remake, profile-middle) with your full Calendar and Agenda under "Going"
-//  (`YouPage`), where a neighbour's page has its Going rows; only you see them. On the cover, share
-//  (Your code) in white glass and the gear in dark glass; your settings, Liked among them, push from
-//  the gear on the shell's stack, over the tab bar, as an Event page does. Under your name, Edit
-//  profile and Map.
+//  (`YouPage`), where a neighbour's page has its Going rows; only you see them. At the top right,
+//  share (Your code) and the gear in flat white circles; your settings, Liked among them, push from
+//  the gear on the shell's stack, over the tab bar, as an Event page does. Beside your picture, Edit
+//  profile and the round map.
 //
 //  Motion: the house SpringReveal cascade on Settings; press-scale on every control.
 //
@@ -13,7 +13,7 @@
 import SwiftUI
 
 struct ProfileView: View {
-    /// Your name, photo, cover and switches, kept in the shell (`AppSession`) so coming back to You
+    /// Your name, photo and switches, kept in the shell (`AppSession`) so coming back to You
     /// shows them at once while they read again.
     let model: ProfileModel
     /// You's Liked list, kept in the shell so a second visit shows the last list at once.
@@ -70,12 +70,12 @@ struct ProfileView: View {
                 Spacer(minLength: 0)
                 // Your code: only a real account can be found, so the quiet one's would lead nowhere.
                 if friendsBook.hasAccount() {
-                    ProfileGlassButton(glyph: Image(systemName: "square.and.arrow.up"), label: "Share your profile") {
+                    ProfileGlassButton(glyph: Image(systemName: "square.and.arrow.up"), label: "Share your profile", flat: true) {
                         Haptics.selection()
                         showingCode = true
                     }
                 }
-                ProfileGlassButton(glyph: Image(systemName: "gearshape"), label: "Settings", dark: true) {
+                ProfileGlassButton(glyph: Image(systemName: "gearshape"), label: "Settings", flat: true) {
                     Haptics.selection()
                     settings = true
                 }
@@ -118,15 +118,13 @@ struct ProfileView: View {
         return ProfileFace(
             name: model.displayName.isEmpty ? "Add your name" : model.displayName,
             avatarUrl: model.avatarUrl,
-            coverUrl: model.coverUrl,
             bio: bio.isEmpty ? nil : bio,
             friends: model.extras?.friends,
             following: model.extras?.following,
             followers: model.extras?.followers,
             countsLoading: model.countsLoading,
             groups: (you.groups ?? []).filter { actions.member($0).isMember },
-            addsBio: bio.isEmpty && model.canDescribe,
-            coverKnown: model.loaded)
+            addsBio: bio.isEmpty && model.canDescribe)
     }
 
     // MARK: - Settings

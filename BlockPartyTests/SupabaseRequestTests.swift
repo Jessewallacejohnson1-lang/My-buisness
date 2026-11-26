@@ -311,9 +311,6 @@ final class SupabaseRequestTests: XCTestCase {
         XCTAssertEqual(last.value(forHTTPHeaderField: "Content-Type"), "image/jpeg")
         XCTAssertEqual(last.value(forHTTPHeaderField: "Authorization"), "Bearer test-access-token")
         XCTAssertEqual(url, sent.replacingOccurrences(of: "/object/avatars/", with: "/object/public/avatars/"))
-
-        _ = try await profiles.uploadPhoto(photo, name: "cover")
-        XCTAssertTrue(last.url!.absoluteString.hasPrefix("\(storage)/object/avatars/test-user/cover-"))
     }
 
     func testAFailedUploadThrowsItsReason() async {

@@ -33,22 +33,22 @@ struct ProfileAPI {
     }
 
     /// Upload a photo to the public `avatars` bucket at `{userId}/avatar-{ts}.jpg`
-    /// (folder-scoped RLS), or a profile's cover at `{userId}/cover-{ts}.jpg` with `name`
-    /// "cover", and answer its public URL. A refused upload, or no answer, throws, so the
-    /// caller never saves a profile without the photo someone picked.
-    func uploadPhoto(_ data: Data, name: String = "avatar") async throws -> String {
+    /// (folder-scoped RLS), and answer its public URL. A refused upload, or no answer, throws, so
+    /// the caller never saves a profile without the photo someone picked.
+    func uploadPhoto(_ data: Data) async throws -> String {
         let uid = try db.userID
-        let path = "\(uid)/\(name)-\(Int(Date().timeIntervalSince1970 * 1000)).jpg"
+        let path = "\(uid)/avatar-\(Int(Date().timeIntervalSince1970 * 1000)).jpg"
         return try await db.upload(bucket: "avatars", path: path, data, type: "image/jpeg").absoluteString
     }
 
     /// Upsert the caller's profile. `onboarded` stamps `onboarded_at` so a
     /// reinstall/new device can skip onboarding. Idempotent (PK = user_id).
-    /// `bio` and `coverUrl` travel only when given: an anonymous account may set neither, so
-    /// its Edit profile leaves them out (an empty bio goes as nil, "" clears it).
+    /// `bio` travels only when given: an anonymous account may not set one, so its Edit profile
+    /// leaves it out (an empty bio goes as nil, "" clears it). A cover never travels (profile-left
+    /// 01): the one stored stays as it is.
     func upsert(displayName: String?, avatarUrl: String?,
                 interests: [String], onboarded: Bool,
-                bio: String? = nil, coverUrl: String? = nil) async throws {
+                bio: String? = nil) async throws {
         let uid = try db.userID
 
         let now = DateHelpers.timestampString(Date())
@@ -62,7 +62,6 @@ struct ProfileAPI {
         b["avatar_url"]   = avatarUrl ?? NSNull()
         if onboarded { b["onboarded_at"] = now }
         if let bio { b["bio"] = bio.isEmpty ? NSNull() : bio }
-        if let coverUrl { b["cover_url"] = coverUrl }
 
         try await db.rest("town_profiles", method: "POST", [("on_conflict", "user_id")], body: b,
                           prefer: "resolution=merge-duplicates,return=minimal")

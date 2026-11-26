@@ -666,8 +666,8 @@ struct RelationButtons: View {
     }
 }
 
-/// A neighbour's page: the profile page (`ProfilePage`, BP app references/profile-remake) with
-/// their cover, bio, friends and groups, the Events you're both Going to when you're friends,
+/// A neighbour's page: the profile page (`ProfilePage`, BP app references/profile-left) with
+/// their bio, friends and groups, the Events you're both Going to when you're friends,
 /// and the one pill at the bottom. Never their plans beyond those (friends spec, 2026-10-13).
 /// The photo, name and pill show at once from what the list knew; the rest fades in once
 /// `get_profile` answers, and stays away if it fails.
@@ -693,17 +693,17 @@ struct NeighborPage: View {
     var body: some View {
         TimelineView(.everyMinute) { context in
             ProfilePage(face: face(now: context.date)) {
-                // Back and Message in white glass, ••• in dark glass (profile-middle).
+                // Back, Message and •••, flat white circles (profile-left).
                 HStack(spacing: ProfileMetric.glassBoxGap) {
-                    ProfileGlassButton(glyph: Image(systemName: "arrow.left"), label: "Back") { dismiss() }
+                    ProfileGlassButton(glyph: Image(systemName: "arrow.left"), label: "Back", flat: true) { dismiss() }
                     Spacer(minLength: 0)
                     // Message: a friend's chat, or to anyone else a request (five-tabs 05).
                     if book.relation(neighbor) != .blocked, book.hasAccount() {
                         ProfileGlassButton(glyph: FeedActionGlyphView(glyph: .send, size: ChatMetric.profileGlyph),
-                                           label: "Message \(neighbor.firstName)") { chats.push?(.person(neighbor)) }
+                                           label: "Message \(neighbor.firstName)", flat: true) { chats.push?(.person(neighbor)) }
                     }
                     ProfileGlassButton(glyph: Image(systemName: "ellipsis"),
-                                       label: "More options, \(neighbor.displayName)", dark: true) { book.menu = neighbor }
+                                       label: "More options, \(neighbor.displayName)", flat: true) { book.menu = neighbor }
                 }
             } bar: {
                 ProfilePillBar {
@@ -741,7 +741,6 @@ struct NeighborPage: View {
         return ProfileFace(
             name: neighbor.displayName,
             avatarUrl: neighbor.avatarUrl,
-            coverUrl: extras?.coverUrl,
             bio: extras?.bio,
             friends: extras?.friends,
             following: extras?.following,
@@ -749,7 +748,6 @@ struct NeighborPage: View {
             countsLoading: countsLoading,
             groups: (extras?.groupIds ?? []).compactMap { byId[$0] },
             going: shared.map { ProfileFace.nextPlans($0, now: now) },
-            coverKnown: extras != nil,
             now: now)
     }
 

@@ -64,7 +64,6 @@ final class DynamicTypeAuditCoverageTests: XCTestCase {
         "ProfileView.swift:$showAbout": .notYetAudited(reason: "About. Long copy."),
         "TeamPage.swift:$opened": .notYetAudited(reason: "A school activity's coming events (school-activities 02): a plain List of dates and titles, which wraps at any size. Text-size checks wait for Jesse (MEMORY.md, 2026-09-24)."),
         "ProfilePage.swift:$showingPhoto": .notYetAudited(reason: "A profile's photo, whole, with only a close button: no text to grow."),
-        "ProfilePage.swift:$showingCover": .notYetAudited(reason: "A profile's cover, whole (`CoverPhotoViewer`), with only a close button: no text to grow."),
         "BusinessPage.swift:$showingPhotos": .notYetAudited(reason: "A business's cover photos, whole (`CoverPhotoViewer`), with only a close button: no text to grow."),
         "ProfileView.swift:$showModeration": .notYetAudited(reason: "Moderation. Long copy."),
         "EditProfileView.swift:$showInterests": .notYetAudited(reason: "Interest picker; a grid of chips, which is what breaks first at AX5."),

@@ -297,6 +297,26 @@ final class YourProfileTests: XCTestCase {
         XCTAssertFalse(onboarding.answersPending)
     }
 
+    /// Edit profile has no cover (BP app profile-left 01): a save uploads only the photo and sends no
+    /// cover, so the one a neighbour picked before stays stored, untouched, and is never shown.
+    func testASaveSendsNoCoverAndKeepsTheStoredOne() async {
+        let profile = model()
+        profile.coverUrl = "https://x/avatars/a/cover-1.jpg"
+
+        let problem = await profile.save(name: "Avery Lund", image: photo(), interests: ["coffee"], bio: "Coffee and lakes.")
+
+        XCTAssertNil(problem)
+        let uploads = server.requests.filter { $0.url!.path.contains("/storage/") }.map { $0.url!.lastPathComponent }
+        XCTAssertEqual(uploads.count, 1, "the photo alone goes up")
+        XCTAssertTrue(uploads.allSatisfy { $0.hasPrefix("avatar-") }, "\(uploads)")
+        let saved = server.requests.filter { $0.httpMethod == "POST" && $0.url!.path.hasSuffix("town_profiles") }
+            .compactMap { $0.httpBody.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] } }
+            .first
+        XCTAssertEqual(saved?["bio"] as? String, "Coffee and lakes.")
+        XCTAssertNil(saved?["cover_url"], "no cover sent")
+        XCTAssertEqual(profile.coverUrl, "https://x/avatars/a/cover-1.jpg", "the stored cover is kept")
+    }
+
     /// No bio typed: none is sent, so nothing already on the account is cleared.
     func testAFlowWithNoBioLeavesTheBioAlone() async {
         let onboarding = OnboardingStore(defaults: phone)

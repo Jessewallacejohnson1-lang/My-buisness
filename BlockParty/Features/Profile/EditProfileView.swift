@@ -1,7 +1,7 @@
 //
 //  EditProfileView.swift
-//  Block Party — edit your community profile: cover · photo · name · bio · interests (the
-//  cover and bio for a real account only, BP app references/profile-remake). Mirrors the
+//  Block Party — edit your community profile: photo · name · bio · interests (the bio for a
+//  real account only, BP app references/profile-remake; no cover since profile-left 01). Mirrors the
 //  onboarding steps (same avatar well, the shared interest chips) and saves through
 //  ProfileModel.save (upload avatar → town_profiles upsert). A clean opaque form —
 //  glass is for the profile display, input reads calmer on paper.
@@ -26,11 +26,8 @@ struct EditProfileView: View {
     @State private var bio = ""
     @FocusState private var nameFocused: Bool
     @FocusState private var bioFocused: Bool
-    @State private var cover: UIImage?
-    @State private var coverPick: PhotosPickerItem?
-    /// A photo just picked, in Adjust before it lands (backlog 32): the profile photo's circle, the cover's shape.
+    /// A photo just picked, in Adjust before it lands (backlog 32), in the profile photo's shape.
     @State private var adjustingPhoto: UIImage?
-    @State private var adjustingCover: UIImage?
     @State private var showInterests = EditProfileView.debugOpenInterests()
     @State private var saving = false
     @State private var saveProblem: ProfileModel.SaveProblem?
@@ -65,10 +62,6 @@ struct EditProfileView: View {
             header.zIndex(1)
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 26) {
-                    if model.canDescribe {
-                        PhotosPicker(selection: $coverPick, matching: .images, photoLibrary: .shared()) { coverWell }
-                            .buttonStyle(.press(.squish))
-                    }
                     PhotosPicker(selection: $pick, matching: .images, photoLibrary: .shared()) { avatarWell }
                         .buttonStyle(.plain)
                         .padding(.top, 8)
@@ -87,24 +80,14 @@ struct EditProfileView: View {
             if interests.isEmpty { interests = model.interestIds }
             if bio.isEmpty { bio = model.bio }
             #if DEBUG
-            // `-profile-adjust photo|cover`: Adjust on a bundled photo as if just picked; AXe can't reach Apple's picker.
-            if let which = LaunchFlags.value(.profileAdjust), adjustingPhoto == nil, adjustingCover == nil {
-                if which == "cover" { adjustingCover = UIImage(named: "rocktoberfest.jpg") }
-                else { adjustingPhoto = UIImage(named: "millstream-arts-festival.jpg") }
+            // `-profile-adjust photo`: Adjust on a bundled photo as if just picked; AXe can't reach Apple's picker.
+            if LaunchFlags.value(.profileAdjust) != nil, adjustingPhoto == nil {
+                adjustingPhoto = UIImage(named: "millstream-arts-festival.jpg")
             }
             #endif
         }
         // Opened before Profile's read landed: its bio comes in then, unless you've typed one.
         .onChange(of: model.bio) { old, new in if bio == old { bio = new } }
-        .onChange(of: coverPick) { _, item in
-            guard let item else { return }
-            Task {
-                if let data = try? await item.loadTransferable(type: Data.self), let ui = UIImage(data: data) {
-                    adjustingCover = await PhotoCrop.shrunk(ui)
-                }
-                coverPick = nil
-            }
-        }
         .onChange(of: pick) { _, item in
             guard let item else { return }
             Task {
@@ -116,9 +99,6 @@ struct EditProfileView: View {
         }
         .photoAdjust($adjustingPhoto, shape: .face) { cut in
             withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { image = cut }
-        }
-        .photoAdjust($adjustingCover, shape: .wide(GroupPage.Metric.heroAspect)) { cut in
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { cover = cut }
         }
         .sheet(isPresented: $showInterests) {
             InterestsSheet(picked: $interests, schools: schools,
@@ -185,7 +165,7 @@ struct EditProfileView: View {
                 saving = true
                 Task {
                     let problem = await model.save(name: name, image: image, interests: interests,
-                                                   bio: model.canDescribe ? bio : nil, cover: cover)
+                                                   bio: model.canDescribe ? bio : nil)
                     saving = false
                     if let problem {
                         Haptics.error()
@@ -265,31 +245,6 @@ struct EditProfileView: View {
                 .onTapGesture { nameFocused = true }
                 .onChange(of: name) { _, v in if v.count > 24 { name = String(v.prefix(24)) } }
         }
-    }
-
-    /// The cover, as wide as the field, at the profile's own shape; a tap picks a new one.
-    private var coverWell: some View {
-        Hue.fill
-            .aspectRatio(GroupPage.Metric.heroAspect, contentMode: .fit)
-            .overlay {
-                if let cover {
-                    Image(uiImage: cover).resizable().scaledToFill()
-                } else if let url = model.coverUrl.flatMap(URL.init(string:)) {
-                    FeedCardURLPhoto(url: url, loadingFill: Hue.fill)
-                } else if let town = ProfileFace.town {
-                    Image(uiImage: town).resizable().scaledToFill()
-                }
-            }
-            .overlay {
-                Label("Change cover", systemImage: "photo")
-                    .font(.displaySemi(15))
-                    .foregroundStyle(Hue.ink)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 9)
-                    .background(Hue.surface, in: Capsule())
-            }
-            .clipShape(RoundedRectangle(cornerRadius: Radius.card, style: .continuous))
-            .accessibilityLabel("Change cover photo")
     }
 
     /// Nextdoor's bio: their words for the empty box, 150 letters, the count under it.

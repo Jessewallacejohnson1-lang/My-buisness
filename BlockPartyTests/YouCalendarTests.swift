@@ -664,9 +664,27 @@ final class YouCalendarTests: XCTestCase {
         XCTAssertEqual(words(ProfileFace.counts(friends: 0, following: 3, followers: nil)), ["3 following"])
     }
 
-    /// Three 81 pt columns fit the smallest iPhone (375 pt) with room to spare.
-    func testProfileCountsFitTheSmallestPhone() {
-        XCTAssertLessThanOrEqual(CGFloat(3) * ProfileMetric.countColumn, 375 - 32)
+    /// The counts on one line fit the smallest iPhone (375 pt) between its 20 pt sides, three-digit
+    /// numbers and all, at the default text size (BP app profile-left 01).
+    func testProfileCountsFitOneLineOnTheSmallestPhone() {
+        let font = UIFont.systemFont(ofSize: 16)
+        let bold = UIFont.systemFont(ofSize: 16, weight: .semibold)
+        let parts = ProfileFace.counts(friends: 999, following: 999, followers: 999)
+        let widths = parts.map {
+            ("\($0.number)" as NSString).size(withAttributes: [.font: bold]).width
+                + (" \($0.word)" as NSString).size(withAttributes: [.font: font]).width
+        }
+        let line = widths.reduce(0, +) + CGFloat(parts.count - 1) * ProfileMetric.countGap
+        XCTAssertEqual(parts.count, 3)
+        XCTAssertLessThanOrEqual(line, 375 - 2 * ProfileMetric.pictureSide)
+    }
+
+    /// The side buttons sit beside the picture (the mock's 185 pt on a 402 pt phone under a 62 pt safe
+    /// area: the picture's top 118, its foot 198, 13 above that), or 27 pt under a cover's foot when a
+    /// picture sits over one (a Place, BP app profile-left 03).
+    func testTheSideButtonsSitBesideThePicture() {
+        XCTAssertEqual(ProfileMetric.sideMiddle(pictureTop: 62 + ProfileMetric.pictureTop, coverFoot: nil), 185)
+        XCTAssertEqual(ProfileMetric.sideMiddle(pictureTop: 188, coverFoot: 228), 255)
     }
 
     /// `get_profile` before it said how many they follow still reads, bio and friends with it;

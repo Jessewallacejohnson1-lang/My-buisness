@@ -22,9 +22,11 @@ final class ProfileModel {
     var isAdmin = false
     /// When this account finished onboarding, from its row (nil: not yet, or unread).
     private(set) var onboardedAt: String?
-    /// Profile's bio and cover photo, and the counts and groups `get_profile` sends (BP app
-    /// references/profile-remake). Nil until read; an anonymous account has none.
+    /// Profile's bio, and the counts and groups `get_profile` sends (BP app references/profile-remake).
+    /// Nil until read; an anonymous account has none.
     var bio = ""
+    /// The cover picked before Profiles lost theirs (BP app profile-left 01): still read, as older
+    /// builds show it, but never shown here and never sent, so it stays stored.
     var coverUrl: String?
     var extras: ProfileExtras?
     /// `get_profile` has answered, or failed, for this account: till then a real account's Profile
@@ -371,23 +373,18 @@ final class ProfileModel {
 
     /// Saves the edit; nil when the server took it, else why it didn't.
     func save(name: String, image: UIImage?, interests: [String],
-              bio: String? = nil, cover: UIImage? = nil) async -> SaveProblem? {
+              bio: String? = nil) async -> SaveProblem? {
         turn += 1
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let newBio = bio.map { Self.clampBio($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
         var newUrl = avatarUrl
-        var newCover: String?
         do {
             // A newly picked photo must upload successfully; otherwise we'd save a
             // profile that silently dropped the avatar the user chose.
             if let image, let data = Self.avatarJPEG(image) { newUrl = try await profiles.uploadPhoto(data) }
-            // A cover, as wide as the phone at 3x (`coverJPEG`), into the same folder.
-            if let cover, let data = Self.coverJPEG(cover) {
-                newCover = try await profiles.uploadPhoto(data, name: "cover")
-            }
             try await profiles.upsert(displayName: trimmed.isEmpty ? nil : trimmed,
                                       avatarUrl: newUrl, interests: interests, onboarded: false,
-                                      bio: canDescribe ? newBio : nil, coverUrl: canDescribe ? newCover : nil)
+                                      bio: canDescribe ? newBio : nil)
         } catch {
             Log.network("Profile.save: \(error)")
             return SaveProblem.of(error)
@@ -399,7 +396,6 @@ final class ProfileModel {
         avatarUrl = newUrl
         interestIds = interests
         if canDescribe, let newBio { self.bio = newBio }
-        if let newCover { coverUrl = newCover }
         keep()
         return nil
     }
@@ -422,7 +418,7 @@ final class ProfileModel {
         return out
     }
 
-    /// The cover as it uploads: at most 1290 px wide (a 430 pt phone at 3x), as a JPEG.
+    /// A wide photo as it uploads, a post's (`NewPost`): at most 1290 px wide (a 430 pt phone at 3x), as a JPEG.
     nonisolated static func coverJPEG(_ image: UIImage) -> Data? {
         let wide = image.size.width
         guard wide > 0 else { return nil }
