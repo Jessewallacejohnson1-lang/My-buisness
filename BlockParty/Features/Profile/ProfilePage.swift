@@ -157,7 +157,7 @@ enum ProfileMetric {
     static let glassDrop: CGFloat = 2
 }
 
-struct ProfilePage<Buttons: View, Bar: View>: View {
+struct ProfilePage<Buttons: View, Side: View>: View {
     let face: ProfileFace
     /// Your own page: your full Calendar and Agenda under "Going", where a neighbour's page has
     /// its Going rows (five-tabs 03). Nil on a neighbour's.
@@ -165,8 +165,9 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
     /// The flat white circles at the top (`ProfileGlassButton`): your share and gear, or a
     /// neighbour's Back, Message and •••.
     @ViewBuilder let buttons: () -> Buttons
-    /// A neighbour's one pill at the bottom; nothing on your own page.
-    @ViewBuilder let bar: () -> Bar
+    /// A neighbour's one button beside the picture, in your Edit profile's spot (`RelationButtons`,
+    /// profile-left 02); unused on your own page.
+    @ViewBuilder let side: () -> Side
     /// Your own page: Edit profile, from "+ Add bio" and the button beside your picture; nil on a
     /// neighbour's, which has neither.
     var edit: (() -> Void)? = nil
@@ -245,7 +246,6 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
                 .accessibilitySortPriority(1)
         }
         .accessibilityElement(children: .contain)
-        .safeAreaInset(edge: .bottom, spacing: 0) { bar() }
         .toolbar(.hidden, for: .navigationBar)
         .fullScreenCover(isPresented: $showingPhoto) {
             ProfilePhotoView(url: face.avatarUrl.flatMap(URL.init(string:)), name: face.name)
@@ -339,7 +339,8 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
         .accessibilityHint(face.avatarUrl == nil ? "" : "Opens it larger")
     }
 
-    /// Your own page's buttons beside the picture: Edit profile with Jesse's palette, then the round map.
+    /// The buttons beside the picture: on your own page Edit profile with Jesse's palette, then the round
+    /// map; on a neighbour's their one button.
     @ViewBuilder
     private var sideButtons: some View {
         if let edit {
@@ -361,6 +362,8 @@ struct ProfilePage<Buttons: View, Bar: View>: View {
                 .buttonStyle(.press(.squish))
                 .accessibilityLabel("Map")
             }
+        } else {
+            side()
         }
     }
 
@@ -549,22 +552,28 @@ private struct ProfilePhotoView: View {
 }
 
 /// A button beside the picture (profile-left), drawn 36 pt tall (taller only with large text) and 44 to
-/// the finger: white words on ink
-/// with round ends, as wide as its words, 16 pt in. Your Edit profile.
+/// the finger, with round ends, as wide as its words, 16 pt in: white words on ink (your Edit profile, a
+/// neighbour's Add friend and Confirm), or `light`, ink words on white with a hairline round it (Cancel
+/// request, Delete and Friends), the mock's `.bk` and `.wt`.
 struct SideCapsule<Content: View>: View {
+    var light = false
     @ViewBuilder let content: () -> Content
 
     var body: some View {
         HStack(spacing: ProfileMetric.sideIconGap) { content() }
             .font(.displaySemi(15))
-            .foregroundStyle(Hue.surface)
+            .foregroundStyle(light ? Hue.ink : Hue.surface)
             .lineLimit(1)
             .fixedSize()
             .padding(.horizontal, ProfileMetric.sidePad)
             // Taller with the text at the largest sizes, never cut.
             .padding(.vertical, ProfileMetric.sideTextPad)
             .frame(minHeight: ProfileMetric.side)
-            .background(Hue.ink, in: Capsule())
+            .background {
+                Capsule()
+                    .fill(light ? Hue.surface : Hue.ink)
+                    .overlay { if light { Capsule().strokeBorder(Hue.hairline, lineWidth: ProfileMetric.glassRim) } }
+            }
             .contentShape(TapArea())
     }
 }
@@ -605,25 +614,6 @@ struct ProfileBlackButton<Content: View>: View {
             .frame(maxWidth: .infinity, minHeight: ProfileMetric.button)
             .background(fill, in: Capsule())
             .contentShape(Rectangle().inset(by: (ProfileMetric.button - PageMetric.tapMin) / 2))
-    }
-}
-
-/// A neighbour's one pill at the bottom, where the Group page's Join group sits: 24 pt in, 1 pt
-/// over the home bar, the page fading to its grey under it from 23 pt above.
-struct ProfilePillBar<Content: View>: View {
-    @ViewBuilder let content: () -> Content
-
-    var body: some View {
-        content()
-            .padding(.horizontal, GroupPage.Metric.pillSide)
-            .padding(.bottom, GroupPage.Metric.pillBottom)
-            .background {
-                LinearGradient(colors: [Hue.onboardingCanvas.opacity(0), Hue.onboardingCanvas],
-                               startPoint: .top, endPoint: .bottom)
-                    .padding(.top, -GroupPage.Metric.fadeAbovePill)
-                    .ignoresSafeArea(edges: .bottom)
-                    .allowsHitTesting(false)
-            }
     }
 }
 

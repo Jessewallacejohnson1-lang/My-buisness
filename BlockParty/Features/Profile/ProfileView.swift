@@ -80,9 +80,8 @@ struct ProfileView: View {
                     settings = true
                 }
             }
-        } bar: {
-            // Room for the tab bar under your Groups, as every tab leaves.
-            Color.clear.frame(height: DailyMetric.tabBarClearance - EventPage.Metric.contentBottom)
+        } side: {
+            EmptyView()
         } edit: {
             Haptics.selection()
             editing = true
@@ -92,6 +91,10 @@ struct ProfileView: View {
         openFriends: { opener?.push(FriendsRoute.allFriends) } openFollowing: { showingFollowing = true }
         openFollowers: { opener?.push(FriendsRoute.followers) }
         startGroup: { startingGroup = true }
+        // Room for the tab bar under your Groups, as every tab leaves.
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            Color.clear.frame(height: DailyMetric.tabBarClearance - EventPage.Metric.contentBottom)
+        }
         // On every visit, and for another account while You is open (`AppSession` has cleared the last one's).
         .task(id: auth.accountKey) { await model.load() }
         .navigationDestination(isPresented: $settings) { settingsPage.timesOpen("settings") }

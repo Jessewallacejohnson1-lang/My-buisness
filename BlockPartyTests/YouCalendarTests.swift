@@ -687,6 +687,19 @@ final class YouCalendarTests: XCTestCase {
         XCTAssertEqual(ProfileMetric.sideMiddle(pictureTop: 188, coverFoot: 228), 255)
     }
 
+    /// A neighbour who asked you: Confirm and Delete side by side beside their picture on the smallest
+    /// iPhone (375 pt), at the default text size, as Cancel request alone does (BP app profile-left 02).
+    func testANeighboursButtonsFitBesideThePictureOnTheSmallestPhone() throws {
+        registerBlockPartyFonts()
+        let font = try XCTUnwrap(UIFont(name: "InterTight-SemiBold", size: 15))
+        func capsule(_ words: String) -> CGFloat {
+            (words as NSString).size(withAttributes: [.font: font]).width + 2 * ProfileMetric.sidePad
+        }
+        let room = 375 - 2 * ProfileMetric.pictureSide - ProfileMetric.picture - ProfileMetric.sideGap
+        XCTAssertLessThanOrEqual(capsule("Confirm") + ProfileMetric.sideGap + capsule("Delete"), room)
+        XCTAssertLessThanOrEqual(capsule("Cancel request"), room)
+    }
+
     /// `get_profile` before it said how many they follow still reads, bio and friends with it;
     /// after, it carries the count (BP app references/profile-middle).
     func testProfileExtrasReadWithAndWithoutFollowing() throws {

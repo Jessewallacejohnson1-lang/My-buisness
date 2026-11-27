@@ -574,11 +574,11 @@ private struct NameAndMutual: View {
 /// The one button that follows where you two stand (ticket 03): Add friend; Request sent
 /// with Cancel; Confirm and Delete when they asked you; Friends, which opens the friend
 /// sheet (ticket 04). Facebook's shape, black for blue (Jesse, 2026-10-13). On a row the
-/// buttons fill the row; a person's page has the one pill.
+/// buttons fill the row; a person's page has them beside the picture (BP app profile-left 02).
 struct RelationButtons: View {
     let person: Neighbor
-    /// The profile page's one pill at the bottom: Meetup's, as the Group page's Join group.
-    var pill = false
+    /// A person's page: the small capsules beside the picture (`SideCapsule`), where your Edit profile sits.
+    var side = false
     @Environment(FriendsBook.self) private var book
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -589,12 +589,12 @@ struct RelationButtons: View {
             case .stranger:
                 face("Add friend", ink: true) { tap(.add) }
             case .sent:
-                // `friend-request-sent`: a row's button says Cancel; a Person page's pill, with nothing
+                // `friend-request-sent`: a row's button says Cancel; a Person page's, with nothing
                 // beside it to say what's cancelled, Cancel request (Jesse, 2026-11-06).
-                face(pill ? "Cancel request" : "Cancel", ink: false, spoken: "Cancel request") { tap(.cancel) }
+                face(side ? "Cancel request" : "Cancel", ink: false, spoken: "Cancel request") { tap(.cancel) }
             case .received:
                 // `friend-respond`
-                HStack(spacing: FriendsMetric.buttonGap) {
+                HStack(spacing: side ? ProfileMetric.sideGap : FriendsMetric.buttonGap) {
                     face("Confirm", ink: true) { tap(.confirm) }
                     face("Delete", ink: false) { tap(.delete) }
                 }
@@ -613,17 +613,14 @@ struct RelationButtons: View {
     @ViewBuilder
     private func face(_ title: String, ink: Bool, spoken: String? = nil, icon: String? = nil, hint: String = "",
                       action: @escaping () -> Void) -> some View {
-        if pill {
+        if side {
             Button(action: action) {
-                HStack(spacing: FriendsMetric.iconGap) {
-                    if let icon { Image(systemName: icon).font(.glyph(15, weight: .bold)) }
+                SideCapsule(light: !ink) {
+                    if let icon { Image(systemName: icon).font(.glyph(13, weight: .bold)) }
                     Text(title)
                 }
-                .font(.displaySemi(17))
-                .lineLimit(1)
-                .frame(maxWidth: .infinity)
             }
-            .buttonStyle(MeetupPillStyle(height: GroupPage.Metric.pillHeight, light: !ink))
+            .buttonStyle(.press(.squish))
             .accessibilityLabel("\(spoken ?? title), \(person.displayName)")
             .accessibilityHint(hint)
         } else {
@@ -668,12 +665,12 @@ struct RelationButtons: View {
 
 /// A neighbour's page: the profile page (`ProfilePage`, BP app references/profile-left) with
 /// their bio, friends and groups, the Events you're both Going to when you're friends,
-/// and the one pill at the bottom. Never their plans beyond those (friends spec, 2026-10-13).
-/// The photo, name and pill show at once from what the list knew; the rest fades in once
+/// and the one button beside the picture. Never their plans beyond those (friends spec, 2026-10-13).
+/// The photo, name and button show at once from what the list knew; the rest fades in once
 /// `get_profile` answers, and stays away if it fails.
 struct NeighborPage: View {
     let neighbor: Neighbor
-    /// False while where you stand is still being read (a page opened from Following): the pill waits.
+    /// False while where you stand is still being read (a page opened from Following): the button waits.
     var settled = true
     @Environment(ChatBook.self) private var chats
     @Environment(FriendsBook.self) private var book
@@ -705,10 +702,10 @@ struct NeighborPage: View {
                     ProfileGlassButton(glyph: Image(systemName: "ellipsis"),
                                        label: "More options, \(neighbor.displayName)", flat: true) { book.menu = neighbor }
                 }
-            } bar: {
-                ProfilePillBar {
+            } side: {
+                ZStack {
                     if settled {
-                        RelationButtons(person: neighbor, pill: true)
+                        RelationButtons(person: neighbor, side: true)
                             .transition(.opacity)
                     }
                 }
