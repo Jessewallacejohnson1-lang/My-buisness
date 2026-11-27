@@ -60,9 +60,9 @@ struct FollowButton: View {
         case row
         /// Beside Add friend on a person's page: 36 pt and always grey, the smaller action.
         case beside
-        /// A place's page, laid out as a Profile (place-pages 08): the Profile's black button with
-        /// round ends and a plus, half the row beside Map; grey "Following" once you do.
-        case profile
+        /// Beside a place's logo, a person's side spot (profile-left 03): the ink capsule, the light one
+        /// with its hairline once you follow (`SideCapsule`).
+        case side
     }
 
     let target: FollowTarget
@@ -85,15 +85,8 @@ struct FollowButton: View {
         let failures = actions.followFailureCount(target)
         let ink = !following && size != .beside
         Button(action: tap) {
-            if size == .profile {
-                ProfileBlackButton(fill: following ? Hue.fill : Hue.ink, ink: following ? Hue.ink : Hue.surface) {
-                    if !following {
-                        Image(systemName: "plus")
-                            .font(.glyph(15, weight: .semibold))
-                            .accessibilityHidden(true)
-                    }
-                    Text(following ? "Following" : "Follow")
-                }
+            if size == .side {
+                SideCapsule(light: following) { Text(following ? "Following" : "Follow") }
             } else {
                 label(following: following, ink: ink)
             }
@@ -131,7 +124,7 @@ struct FollowButton: View {
         switch size {
         case .page: FollowMetric.pageWidth
         case .row: FollowMetric.rowWidth
-        case .beside, .profile: FollowMetric.besideWidth
+        case .beside, .side: FollowMetric.besideWidth
         }
     }
 

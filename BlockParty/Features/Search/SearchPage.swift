@@ -140,10 +140,10 @@ nonisolated enum SearchMetric {
     static let closeResponse: CGFloat = 0.4
     static let settleResponse: CGFloat = 0.45
     static let settleDamping: CGFloat = 0.9
-    /// What it is, 4 pt under its name; its first grey card 20 pt under Follow and Map (the mock's).
+    /// What it is, 4 pt under its name; its first grey card 20 pt under that (the mock's).
     static let bizKindTop: CGFloat = 4
     static let bizCardsTop: CGFloat = 20
-    /// The friends who follow it, under Follow and Map (picked).
+    /// The friends who follow it, under what it is (picked).
     static let bizFriendsTop: CGFloat = 12
     static let bizBackFrom: CGFloat = 0.6
     /// The band under the safe area's top that a drag down closes the page from.

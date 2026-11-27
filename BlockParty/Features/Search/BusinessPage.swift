@@ -1,11 +1,12 @@
 //
 //  BusinessPage.swift
 //  Block Party — a business opened from its logo in Search. Its backdrop grows out of
-//  the tile, the logo flies to the middle, and its page rises: laid out like a person's Profile
-//  (Jesse, 2026-11-19, BP app place-pages 08): the photos Block Party saved of it swiping as the
-//  cover, its own lettering see-through low on it, its whole logo on a white disc in the middle of
-//  the sheet's edge, its name, what it is, Follow and Map under it, then its hours, Events, street,
-//  own words and links. With no photo there is no cover: the logo sits at the top of the plain page.
+//  the tile, the logo flies to the left, and its page rises: laid out like a person's Profile
+//  (Jesse, 2026-11-25, BP app profile-left 03): the photos Block Party saved of it swiping as the
+//  cover, straight-edged at Luma's height, its own lettering see-through and whole on it, its whole
+//  logo on a white disc at the left with its middle on the cover's foot, Follow and the round map
+//  beside it, its name and what it is under it on the left, then its hours, street, own words, links
+//  and Events. With no photo there is no cover: the logo sits at the top left of the plain page.
 //  Back, or a drag down on the band under the clock, sends it home the way it came. Opened from a
 //  photo (a card, an Around town tile), the photo itself grows into the page's top photo instead,
 //  the page riding its foot (BP app place-photos 10).
@@ -217,20 +218,20 @@ struct BusinessPage: View {
         }
     }
 
-    /// The cover, the Profile's (`GroupPage.Metric.heroAspect`: 245 pt tall on a 402 pt phone), its
-    /// photo running on under the sheet's corners.
-    static let heroAspect = GroupPage.Metric.heroAspect
+    /// The cover, Luma's (profile-left 03): 223 pt tall on a 393 pt phone, 228 on a 402, with a straight
+    /// edge. Its own shape: the Group, Town and school pages keep `GroupPage.Metric.heroAspect`.
+    static let heroAspect: CGFloat = 393.0 / 223.0
 
-    /// With no cover, the sheet's edge, where the logo's middle sits, this far under the safe area's
-    /// top: the mock's 118 pt on a 402 pt phone with a 62 pt safe area.
-    static let bareEdge: CGFloat = 56
+    /// With no cover, the logo's middle this far under the safe area's top: a person's picture's spot
+    /// (`ProfileMetric.pictureTop`), the mock's 158 pt on a 402 pt phone with a 62 pt safe area.
+    static let bareEdge: CGFloat = ProfileMetric.pictureTop + ProfileMetric.picture / 2
 
-    /// The logo inside its white disc, 5 pt in from the disc's edge all round (the mock's 4 pt and its 1 pt
+    /// The logo inside its 80 pt white disc, 5 pt in from the disc's edge all round (4 pt and its 1 pt
     /// line), whole: a round logo fills it, a wide one keeps its width, nothing is cut.
-    static let logoSide = ProfileMetric.photo - 10
+    static let logoSide = ProfileMetric.picture - 10
 
-    /// The logo's ink, its file's empty border left out, at most this wide or tall: the mock's 72 pt.
-    static let logoInk: CGFloat = 72
+    /// The logo's ink, its file's empty border left out, at most this wide or tall: the mock's 66 pt.
+    static let logoInk: CGFloat = 66
 
     /// How much bigger than `logoSide` the logo's file is drawn at rest, so its ink shows as the mock's:
     /// at most `logoInk` across, and never past `logoSide`'s circle (a square sits smaller, `LogoFit`).
@@ -242,22 +243,23 @@ struct BusinessPage: View {
         return across * file / ink.width / logoSide
     }
 
-    /// Where the sheet's edge is, the logo's middle on it: the cover's foot, or with none under Back.
+    /// Where the logo's middle sits: on the cover's foot, or with none at a person's picture's spot.
     static func edge(width: CGFloat, top: CGFloat, cover: Bool) -> CGFloat {
         cover ? width / heroAspect : top + bareEdge
     }
 
-    /// Where the logo rests: in the middle of the sheet's edge, as the Profile's photo.
+    /// Where the logo rests: at the left, 20 pt from the side, its middle on `edge`, as a person's picture.
     static func logo(width: CGFloat, top: CGFloat, cover: Bool) -> CGRect {
         let mid = edge(width: width, top: top, cover: cover)
-        return CGRect(x: (width - logoSide) / 2, y: mid - logoSide / 2, width: logoSide, height: logoSide)
+        return CGRect(x: ProfileMetric.pictureSide + (ProfileMetric.picture - logoSide) / 2, y: mid - logoSide / 2,
+                      width: logoSide, height: logoSide)
     }
 
-    /// Where a photo opened from a card is at `progress`: from the card's `box` to the page's top photo
-    /// (full width, running on under the sheet's corners), scrolled up by `scrollY`. Not clamped: the
+    /// Where a photo opened from a card is at `progress`: from the card's `box` to the page's cover (full
+    /// width, down to its straight foot), scrolled up by `scrollY`. Not clamped: the
     /// open's overshoot grows it a touch past its spot and back.
     static func flight(from box: CGRect, width: CGFloat, scrollY: CGFloat, progress p: CGFloat) -> CGRect {
-        let to = CGRect(x: 0, y: -max(0, scrollY), width: width, height: width / heroAspect + EventPage.Metric.heroUnderlap)
+        let to = CGRect(x: 0, y: -max(0, scrollY), width: width, height: width / heroAspect)
         return CGRect(x: box.minX + (to.minX - box.minX) * p, y: box.minY + (to.minY - box.minY) * p,
                       width: box.width + (to.width - box.width) * p, height: box.height + (to.height - box.height) * p)
     }
@@ -268,7 +270,7 @@ struct BusinessPage: View {
 }
 
 /// What the page's scroll tells the logo over it: how far down the page is, whether a photo is left
-/// for it to rest beside (none, and it sits in the middle of the top instead), and which photo is on
+/// for it to rest on (none, and it sits at the top instead), and which photo is on
 /// screen, which goes home into the card it came from (Jesse, 2026-11-15, place-photos 10).
 @MainActor @Observable
 private final class PageState {
@@ -345,9 +347,10 @@ private struct BusinessPageBody: View {
     }
 }
 
-/// The page itself, laid out as a person's Profile (`ProfilePage`, place-pages 08): its photos as the
-/// cover, and a sheet over their bottom edge with its name and what it is in the middle under the logo,
-/// Follow and Map, then its hours, Events, street, About and links. Every row is absent when its data is.
+/// The page itself, laid out as a person's Profile (`ProfilePage`, profile-left 03): its photos as the
+/// cover, the logo at the left on its foot with Follow and the map beside it, its name and what it is
+/// under it on the left, then its hours, street, About, links and Events. Every row is absent when its
+/// data is.
 private struct BusinessPageContent: View {
     let item: SearchItem
     let page: PageState
@@ -406,8 +409,8 @@ private struct BusinessPageContent: View {
         }
     }
 
-    /// The cover, as tall as the Profile's, the photos running on under the sheet's corners. With no
-    /// photo it is only the room above the logo: the backdrop fills it.
+    /// The cover, Luma's height with a straight foot. With no photo it is only the room above the logo's
+    /// middle: the backdrop fills it.
     private var hero: some View {
         Color.clear
             .frame(height: BusinessPage.edge(width: size.width, top: top, cover: !photos.isEmpty))
@@ -418,7 +421,7 @@ private struct BusinessPageContent: View {
                             failed.insert(url)
                             photoPage = min(photoPage ?? 0, max(photos.count - 1, 0))
                         }
-                        .frame(width: proxy.size.width, height: proxy.size.height + Metric.heroUnderlap)
+                        .frame(width: proxy.size.width, height: proxy.size.height)
                         .modifier(Landed(flight: flight, from: 1))
                         // Alongside the pager's swipe and the page's scroll, never instead of them.
                         .contentShape(Rectangle())
@@ -434,8 +437,8 @@ private struct BusinessPageContent: View {
                 let pull = max(0, proxy.frame(in: .scrollView(axis: .vertical)).minY)
                 return content.scaleEffect(1 + pull / max(proxy.size.height, 1), anchor: .bottom)
             }
-            // Its name in its own lettering, white and see-through, low on the cover behind the logo,
-            // which hides its foot (place-pages 08). Only lettering: an emblem shows nothing here.
+            // Its name in its own lettering, white and see-through, low on the cover and whole, the logo
+            // beside it at the left (profile-left 03). Only lettering: an emblem shows nothing here.
             .overlay(alignment: .bottom) {
                 if let name = item.nameArt, !name.emblem, !photos.isEmpty {
                     PlaceNameArt(name: name, spoken: item.name)
@@ -446,9 +449,16 @@ private struct BusinessPageContent: View {
                         .allowsHitTesting(false)
                 }
             }
-            .overlay(alignment: .bottomLeading) { credit.modifier(Landed(flight: flight, from: Self.lettersFrom)) }
+            // The credit and the counter share the right side, the logo has the left (profile-left 03): the
+            // credit's chip and the counter on one foot, the counter at the edge.
             .overlay(alignment: .bottomTrailing) {
-                counter.modifier(Landed(flight: flight, from: Self.lettersFrom)).allowsHitTesting(false)
+                HStack(alignment: .bottom, spacing: Self.creditGap) {
+                    credit
+                    counter.allowsHitTesting(false)
+                }
+                .padding(.trailing, Metric.inset)
+                .padding(.bottom, Self.chipsBottom)
+                .modifier(Landed(flight: flight, from: Self.lettersFrom))
             }
     }
 
@@ -460,10 +470,13 @@ private struct BusinessPageContent: View {
 
     /// Opened from a photo, the name, credit and counter fade in over its last 45% (the mock's).
     static let lettersFrom: CGFloat = 0.55
+    /// The counter's foot 12 pt above the cover's (the mock's `.ctr`), the credit's chip 6 pt left of it (picked).
+    static let chipsBottom: CGFloat = 12
+    static let creditGap: CGFloat = 6
 
     /// The photo on screen's credit, once it is drawn: the site it came from, or a free photo's
-    /// author and licence. Bottom left, as on the Event page; the counter has the right. A tap
-    /// on it reports the photo (BP app place-photos 06).
+    /// author and licence. Bottom right, beside the counter: the logo has the left. A tap on it
+    /// reports the photo (BP app place-photos 06).
     @ViewBuilder private var credit: some View {
         let index = photoPage ?? 0
         if photos.indices.contains(index), PhotoPager.isShown(photos[index].url, in: shown),
@@ -471,16 +484,15 @@ private struct BusinessPageContent: View {
             // With two or more photos the pager says it, with the photo's number.
             PhotoCredit(names: [credit], report: PhotoReport(place: item.name, photo: photos[index].url),
                         spoken: photos.count < 2)
-                .padding(.leading, Metric.inset - PhotoCredit.edgeInset)
-                .padding(.bottom, Metric.counterBottom - PhotoCredit.edgeInset)
+                // Its chip's own edge inset off, so the chip's foot and right side line up.
+                .padding(.trailing, -PhotoCredit.edgeInset)
+                .padding(.bottom, -PhotoCredit.edgeInset)
         }
     }
 
     @ViewBuilder private var counter: some View {
         if let text = EventPage.counterText(page: photoPage ?? 0, count: photos.count) {
             PhotoCounter(text: text)
-                .padding(.trailing, Metric.inset)
-                .padding(.bottom, Metric.counterBottom)
         }
     }
 
@@ -535,66 +547,81 @@ private struct BusinessPageContent: View {
         .frame(maxWidth: .infinity,
                minHeight: size.height - BusinessPage.edge(width: size.width, top: top, cover: !photos.isEmpty),
                alignment: .topLeading)
-        .background(alignment: .top) {
-            UnevenRoundedRectangle(topLeadingRadius: Metric.sheetCorner, topTrailingRadius: Metric.sheetCorner,
-                                   style: .continuous)
-                .fill(Hue.paper)
-                .padding(.bottom, -size.height)
-        }
+        // Square on the cover's straight foot.
+        .background(alignment: .top) { Hue.paper.padding(.bottom, -size.height) }
         // The follower count on the kind line and the friends under the buttons.
         .task(id: follow) { if let follow { await actions.refreshFollow(follow) } }
     }
 
-    /// In the middle under the logo, as the Profile's head: the name 10 pt under the logo's ring, what
-    /// it is with its real count ("Cajun · 128 followers", follows 02), Follow and Map side by side, and
-    /// the friends who follow it.
+    /// A person's head (`ProfilePage`, profile-left 03): the logo's lower half at the left (`FlyingLogo`
+    /// draws it over the page), Follow and the round map beside it, their middle 27 pt under its middle,
+    /// then on the left the name 16 pt under the logo, what it is with its real count ("Cajun · 128
+    /// followers", follows 02), and the friends who follow it.
     private var head: some View {
-        VStack(spacing: 0) {
+        VStack(alignment: .leading, spacing: 0) {
+            // Beside the logo, or under it once they no longer fit (the largest text sizes).
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .top, spacing: 0) {
+                    logoRoom
+                    Spacer(minLength: ProfileMetric.sideGap)
+                    sideButtons
+                        .padding(.top, ProfileMetric.sideMiddle(pictureTop: -ProfileMetric.picture / 2,
+                                                                coverFoot: photos.isEmpty ? nil : 0)
+                                 - ProfileMetric.side / 2)
+                        .frame(height: ProfileMetric.picture / 2, alignment: .top)
+                }
+                VStack(alignment: .leading, spacing: ProfileMetric.sideUnder) {
+                    logoRoom
+                    sideButtons
+                }
+            }
+
             Text(item.name)
                 .font(.displaySemi(26))
                 .tracking(ProfileMetric.nameTracking)
                 .foregroundStyle(Hue.ink)
-                .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
-                .padding(.top, ProfileMetric.nameTop)
+                .padding(.top, ProfileMetric.nameUnder)
 
             if let kind = kindLine {
                 Text(kind)
                     .font(.sans(15))
                     .foregroundStyle(Hue.inkSecondary)
-                    .multilineTextAlignment(.center)
                     .contentTransition(.numericText())
                     .animation(Motion.smooth, value: kind)
                     .padding(.top, SearchMetric.bizKindTop)
             }
 
-            HStack(spacing: ProfileMetric.buttonGap) {
-                if let follow {
-                    FollowButton(target: follow, name: item.name, size: .profile)
-                }
-                // Apple Maps on the place, as its street row opens (picked): the town map shows Events,
-                // not places. The squish without a haptic: opening a map is not a commit.
-                if let map = Directions.url(forPlace: item.street ?? item.name) {
-                    Button { openURL(map) } label: {
-                        ProfileBlackButton {
-                            Image(systemName: "globe")
-                                .font(.glyph(15, weight: .semibold))
-                                .accessibilityHidden(true)
-                            Text("Map")
-                        }
-                    }
-                    .buttonStyle(.press(.squish))
-                    .accessibilityHint("Opens in Maps")
-                }
-            }
-            .padding(.top, ProfileMetric.buttonsTop)
-
             if let follow {
                 FollowedBy(target: follow, top: SearchMetric.bizFriendsTop)
             }
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// The room the logo's disc takes under its middle.
+    private var logoRoom: some View {
+        Color.clear.frame(width: ProfileMetric.picture, height: ProfileMetric.picture / 2)
+    }
+
+    /// Follow, then Apple Maps on the place as its street row opens (the town map shows Events, not
+    /// places), the round button a person's map is. The squish without a haptic: opening a map is not
+    /// a commit.
+    private var sideButtons: some View {
+        HStack(spacing: ProfileMetric.sideGap) {
+            if let follow {
+                FollowButton(target: follow, name: item.name, size: .side)
+            }
+            if let map = Directions.url(forPlace: item.street ?? item.name) {
+                Button { openURL(map) } label: {
+                    SideCircle { Image(systemName: "map") }
+                }
+                .buttonStyle(.press(.squish))
+                .accessibilityLabel("Map")
+                .accessibilityHint("Opens in Maps")
+            }
+        }
     }
 }
 
@@ -767,8 +794,8 @@ private struct GrowingPhoto: View {
     }
 }
 
-/// The page under a growing photo: shrunk to the photo's width and riding its foot, so the sheet's
-/// corners sit on the photo the whole way, its words fading in from a third of the way (the mock's).
+/// The page under a growing photo: shrunk to the photo's width and riding its foot, so the paper's
+/// straight edge sits on the photo the whole way, its words fading in from a third of the way (the mock's).
 private struct RidingPhoto<Content: View>: View {
     let box: CGRect
     let width: CGFloat
@@ -782,9 +809,9 @@ private struct RidingPhoto<Content: View>: View {
         let flying = BusinessPage.inFlight(p)
         let f = BusinessPage.flight(from: box, width: width, scrollY: page.scrollY, progress: p)
         let k = flying ? f.width / max(width, 1) : 1
-        // Where the page's own photo (as tall as the flight's end, scrolled up by scrollY) puts its
+        // Where the page's own cover (as tall as the flight's end, scrolled up by scrollY) puts its
         // foot on the flying photo's.
-        let photo = width / BusinessPage.heroAspect + EventPage.Metric.heroUnderlap - max(0, page.scrollY)
+        let photo = width / BusinessPage.heroAspect - max(0, page.scrollY)
         content
             .scaleEffect(k, anchor: .topLeading)
             .offset(x: flying ? f.minX : 0, y: flying ? f.maxY - k * photo : 0)
@@ -934,8 +961,8 @@ private struct TopButtons: View {
     }
 }
 
-/// The logo flies from where it was tapped to the middle of the sheet's edge, the white disc and its
-/// ring of paper growing in round it, the Profile's photo (place-pages 08); on the cover's foot, or at
+/// The logo flies from where it was tapped to its spot at the left, a person's picture's, the white disc
+/// and its ring of paper growing in round it (profile-left 03); its middle on the cover's foot, or at
 /// the top with no cover. Mid-flight it lifts: its shadow stretches and fades a little, and goes as it
 /// lands on the disc. Open, it scrolls with the page. A place with no logo yet flies its letter disc the
 /// same way (place-pages 01).
@@ -961,7 +988,7 @@ private struct FlyingLogo: View {
         let flying = lerp(fromPhoto ? rest : from, rest, p)
         let shown = fromPhoto ? Landed.opacity(p, from: BusinessPageContent.lettersFrom)
             : (source.fades ? min(1, c * 4) : 1)
-        // The disc grows with the logo: 96 pt round the logo's 86 at rest.
+        // The disc grows with the logo: 80 pt round the logo's 70 at rest.
         let k = flying.width / BusinessPage.logoSide
         // Search's tile draws the file with its border; the disc shows the ink at the mock's size.
         let grow = item.logo.flatMap { logo in
@@ -984,8 +1011,8 @@ private struct FlyingLogo: View {
                     .overlay { Circle().strokeBorder(Hue.ink.opacity(0.16), lineWidth: FriendsMetric.ring) }
                     .padding(ProfileMetric.ring * k)
                     .background(Hue.paper, in: Circle())
-                    .frame(width: (ProfileMetric.photo + 2 * ProfileMetric.ring) * k,
-                           height: (ProfileMetric.photo + 2 * ProfileMetric.ring) * k)
+                    .frame(width: (ProfileMetric.picture + 2 * ProfileMetric.ring) * k,
+                           height: (ProfileMetric.picture + 2 * ProfileMetric.ring) * k)
                     .opacity(fromPhoto ? 1 : c)
             }
             // With the page as it scrolls, and down with it when pulled past its top.

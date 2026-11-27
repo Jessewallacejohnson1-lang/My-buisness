@@ -119,16 +119,8 @@ enum ProfileMetric {
     static let countSkeletons = 3
     static let countSkeletonHeight: CGFloat = 12
 
-    /// The Place page's centred head (place-pages 08), until profile-left 03 moves its logo to the left:
-    /// the 96 pt disc in a 4 pt ring, the name 10 pt under the ring, and its two black buttons, 16 pt under,
-    /// 40 pt tall to the eye and 44 to the finger, 10 pt apart, the icon 8 pt from its word.
-    static let photo: CGFloat = 96
+    /// A Place's logo disc keeps a 4 pt ring of the page's colour round it.
     static let ring: CGFloat = 4
-    static let nameTop: CGFloat = photo / 2 + ring + 10
-    static let buttonsTop: CGFloat = 16
-    static let button: CGFloat = 40
-    static let buttonGap: CGFloat = 10
-    static let buttonIconGap: CGFloat = 8
 
     /// A list's title 28 pt under what's above it (picked); its white card 12 pt under the title,
     /// the rows 12 pt in from its sides and foot, the Agenda card's 0.5 pt hairline round it.
@@ -579,7 +571,7 @@ struct SideCapsule<Content: View>: View {
 }
 
 /// The round button beside the picture: an ink glyph on a white disc with a hairline and a soft lift,
-/// 36 pt drawn and 44 to the finger. Your map.
+/// 36 pt drawn and 44 to the finger. Your map, and a Place's (profile-left 03).
 struct SideCircle<Glyph: View>: View {
     @ViewBuilder let glyph: () -> Glyph
 
@@ -596,24 +588,6 @@ struct SideCircle<Glyph: View>: View {
                             y: ProfileMetric.sideDrop)
             }
             .contentShape(TapArea())
-    }
-}
-
-/// One of a Place's black buttons with round ends: white words on ink, half the row, 40 pt to the eye
-/// and 44 to the finger. A Place's Follow and Map (place-pages 08), until profile-left 03.
-struct ProfileBlackButton<Content: View>: View {
-    var fill = Hue.ink
-    var ink = Hue.surface
-    @ViewBuilder let content: () -> Content
-
-    var body: some View {
-        HStack(spacing: ProfileMetric.buttonIconGap) { content() }
-            .font(.displaySemi(15))
-            .foregroundStyle(ink)
-            .lineLimit(1)
-            .frame(maxWidth: .infinity, minHeight: ProfileMetric.button)
-            .background(fill, in: Capsule())
-            .contentShape(Rectangle().inset(by: (ProfileMetric.button - PageMetric.tapMin) / 2))
     }
 }
 
