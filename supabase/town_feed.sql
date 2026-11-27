@@ -475,12 +475,20 @@ as $$
     from next_up e, town, me,
          -- Every interest the tagger gave the Event (ticket 33); one it hasn't reached yet has
          -- its writer's one.
-         lateral (select case when e.interests_tagged_at is not null then e.interests
-                              else array[e.category] end as tags) tg,
+         -- A Knowledge Bowl that isn't high school's or college's is middle school's, its tag or not: Kennedy's (K-8)
+         -- had none (watch-every-place 50).
+         lateral (select t || case when e.interests_tagged_at is not null and kb.named
+                                    and not t && array['middle_school', 'high_school', 'college']
+                               then array['middle_school'] else '{}' end as tags
+                  from (select case when e.interests_tagged_at is not null then e.interests
+                                    else array[e.category] end as t,
+                               concat_ws(' ', e.title, e.what, e.activity_name) ~* 'knowledge bowl' as named) kb) tg,
          -- Middle school sports and Knowledge Bowl (Jesse, 2026-11-05: "junior high sports typically are not gonna
-         -- be very popular"), for those who care (`scored`). A school's concerts and shows stay (MEMORY.md).
+         -- be very popular"), for those who care (`scored`). A school's concerts and shows stay (MEMORY.md). Its title,
+         -- what it is or its activity says Knowledge Bowl: one said "Quiz competition" (watch-every-place 50).
          lateral (select 'middle_school' = any(tg.tags) and e.interests_tagged_at is not null
-                         and ('watch_sports' = any(tg.tags) or coalesce(e.what, e.title) ~* 'knowledge bowl') as young) yg
+                         and ('watch_sports' = any(tg.tags)
+                              or concat_ws(' ', e.title, e.what, e.activity_name) ~* 'knowledge bowl') as young) yg
     where e.nth = 1
       -- After the best (town-feed 23): p_later asks for the Events not yet in, past their show-from day.
       and (town.today >= coalesce(e.shows_from, e.event_date - 14)) <> p_later

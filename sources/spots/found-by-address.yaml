@@ -40,7 +40,7 @@
 "Holdingford High School": [45.73323, -94.46764]  # 900 5Th St, Holdingford, MN, 56340 (school): https://www.isd738.org
 "Holiday Inn, St. Cloud": [45.5519, -94.20344]  # 75 37Th Ave S, Saint Cloud, MN, 56301 (venue): https://exploreminnesota.com/profile/holiday-inn-suites-st-cloud/1082
 "Kent Freeman Arena": [46.80922, -95.85317]  # 1310 Rossman Ave, Detroit Lakes, MN, 56501 (venue): https://cityofdetroitlakes.com/index.asp?SEC=18331390-4770-4212-87D5-05DEF8DA0816
-"Lake Sagatagan beach, Saint John's Abbey Arboretum": [45.5829, -94.39334]  # 2850 Abbey Rd, Collegeville, MN, 56321 (school): https://www.csbsju.edu/outdooru/events/luminary/
+"Lake Sagatagan beach, Saint John's Abbey Arboretum": [45.57887, -94.39126]  # the beach, not SJU's street address (watch-every-place 50, 2026-11-26): OpenStreetMap's "Saint John's Beach" sand; USGS's "Student Beach" (45.578611, -94.391667) is 43 m off, found apart
 "Litchfield Civic Arena": [45.13595, -94.51907]  # 900 N Gilman Ave, Litchfield, MN, 55355 (venue): https://www.litchfieldmn.com/ice-skating/
 "Little Falls Community High School Gymnasium": [45.97001, -94.3498]  # 1001 5Th Ave Se, Little Falls, MN, 56345 (school): https://hs.lfalls.k12.mn.us/about
 "Maple Grove Middle School MGMS Gym D": [45.08138, -93.43108]  # 7000 Hemlock Ln N, Maple Grove, MN, 55369 (school): https://mgms.osseoschools.org/fs/pages/1282
