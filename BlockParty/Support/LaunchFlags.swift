@@ -76,7 +76,7 @@ nonisolated enum LaunchFlags {
         case pillCycle = "-pill-cycle"
         case profileBottom = "-profile-bottom"
         case profileEdit = "-profile-edit"
-        /// `-profile-adjust photo|cover`: Edit profile's Adjust on a bundled photo (BP app backlog 32).
+        /// `-profile-adjust photo`: Edit profile's Adjust on a bundled photo (BP app backlog 32).
         case profileAdjust = "-profile-adjust"
         case profileEditInterests = "-profile-edit-interests"
         case profileModeration = "-profile-moderation"

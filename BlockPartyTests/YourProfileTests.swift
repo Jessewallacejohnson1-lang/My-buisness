@@ -297,11 +297,10 @@ final class YourProfileTests: XCTestCase {
         XCTAssertFalse(onboarding.answersPending)
     }
 
-    /// Edit profile has no cover (BP app profile-left 01): a save uploads only the photo and sends no
-    /// cover, so the one a neighbour picked before stays stored, untouched, and is never shown.
-    func testASaveSendsNoCoverAndKeepsTheStoredOne() async {
+    /// Edit profile has no cover (BP app profile-left 01): a save uploads only the photo and its upsert
+    /// carries no cover, so the one a neighbour picked before stays stored, untouched.
+    func testASaveSendsNoCover() async {
         let profile = model()
-        profile.coverUrl = "https://x/avatars/a/cover-1.jpg"
 
         let problem = await profile.save(name: "Avery Lund", image: photo(), interests: ["coffee"], bio: "Coffee and lakes.")
 
@@ -314,7 +313,6 @@ final class YourProfileTests: XCTestCase {
             .first
         XCTAssertEqual(saved?["bio"] as? String, "Coffee and lakes.")
         XCTAssertNil(saved?["cover_url"], "no cover sent")
-        XCTAssertEqual(profile.coverUrl, "https://x/avatars/a/cover-1.jpg", "the stored cover is kept")
     }
 
     /// No bio typed: none is sent, so nothing already on the account is cleared.

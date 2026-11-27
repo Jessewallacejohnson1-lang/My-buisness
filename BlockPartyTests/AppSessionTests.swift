@@ -145,14 +145,13 @@ final class AppSessionTests: XCTestCase {
     }
 
     /// Your Profile stays between visits to You (`AppSession` keeps it), and another account never
-    /// opens on the last one's name, photo, cover, bio or switches (five-tabs 03).
+    /// opens on the last one's name, photo, bio or switches (five-tabs 03).
     func testAnotherAccountOpensOnAnEmptyProfile() {
         signIn("a")
         let session = session()
         let profile = session.profile
         profile.displayName = "Account A"
         profile.avatarUrl = "photo-a"
-        profile.coverUrl = "cover-a"
         profile.bio = "a's bio"
         profile.sinceLabel = "October 2025"
         profile.plansToFriends = false
@@ -164,7 +163,6 @@ final class AppSessionTests: XCTestCase {
         XCTAssertTrue(session.profile === profile, "one Profile for the session, kept between visits")
         XCTAssertEqual(profile.displayName, Interests.displayName(phone) ?? "")
         XCTAssertNil(profile.avatarUrl, "a's photo")
-        XCTAssertNil(profile.coverUrl, "a's cover")
         XCTAssertEqual(profile.bio, "", "a's bio")
         XCTAssertNil(profile.sinceLabel)
         XCTAssertNil(profile.plansToFriends, "a's switch waits for b's row")

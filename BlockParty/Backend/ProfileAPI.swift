@@ -19,7 +19,7 @@ struct ProfileAPI {
     /// select to the caller, so no explicit user_id filter is needed.
     func getMyProfile() async throws -> TownProfile? {
         let rows: [TownProfile] = try Supabase.decode(await db.rest("town_profiles", [
-            ("select", "user_id,display_name,avatar_url,interests,onboarded_at,plans_to_friends,plans_to_neighbors,suggest_me,bio,cover_url,created_at"),
+            ("select", "user_id,display_name,avatar_url,interests,onboarded_at,plans_to_friends,plans_to_neighbors,suggest_me,bio,created_at"),
             ("limit", "1"),
         ]))
         return rows.first

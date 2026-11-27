@@ -25,9 +25,6 @@ final class ProfileModel {
     /// Profile's bio, and the counts and groups `get_profile` sends (BP app references/profile-remake).
     /// Nil until read; an anonymous account has none.
     var bio = ""
-    /// The cover picked before Profiles lost theirs (BP app profile-left 01): still read, as older
-    /// builds show it, but never shown here and never sent, so it stays stored.
-    var coverUrl: String?
     var extras: ProfileExtras?
     /// `get_profile` has answered, or failed, for this account: till then a real account's Profile
     /// holds the counts' place with a skeleton (`countsLoading`), and never after a failure.
@@ -163,7 +160,6 @@ final class ProfileModel {
         // Onboarding went away for a while; a row made then has only its own stamp.
         sinceLabel = ProfileModel.since(from: row.onboardedAt ?? row.createdAt)
         bio = row.bio ?? ""
-        coverUrl = row.coverUrl
         plansToFriends = row.plansToFriends ?? true
         plansToNeighbors = row.plansToNeighbors ?? true
         suggestMe = row.suggestMe ?? true
@@ -206,7 +202,6 @@ final class ProfileModel {
         onboardedAt = nil
         isAdmin = false
         bio = ""
-        coverUrl = nil
         extras = nil
         extrasAnswered = false
         loaded = false
