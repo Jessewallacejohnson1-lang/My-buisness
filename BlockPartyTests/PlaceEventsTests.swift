@@ -19,8 +19,8 @@ final class PlaceEventsTests: XCTestCase {
 
     private func day(_ text: String) -> Date { town("\(text) 00:00") }
 
-    private func event(_ id: String, _ date: String, _ time: String = "6:30 PM") -> DailyEvent {
-        YouCalendar.event(from: UpcomingEvent(id: id, title: id, eventDate: date, startTime: time,
+    private func event(_ id: String, _ date: String, _ time: String = "6:30 PM", title: String? = nil) -> DailyEvent {
+        YouCalendar.event(from: UpcomingEvent(id: id, title: title ?? id, eventDate: date, startTime: time,
                                               location: "Sal's Bar & Grill", goingCount: 0, createdAt: ""))!
     }
 
@@ -75,6 +75,43 @@ final class PlaceEventsTests: XCTestCase {
         XCTAssertFalse(PlaceEvents.seeAll(Array(rows.prefix(10))))
 
         XCTAssertEqual(PlaceEvents.days(rows, limit: 3).map { $0.rows.map(\.event.id) }, [["e0", "e1"], ["e2"]])
+    }
+
+    /// A repeat (profile-left 06) is the same title, letter case aside, at the same start time: at 7 PM on the 16th
+    /// that day's 8:30 Mass is over, so Mass shows once on the 17th with the 18th, 19th and 20th ("mass") as its more
+    /// dates; the 5 PM Mass is its own row, and Bingo between them keeps its place.
+    func testARepeatShowsOnceAtItsNextDate() {
+        let church = [event("m16", "2026-11-16", "8:30 AM", title: "Mass"), event("m17", "2026-11-17", "8:30 AM", title: "Mass"),
+                      event("bingo", "2026-11-17", "7 PM", title: "Bingo"), event("m18", "2026-11-18", "8:30 AM", title: "Mass"),
+                      event("m19", "2026-11-19", "8:30 AM", title: "Mass"), event("m20", "2026-11-20", "8:30 AM", title: "mass"),
+                      event("vigil", "2026-11-21", "5 PM", title: "Mass")]
+        let rows = PlaceEvents.rows(church, now: town("2026-11-16 19:00"))
+        XCTAssertEqual(rows.map(\.event.id), ["m17", "bingo", "vigil"])
+        XCTAssertEqual(rows.map { $0.more.map(\.id) }, [["m18", "m19", "m20"], [], []])
+        XCTAssertEqual(PlaceEvents.days(rows).map { $0.rows.map(\.event.id) }, [["m17", "bingo"], ["vigil"]])
+        XCTAssertEqual(rows.map { PlaceEvents.moreDates($0.more.count) }, ["+3 more dates", nil, nil])
+        XCTAssertEqual(PlaceEvents.moreDates(1), "+1 more date")
+        // Once the 17th's is over, Mass shows on the 18th, after that evening's Bingo, with two more.
+        let later = PlaceEvents.rows(church, now: town("2026-11-17 12:00"))
+        XCTAssertEqual(later.map(\.event.id), ["bingo", "m18", "vigil"])
+        XCTAssertEqual(later[1].more.map(\.id), ["m19", "m20"])
+    }
+
+    /// The ten rows before See all are counted after the fold: thirty daily Masses and nine others are ten rows;
+    /// one more Event makes eleven, and See all.
+    func testTenCountedAfterTheFold() {
+        let masses = (0..<30).map { offset in
+            let date = PlaceEvents.calendar.date(byAdding: .day, value: offset, to: day("2026-11-17"))!
+            return event("m\(offset)", Town.day(date), "8:30 AM", title: "Mass")
+        }
+        let others = (0..<9).map { event("e\($0)", "2026-11-\(17 + $0)", "7 PM") }
+        let all = masses + others
+        let rows = PlaceEvents.rows(PlaceEvents.events(all, ids: Set(all.map(\.id))), now: today)
+        XCTAssertEqual(rows.count, 10)
+        XCTAssertEqual(rows.first?.more.count, 29)
+        XCTAssertFalse(PlaceEvents.seeAll(rows))
+        let eleven = all + [event("e9", "2026-11-30")]
+        XCTAssertTrue(PlaceEvents.seeAll(PlaceEvents.rows(PlaceEvents.events(eleven, ids: Set(eleven.map(\.id))), now: today)))
     }
 
     /// The price tag: "Free", "No cover" or one dollar amount, ten letters at most; anything else, none.

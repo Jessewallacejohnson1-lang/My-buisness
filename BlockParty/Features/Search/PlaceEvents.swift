@@ -4,7 +4,8 @@
 //  ("Today / Wednesday") and its Events with picture, title, time and price tag, the next ten and then See all. The
 //  calendar button beside "Events" puts the place's month in the list's place (place-pages 05's month, Search's
 //  Event calendar made small: 40 pt discs, past days faded, the next Event's day picked, only months with Events),
-//  and the picked day's Events. No section when nothing is coming up.
+//  and the picked day's Events. No section when nothing is coming up. A repeat shows once at its next date with
+//  "+24 more dates", whose tap opens those dates under it (profile-left 06).
 //
 //  Reference: the approved mock (https://www.figma.com/design/a0MSz1SJyLe704coW2x8lc?node-id=3-2, Jesse,
 //  2026-11-25) and, for the month, place-pages 05's (2026-11-16: "yes"). The Events are the
@@ -45,10 +46,33 @@ enum PlaceEvents {
     /// The rows before "See all".
     static let shown = 10
 
-    /// The list's rows: the place's Events not over by `now`, in the calendar's order.
-    /// A repeat folds into its next date here (profile-left 06).
+    /// The list's rows: the place's Events not over by `now`, in the calendar's order. A repeat, the same title
+    /// (letter case aside) at the same start time, shows once at its next date; its later ones are its `more`
+    /// (profile-left 06).
     static func rows(_ events: [DailyEvent], now: Date) -> [PlaceEventRow] {
-        events.filter { $0.ends > now }.map { PlaceEventRow(event: $0) }
+        var rows: [PlaceEventRow] = []
+        var index: [String: Int] = [:]
+        for event in events where event.ends > now {
+            let key = repeatKey(event)
+            if let at = index[key] {
+                rows[at].more.append(event)
+            } else {
+                index[key] = rows.count
+                rows.append(PlaceEventRow(event: event, id: key))
+            }
+        }
+        return rows
+    }
+
+    /// What makes Events one repeat: the title, letter case aside, and the start time the row shows.
+    private static func repeatKey(_ event: DailyEvent) -> String {
+        let time = event.timed ? Town.clock(event.starts) : event.item.startTime ?? ""
+        return event.item.title.lowercased() + "|" + time
+    }
+
+    /// "+24 more dates" under a repeat's time, "+1 more date"; nil when it has none.
+    static func moreDates(_ count: Int) -> String? {
+        count > 0 ? "+\(count) more date\(count == 1 ? "" : "s")" : nil
     }
 
     /// The rows under their days, the first `limit` of them: a day cut short keeps the ones that fit.
@@ -109,10 +133,12 @@ enum PlaceEvents {
     }
 }
 
-/// One row of a place's list: an Event at its date.
+/// One row of a place's list: an Event at its date and, for a repeat, its later dates.
 struct PlaceEventRow: Identifiable {
     let event: DailyEvent
-    var id: String { event.id }
+    /// The repeat's title and time, so the row keeps its place (and stays open) when its next date moves on.
+    let id: String
+    var more: [DailyEvent] = []
 }
 
 /// A day of the list, under its title.
@@ -172,6 +198,9 @@ enum PlaceEventsMetric {
     static let lineTop: CGFloat = 6
     static let lineGap: CGFloat = 6
     static let seeAll: CGFloat = 44
+    /// "+24 more dates" under the time (`.mo`), and how far past it its tap reaches (agent's pick: to 44 pt).
+    static let moreTop: CGFloat = 3
+    static let moreReach: CGFloat = 12
     static let seeAllTop: CGFloat = 20
 }
 
@@ -188,6 +217,8 @@ struct PlaceEventsSection: View {
     /// Set where the page sits outside a navigation stack (opened over the whole app): a row's tap goes here.
     @Environment(\.openEvent) private var openEvent
     @State private var all = false
+    /// The repeats whose more dates are open, by row id.
+    @State private var opened: Set<String> = []
     @State private var monthOpen = false
     @State private var shown: Date?
     @State private var picked: Date?
@@ -268,7 +299,7 @@ struct PlaceEventsSection: View {
             ForEach(PlaceEvents.days(rows, limit: all ? .max : PlaceEvents.shown)) { day in
                 dayTitle(day.day, now: now)
                     .padding(.top, Size.dayTop)
-                ForEach(day.rows) { row($0.event, now: now).padding(.top, Size.listRowTop) }
+                ForEach(day.rows) { row($0, now: now).padding(.top, Size.listRowTop) }
             }
             if PlaceEvents.seeAll(rows) {
                 Button {
@@ -297,9 +328,13 @@ struct PlaceEventsSection: View {
             .accessibilityAddTraits(.isHeader)
     }
 
-    /// The Event's picture, its title and price tag, its time and, when it's somewhere else, where. A tap opens its
-    /// Event page as the month's rows do.
-    private func row(_ event: DailyEvent, now: Date) -> some View {
+    /// The Event's picture, its title and price tag, its time and, when it's somewhere else, where; a repeat adds
+    /// "+24 more dates", whose tap opens those dates under the row and folds them again (profile-left 06). A tap
+    /// elsewhere opens its Event page as the month's rows do.
+    private func row(_ row: PlaceEventRow, now: Date) -> some View {
+        let event = row.event
+        let isOpen = opened.contains(row.id)
+        let more = PlaceEvents.moreDates(row.more.count)
         let tag = PlaceEvents.priceTag(event.item.price)
         let elsewhere = PlaceEvents.elsewhere(event.item.location, place: place)
         let label = HStack(alignment: .top, spacing: Size.listPhotoGap) {
@@ -328,22 +363,77 @@ struct PlaceEventsSection: View {
                 }
                 line("clock", event.startTime(now: now))
                 if let elsewhere { line("mappin", elsewhere) }
+                if let more {
+                    Button {
+                        Haptics.selection()
+                        withAnimation(reduceMotion ? nil : Motion.bentoExpand) {
+                            if isOpen { opened.remove(row.id) } else { opened.insert(row.id) }
+                        }
+                    } label: {
+                        Text(more)
+                            .font(.sansSemibold(15))
+                            .foregroundStyle(Hue.ink)
+                            .padding(.top, Size.moreTop)
+                            // Its tap reaches past the line to the 44 pt minimum.
+                            .contentShape(Rectangle().inset(by: -Size.moreReach))
+                    }
+                    .buttonStyle(.press(.squish))
+                }
             }
             .padding(.top, Size.listTextTop)
         }
         .contentShape(Rectangle())
 
+        return VStack(alignment: .leading, spacing: 0) {
+            opener(event.item) { label }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel([event.item.title, event.startSpoken(now: now), tag, elsewhere, more]
+                    .compactMap { $0 }.joined(separator: ", "))
+                .accessibilityAction(named: isOpen ? "Hide more dates" : "Show more dates") {
+                    if more != nil { opened.formSymmetricDifference([row.id]) }
+                }
+            if isOpen {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(row.more) { date(of: $0, now: now) }
+                }
+                .padding(.leading, Size.listPhoto + Size.listPhotoGap)
+                // Fades in place as the list grows under it, as the hours' week does.
+                .transition(.opacity)
+            }
+        }
+    }
+
+    /// One of a repeat's more dates, "Nov 28 / Saturday" with a chevron, opening that date's Event page.
+    private func date(of event: DailyEvent, now: Date) -> some View {
+        let title = PlaceEvents.title(PlaceEvents.calendar.startOfDay(for: event.starts), now: now)
+        return opener(event.item) {
+            HStack(spacing: Size.lineGap) {
+                Text("\(Text(title.day).foregroundStyle(Hue.ink))\(Text(" / " + title.weekday).foregroundStyle(Hue.weekday))")
+                    .font(.sans(15))
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(.sansSemibold(12))
+                    .foregroundStyle(Hue.weekday)
+            }
+            .frame(minHeight: PageMetric.tapMin)
+            .contentShape(Rectangle())
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(event.item.title), \(title.day), \(title.weekday), \(event.startSpoken(now: now))")
+    }
+
+    /// Opens the Event page as the month's rows do: pushed in the page's stack, or by the opener over the whole app.
+    private func opener(_ item: FeedCardItem, @ViewBuilder label: () -> some View) -> some View {
+        let label = label()
         return Group {
             if let openEvent {
-                Button { openEvent.open(event.item) } label: { label }
+                Button { openEvent.open(item) } label: { label }
             } else {
-                NavigationLink(value: event.item) { label }
+                NavigationLink(value: item) { label }
             }
         }
         .buttonStyle(.press(.row))
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel([event.item.title, event.startSpoken(now: now), tag, elsewhere].compactMap { $0 }
-            .joined(separator: ", "))
     }
 
     private func line(_ glyph: String, _ text: String) -> some View {
