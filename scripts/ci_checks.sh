@@ -1,9 +1,9 @@
 #!/bin/bash
 #
 # The checks GitHub's quick jobs run (.github/workflows/ci.yml calls this script), so the same
-# checks can run on this Mac before a push: the pre-push hook (scripts/install-git-hooks.sh) runs
-# them for every push to main. Twice on 2026-10-16 a push went red because only the one changed
-# script had been run (BP app retro, 2026-10-17).
+# checks can run on this Mac before a push: scripts/push_main.py runs them for every push to main.
+# Twice on 2026-10-16 a push went red because only the one changed script had been run (BP app
+# retro, 2026-10-17).
 #
 #   bash scripts/ci_checks.sh                 all four
 #   bash scripts/ci_checks.sh rules db        instruction files, database stories
@@ -11,7 +11,7 @@
 #   bash scripts/ci_checks.sh functions       deno check on every supabase/functions/*/index.ts
 #
 # BP_CI_NODE_MODULES: a node_modules folder to use for the database stories instead of
-# installing one (the pre-push hook keeps one cached).
+# installing one (push_main.py keeps one cached).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -21,7 +21,7 @@ for part in ${*:-rules functions db registry}; do
     case "$part" in
         rules)
             python3 scripts/bp_rules.py check
-            (cd scripts && python3 -m unittest -q test_bp_rules test_apply_migration test_ci_scope)
+            (cd scripts && python3 -m unittest -q test_bp_rules test_apply_migration test_ci_scope test_push_main)
             ;;
         db)
             (
