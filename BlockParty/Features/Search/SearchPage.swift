@@ -140,10 +140,18 @@ nonisolated enum SearchMetric {
     static let closeResponse: CGFloat = 0.4
     static let settleResponse: CGFloat = 0.45
     static let settleDamping: CGFloat = 0.9
-    /// What it is, 4 pt under its name; its first grey card 20 pt under that (the mock's).
+    /// What it is, 4 pt under its name; each plain line (hours, street) 10 pt under the last, the link
+    /// icons 14 pt, 21 pt each and 20 pt apart, and About 24 pt under them (the mock's `.kd`, `.pl`,
+    /// `.ics`, `.abt`; profile-left 04).
     static let bizKindTop: CGFloat = 4
-    static let bizCardsTop: CGFloat = 20
-    /// The friends who follow it, under what it is (picked).
+    static let bizLineTop: CGFloat = 10
+    static let bizIconsTop: CGFloat = 14
+    static let bizIcon: CGFloat = 21
+    /// The icon's mark inside its 21 pt box: the mock's globe and Facebook disc draw about 17 pt (measured).
+    static let bizIconGlyph: CGFloat = 18
+    static let bizIconGap: CGFloat = 20
+    static let bizAboutTop: CGFloat = 24
+    /// The friends who follow it, under the link icons (picked).
     static let bizFriendsTop: CGFloat = 12
     static let bizBackFrom: CGFloat = 0.6
     /// The band under the safe area's top that a drag down closes the page from.
@@ -160,10 +168,9 @@ nonisolated enum SearchMetric {
     static let liftStretch: CGFloat = 1.6
     static let liftFade: Double = 0.25
     /// The address and link rows' glyph box: wide enough for the globe, so every row's words
-    /// start together (picked).
+    /// start together (picked). A Place's hours dot and street pin sit in it too.
     static let bizGlyphBox: CGFloat = 16
-    /// Between link rows, and from the About to the first (picked).
-    static let bizLinkGap: CGFloat = 10
+    /// From an Event page's About to its first link row (picked).
     static let bizLinksTop: CGFloat = 24
 }
 

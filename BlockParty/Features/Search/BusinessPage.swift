@@ -218,6 +218,16 @@ struct BusinessPage: View {
         }
     }
 
+    /// A line's glyph in the glyph column, in the middle of its first line however large the text,
+    /// so a line that wraps keeps its dot or pin beside its first words.
+    static func onFirstLine(@ViewBuilder _ glyph: () -> some View) -> some View {
+        Text(verbatim: " ")
+            .font(.sans(16))
+            .frame(width: SearchMetric.bizGlyphBox)
+            .overlay { glyph() }
+            .accessibilityHidden(true)
+    }
+
     /// The cover, Luma's (profile-left 03): 223 pt tall on a 393 pt phone, 228 on a 402, with a straight
     /// edge. Its own shape: the Group, Town and school pages keep `GroupPage.Metric.heroAspect`.
     static let heroAspect: CGFloat = 393.0 / 223.0
@@ -504,35 +514,33 @@ private struct BusinessPageContent: View {
     }
 
     private var sheet: some View {
-        let rows = BusinessPage.rows(item.links)
+        let links = BusinessPage.rows(item.links)
         return VStack(alignment: .leading, spacing: 0) {
             head
 
+            // Plain lines under the name, no grey cards (profile-left 04, the mock's `.pl`): each one the
+            // Place has, 10 pt under the last; one it hasn't leaves no line and no gap.
             if let hours = item.hours {
-                HoursPill(hours: hours)
-                    .padding(.top, SearchMetric.bizCardsTop)
+                HoursLine(hours: hours, top: SearchMetric.bizLineTop)
             }
 
             if let street = item.street {
-                InfoPill(glyph: "mappin", text: street, url: Directions.url(forPlace: street),
-                         hint: "Opens in Maps", glyphBox: SearchMetric.bizGlyphBox)
-                    .padding(.top, item.hours != nil ? SearchMetric.bizLinkGap : SearchMetric.bizCardsTop)
+                streetLine(street)
+                    .padding(.top, SearchMetric.bizLineTop)
+            }
+
+            if !links.isEmpty {
+                linkIcons(links)
+                    .padding(.top, SearchMetric.bizIconsTop)
+            }
+
+            if let follow {
+                FollowedBy(target: follow, top: SearchMetric.bizFriendsTop)
             }
 
             if let about = item.about {
                 AboutSection(text: about)
-                    .padding(.top, Metric.aboutTop)
-            }
-
-            if !rows.isEmpty {
-                VStack(spacing: SearchMetric.bizLinkGap) {
-                    ForEach(rows, id: \.self) { row in
-                        InfoPill(glyph: row.glyph, text: row.text, url: row.url, hint: "Opens the link",
-                                 glyphBox: SearchMetric.bizGlyphBox, leaves: true)
-                    }
-                }
-                .padding(.top, item.about != nil ? SearchMetric.bizLinksTop
-                         : item.street != nil ? SearchMetric.bizLinkGap : SearchMetric.bizCardsTop)
+                    .padding(.top, SearchMetric.bizAboutTop)
             }
 
             // Its Events, last on the page (profile-left 05): no section when nothing is coming up.
@@ -555,8 +563,8 @@ private struct BusinessPageContent: View {
 
     /// A person's head (`ProfilePage`, profile-left 03): the logo's lower half at the left (`FlyingLogo`
     /// draws it over the page), Follow and the round map beside it, their middle 27 pt under its middle,
-    /// then on the left the name 16 pt under the logo, what it is with its real count ("Cajun · 128
-    /// followers", follows 02), and the friends who follow it.
+    /// then on the left the name 16 pt under the logo and what it is with its real count ("Cajun · 128
+    /// followers", follows 02).
     private var head: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Beside the logo, or under it once they no longer fit (the largest text sizes).
@@ -586,18 +594,58 @@ private struct BusinessPageContent: View {
 
             if let kind = kindLine {
                 Text(kind)
-                    .font(.sans(15))
+                    .font(.sans(16))
                     .foregroundStyle(Hue.inkSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
                     .contentTransition(.numericText())
                     .animation(Motion.smooth, value: kind)
                     .padding(.top, SearchMetric.bizKindTop)
             }
-
-            if let follow {
-                FollowedBy(target: follow, top: SearchMetric.bizFriendsTop)
-            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// The street, its pin in the glyph column, opening Apple Maps as the map button does.
+    private func streetLine(_ street: String) -> some View {
+        Button {
+            if let map = Directions.url(forPlace: street) { openURL(map) }
+        } label: {
+            HStack(alignment: .firstTextBaseline, spacing: EventPage.Metric.pinGap) {
+                BusinessPage.onFirstLine {
+                    MapPinGlyph(size: SearchMetric.bizGlyphBox)
+                        .foregroundStyle(Hue.weekday)
+                }
+                Text(street)
+                    .font(.sans(16))
+                    .foregroundStyle(Hue.inkSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+            }
+            .contentShape(Rectangle().inset(by: -SearchMetric.bizLineTop / 2))
+        }
+        .buttonStyle(.press(.squish))
+        .accessibilityLabel(street)
+        .accessibilityHint("Opens in Maps")
+    }
+
+    /// Website, Facebook, Instagram as small grey icons (the mock's `.ics`), each its link, 44 pt to the
+    /// finger round its 21 pt glyph, and named for VoiceOver ("badhabitbeer.com", "Facebook").
+    private func linkIcons(_ links: [BusinessPage.LinkRow]) -> some View {
+        HStack(spacing: SearchMetric.bizIconGap) {
+            ForEach(links, id: \.self) { link in
+                Button { openURL(link.url) } label: {
+                    // The mock's Facebook mark is the filled one.
+                    Image(systemName: link.glyph == "f.circle" ? "f.circle.fill" : link.glyph)
+                        .font(.glyph(SearchMetric.bizIconGlyph))
+                        .foregroundStyle(Hue.weekday)
+                        .frame(width: SearchMetric.bizIcon, height: SearchMetric.bizIcon)
+                        .contentShape(Rectangle().inset(by: -(PageMetric.tapMin - SearchMetric.bizIcon) / 2))
+                }
+                .buttonStyle(.press(.squish))
+                .accessibilityLabel(link.text)
+                .accessibilityHint("Opens the link")
+            }
+        }
     }
 
     /// The room the logo's disc takes under its middle.
@@ -625,12 +673,15 @@ private struct BusinessPageContent: View {
     }
 }
 
-/// Whether it's open now, on the row the street and links use: a green dot "Open till 9 PM",
+/// Whether it's open now, a plain line under the name (profile-left 04): a green dot "Open till 9 PM",
 /// orange "Closes soon · 9 PM", red "Closed till Tue 4 PM" (Jesse, 2026-10-25; Reference Google
-/// Maps, BP app references/business-hours). A tap drops the week open inside it, today first and
-/// in bold, and folds it back; the spring turns around mid-way. It rereads the clock each minute.
-private struct HoursPill: View {
+/// Maps, BP app references/business-hours), the first words in ink, the rest grey, a chevron after
+/// them. A tap drops the week open under it, today first and in bold, and folds it back; the spring
+/// turns around mid-way. It rereads the clock each minute. With no status it leaves no line and no gap,
+/// so it takes its own `top`.
+private struct HoursLine: View {
     let hours: PlaceHours
+    let top: CGFloat
 
     @State private var expanded = false
 
@@ -646,21 +697,21 @@ private struct HoursPill: View {
                         row(status)
                         if expanded {
                             week(context.date)
-                                // Fades in place as the row grows: a slide drew the days over
+                                // Fades in place as the line grows: a slide drew the days over
                                 // the status line on the way.
                                 .transition(.opacity)
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Hue.fill)
-                    .clipShape(RoundedRectangle(cornerRadius: Radius.button, style: .continuous))
-                    .contentShape(Rectangle())
+                    // Its tap reaches half way to the lines round it.
+                    .contentShape(Rectangle().inset(by: -top / 2))
                 }
                 .buttonStyle(.press(.squish))
                 .accessibilityLabel(PlaceHours.words(status))
                 .accessibilityValue(expanded ? ([hours.seasonLine].compactMap { $0 }
                     + hours.week(from: context.date).map { "\($0.day) \($0.hours)" }).joined(separator: ", ") : "")
                 .accessibilityHint(expanded ? "Hides the week's hours" : "Shows the week's hours")
+                .padding(.top, top)
             }
         }
     }
@@ -668,26 +719,25 @@ private struct HoursPill: View {
     private func row(_ status: PlaceHours.Status) -> some View {
         let words = PlaceHours.words(status)
         let lead = Self.lead(status)
-        return HStack(spacing: Metric.pinGap) {
-            Circle()
-                .fill(Self.dot(status))
-                .frame(width: Self.dotSize, height: Self.dotSize)
-                .frame(width: SearchMetric.bizGlyphBox)
-            Text("\(Text(lead).font(.sansSemibold(15)))\(String(words.dropFirst(lead.count)))")
-                .font(.sans(15))
-                .foregroundStyle(Hue.ink)
-                .lineLimit(1)
-            Spacer(minLength: 0)
-            Image(systemName: "chevron.down")
-                .font(.sans(12))
+        return HStack(alignment: .firstTextBaseline, spacing: Metric.pinGap) {
+            BusinessPage.onFirstLine {
+                Circle()
+                    .fill(Self.dot(status))
+                    .frame(width: Self.dotSize, height: Self.dotSize)
+            }
+            Text("\(Text(lead).font(.sansSemibold(16)).foregroundStyle(Hue.ink))\(String(words.dropFirst(lead.count)))")
+                .font(.sans(16))
                 .foregroundStyle(Hue.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Image(systemName: "chevron.down")
+                .font(.sansSemibold(12))
+                .foregroundStyle(Hue.weekday)
                 .rotationEffect(.degrees(expanded ? 180 : 0))
+            Spacer(minLength: 0)
         }
-        .padding(.horizontal, Metric.pillInset)
-        .frame(height: Metric.pillHeight)
     }
 
-    /// Tight rows, the hours lined up under the row's words (Jesse: "remove the excess space").
+    /// Tight rows, the hours lined up under the line's words (Jesse: "remove the excess space").
     private func week(_ now: Date) -> some View {
         VStack(alignment: .leading, spacing: Self.weekRowGap) {
             if let season = hours.seasonLine {
@@ -705,14 +755,13 @@ private struct HoursPill: View {
                 .foregroundStyle(day.today ? Hue.ink : Hue.inkSecondary)
             }
         }
-        .padding(.leading, Metric.pillInset + SearchMetric.bizGlyphBox + Metric.pinGap)
-        .padding(.trailing, Metric.pillInset)
-        .padding(.bottom, Self.weekBottom)
+        .padding(.leading, SearchMetric.bizGlyphBox + Metric.pinGap)
+        .padding(.top, Self.weekTop)
     }
 
     static let dotSize: CGFloat = 9
     static let weekRowGap: CGFloat = 6
-    static let weekBottom: CGFloat = 12
+    static let weekTop: CGFloat = 8
 
     static func dot(_ status: PlaceHours.Status) -> Color {
         switch status {
