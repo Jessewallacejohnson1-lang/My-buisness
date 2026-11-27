@@ -140,16 +140,17 @@ nonisolated enum SearchMetric {
     static let closeResponse: CGFloat = 0.4
     static let settleResponse: CGFloat = 0.45
     static let settleDamping: CGFloat = 0.9
-    /// What it is, 4 pt under its name; each plain line (hours, street) 10 pt under the last, the link
-    /// icons 14 pt, 21 pt each and 20 pt apart, and About 24 pt under them (the mock's `.kd`, `.pl`,
-    /// `.ics`, `.abt`; profile-left 04).
+    /// What it is, 4 pt under its name, and About 24 pt under the link icons (the mock's `.kd`, `.ics`,
+    /// `.abt`; profile-left 04). The lines a finger taps (hours, street, each link icon) are each a 44 pt
+    /// box, stacked with no gap and the icons side by side, so none is under 44 and none overlaps
+    /// another (`docs/SHIP-CHECKLIST.md`): the mock's 10 and 14 pt gaps left 30 pt boxes. Their words
+    /// sit 44 pt apart (the mock's 31), the icons 23 pt apart (its 20).
     static let bizKindTop: CGFloat = 4
-    static let bizLineTop: CGFloat = 10
-    static let bizIconsTop: CGFloat = 14
     static let bizIcon: CGFloat = 21
     /// The icon's mark inside its 21 pt box: the mock's globe and Facebook disc draw about 17 pt (measured).
     static let bizIconGlyph: CGFloat = 18
-    static let bizIconGap: CGFloat = 20
+    /// How far a tap box reaches past a 21 pt line or icon on each side.
+    static let bizTapOverhang: CGFloat = (PageMetric.tapMin - bizIcon) / 2
     static let bizAboutTop: CGFloat = 24
     /// The friends who follow it, under the link icons (picked).
     static let bizFriendsTop: CGFloat = 12

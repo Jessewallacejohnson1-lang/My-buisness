@@ -15,8 +15,10 @@ extension PlaceNameArt {
     /// place-pages 08, Figma mock `references/business-profile/`): at most 330 x 138 pt, low on the cover.
     static let maxWidth: CGFloat = 330
     static let maxHeight: CGFloat = 138
-    /// Its foot 18 pt above the cover's edge, whole, the logo at the left (the mock's, profile-left 03).
-    static let bottom: CGFloat = 18
+    /// Its foot 50 pt above the cover's edge: 6 pt over the top of the logo's disc (40 + its 4 pt ring) and
+    /// the photo's credit and counter (39), so neither covers it (profile-left 03; the mock's 18 put them
+    /// over its foot).
+    static let bottom: CGFloat = 50
     /// How much of the lettering shows: the rest is the photo through it (Jesse's pick, 60%, from the
     /// mock's 30, 40 and 60).
     static let seeThrough: Double = 0.6

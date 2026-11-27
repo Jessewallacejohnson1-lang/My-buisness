@@ -98,8 +98,12 @@ enum ProfileMetric {
     /// The side buttons' middle, down the page: 27 pt under a cover's foot when the picture sits over one
     /// (a Place), else 13 pt above the picture's foot.
     static func sideMiddle(pictureTop: CGFloat, coverFoot: CGFloat?) -> CGFloat {
-        coverFoot.map { $0 + 27 } ?? pictureTop + picture - 13
+        coverFoot.map { $0 + picture / 2 - sideRise } ?? pictureTop + picture - sideRise
     }
+    static let sideRise: CGFloat = 13
+    /// How far the buttons reach under the picture's foot as drawn (5 pt): any further, as a capsule grows
+    /// with large text, and the row grows with them, so they never cover the name.
+    static let sideOverhang: CGFloat = side / 2 - sideRise
 
     /// The name 16 pt under the picture, Inter Tight SemiBold 26 a touch tight, the mock's -0.2.
     static let nameUnder: CGFloat = 16
@@ -258,7 +262,8 @@ struct ProfilePage<Buttons: View, Side: View>: View {
                     Spacer(minLength: ProfileMetric.sideGap)
                     sideButtons
                         .padding(.top, ProfileMetric.sideMiddle(pictureTop: 0, coverFoot: nil) - ProfileMetric.side / 2)
-                        .frame(height: ProfileMetric.picture, alignment: .top)
+                        .frame(minHeight: ProfileMetric.picture + ProfileMetric.sideOverhang, alignment: .top)
+                        .padding(.bottom, -ProfileMetric.sideOverhang)
                 }
                 VStack(alignment: .leading, spacing: ProfileMetric.sideUnder) {
                     photo

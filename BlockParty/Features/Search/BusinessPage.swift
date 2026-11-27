@@ -452,6 +452,9 @@ private struct BusinessPageContent: View {
             .overlay(alignment: .bottom) {
                 if let name = item.nameArt, !name.emblem, !photos.isEmpty {
                     PlaceNameArt(name: name, spoken: item.name)
+                        // Its top no higher than the safe area's, clear of the clock and the island.
+                        .frame(maxHeight: max(0, BusinessPage.edge(width: size.width, top: top, cover: true)
+                                                - PlaceNameArt.bottom - top))
                         .opacity(PlaceNameArt.seeThrough)
                         .padding(.bottom, PlaceNameArt.bottom)
                         .modifier(Landed(flight: flight, from: Self.lettersFrom))
@@ -468,6 +471,8 @@ private struct BusinessPageContent: View {
                 }
                 .padding(.trailing, Metric.inset)
                 .padding(.bottom, Self.chipsBottom)
+                // Past this they would grow over the lettering's foot.
+                .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                 .modifier(Landed(flight: flight, from: Self.lettersFrom))
             }
     }
@@ -519,33 +524,33 @@ private struct BusinessPageContent: View {
             head
 
             // Plain lines under the name, no grey cards (profile-left 04, the mock's `.pl`): each one the
-            // Place has, 10 pt under the last; one it hasn't leaves no line and no gap.
+            // Place has in its own 44 pt tap box, right under the last; one it hasn't leaves no line and no gap.
             if let hours = item.hours {
-                HoursLine(hours: hours, top: SearchMetric.bizLineTop)
+                HoursLine(hours: hours)
             }
 
             if let street = item.street {
                 streetLine(street)
-                    .padding(.top, SearchMetric.bizLineTop)
             }
 
             if !links.isEmpty {
                 linkIcons(links)
-                    .padding(.top, SearchMetric.bizIconsTop)
             }
 
+            // The last tap box reaches past its line: what follows keeps its gap from the line itself.
+            let overhang = item.hours != nil || item.street != nil || !links.isEmpty ? SearchMetric.bizTapOverhang : 0
             if let follow {
-                FollowedBy(target: follow, top: SearchMetric.bizFriendsTop)
+                FollowedBy(target: follow, top: SearchMetric.bizFriendsTop - overhang)
             }
 
             if let about = item.about {
                 AboutSection(text: about)
-                    .padding(.top, SearchMetric.bizAboutTop)
+                    .padding(.top, SearchMetric.bizAboutTop - overhang)
             }
 
             // Its Events, last on the page (profile-left 05): no section when nothing is coming up.
             if let entry = item.entryId {
-                PlaceEventsSection(entryId: entry, place: item.name)
+                PlaceEventsSection(entryId: entry)
             }
         }
         .padding(.horizontal, Metric.inset)
@@ -576,7 +581,8 @@ private struct BusinessPageContent: View {
                         .padding(.top, ProfileMetric.sideMiddle(pictureTop: -ProfileMetric.picture / 2,
                                                                 coverFoot: photos.isEmpty ? nil : 0)
                                  - ProfileMetric.side / 2)
-                        .frame(height: ProfileMetric.picture / 2, alignment: .top)
+                        .frame(minHeight: ProfileMetric.picture / 2 + ProfileMetric.sideOverhang, alignment: .top)
+                        .padding(.bottom, -ProfileMetric.sideOverhang)
                 }
                 VStack(alignment: .leading, spacing: ProfileMetric.sideUnder) {
                     logoRoom
@@ -621,17 +627,18 @@ private struct BusinessPageContent: View {
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 0)
             }
-            .contentShape(Rectangle().inset(by: -SearchMetric.bizLineTop / 2))
+            .frame(minHeight: PageMetric.tapMin)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.press(.squish))
         .accessibilityLabel(street)
         .accessibilityHint("Opens in Maps")
     }
 
-    /// Website, Facebook, Instagram as small grey icons (the mock's `.ics`), each its link, 44 pt to the
-    /// finger round its 21 pt glyph, and named for VoiceOver ("badhabitbeer.com", "Facebook").
+    /// Website, Facebook, Instagram as small grey icons (the mock's `.ics`), each its link in its own 44 pt
+    /// box round its 21 pt glyph, the boxes side by side, and named for VoiceOver ("badhabitbeer.com", "Facebook").
     private func linkIcons(_ links: [BusinessPage.LinkRow]) -> some View {
-        HStack(spacing: SearchMetric.bizIconGap) {
+        HStack(spacing: 0) {
             ForEach(links, id: \.self) { link in
                 Button { openURL(link.url) } label: {
                     // The mock's Facebook mark is the filled one.
@@ -639,13 +646,16 @@ private struct BusinessPageContent: View {
                         .font(.glyph(SearchMetric.bizIconGlyph))
                         .foregroundStyle(Hue.weekday)
                         .frame(width: SearchMetric.bizIcon, height: SearchMetric.bizIcon)
-                        .contentShape(Rectangle().inset(by: -(PageMetric.tapMin - SearchMetric.bizIcon) / 2))
+                        .frame(width: PageMetric.tapMin, height: PageMetric.tapMin)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.press(.squish))
                 .accessibilityLabel(link.text)
                 .accessibilityHint("Opens the link")
             }
         }
+        // The first glyph on the page's inset, its box past it.
+        .padding(.leading, -SearchMetric.bizTapOverhang)
     }
 
     /// The room the logo's disc takes under its middle.
@@ -677,11 +687,10 @@ private struct BusinessPageContent: View {
 /// orange "Closes soon · 9 PM", red "Closed till Tue 4 PM" (Jesse, 2026-10-25; Reference Google
 /// Maps, BP app references/business-hours), the first words in ink, the rest grey, a chevron after
 /// them. A tap drops the week open under it, today first and in bold, and folds it back; the spring
-/// turns around mid-way. It rereads the clock each minute. With no status it leaves no line and no gap,
-/// so it takes its own `top`.
+/// turns around mid-way. It rereads the clock each minute. With no status it leaves no line and no gap.
+/// The line is a 44 pt tap box.
 private struct HoursLine: View {
     let hours: PlaceHours
-    let top: CGFloat
 
     @State private var expanded = false
 
@@ -703,15 +712,13 @@ private struct HoursLine: View {
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    // Its tap reaches half way to the lines round it.
-                    .contentShape(Rectangle().inset(by: -top / 2))
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.press(.squish))
                 .accessibilityLabel(PlaceHours.words(status))
                 .accessibilityValue(expanded ? ([hours.seasonLine].compactMap { $0 }
                     + hours.week(from: context.date).map { "\($0.day) \($0.hours)" }).joined(separator: ", ") : "")
                 .accessibilityHint(expanded ? "Hides the week's hours" : "Shows the week's hours")
-                .padding(.top, top)
             }
         }
     }
@@ -735,6 +742,7 @@ private struct HoursLine: View {
                 .rotationEffect(.degrees(expanded ? 180 : 0))
             Spacer(minLength: 0)
         }
+        .frame(minHeight: PageMetric.tapMin)
     }
 
     /// Tight rows, the hours lined up under the line's words (Jesse: "remove the excess space").
