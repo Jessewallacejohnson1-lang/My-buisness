@@ -4330,14 +4330,23 @@ test('middle school sports and Knowledge Bowl go only to those who picked it, fo
   const bowl = await add('JH Knowledge Bowl', day(2), { start_time: '9 AM', source_name: 'Kennedy' });
   await db.query(`update public.club_events set interests = '{games,middle_school}', interests_tagged_at = now(), what = 'Knowledge bowl' where id = $1`, [bowl]);
   await add('Concert', day(2), { start_time: '7 PM', source_name: 'Hall' });
+  // A K-8 school's Knowledge Bowl with no grade tag, whose words say "Quiz competition", is middle school's too; a high
+  // school's stays everyone's (watch-every-place 50).
+  const quiz = await add('Knowledge Bowl', day(3), { start_time: '2 PM', source_name: 'Kennedy Community School' });
+  await db.query(`update public.club_events set interests = '{games,families_kids}', interests_tagged_at = now(),
+                  what = 'Quiz competition', activity_name = 'Knowledge Bowl' where id = $1`, [quiz]);
+  const high = await add('Sartell Knowledge Bowl vs North Branch', day(2), { start_time: '9 AM', source_name: 'Sartell' });
+  await db.query(`update public.club_events set interests = '{games,high_school}', interests_tagged_at = now() where id = $1`, [high]);
   const at = `${day(0)} 12:00`;
   await db.exec('set role anon');
-  assert.deepEqual((await titles(at)).sort(), ['6th Grade Band', 'Concert'], 'signed out');
+  assert.deepEqual((await titles(at)).sort(), ['6th Grade Band', 'Concert', 'Sartell Knowledge Bowl vs North Branch'], 'signed out');
   await signIn(YOU, ['watch_sports']);
-  assert.deepEqual((await titles(at)).sort(), ['6th Grade Band', 'Concert'], 'a sports fan who did not pick it');
+  assert.deepEqual((await titles(at)).sort(), ['6th Grade Band', 'Concert', 'Sartell Knowledge Bowl vs North Branch'],
+    'a sports fan who did not pick it');
   await signIn(YOU, ['middle_school']);
   assert.ok((await titles(at)).includes('Girls Basketball · MS'), 'picked Middle school');
   assert.ok((await titles(at)).includes('JH Knowledge Bowl'), 'picked Middle school');
+  assert.ok((await titles(at)).includes('Knowledge Bowl'), 'picked Middle school: the K-8 one too');
   await signIn(YOU);
   await goes(game, YOU);
   await signIn(YOU);

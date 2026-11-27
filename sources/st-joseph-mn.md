@@ -2616,6 +2616,7 @@ Notes: Proposed by discovery on 2026-09-24 from www.joetown.org. Watched since 2
 id: la-playette
 status: active
 tier: watched
+aka: ["The La", "La Playette Bar"]
 added_by: agent:discover
 sources:
   - url: https://laplayette.com/api/trpc/events.list

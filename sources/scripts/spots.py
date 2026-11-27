@@ -262,6 +262,11 @@ def selftest():
                        "sources/spots/ reads: every line a spot or null"))
     except ValueError as e:
         checks.append((False, str(e)))
+    # The bar's own nickname, as its Events write it: 11 said "The La" and had no spot (watch-every-place 50).
+    real = registry.load(registry.find_root(Path(__file__).parent))[0]
+    venues, ats = spots_index(real)
+    checks.append((spot_for("The La", "la-playette", venues, ats, registry.names_index(real)) == ats.get("la-playette"),
+                   "the registry's \"The La\" is La Playette"))
     for ok, why in checks:
         if not ok:
             failed += 1
