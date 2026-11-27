@@ -21,6 +21,8 @@ enum Radius {
     static let newTag: CGFloat = 7
     /// Adjust's strip of a post's photos: Instagram's small rounded squares (BP app backlog 32, the mock's 8).
     static let adjustThumb: CGFloat = 8
+    /// A place's Event row's price tag ("Free", "$5 cover"): the profile-left mock's `.t1 em` (BP app profile-left 05).
+    static let priceTag: CGFloat = 6
 
     /// The Town's Event of the day poster: DICE's card corner (the approved Round 3 page, BP app
     /// event-card 03), tighter than a Town card's 20, as a printed poster's is.

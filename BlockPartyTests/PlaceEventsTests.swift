@@ -44,7 +44,7 @@ final class PlaceEventsTests: XCTestCase {
     /// 28th's two under "Nov 28 / Saturday", then January's; the 3rd and the 13th are over.
     func testTheListByDay() {
         let now = town("2026-11-16 19:00")
-        let days = PlaceEvents.days(PlaceEvents.rows(PlaceEvents.events(calendar, ids: sals), now: now))
+        let days = PlaceEvents.days(PlaceEvents.rows(PlaceEvents.events(calendar, ids: sals), now: now), now: now)
         XCTAssertEqual(days.map { $0.rows.map(\.event.id) }, [["bingo-17"], ["market-28", "band-28"], ["feed-jan"]])
         XCTAssertEqual(days.map { PlaceEvents.title($0.day, now: now).day }, ["Tomorrow", "Nov 28", "Jan 8"])
         XCTAssertEqual(days.map { PlaceEvents.title($0.day, now: now).weekday }, ["Tuesday", "Saturday", "Friday"])
@@ -68,13 +68,13 @@ final class PlaceEventsTests: XCTestCase {
         let twelve = (0..<12).map { event("e\($0)", "2026-11-\(17 + $0 / 2)", $0 % 2 == 0 ? "1 PM" : "7 PM") }
         let rows = PlaceEvents.rows(twelve, now: today)
         XCTAssertTrue(PlaceEvents.seeAll(rows))
-        let first = PlaceEvents.days(rows, limit: PlaceEvents.shown)
+        let first = PlaceEvents.days(rows, now: today, limit: PlaceEvents.shown)
         XCTAssertEqual(first.flatMap(\.rows).map(\.event.id), (0..<10).map { "e\($0)" })
         XCTAssertEqual(first.count, 5)
-        XCTAssertEqual(PlaceEvents.days(rows).flatMap(\.rows).count, 12)
+        XCTAssertEqual(PlaceEvents.days(rows, now: today).flatMap(\.rows).count, 12)
         XCTAssertFalse(PlaceEvents.seeAll(Array(rows.prefix(10))))
 
-        XCTAssertEqual(PlaceEvents.days(rows, limit: 3).map { $0.rows.map(\.event.id) }, [["e0", "e1"], ["e2"]])
+        XCTAssertEqual(PlaceEvents.days(rows, now: today, limit: 3).map { $0.rows.map(\.event.id) }, [["e0", "e1"], ["e2"]])
     }
 
     /// A repeat (profile-left 06) is the same title, letter case aside, at the same start time: at 7 PM on the 16th
@@ -88,7 +88,7 @@ final class PlaceEventsTests: XCTestCase {
         let rows = PlaceEvents.rows(church, now: town("2026-11-16 19:00"))
         XCTAssertEqual(rows.map(\.event.id), ["m17", "bingo", "vigil"])
         XCTAssertEqual(rows.map { $0.more.map(\.id) }, [["m18", "m19", "m20"], [], []])
-        XCTAssertEqual(PlaceEvents.days(rows).map { $0.rows.map(\.event.id) }, [["m17", "bingo"], ["vigil"]])
+        XCTAssertEqual(PlaceEvents.days(rows, now: town("2026-11-16 19:00")).map { $0.rows.map(\.event.id) }, [["m17", "bingo"], ["vigil"]])
         XCTAssertEqual(rows.map { PlaceEvents.moreDates($0.more.count) }, ["+3 more dates", nil, nil])
         XCTAssertEqual(PlaceEvents.moreDates(1), "+1 more date")
         // Once the 17th's is over, Mass shows on the 18th, after that evening's Bingo, with two more.
@@ -126,16 +126,28 @@ final class PlaceEventsTests: XCTestCase {
         }
     }
 
-    /// The place is said only when it isn't this one: its name, a room in it, "St." for "Saint", "&" for "and" and
-    /// letter case all count as here.
-    func testThePlaceSaidOnlyWhenElsewhere() {
-        XCTAssertNil(PlaceEvents.elsewhere("Bad Habit Brewing", place: "Bad Habit Brewing"))
-        XCTAssertNil(PlaceEvents.elsewhere("Bad Habit Brewing, Brewer’s Lounge", place: "Bad Habit Brewing"))
-        XCTAssertNil(PlaceEvents.elsewhere("Church of St. Joseph", place: "Church of Saint Joseph"))
-        XCTAssertNil(PlaceEvents.elsewhere("sal's bar and grill", place: "Sal's Bar & Grill"))
-        XCTAssertNil(PlaceEvents.elsewhere(nil, place: "Bad Habit Brewing"))
-        XCTAssertNil(PlaceEvents.elsewhere(" ", place: "Bad Habit Brewing"))
-        XCTAssertEqual(PlaceEvents.elsewhere("Lake Sarah Park", place: "Bad Habit Brewing"), "Lake Sarah Park")
+    /// An Event that started on an earlier day and is still on sits under "Today", first, not under its past start
+    /// day: Friday's all-weekend market, still on at noon Saturday, leads Saturday's list.
+    func testAnEventStillOnIsUnderToday() {
+        var market = event("market", "2026-11-27", "10 AM", title: "Market")
+        market.ends = town("2026-11-29 16:00")
+        let events = [market, event("band", "2026-11-28", "7 PM"), event("brunch", "2026-11-29", "10 AM")]
+        let now = town("2026-11-28 12:00")
+        let days = PlaceEvents.days(PlaceEvents.rows(events, now: now), now: now)
+        XCTAssertEqual(days.map { $0.rows.map(\.event.id) }, [["market", "band"], ["brunch"]])
+        XCTAssertEqual(days.map { PlaceEvents.title($0.day, now: now).day }, ["Today", "Tomorrow"])
+    }
+
+    /// A repeat's more dates are only on later days: the same title and time twice on one day are two rows, never
+    /// "+1 more date" on that same day, and each later day counts once.
+    func testARepeatsMoreDatesAreLaterDays() {
+        let church = [event("a17", "2026-11-17", "8:30 AM", title: "Mass"), event("b17", "2026-11-17", "8:30 AM", title: "Mass"),
+                      event("a18", "2026-11-18", "8:30 AM", title: "Mass"), event("b18", "2026-11-18", "8:30 AM", title: "Mass"),
+                      event("a19", "2026-11-19", "8:30 AM", title: "Mass")]
+        let rows = PlaceEvents.rows(church, now: today)
+        XCTAssertEqual(rows.map(\.event.id), ["a17", "b17", "b18"])
+        XCTAssertEqual(rows.map { $0.more.map(\.id) }, [["a18", "a19"], [], []])
+        XCTAssertEqual(Set(rows.map(\.id)).count, rows.count, "each row its own id")
     }
 
     /// The arrows reach only months with an Event, from this month on: December, with none, is skipped.

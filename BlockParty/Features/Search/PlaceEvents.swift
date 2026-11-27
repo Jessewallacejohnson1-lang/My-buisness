@@ -47,18 +47,19 @@ enum PlaceEvents {
     static let shown = 10
 
     /// The list's rows: the place's Events not over by `now`, in the calendar's order. A repeat, the same title
-    /// (letter case aside) at the same start time, shows once at its next date; its later ones are its `more`
-    /// (profile-left 06).
+    /// (letter case aside) at the same start time, shows once at its next date; its dates on later days are its
+    /// `more`, one a day (profile-left 06). A second one on a day the repeat already has is a row of its own.
     static func rows(_ events: [DailyEvent], now: Date) -> [PlaceEventRow] {
         var rows: [PlaceEventRow] = []
         var index: [String: Int] = [:]
         for event in events where event.ends > now {
             let key = repeatKey(event)
-            if let at = index[key] {
+            let day = calendar.startOfDay(for: event.starts)
+            if let at = index[key], calendar.startOfDay(for: (rows[at].more.last ?? rows[at].event).starts) < day {
                 rows[at].more.append(event)
             } else {
-                index[key] = rows.count
-                rows.append(PlaceEventRow(event: event, id: key))
+                rows.append(PlaceEventRow(event: event, id: index[key] == nil ? key : key + "|" + event.id))
+                if index[key] == nil { index[key] = rows.count - 1 }
             }
         }
         return rows
@@ -75,11 +76,13 @@ enum PlaceEvents {
         count > 0 ? "+\(count) more date\(count == 1 ? "" : "s")" : nil
     }
 
-    /// The rows under their days, the first `limit` of them: a day cut short keeps the ones that fit.
-    static func days(_ rows: [PlaceEventRow], limit: Int = .max) -> [PlaceEventDay] {
+    /// The rows under their days, the first `limit` of them: a day cut short keeps the ones that fit. An Event that
+    /// started on an earlier day and is still on sits under today.
+    static func days(_ rows: [PlaceEventRow], now: Date, limit: Int = .max) -> [PlaceEventDay] {
+        let today = calendar.startOfDay(for: now)
         var days: [PlaceEventDay] = []
         for row in rows.prefix(limit) {
-            let day = calendar.startOfDay(for: row.event.starts)
+            let day = max(calendar.startOfDay(for: row.event.starts), today)
             if days.last?.day == day {
                 days[days.count - 1].rows.append(row)
             } else {
@@ -112,25 +115,12 @@ enum PlaceEvents {
         default: return price.count <= 10 && price.wholeMatch(of: /\$\d+(\.\d\d)?( [A-Za-z]+)*/) != nil ? price : nil
         }
     }
+}
 
-    /// Where the Event is, said only when it isn't this place: nil when either name holds the other once both are
-    /// folded (letter case, accents, "&" for "and", "St." for "Saint"), so a room in the place counts as here.
-    static func elsewhere(_ location: String?, place: String) -> String? {
-        guard let location = location?.trimmingCharacters(in: .whitespacesAndNewlines), !location.isEmpty else {
-            return nil
-        }
-        let here = folded(place), there = folded(location)
-        return there.contains(here) || here.contains(there) ? nil : location
-    }
-
-    /// A name's words, folded and spaced at both ends so "contains" matches whole words.
-    private static func folded(_ name: String) -> String {
-        let words = name.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil).lowercased()
-            .replacingOccurrences(of: "&", with: " and ")
-            .split { !$0.isLetter && !$0.isNumber }
-            .map { $0 == "st" ? "saint" : String($0) }
-        return " " + words.joined(separator: " ") + " "
-    }
+/// Where "+24 more dates" sits in its row, so its own button can be laid over that spot.
+private struct MoreSpot: PreferenceKey {
+    static let defaultValue: Anchor<CGRect>? = nil
+    static func reduce(value: inout Anchor<CGRect>?, nextValue: () -> Anchor<CGRect>?) { value = value ?? nextValue() }
 }
 
 /// One row of a place's list: an Event at its date and, for a repeat, its later dates.
@@ -194,13 +184,11 @@ enum PlaceEventsMetric {
     static let tagGap: CGFloat = 10
     static let tagInset: CGFloat = 7
     static let tagHeight: CGFloat = 20
-    static let tagCorner: CGFloat = 6
     static let lineTop: CGFloat = 6
     static let lineGap: CGFloat = 6
     static let seeAll: CGFloat = 44
-    /// "+24 more dates" under the time (`.mo`), and how far past it its tap reaches (agent's pick: to 44 pt).
+    /// "+24 more dates" under the time (`.mo`).
     static let moreTop: CGFloat = 3
-    static let moreReach: CGFloat = 12
     static let seeAllTop: CGFloat = 20
 }
 
@@ -208,9 +196,8 @@ enum PlaceEventsMetric {
 /// title and its Events, the next ten and then "See all". The button puts the place's month in the list's place and
 /// takes it away. No section at all with nothing coming up or no read.
 struct PlaceEventsSection: View {
+    /// The place: its Events are the ones found at it (`club_events.place_entry_id`), so a row never names a place.
     let entryId: String
-    /// The place's name: a row says where its Event is only when it isn't here.
-    let place: String
 
     @Environment(SearchModel.self) private var model: SearchModel?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -296,7 +283,7 @@ struct PlaceEventsSection: View {
 
     private func list(_ rows: [PlaceEventRow], now: Date) -> some View {
         LazyVStack(alignment: .leading, spacing: 0) {
-            ForEach(PlaceEvents.days(rows, limit: all ? .max : PlaceEvents.shown)) { day in
+            ForEach(PlaceEvents.days(rows, now: now, limit: all ? .max : PlaceEvents.shown)) { day in
                 dayTitle(day.day, now: now)
                     .padding(.top, Size.dayTop)
                 ForEach(day.rows) { row($0, now: now).padding(.top, Size.listRowTop) }
@@ -328,15 +315,18 @@ struct PlaceEventsSection: View {
             .accessibilityAddTraits(.isHeader)
     }
 
-    /// The Event's picture, its title and price tag, its time and, when it's somewhere else, where; a repeat adds
-    /// "+24 more dates", whose tap opens those dates under the row and folds them again (profile-left 06). A tap
-    /// elsewhere opens its Event page as the month's rows do.
+    /// The Event's picture, its title and price tag and its time; a repeat adds "+24 more dates", whose tap opens
+    /// those dates under the row and folds them again (profile-left 06). A tap elsewhere opens its Event page as the
+    /// month's rows do. "+24 more dates" is its own button laid over its spot in the row, never inside the row's.
     private func row(_ row: PlaceEventRow, now: Date) -> some View {
         let event = row.event
         let isOpen = opened.contains(row.id)
         let more = PlaceEvents.moreDates(row.more.count)
         let tag = PlaceEvents.priceTag(event.item.price)
-        let elsewhere = PlaceEvents.elsewhere(event.item.location, place: place)
+        let toggle = {
+            Haptics.selection()
+            withAnimation(reduceMotion ? nil : Motion.bentoExpand) { opened.formSymmetricDifference([row.id]) }
+        }
         let label = HStack(alignment: .top, spacing: Size.listPhotoGap) {
             Hue.fill
                 .frame(width: Size.listPhoto, height: Size.listPhoto)
@@ -356,28 +346,17 @@ struct PlaceEventsSection: View {
                             .foregroundStyle(Hue.priceTag)
                             .padding(.horizontal, Size.tagInset)
                             .frame(height: Size.tagHeight)
-                            .background(RoundedRectangle(cornerRadius: Size.tagCorner, style: .continuous)
+                            .background(RoundedRectangle(cornerRadius: Radius.priceTag, style: .continuous)
                                 .fill(Hue.priceTagWash))
                             .fixedSize()
                     }
                 }
                 line("clock", event.startTime(now: now))
-                if let elsewhere { line("mappin", elsewhere) }
                 if let more {
-                    Button {
-                        Haptics.selection()
-                        withAnimation(reduceMotion ? nil : Motion.bentoExpand) {
-                            if isOpen { opened.remove(row.id) } else { opened.insert(row.id) }
-                        }
-                    } label: {
-                        Text(more)
-                            .font(.sansSemibold(15))
-                            .foregroundStyle(Hue.ink)
-                            .padding(.top, Size.moreTop)
-                            // Its tap reaches past the line to the 44 pt minimum.
-                            .contentShape(Rectangle().inset(by: -Size.moreReach))
-                    }
-                    .buttonStyle(.press(.squish))
+                    // Holds the button's room; the button itself is laid over it, outside the row's.
+                    moreText(more)
+                        .hidden()
+                        .anchorPreference(key: MoreSpot.self, value: .bounds) { $0 }
                 }
             }
             .padding(.top, Size.listTextTop)
@@ -387,10 +366,27 @@ struct PlaceEventsSection: View {
         return VStack(alignment: .leading, spacing: 0) {
             opener(event.item) { label }
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel([event.item.title, event.startSpoken(now: now), tag, elsewhere, more]
+                .accessibilityLabel([event.item.title, event.startSpoken(now: now), tag, more]
                     .compactMap { $0 }.joined(separator: ", "))
-                .accessibilityAction(named: isOpen ? "Hide more dates" : "Show more dates") {
-                    if more != nil { opened.formSymmetricDifference([row.id]) }
+                .accessibilityActions {
+                    if more != nil { Button(isOpen ? "Hide more dates" : "Show more dates", action: toggle) }
+                }
+                .overlayPreferenceValue(MoreSpot.self) { spot in
+                    if let spot, let more {
+                        GeometryReader { proxy in
+                            let frame = proxy[spot]
+                            Button(action: toggle) {
+                                moreText(more)
+                                    // Its tap reaches past the line to the 44 pt minimum.
+                                    .contentShape(TapArea())
+                            }
+                            .buttonStyle(.press(.squish))
+                            .frame(width: frame.width, height: frame.height)
+                            .offset(x: frame.minX, y: frame.minY)
+                            // VoiceOver has it as the row's action.
+                            .accessibilityHidden(true)
+                        }
+                    }
                 }
             if isOpen {
                 VStack(alignment: .leading, spacing: 0) {
@@ -401,6 +397,13 @@ struct PlaceEventsSection: View {
                 .transition(.opacity)
             }
         }
+    }
+
+    private func moreText(_ more: String) -> some View {
+        Text(more)
+            .font(.sansSemibold(15))
+            .foregroundStyle(Hue.ink)
+            .padding(.top, Size.moreTop)
     }
 
     /// One of a repeat's more dates, "Nov 28 / Saturday" with a chevron, opening that date's Event page.
